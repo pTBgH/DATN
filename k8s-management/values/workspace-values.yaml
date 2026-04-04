@@ -1,0 +1,35 @@
+image:
+  registry: docker-registry.registry.svc.cluster.local:5000
+  repository: job7189/workspace-service
+  tag: "v1.0.6"
+  pullPolicy: Always
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: "workspace.job7189.local"
+
+redis:
+  enabled: true
+
+env:
+  APP_NAME: "Job7189 Workspace Service"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql.data.svc.cluster.local
+  DB_PORT: "3306"
+  DB_DATABASE: job7189_workspace_db
+  # DB_USERNAME will be injected by Vault Agent
+  # DB_PASSWORD will be injected by Vault Agent from database/creds/workspace-service
+  
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "debug"
+  CACHE_PREFIX: workspace_
+  IDENTITY_SERVICE_URL: "http://identity-service"
+  REDIS_HOST: "workspace-service-redis"
+  SUPER_ADMIN_WORKSPACE_ID: "019bb56a-58cf-7241-b150-4e6c39f8ce4c"
+
+vault:
+  extraSecret: false
+

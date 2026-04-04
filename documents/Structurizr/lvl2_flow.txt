@@ -1,0 +1,129 @@
+workspace "Job7189 Architecture" "Sơ đồ luồng xử lý nghiệp vụ hệ thống Job7189" {
+
+    model {
+        # People
+        candidate = person "Candidate" "Người tìm việc có nhu cầu tìm kiếm cơ hội nghề nghiệp." "User"
+        recruiter = person "Recruiter" "Nhà tuyển dụng của các tổ chức." "User"
+        sysAdmin = person "System Admin" "Quản trị viên hệ thống Job7189." "User"
+        
+        # External Systems
+        identityProvider = softwareSystem "Identity Provider" "Hệ thống quản lý danh tính và xác thực tập trung." "Keycloak"
+        emailSystem = softwareSystem "Email System" "Dịch vụ gửi thư điện tử bên thứ ba." "External"
+        objectStorage = softwareSystem "Object Storage" "Hệ thống lưu trữ object cho tệp tin CV và ảnh." "External"
+
+        jobSystem = softwareSystem "Job7189 System" "Hệ thống tuyển dụng trực tuyến." {
+            candidateApp = container "Candidate Web Application" "Giao diện dành cho ứng viên tìm việc và ứng tuyển." "Next.js"
+            managementApp = container "Tenant Web Application" "Giao diện quản trị dành cho nhà tuyển dụng và Admin." "Next.js"
+            apiGateway = container "API Gateway" "Cổng vào duy nhất, xử lý định tuyến và xác thực." "Kong Gateway" "Gateway"
+
+            identitySvc = container "Identity Service" "Quản lý thông tin hồ sơ người dùng và đồng bộ tài khoản." "Laravel" "Microservice"
+            workspaceSvc = container "Workspace Service" "Quản lý tổ chức và phân quyền Bitmask." "Laravel" "Microservice"
+            jobSvc = container "Job Service" "Quản lý vòng đời tin tuyển dụng." "Laravel" "Microservice"
+            hiringSvc = container "Hiring Service" "Quản lý quy trình ATS và chấm điểm ứng viên." "Laravel" "Microservice"
+            candidateSvc = container "Candidate Service" "Quản lý hồ sơ CV và lịch sử ứng tuyển." "Laravel" "Microservice"
+            commSvc = container "Communication Service" "Xử lý kênh chat và gửi thông báo email." "Laravel" "Microservice"
+            storageSvc = container "Storage Service" "Dịch vụ quản lý quyền truy cập tệp tin (S3)." "Laravel" "Microservice"
+            
+            messageBus = container "Message Bus" "Hệ thống truyền thông điệp sự kiện để liên kết lỏng lẻo giữa các dịch vụ." "Apache Kafka" "Queue"
+        }
+
+        # User interactions
+        candidate -> candidateApp "Sử dụng"
+        recruiter -> managementApp "Sử dụng"
+        sysAdmin -> managementApp "Sử dụng"
+        
+        # --- 2. Authentication Flow (BỔ SUNG QUAN TRỌNG) ---
+        # Frontend phải lấy Token từ Keycloak trước
+        candidateApp -> identityProvider "Xác thực"
+        managementApp -> identityProvider "Xác thực"
+        
+        # Routing flow
+        candidateApp -> apiGateway "Gửi y.cầu (HTTP(S) /JSON)"
+        managementApp -> apiGateway "Gửi y.cầu (HTTP(S) /JSON)"
+        apiGateway -> identityProvider "Xác thực Token"
+        identitySvc -> identityProvider "Xác thực Token"
+        apiGateway -> identitySvc "Định tuyến Profile"
+        apiGateway -> workspaceSvc "Định tuyến Tổ chức"
+        apiGateway -> jobSvc "Định tuyến Tin t.dụng"
+        apiGateway -> hiringSvc "Định tuyến Tuyển dụng"
+        apiGateway -> candidateSvc "Định tuyến Hồ sơ"
+        apiGateway -> commSvc "Định tuyến Kênh giao tiếp"
+        apiGateway -> storageSvc "Định tuyến Lưu trữ"
+
+        # Internal API (Sync)
+        hiringSvc -> jobSvc "Lấy tt Job"
+        #hiringSvc -> identitySvc "Lấy tt danh tính"
+        hiringSvc -> workspaceSvc "Kiểm tra quyền"
+        jobSvc -> workspaceSvc "Kiểm tra quyền"
+        #jobSvc -> identitySvc "Lấy tt danh tính"
+        identitySvc -> workspaceSvc "Lấy danh sách tổ chức"
+        candidateSvc -> jobSvc "Lấy tt Job"
+        candidateSvc -> storageSvc "Xin URL xem file"
+        #candidateSvc -> identitySvc "Lấy tt danh tính"
+
+        # Message Bus Events (Async)
+        candidateSvc -> messageBus "Phát sự kiện"
+        hiringSvc -> messageBus "Phát sự kiện"
+        jobSvc -> messageBus "Phát sự kiện"
+        workspaceSvc -> messageBus "Phát sự kiện"
+        messageBus -> commSvc "Nhận sự kiện"
+        messageBus -> hiringSvc "Nhận sự kiện"
+
+        # External Interaction
+        commSvc -> emailSystem "Gửi email"
+        storageSvc -> objectStorage "Cấp quyền truy cập"
+        candidateApp -> objectStorage "Truyền tệp"
+        managementApp -> objectStorage "Truyền tệp"
+    }
+
+    views {
+        container jobSystem "ViewNghiepVu" "Sơ đồ Container: Luồng xử lý nghiệp vụ đầy đủ" {
+            include *
+            # autoLayout tb
+        }
+
+        styles {
+            element "Element" {
+                description false
+                metadata false
+                fontSize 44
+            }
+            element "Person" {
+                shape Person
+                background #08427b
+                color #ffffff
+            }
+            element "Container" {
+                background #438dd5
+                color #ffffff
+            }
+            element "Microservice" {
+                shape Hexagon
+                background #2f9d66
+                color #ffffff
+            }
+            element "Gateway" {
+                shape RoundedBox
+                background #16a34a
+                color #ffffff
+            }
+            element "External" {
+                background #999999
+                color #ffffff
+            }
+            element "Queue" {
+                shape Pipe
+                background #ea580c
+            }
+            relationship "Relationship" {
+                thickness 9
+                color #000000
+                fontSize 50
+            }
+            element "Keycloak" {
+                background #999999
+                color #ffffff   
+            }
+        }
+    }
+}

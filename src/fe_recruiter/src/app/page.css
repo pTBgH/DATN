@@ -1,0 +1,19 @@
+.sidebar {
+  background: linear-gradient(135deg, #FF6B35 0%, #FF8A50 100%);
+}
+
+.menu-item-active {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

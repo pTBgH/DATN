@@ -1,0 +1,167 @@
+# --- 1. Cấu hình MySQL (ConfigMap - Bật Binlog cho Kafka) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: data
+data:
+  custom.cnf: |
+    [mysqld]
+    # ID định danh duy nhất (Bắt buộc cho Replication/Kafka)
+    server-id = 1
+    # Bật ghi log nhị phân
+    log_bin = mysql-bin
+    # Định dạng log là ROW (để bắt được thay đổi dữ liệu chi tiết)
+    binlog_format = ROW
+    # Giữ log trong 7 ngày
+    binlog_expire_logs_seconds = 604800
+    binlog_row_image = FULL
+
+---
+# --- 2. Ổ cứng cho MySQL ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# --- 3. MySQL Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: data
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: mysql-root-password
+        - name: MYSQL_DATABASE
+          value: job7189keycloak
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+        # Mount file cấu hình vào đây để MySQL đọc
+        - name: mysql-config-volume
+          mountPath: /etc/mysql/conf.d
+        # ZTA: Init scripts create empty databases only (no credentials)
+        - name: mysql-init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+      # Lấy file cấu hình từ ConfigMap ở trên
+      - name: mysql-config-volume
+        configMap:
+          name: mysql-config
+      # ZTA: Database initialization (empty databases only)
+      - name: mysql-init-scripts
+        configMap:
+          name: mysql-init-databases
+
+---
+# --- 4. MySQL Service (Nội bộ) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: data
+spec:
+  ports:
+  - port: 3306
+  selector:
+    app: mysql
+
+---
+# --- 5.1. Cấu hình PHP cho phpMyAdmin ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: phpmyadmin-config
+  namespace: management
+data:
+  upload.ini: |
+    upload_max_filesize = 500M
+    post_max_size = 500M
+    max_execution_time = 600
+    max_input_time = 600
+    memory_limit = 512M
+
+---
+# --- 5.2. phpMyAdmin Deployment (Cập nhật) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phpmyadmin
+  namespace: management
+spec:
+  selector:
+    matchLabels:
+      app: phpmyadmin
+  template:
+    metadata:
+      labels:
+        app: phpmyadmin
+    spec:
+      containers:
+      - name: phpmyadmin
+        image: phpmyadmin/phpmyadmin:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PMA_HOST
+          value: "mysql.data.svc.cluster.local"
+        - name: PMA_PORT
+          value: "3306"
+        # Thêm biến môi trường để PHP đọc file cấu hình
+        - name: PHP_INI_SCAN_DIR
+          value: "/usr/local/etc/php/conf.d:/etc/php/conf.d"
+        ports:
+        - containerPort: 80
+        # Mount file cấu hình PHP
+        volumeMounts:
+        - name: php-config
+          mountPath: /usr/local/etc/php/conf.d/upload.ini
+          subPath: upload.ini
+      volumes:
+      - name: php-config
+        configMap:
+          name: phpmyadmin-config
+
+---
+# --- 6. phpMyAdmin Service (Ra ngoài) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: phpmyadmin
+  namespace: management
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
+  selector:
+    app: phpmyadmin

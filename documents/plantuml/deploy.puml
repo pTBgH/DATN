@@ -1,0 +1,126 @@
+@startuml
+title Deployment Diagram - TopJob Microservices (Local / On-Premise)
+
+skinparam componentStyle uml2
+skinparam node {
+    BackgroundColor White
+    BorderColor Black
+}
+skinparam databaseBackgroundColor #E6F5FD
+skinparam artifactBackgroundColor #FEFECE
+skinparam queueBackgroundColor #E0E0E0
+
+' =====================================================
+' 1. CLIENT TIER
+' =====================================================
+node "User Device" as client_node {
+    node "Web Browser / Mobile" {
+        artifact "Single Page App (SPA)\n[React / Next.js]" as spa_art
+    }
+}
+
+' =====================================================
+' 2. LOCAL / ON-PREMISE INFRASTRUCTURE
+' =====================================================
+node "On-Premise / Local Infrastructure" {
+
+    ' -----------------------------
+    ' A. EDGE & SECURITY LAYER
+    ' -----------------------------
+    node "API Gateway Node" {
+        component "Kong API Gateway" as kong <<API Gateway>>
+    }
+
+    node "IAM & Authorization Node" {
+        component "Keycloak" as keycloak <<Identity Provider>>
+        component "Authorization Service" as authz_svc <<RBAC / Policy>>
+    }
+
+    ' -----------------------------
+    ' B. APPLICATION LAYER
+    ' -----------------------------
+    frame "Internal Network (LAN / Docker / K8s Local)" {
+
+        node "BFF Node" {
+            artifact "Core API Gateway\n(Laravel BFF)" as bff_art
+        }
+
+        node "Core Services" {
+            artifact "Identity Svc" as id_svc
+            artifact "Master Data Svc" as master_svc
+            artifact "Company Svc" as company_svc
+        }
+
+        node "Recruitment Services" {
+            artifact "Job Svc" as job_svc
+            artifact "Search Svc" as search_svc
+        }
+
+        node "Hiring Services" {
+            artifact "Candidate Svc" as candidate_svc
+            artifact "Hiring Svc" as hiring_svc
+        }
+    }
+
+    ' -----------------------------
+    ' C. DATA & INFRA LAYER
+    ' -----------------------------
+    queue "Event Bus\n(RabbitMQ / Kafka)" as bus
+
+    node "Storage Server" {
+        component "MinIO" as minio <<Object Storage>>
+    }
+
+    node "Database Server" {
+        database "MySQL\n(Per Service DB)" as db_cluster
+        database "Elasticsearch" as db_elastic
+    }
+}
+
+' =====================================================
+' 3. EXTERNAL SERVICES (OPTIONAL)
+' =====================================================
+node "External SMTP Server" as smtp {
+    component "Mail Server" as mail_comp
+}
+
+' =====================================================
+' RELATIONSHIPS
+' =====================================================
+
+' Client -> Gateway
+spa_art -[bold]-> kong : HTTPS Request
+
+' Gateway -> Keycloak (AuthN)
+kong .[dotted].> keycloak : Token Validation (JWKS / Introspection)
+
+' Gateway -> BFF
+kong -[bold]-> bff_art : Forward Request\n(User Context)
+
+' BFF -> Authorization Service (AuthZ)
+bff_art .[dotted].> authz_svc : Check Permission / Role
+
+' BFF -> Microservices
+bff_art --> id_svc
+bff_art --> master_svc
+bff_art --> company_svc
+bff_art --> job_svc
+bff_art --> search_svc
+bff_art --> candidate_svc
+bff_art --> hiring_svc
+
+' Services -> Databases
+id_svc ..> db_cluster
+job_svc ..> db_cluster
+hiring_svc ..> db_cluster
+search_svc ..> db_elastic
+
+' Async Events
+job_svc --> bus : Publish Job Event
+bus --> search_svc : Consume Event
+
+' Storage & Mail
+company_svc --> minio : Store Files
+hiring_svc --> mail_comp : Send Email
+
+@enduml

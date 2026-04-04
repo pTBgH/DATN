@@ -1,0 +1,41 @@
+# oauth2-proxy chạy ở namespace security.
+# Nginx Ingress chỉ resolve service trong cùng namespace với Ingress resource.
+# Các Ingress ở namespace khác cần ExternalName Service làm alias.
+
+# ── management: phpMyAdmin, Kafbat ────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: management
+spec:
+  type: ExternalName
+  externalName: oauth2-proxy.security.svc.cluster.local
+  ports:
+  - port: 80
+
+---
+# ── monitoring: Prometheus, Grafana ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: monitoring
+spec:
+  type: ExternalName
+  externalName: oauth2-proxy.security.svc.cluster.local
+  ports:
+  - port: 80
+
+---
+# ── kube-system: Hubble UI ────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: kube-system
+spec:
+  type: ExternalName
+  externalName: oauth2-proxy.security.svc.cluster.local
+  ports:
+  - port: 80

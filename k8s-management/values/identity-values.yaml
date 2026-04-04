@@ -1,0 +1,43 @@
+image:
+  registry: docker-registry.registry.svc.cluster.local:5000
+  repository: job7189/identity-service
+  tag: "v2.8.2"
+  pullPolicy: Never
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: "identity.job7189.local"
+
+redis:
+  enabled: true
+
+env:
+  APP_NAME: "Job7189 Identity Service"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql.data.svc.cluster.local
+  DB_PORT: "3306"
+  DB_DATABASE: job7189_identity_db
+  # DB_USERNAME will be injected by Vault Agent
+  # DB_PASSWORD will be injected by Vault Agent from database/creds/identity-service
+
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "debug"
+  CACHE_PREFIX: identity_
+  KEYCLOAK_REALM: "job7189"
+  KEYCLOAK_BASE_URL: "http://keycloak.security.svc.cluster.local:8080"
+  REDIS_HOST: "identity-service-redis"
+  IDENTITY_SERVICE_URL: "http://identity-service"
+  WORKSPACE_SERVICE_URL: "http://workspace-service"
+  # LARAVEL_INTERNAL_API_SECRET will be injected by Vault Agent from secret/data/identity-service
+
+vault:
+  extraSecret: true
+  extraSecretTemplate: |
+    {{- with secret "secret/data/identity-service" -}}
+    LARAVEL_INTERNAL_API_SECRET="{{ .Data.data.LARAVEL_INTERNAL_API_SECRET }}"
+    {{ end }}
+

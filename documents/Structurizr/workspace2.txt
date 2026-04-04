@@ -1,0 +1,180 @@
+workspace "Job7189 Architecture" "Kiến trúc Microservices - Updated APIs" {
+
+    model {
+        # 1. Actors
+        candidate = person "Candidate" "Người tìm việc" "User"
+        recruiter = person "Recruiter" "Nhà tuyển dụng" "User"
+        sysAdmin = person "System Admin" "Quản trị hệ thống" "User"
+
+        # 2. External Systems
+        keycloak = softwareSystem "Keycloak" "Identity Provider (SSO)" "External"
+        emailSystem = softwareSystem "Email Service" "Gmail/SendGrid (SMTP)" "External"
+        minioSystem = softwareSystem "MinIO" "Object Storage (S3)" "External"
+
+        # 3. Job7189 System
+        jobSystem = softwareSystem "Job7189 System" {
+
+            # --- INFRASTRUCTURE ---
+            apiGateway = container "API Gateway" "Kong Gateway (Routes API)" "Gateway"
+            kafka = container "Kafka Cluster" "Event Bus" "Infrastructure" "Queue"
+
+            # --- FRONTEND ---
+            webApp = container "Web Application" "SPA (React/Vue)" "Web Browser"
+
+            # --- MICROSERVICES ---
+
+            group "Identity Context" {
+                identityService = container "Identity Service" "API: /recruiters/profile, /candidates/profile" "Laravel" "Microservice"
+                identityDb = container "Identity DB" "MySQL" "Database"
+                identityRedis = container "Identity Redis" "Cache" "Redis" "Database"
+            }
+
+            group "Workspace Context" {
+                workspaceService = container "Workspace Service" "API: /workspaces, /members, /invitations" "Laravel" "Microservice"
+                workspaceDb = container "Workspace DB" "MySQL" "Database"
+                workspaceRedis = container "Workspace Redis" "Cache Permissions" "Redis" "Database"
+            }
+
+            group "Job Context" {
+                jobService = container "Job Service" "API: /jobs, /public/jobs, /admin/jobs" "Laravel" "Microservice"
+                jobDb = container "Job DB" "MySQL" "Database"
+                jobRedis = container "Job Redis" "Cache Search Results" "Redis" "Database"
+            }
+
+            group "Hiring Context (ATS)" {
+                hiringService = container "Hiring Service" "API: /applications, /pipelines, /board" "Laravel" "Microservice"
+                hiringDb = container "Hiring DB" "MySQL" "Database"
+                hiringRedis = container "Hiring Redis" "Cache Board State" "Redis" "Database"
+            }
+
+            group "Candidate Context" {
+                candidateService = container "Candidate Service" "API: /resumes, /interactions" "Laravel" "Microservice"
+                candidateDb = container "Candidate DB" "MySQL" "Database"
+                candidateRedis = container "Candidate Redis" "Cache CV Data" "Redis" "Database"
+            }
+
+            group "Communication Context" {
+                commService = container "Communication Service" "API: /conversations (Chat & Email Worker)" "Laravel" "Microservice"
+                commDb = container "Communication DB" "MySQL (Chat Logs)" "Database"
+                commRedis = container "Comm Redis" "Cache Contact Info" "Redis" "Database"
+            }
+
+            group "Utility Context" {
+                storageService = container "Storage Service" "API: /presigned-url" "Laravel" "Microservice"
+            }
+        }
+
+        # --- RELATIONSHIPS ---
+
+        # Users & Web
+        candidate -> webApp "Dùng"
+        recruiter -> webApp "Dùng"
+        sysAdmin -> webApp "Dùng"
+        webApp -> apiGateway "HTTPS/JSON"
+
+        # Gateway Routing (Updated based on API Table)
+        apiGateway -> identityService "Route /profile..."
+        apiGateway -> workspaceService "Route /workspaces..."
+        apiGateway -> jobService "Route /jobs, /public/jobs, /admin/jobs..."
+        apiGateway -> hiringService "Route /applications, /pipelines..."
+        apiGateway -> candidateService "Route /resumes, /interactions..."
+        apiGateway -> commService "Route /conversations..."
+        apiGateway -> storageService "Route /presigned-url"
+
+        # Internal: Service -> DB/Redis
+        identityService -> identityDb "R/W"
+        identityService -> identityRedis "Cache"
+        workspaceService -> workspaceDb "R/W"
+        workspaceService -> workspaceRedis "Cache"
+        jobService -> jobDb "R/W"
+        jobService -> jobRedis "Cache"
+        hiringService -> hiringDb "R/W"
+        hiringService -> hiringRedis "Cache"
+        candidateService -> candidateDb "R/W"
+        candidateService -> candidateRedis "Cache"
+        commService -> commDb "R/W"
+        commService -> commRedis "Cache"
+
+        # --- SYNC INTERACTIONS (REST) - Bổ sung mới ---
+        
+        # 1. Candidate cần lấy thông tin Job đã lưu (API: /interactions/saved-jobs)
+        candidateService -> jobService "GET /internal/jobs/{ids}"
+
+        # 2. Hiring cần lấy link CV để view (API: /applications/{id}/cv-view)
+        hiringService -> candidateService "GET /internal/resumes/{id}"
+
+        # 3. Hiring cần validate Job status (API: /jobs/{id}/apply)
+        hiringService -> jobService "GET /internal/jobs/{id}/status"
+
+        # 4. Workspace lấy thông tin User để add member
+        workspaceService -> identityService "GET /internal/users"
+
+        # 5. Job lấy thông tin Author
+        jobService -> identityService "GET /internal/users"
+
+        # --- ASYNC INTERACTIONS (KAFKA) ---
+        
+        # Event flow
+        identityService -> kafka "Pub: user.updated"
+        workspaceService -> kafka "Pub: invitation.created"
+        jobService -> kafka "Pub: job.published, job.closed"
+        hiringService -> kafka "Pub: application.moved"
+
+        # Consumer flow
+        kafka -> commService "Sub: all events -> Send Email/Noti"
+        kafka -> commService "Sub: user.updated -> Update Redis"
+        kafka -> hiringService "Sub: job.closed -> Freeze Apps"
+
+        # External
+        identityService -> keycloak "Sync"
+        commService -> emailSystem "SMTP"
+        storageService -> minioSystem "S3 API"
+        webApp -> minioSystem "Direct Upload"
+    }
+
+    views {
+        systemContext jobSystem "ContextView" {
+            include *
+            autoLayout
+        }
+
+        container jobSystem "ContainerView" {
+            include *
+            autoLayout tb
+        }
+
+        styles {
+            element "Person" {
+                background #08427b
+                color #ffffff
+                shape Person
+            }
+            element "Software System" {
+                background #1168bd
+                color #ffffff
+            }
+            element "Container" {
+                background #438dd5
+                color #ffffff
+            }
+            element "Microservice" {
+                shape Hexagon
+                background #2f9d66
+            }
+            element "Database" {
+                shape Cylinder
+                background #85bbf0
+                color #000000
+            }
+            element "Queue" {
+                shape Pipe
+                background #ff8888
+            }
+             element "Gateway" {
+                shape RoundedBox
+                background #f5da81
+                color #000000
+            }
+        }
+    }
+}

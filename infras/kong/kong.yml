@@ -1,0 +1,194 @@
+_format_version: "3.0"
+_transform: true
+
+# ======================================================
+# 1. CONSUMERS & JWT
+# ======================================================
+consumers:
+  - username: keycloak-user
+    custom_id: keycloak-issuer
+    jwt_secrets:
+      - algorithm: RS256
+        key: "http://auth.job7189.local/realms/job7189"
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ioBZRZUKmSY20QjSDM+UX9puzYAgFG91/boFK1Sy41aHIs3ohIWJHZFtXvKSO75GxePMvmoh5tPo0GQNyKMNvrngyQfeQPY4b2JrxjyPXRRaHCWKYyqCWjZv2x3KipJOivLn+ZmgohPe7r7JIdpxrRVZJt/jS2H2cdpMtUNlYHvj3teRfuTZgBsWDHQoz7ig/qCnO7EhtDpJ/9X4p/w3lD1Opr/oEtrQzmq7PJTlWRd+6gut/Ur/oEOrmuCnnGQ//Om993UkFpfikATAkRCIJO8lH2BYq+t9xnOQb7mltHwgs43m8AwdN3HZvZ2ae6rqAfJypMPIP9J/QOTiGHLnQIDAQAB
+          -----END PUBLIC KEY-----
+
+# ======================================================
+# 2. SERVICES & ROUTES
+# ======================================================
+services:
+
+  # ======================
+  # INTERNAL TOOLS
+  # ======================
+  # - name: phpmyadmin-service
+  #   url: http://phpmyadmin.management.svc.cluster.local:80
+  #   routes:
+  #     - name: phpmyadmin-root
+  #       paths: ["/phpmyadmin/", "/myadmin/", "/db-root/"]
+  #       strip_path: true
+
+  - name: phpmyadmin-service
+    url: http://phpmyadmin.management.svc.cluster.local:80
+    routes:
+      - name: phpmyadmin-route
+        paths: ["/pma/"]   # hoặc ["/myadmin/"], ["/admin-db/"]
+        strip_path: true
+
+  # - name: phpmyadmin-service
+  #   url: http://phpmyadmin.management.svc.cluster.local:80
+  #   routes:
+  #     - name: phpmyadmin-route
+  #       paths: ["/db"]
+  #       strip_path: true
+  #       plugins:
+  #         - name: request-transformer   # giữ nếu bạn muốn, nhưng không bắt buộc
+  #           config:
+  #             add:
+  #               headers:
+  #                 - "X-Forwarded-Prefix: /db"
+  #         - name: response-transformer
+  #           config:
+  #             rename:
+  #               headers:
+  #                 - original: Location
+  #                   replacement: /db$1   # <-- Đây là phần chính: nếu Location = /xxx thì thành /db/xxx
+  #             # Hoặc dùng regex chi tiết hơn (nếu rename không đủ):
+  #             # headers:
+  #             #   - original: Location
+  #             #     replacement: ^/(.*)$ → /db/$1   # regex: bắt đầu bằng / thì thêm /db/
+  #             add:
+  #               headers: []   # nếu cần thêm header khác
+  #             remove:
+  #               headers: []   # nếu cần xóa header nào
+
+  - name: kafbat-service
+    url: http://kafbat.management.svc.cluster.local:80
+    routes:
+      - name: kafbat-route
+        paths: ["/kafka"]
+        strip_path: true
+
+  # ======================
+  # IDENTITY
+  # ======================
+  - name: identity-service
+    url: http://identity-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - { name: identity-profiles, paths: ["/api/recruiters/profile"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-admin, paths: ["/api/admin/users"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-health, paths: ["/api/health"], strip_path: false }
+
+  # ======================
+  # WORKSPACE
+  # ======================
+  - name: workspace-service
+    url: http://workspace-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - { name: workspace-core, paths: ["/api/workspaces"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: workspace-invitations, paths: ["/api/invitations"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: workspace-options, paths: ["/api/options/company-types"], strip_path: false }
+
+  # ======================
+  # JOB
+  # ======================
+  - name: job-service
+    url: http://job-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - name: job-workspace-context
+        paths: ["~/api/workspaces/[^/]+/jobs"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+
+      - { name: job-admin, paths: ["/api/admin/jobs"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: job-admin-categories, paths: ["/api/admin/categories"], strip_path: false, plugins: [{ name: jwt }] }
+
+      - { name: job-standalone, paths: ["/api/jobs"], strip_path: false }
+      - { name: job-public, paths: ["/api/public/jobs"], strip_path: false }
+      - { name: job-options, paths: ["/api/options/general"], strip_path: false }
+
+      # Metadata (private)
+      - { name: job-metadata-common, paths: ["/api/metadata/common"], strip_path: false }
+      - name: job-metadata-districts
+        paths: ["~/api/metadata/districts/[^/]+"]
+        strip_path: false
+
+      # Metadata (public)
+      - { name: job-public-metadata-common, paths: ["/api/public/metadata/common"], strip_path: false }
+      - name: job-public-metadata-districts
+        paths: ["~/api/public/metadata/districts/[^/]+"]
+        strip_path: false
+
+      # Company
+      - name: job-company-detail
+        paths: ["~/api/companies/[^/]+"]
+        strip_path: false
+
+  # ======================
+  # HIRING
+  # ======================
+  - name: hiring-service
+    url: http://hiring-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - name: hiring-pipelines
+        paths: ["~/api/workspaces/[^/]+/pipelines"]
+        strip_path: false
+        plugins: [{ name: jwt }]
+      - { name: hiring-apply, paths: ["~/api/jobs/[^/]+/apply"], strip_path: false }
+      - { name: hiring-applications, paths: ["/api/applications"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: hiring-board, paths: ["/api/board"], strip_path: false, plugins: [{ name: jwt }] }
+
+      - { name: hiring-interviews, paths: ["/api/interviews"], strip_path: false, plugins: [{ name: jwt }] }
+
+      - name: hiring-scorecards
+        paths: ["~/api/applications/[^/]%2B/scorecards"]
+        strip_path: false
+        regex_priority: 100
+        plugins: [{ name: jwt }]
+
+  # ======================
+  # CANDIDATE
+  # ======================
+  - name: candidate-service
+    url: http://candidate-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - { name: candidate-resumes, paths: ["/api/resumes"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: candidate-interactions, paths: ["/api/interactions"], strip_path: false, plugins: [{ name: jwt }] }
+
+  # ======================
+  # COMMUNICATION
+  # ======================
+  - name: communication-service
+    url: http://communication-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - { name: comm-conversations, paths: ["/api/conversations"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: comm-messages, paths: ["/api/messages"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: comm-notifications, paths: ["/api/notifications"], strip_path: false, plugins: [{ name: jwt }] }
+
+      - name: comm-messages-history
+        paths: ["~/api/conversations/[^/]%2B/messages"]
+        strip_path: false
+        regex_priority: 100
+        plugins: [{ name: jwt }]
+
+  # ======================
+  # STORAGE
+  # ======================
+  - name: storage-service
+    url: http://storage-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - { name: storage-main, paths: ["/api/presigned-url"], strip_path: false }
+
+# ======================================================
+# 3. GLOBAL PLUGINS
+# ======================================================
+plugins:
+  - name: cors
+    config:
+      origins: ["*"]
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+      headers: ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"]
+      credentials: true

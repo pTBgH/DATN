@@ -1,0 +1,98 @@
+# Docker build context - Exclude unnecessary files
+# Copy this to each: src/*/laravel_back/.dockerignore
+
+# Version control
+.git
+.gitignore
+.gitattributes
+.gitmodules
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+.travis.yml
+azure-pipelines.yml
+.drone.yml
+Jenkinsfile
+
+# IDE & Editor
+.vscode/
+.idea/
+.sublime-project
+.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+.editorconfig
+
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+doc/
+
+# Development & Testing
+tests/
+test/
+phpunit.xml
+phpunit.xml.dist
+integration-tests/
+.pytest_cache/
+coverage/
+.coverage
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+*.zip
+
+# Node (if used in Laravel)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Composer
+composer.lock
+.composer/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.example
+.env.testing
+
+# Temporary & cache
+.cache/
+tmp/
+temp/
+*.log
+storage/logs/*
+storage/cache/*
+bootstrap/cache/*
+
+# OS files
+Thumbs.db
+.DS_Store
+*.exe
+*.bat
+*.sh
+
+# Docker files (usually not needed in image)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Miscellaneous
+.editorconfig
+.php_cs.cache
+.php-cs-fixer.cache
+*.bak
+.vscode-server/

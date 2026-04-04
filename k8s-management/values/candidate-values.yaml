@@ -1,0 +1,33 @@
+image:
+  registry: docker-registry.registry.svc.cluster.local:5000
+  repository: job7189/candidate-service
+  tag: "v1.0.2"
+  pullPolicy: Never
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: "candidate.job7189.local"
+
+redis:
+  enabled: true
+
+env:
+  APP_NAME: "Job7189 Candidate Service"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql.data.svc.cluster.local
+  DB_PORT: "3306"
+  DB_DATABASE: job7189_candidate_db
+  # DB_USERNAME will be injected by Vault Agent
+  # DB_PASSWORD will be injected by Vault Agent from database/creds/candidate-service
+  
+  CACHE_PREFIX: candidate_
+  REDIS_HOST: candidate-service-redis
+
+vault:
+  extraSecret: false
+
+

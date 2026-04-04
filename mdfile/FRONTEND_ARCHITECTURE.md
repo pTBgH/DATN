@@ -1,0 +1,260 @@
+# Frontend Architecture Diagram
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Browser / Client                               │
+└────────┬──────────────────────────────────────────────────────────┬─────┘
+         │                                                          │
+    ┌────▼────────────────────┐                    ┌───────────────▼──────┐
+    │   Candidate Portal      │                    │  Recruiter Portal    │
+    │   (fe-candidate)        │                    │  (fe-recruiter)      │
+    │                         │                    │                      │
+    │  Port: 3001             │                    │  Port: 3002          │
+    │  ├─ Home (Jobs)         │                    │  ├─ Dashboard        │
+    │  ├─ Job Details         │                    │  ├─ Jobs             │
+    │  ├─ Login/Register      │                    │  ├─ Candidates       │
+    │  ├─ Profile             │                    │  ├─ Hiring Board     │
+    │  └─ CV Management       │                    │  └─ Settings         │
+    └────┬───────────────────┘                    └─────────┬────────────┘
+         │                                                  │
+         &lt;───────────────────────────────────────────────────&gt;
+              HTTP/REST API Requests & Responses
+              (with JWT tokens in headers)
+         │                                                  │
+    ┌────▼──────────────────────────────────────────────────▼────────┐
+    │                    Kong API Gateway                             │
+    │               (API Router & Thin Layer)                         │
+    │                                                                 │
+    │  Port: 8000 (Proxy to backend services)                        │
+    └────┬──────────────────────────────────────────────────────┬───┘
+         │                                                       │
+         ├──────────┬─────────────┬──────────────┬──────────┬──────┤
+         │          │             │              │          │      │
+    ┌────▼────┐ ┌──▼────┐ ┌─────▼──┐ ┌────────▼┐ ┌──────▼─┐ │
+    │ Identity│ │ Job   │ │Candidate
+    │ Service │ │Service│ │Service  │ │ Hiring │ │Storage │ │
+    │         │ │       │ │         │ │Service │ │Service │ │
+    │Keycloak │ │Port:  │ │Port:    │ │Port:   │ │ MinIO  │ │
+    │Auth     │ │9001   │ │9002     │ │9003    │ │Port:   │ │
+    │         │ │       │ │         │ │        │ │9004    │ │
+    └────┬────┘ └──┬────┘ └────┬────┘ └───┬────┘ └──┬─────┘ │
+         │         │           │           │         └──────┤
+    ┌────▼─────────▼───────────▼───────────▼────────────────▼──┐
+    │      Backend Databases (MySQL/PostgreSQL)                  │
+    │                                                             │
+    │  ├─ identity_service_db                                   │
+    │  ├─ job_service_db                                        │
+    │  ├─ candidate_service_db                                  │
+    │  ├─ hiring_service_db                                     │
+    │  ├─ ...                                                   │
+    └─────────────────────────────────────────────────────────┘
+```
+
+## Deployment Architecture (Kubernetes)
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                     Kubernetes Cluster                              │
+│                                                                    │
+│  ┌────────────────────────────────────── ─────────────────────┐  │
+│  │              Frontend Namespace                             │  │
+│  │                                                             │  │
+│  │  ┌──────────────────────┐   ┌──────────────────────────┐  │  │
+│  │  │  fe-candidate        │   │   fe-recruiter           │  │  │
+│  │  │  Deployment (2-5)    │   │   Deployment (2-5)       │  │  │
+│  │  │                      │   │                          │  │  │
+│  │  │  Pod 1   ┌────────┐ │   │  Pod 1   ┌────────────┐  │  │  │
+│  │  │          │Next.js │ │   │          │Next.js    │  │  │  │
+│  │  │          │:3000   │ │   │          │:3000      │  │  │  │
+│  │  │          └────────┘ │   │          └────────────┘  │  │  │
+│  │  │                      │   │                          │  │  │
+│  │  │  Pod 2   ┌────────┐ │   │  Pod 2   ┌────────────┐  │  │  │
+│  │  │          │Next.js │ │   │          │Next.js    │  │  │  │
+│  │  │          │:3000   │ │   │          │:────────  │  │  │  │
+│  │  │          └────────┘ │   │          └────────────┘  │  │  │
+│  │  │                      │   │                          │  │  │
+│  │  │  HPA: Scale to 5     │   │  HPA: Scale to 5         │  │  │
+│  │  │  when CPU > 80%      │   │  when CPU > 80%          │  │  │
+│  │  └──────────┬───────────┘   └──────────┬───────────────┘  │  │
+│  │             │                           │                  │  │
+│  │       ┌─────▼────────────────────────────▼─┐             │  │
+│  │       │   Ingress Controller               │             │  │
+│  │       │   · TLS encryption                 │             │  │
+│  │       │   · Host routing                   │             │  │
+│  │       │   · Rate limiting                  │             │  │
+│  │       └──────────┬──────────────────────────┘             │  │
+│  └────────────┬─────┼──────────────────────────────────────┘  │
+│               │     │                                         │
+│  ┌────────────┴─────┴──────────────────────────────────────┐  │
+│  │         Backend Services Namespace (job7189-apps)       │  │
+│  │                                                         │  │
+│  │  ├─ identity-service (Keycloak integration)           │  │
+│  │  ├─ job-service                                        │  │
+│  │  ├─ candidate-service                                  │  │
+│  │  ├─ hiring-service                                     │  │
+│  │  ├─ communication-service                              │  │
+│  │  ├─ storage-service                                    │  │
+│  │  └─ workspace-service                                  │  │
+│  └────────────────────────────────────────────────────────┘  │
+│               │                                                │
+│  ┌────────────▼────────────────────────────────────────────┐  │
+│  │  Infrastructure Namespace (infra)                       │  │
+│  │                                                         │  │
+│  │  ├─ Kong API Gateway                                   │  │
+│  │  ├─ Keycloak (Auth)                                    │  │
+│  │  ├─ MySQL                                              │  │
+│  │  ├─ Kafka                                              │  │
+│  │  ├─ MinIO (Storage)                                    │  │
+│  │  ├─ Elasticsearch                                      │  │
+│  │  ├─ Prometheus & Grafana                               │  │
+│  │  └─ Cert Manager                                       │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+```
+
+## Frontend Stack Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Frontend Application (Next.js 14)                │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  Pages & Components (React)                             │ │
+│  │  ├─ App Router (Next.js 14 App Directory)             │ │
+│  │  ├─ Server Components & Client Components            │ │
+│  │  └─ Layouts & Dynamic Routes                         │ │
+│  └───────────────┬──────────────────────────┬────────────┘ │
+│                  │                          │               │
+│     ┌────────────▼────────┐      ┌──────────▼────────────┐ │
+│     │  State Management   │      │  Styling & Animations │ │
+│     │                     │      │                       │ │
+│     │  ├─ Zustand (Auth)  │      │  ├─ Tailwind CSS     │ │
+│     │  ├─ React Query     │      │  ├─ Ant Design 5     │ │
+│     │  └─ localStorage    │      │  └─ Framer Motion    │ │
+│     └────────────┬────────┘      └────────┬─────────────┘ │
+│                  │                        │                 │
+│  ┌───────────────▼────────────────────────▼──────────────┐ │
+│  │  API Integration Layer                                 │ │
+│  │                                                        │ │
+│  │  ├─ API Client (src/lib/api.ts)                      │ │
+│  │  │  ├─ Base URL: NEXT_PUBLIC_API_BASE_URL           │ │
+│  │  │  ├─ Interceptors (request/response)              │ │
+│  │  │  └─ Error handling (401 redirect)                │ │
+│  │  │                                                    │ │
+│  │  └─ Custom Hooks (src/hooks/useAPI.ts)              │ │
+│  │     ├─ useJobAPI()                                   │ │
+│  │     ├─ useApplicationAPI()                           │ │
+│  │     ├─ useCVAPI() [Candidate]                        │ │
+│  │     ├─ useHiringAPI() [Recruiter]                    │ │
+│  │     └─ useWorkspaceAPI() [Recruiter]                 │ │
+│  └───────────────┬─────────────────────────────────────┘ │
+│                  │                                         │
+│                  ▼ (Axios HTTP Client)                    │
+└──────────────────┬──────────────────────────────────────┘
+                   │
+                   │ Bearer Token in headers
+                   │ JSON Request/Response
+                   │
+         ┌─────────▼──────────┐
+         │  Kong API Gateway  │
+         │  (Port 8000)       │
+         └─────────┬──────────┘
+                   │
+                   ▼
+         (Backend Services)
+```
+
+## Data Flow - Candidate Login & Browse Jobs
+
+```
+1. User Lands on App
+   ↓
+   ├─→ Check if token in cookie
+   ├─→ Hydrate auth store from localStorage
+   ├─→ If no token → Redirect to /login
+   └─→ If token exists → Show home
+   
+2. User Enters Login Credentials
+   ↓
+   POST /api/auth/login {email, password}
+   ↓
+   Backend (Kong → Identity Service)
+   ↓
+   Returns: {access_token, user}
+   ↓
+   ├─→ setToken(token) → Save in cookie
+   ├─→ setUser(user) → Update Zustand store
+   └─→ Redirect to /
+   
+3. Home Page - Fetch Jobs
+   ├─→ useEffect checks isAuthenticated
+   ├─→ useFetch(['jobs'], getJobs)
+   ├─→ API Client adds token to header
+   ├─→ GET /api/jobs?page=1&limit=10
+   ├─→ Response cached in React Query
+   └─→ Render job cards with animations
+   
+4. User Searches for Jobs
+   ├─→ setSearchKeyword(value)
+   ├─→ useFetch key changes → refetch
+   ├─→ GET /api/jobs/search?keyword=...
+   └─→ Display filtered results
+   
+5. User Clicks Job Card → Job Details
+   ├─→ Navigate to /jobs/[id]
+   ├─→ Fetch job details: GET /api/jobs/{id}
+   ├─→ Display full job information
+   └─→ "Apply Now" button → /jobs/{id}/apply
+```
+
+## Deployment Flow
+
+```
+┌─────────────────────────────────────┐
+│  Source Code (Git Repository)       │
+└────────────────┬────────────────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Build Docker Image│
+        │  docker build ...  │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Test Image Build  │
+        │  docker run        │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Push to Registry  │
+        │  docker push       │
+        │  localhost:5000/.. │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Helm Package      │
+        │  helm package      │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Helmfile Deploy   │
+        │  helmfile sync     │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  Kubernetes        │
+        │  Creates Pods      │
+        │  Ingress routing   │
+        │  HPA scaling       │
+        └────────┬───────────┘
+                 │
+        ┌────────▼───────────┐
+        │  User Access       │
+        │  https://...       │
+        └────────────────────┘
+```
+
+---
+
+Generated: 2026-03-31

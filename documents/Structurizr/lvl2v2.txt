@@ -1,0 +1,235 @@
+workspace "Job7189 Architecture" "He thong tuyen dung Microservices" {
+
+    model {
+        candidate = person "Candidate\n[Person]" "Nguoi tim viec" "User"
+        recruiter = person "Recruiter\n[Person]" "Nha tuyen dung" "User"
+        sysAdmin = person "System Admin\n[Person]" "Quan tri he thong" "User"
+
+        keycloak = softwareSystem "Keycloak\n[Software System]" "Identity Provider" "External"
+        emailSystem = softwareSystem "Email Service\n[Software System]" "SMTP Server" "External"
+        minioSystem = softwareSystem "MinIO Storage\n[Software System]" "Object Storage" "External"
+
+        jobSystem = softwareSystem "Job7189 System\n[Software System]" "He thong tuyen dung" {
+
+            candidateApp = container "Candidate Portal\n[Web Application]" "Web App cho ung vien" "React/Next.js" "Web Browser"
+            managementApp = container "Management App\n[Web Application]" "Web App quan ly" "Vue.js" "Web Browser"
+
+            apiGateway = container "API Gateway\n[Gateway]" "Cong vao duy nhat" "Kong Gateway" "Gateway"
+
+            kafka = container "Kafka Cluster\n[Message Bus]" "Event Bus" "Apache Kafka" "Queue"
+
+            filebeat = container "Filebeat\n[Log Collector]" "Log Collector" "Elastic Filebeat" "Sidecar"
+            elasticsearch = container "Elasticsearch\n[Database]" "Log Database" "Elasticsearch" "Database"
+            kibana = container "Kibana\n[Dashboard]" "Log Dashboard" "Kibana" "Dashboard"
+
+            group "Identity Context" {
+                identityService = container "Identity Service\n[Container]" "Quan ly Profile" "Laravel" "Microservice"
+                identityDb = container "Identity DB\n[Database]" "Luu tru Users" "MySQL" "Database"
+                identityRedis = container "Identity Redis\n[Cache]" "Cache Profile" "Redis" "DataStore"
+            }
+
+            group "Workspace Context" {
+                workspaceService = container "Workspace Service\n[Container]" "Quan ly To chuc & Quyen (Source of Truth)" "Laravel" "Microservice"
+                workspaceDb = container "Workspace DB\n[Database]" "Luu Workspaces" "MySQL" "Database"
+                workspaceRedis = container "Workspace Redis\n[Cache]" "Cache Permissions" "Redis" "DataStore"
+            }
+
+            group "Job Context" {
+                jobService = container "Job Service\n[Container]" "Quan ly Tin dang" "Laravel" "Microservice"
+                jobDb = container "Job DB\n[Database]" "Luu Jobs" "MySQL" "Database"
+                jobRedis = container "Job Redis\n[Cache]" "Cache Job Data" "Redis" "DataStore"
+            }
+
+            group "Hiring Context" {
+                hiringService = container "Hiring Service\n[Container]" "Quy trinh tuyen dung ATS" "Laravel" "Microservice"
+                hiringDb = container "Hiring DB\n[Database]" "Luu Applications" "MySQL" "Database"
+                hiringRedis = container "Hiring Redis\n[Cache]" "Cache Pipeline" "Redis" "DataStore"
+            }
+
+            group "Candidate Context" {
+                candidateService = container "Candidate Service\n[Container]" "Quan ly CV" "Laravel" "Microservice"
+                candidateDb = container "Candidate DB\n[Database]" "Luu Resumes" "MySQL" "Database"
+                candidateRedis = container "Candidate Redis\n[Cache]" "Cache Metadata" "Redis" "DataStore"
+            }
+
+            group "Communication Context" {
+                commService = container "Communication Service\n[Container]" "Chat va Email" "Laravel" "Microservice"
+                commDb = container "Communication DB\n[Database]" "Luu Chat Logs" "MySQL" "Database"
+                commRedis = container "Comm Redis\n[Cache]" "Cache Contact" "Redis" "DataStore"
+            }
+            
+            group "Utility Context" {
+                storageService = container "Storage Service\n[Container]" "Xu ly File" "Laravel" "Microservice"
+            }
+        }
+
+        # --- USER INTERACTIONS ---
+        candidate -> candidateApp "Su dung"
+        recruiter -> managementApp "Su dung"
+        sysAdmin -> managementApp "Su dung"
+        sysAdmin -> kibana "Giam sat"
+
+        # --- GATEWAY ROUTING ---
+        candidateApp -> apiGateway "HTTPS/JSON"
+        managementApp -> apiGateway "HTTPS/JSON"
+        
+        apiGateway -> keycloak "Authenticate/Authorize" "OIDC/JWT"
+
+        apiGateway -> identityService "Route /api/profile"
+        apiGateway -> workspaceService "Route /api/workspaces"
+        apiGateway -> jobService "Route /api/jobs"
+        apiGateway -> hiringService "Route /api/applications"
+        apiGateway -> candidateService "Route /api/resumes"
+        apiGateway -> commService "Route /api/chat"
+        apiGateway -> storageService "Route /api/storage"
+
+        # --- INTERNAL DATABASE & CACHE ---
+        identityService -> identityDb "Read/Write" "MySQL Protocol"
+        identityService -> identityRedis "Cache" "Redis Protocol"
+        
+        workspaceService -> workspaceDb "Read/Write" "MySQL Protocol"
+        workspaceService -> workspaceRedis "Cache" "Redis Protocol"
+        
+        jobService -> jobDb "Read/Write" "MySQL Protocol"
+        jobService -> jobRedis "Cache" "Redis Protocol"
+        
+        hiringService -> hiringDb "Read/Write" "MySQL Protocol"
+        hiringService -> hiringRedis "Cache" "Redis Protocol"
+        
+        candidateService -> candidateDb "Read/Write" "MySQL Protocol"
+        candidateService -> candidateRedis "Cache" "Redis Protocol"
+        
+        commService -> commDb "Read/Write" "MySQL Protocol"
+        commService -> commRedis "Cache" "Redis Protocol"
+
+        # --- CROSS-SERVICE COMMUNICATION (Gộp thành 1 đường theo C4) ---
+        identityService -> workspaceService "Gets user workspaces" "HTTP/JSON"
+        jobService -> workspaceService "Validates permissions, gets company info" "HTTP/JSON"
+        hiringService -> workspaceService "Checks user permissions" "HTTP/JSON"
+        hiringService -> jobService "Gets job details and status" "HTTP/JSON"
+        hiringService -> candidateService "Gets resume data" "HTTP/JSON"
+        candidateService -> jobService "Validates job exists" "HTTP/JSON"
+
+        # --- EVENT DRIVEN (ASYNC) ---
+        identityService -> kafka "Pub: user.created"
+        workspaceService -> kafka "Pub: invitation.sent"
+        jobService -> kafka "Pub: job.published"
+        hiringService -> kafka "Pub: app.status_changed"
+        
+        kafka -> commService "Sub: Send Email/Noti"
+        kafka -> hiringService "Subscribe"
+
+        # --- INFRASTRUCTURE & LOGGING ---
+        apiGateway -> filebeat "Logs"
+        identityService -> filebeat "Logs"
+        workspaceService -> filebeat "Logs"
+        jobService -> filebeat "Logs"
+        hiringService -> filebeat "Logs"
+        candidateService -> filebeat "Logs"
+        commService -> filebeat "Logs"
+        storageService -> filebeat "Logs"
+        
+        filebeat -> elasticsearch "Ship"
+        kibana -> elasticsearch "Query"
+
+        # --- EXTERNAL SYSTEMS ---
+        identityService -> keycloak "OIDC Sync"
+        commService -> emailSystem "Sends emails via" "SMTP"
+        storageService -> minioSystem "Stores & Retrieves files" "S3 API"
+        candidateApp -> minioSystem "Upload"
+        managementApp -> minioSystem "Upload"
+    }
+
+    views {
+        # ========================================
+        # LEVEL 2 - VIEW 1: LUỒNG DỮ LIỆU
+        # ========================================
+        container jobSystem "Level2_DataFlow" "Container diagram: Luồng dữ liệu giữa các services" {
+            include candidate recruiter sysAdmin
+            include candidateApp managementApp
+            include apiGateway kafka keycloak emailSystem minioSystem
+            include element.tag==Microservice
+            # autoLayout tb
+        }
+
+        # ========================================
+        # LEVEL 2 - VIEW 2: LƯU TRỮ DỮ LIỆU
+        # ========================================
+        container jobSystem "Level2_DataStorage" "Container diagram: Kiến trúc lưu trữ (Database per Service)" {
+            include element.tag==Microservice
+            include element.tag==Database
+            include element.tag==DataStore
+            include minioSystem
+            # autoLayout tb
+        }
+
+        # ========================================
+        # LEVEL 2 - VIEW 3: GIÁM SÁT & LOGGING
+        # ========================================
+        container jobSystem "Level2_Observability" "Container diagram: Giám sát và Logging (ELK Stack)" {
+            include sysAdmin
+            include element.tag==Microservice
+            include apiGateway
+            include filebeat elasticsearch kibana
+            # autoLayout tb
+        }
+
+        styles {
+            element "Element" {
+                metadata false
+            }
+            element "Person" {
+                shape Person
+                background #08427b
+                color #ffffff
+            }
+            element "Software System" {
+                background #1168bd
+                color #ffffff
+            }
+            element "External" {
+                background #999999
+                color #ffffff
+            }
+            element "Container" {
+                background #438dd5
+                color #ffffff
+            }
+            element "Web Browser" {
+                shape WebBrowser
+            }
+            element "Microservice" {
+                shape Hexagon
+                background #2f9d66
+                color #ffffff
+            }
+            element "Database" {
+                shape Cylinder
+                background #85bbf0
+                color #000000
+            }
+            element "DataStore" {
+                shape Cylinder
+                background #ff5555
+                color #ffffff
+            }
+            element "Queue" {
+                shape Pipe
+                background #ea580c
+            }
+            element "Gateway" {
+                shape RoundedBox
+                background #16a34a
+            }
+            element "Sidecar" {
+                shape Robot
+                background #94a3b8
+            }
+            element "Dashboard" {
+                shape WebBrowser
+                background #eab308
+                color #000000
+            }
+        }
+    }
+}

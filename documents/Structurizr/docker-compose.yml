@@ -1,0 +1,9 @@
+services:
+  structurizr:
+    image: structurizr/lite
+    container_name: structurizr-lite
+    ports:
+      - "9080:8080"
+    volumes:
+      - ".:/usr/local/structurizr"
+    restart: always

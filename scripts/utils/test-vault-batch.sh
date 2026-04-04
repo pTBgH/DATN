@@ -1,0 +1,1 @@
+echo "Thử batch commands"

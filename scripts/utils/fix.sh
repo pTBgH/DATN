@@ -1,0 +1,1 @@
+sed -i 's/  if \[\[ "\\$SVC" =\~ \^\(communication-service|identity-service|storage-service\)\\$ \]\]; then/  case "\$SVC" in communication-service|identity-service|storage-service)/' infras/k8s-yaml/vault-scripts/99-fast-rebuild-vault.sh

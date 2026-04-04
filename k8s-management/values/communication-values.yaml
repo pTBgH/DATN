@@ -1,0 +1,47 @@
+image:
+  registry: docker-registry.registry.svc.cluster.local:5000
+  repository: job7189/communication-service
+  tag: "v1.1.9"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: "communication.job7189.local"
+
+redis:
+  enabled: true
+
+env:
+  APP_NAME: "Job7189 Communication Service"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql.data.svc.cluster.local
+  DB_PORT: "3306"
+  DB_DATABASE: job7189_communication_db
+  # DB_USERNAME will be injected by Vault Agent
+  # DB_PASSWORD will be injected by Vault Agent from database/creds/communication-service
+  
+  CACHE_PREFIX: communication_
+  REDIS_HOST: communication-service-redis
+
+  MAIL_MAILER: "smtp"
+  MAIL_HOST: "smtp.gmail.com"
+  MAIL_PORT: "587"
+  MAIL_USERNAME: "baophungthai2@gmail.com"
+  # MAIL_PASSWORD will be injected by Vault Agent from secret/data/communication-service
+  MAIL_ENCRYPTION: "tls"
+  MAIL_FROM_ADDRESS: "baophungthai2@gmail.com"
+  MAIL_FROM_NAME: "Job7189 System"
+
+vault:
+  extraSecret: true
+  extraSecretTemplate: |
+    {{- with secret "secret/data/communication-service" -}}
+    MAIL_PASSWORD="{{ .Data.data.MAIL_PASSWORD }}"
+    {{ end }}
+
+
+

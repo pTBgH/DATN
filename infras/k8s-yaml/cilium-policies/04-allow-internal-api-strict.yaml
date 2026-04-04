@@ -1,0 +1,43 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-job-to-workspace"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: workspace-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: job-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/v1/internal/workspaces/.*"
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-identity"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: identity-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: hiring-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/v1/internal/profile/.*"

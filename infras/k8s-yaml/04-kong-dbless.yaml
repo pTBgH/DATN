@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-gateway
+  namespace: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kong-gateway
+  template:
+    metadata:
+      labels:
+        app: kong-gateway
+    spec:
+      containers:
+      - name: kong
+        image: kong:3.6
+        env:
+        - name: KONG_DATABASE
+          value: "off"
+        - name: KONG_DECLARATIVE_CONFIG
+          value: "/opt/kong/kong.yml"
+        - name: KONG_PROXY_LISTEN
+          value: "0.0.0.0:8000"
+        - name: KONG_ADMIN_LISTEN
+          value: "0.0.0.0:8001"
+        # Bật tính năng tự động reload khi file thay đổi
+        - name: KONG_WATCH_CONFIG
+          value: "on" 
+        ports:
+        - containerPort: 8000
+        - containerPort: 8001
+        volumeMounts:
+        - name: kong-config-volume
+          mountPath: /opt/kong
+          readOnly: true
+      volumes:
+      - name: kong-config-volume
+        configMap:
+          name: kong-declarative-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-proxy
+  namespace: gateway
+spec:
+  type: NodePort
+  ports:
+  - name: proxy
+    port: 80
+    targetPort: 8000
+    nodePort: 30000
+  selector:
+    app: kong-gateway

@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/role: "{{ .Release.Name }}"
+        vault.hashicorp.com/tls-skip-verify: "true"
+        vault.hashicorp.com/agent-inject-status: "update"
+
+        # Common secrets — APP_KEY
+        vault.hashicorp.com/agent-inject-secret-common: "secret/data/laravel-common"
+        vault.hashicorp.com/agent-inject-file-common: ".env.common"
+        vault.hashicorp.com/agent-inject-template-common: |
+          {{`{{- with secret "secret/data/laravel-common" -}}
+          APP_KEY="{{ .Data.data.APP_KEY }}"
+          {{- end }}`}}
+
+        # Dynamic DB credentials
+        vault.hashicorp.com/agent-inject-secret-db: "database/creds/{{ .Release.Name }}"
+        vault.hashicorp.com/agent-inject-file-db: ".env.db"
+        vault.hashicorp.com/agent-inject-template-db: |-
+          {{`{{- with secret "database/creds/`}}{{ .Release.Name }}{{`" -}}
+          DB_USERNAME="{{ .Data.username }}"
+          DB_PASSWORD="{{ .Data.password }}"
+          
+          {{ end }}`}}
+
+        {{- if .Values.vault.extraSecret }}
+        # Service-specific secrets
+        vault.hashicorp.com/agent-inject-secret-extra: "secret/data/{{ .Release.Name }}"
+        vault.hashicorp.com/agent-inject-file-extra: ".env.extra"
+        vault.hashicorp.com/agent-inject-template-extra: |-
+{{ .Values.vault.extraSecretTemplate | indent 10 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      volumes:
+      - name: app-env
+        emptyDir:
+          medium: Memory
+      initContainers:
+      - name: env-loader
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          # Gộp tất cả .env.* files thành 1 file .env duy nhất
+          # Chờ Vault Agent inject xong (wait for secrets to be ready)
+          # Wait for database secrets if they exist, up to 30 seconds
+          for i in $(seq 1 30); do
+            if [ -f /vault/secrets/.env.db ]; then
+              echo "✓ Vault secrets ready"
+              break
+            fi
+            if [ $i -eq 1 ]; then
+              echo "⏳ Waiting for Vault Agent to inject credentials (will timeout after 30s)..."
+            fi
+            sleep 1
+          done
+          
+          echo "✓ Proceeding with available environment files..."
+          
+          # Merge all env files: common → db → extra
+          cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+          cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+          [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+          
+          echo "✓ Environment files merged"
+          echo ""
+          echo "📄 Final .env file preview (first 10 lines):"
+          head -10 /vault/secrets/.env
+          echo ""
+          
+          # Copy to app directory so Laravel can read it
+          cp /vault/secrets/.env /app-secrets/.env
+          chmod 644 /app-secrets/.env
+          
+          echo "✓ .env file ready at /app-secrets/.env"
+        volumeMounts:
+        - name: app-env
+          mountPath: /app-secrets
+      containers:
+        - name: app
+          {{- $registry := include "registry.url" . -}}
+          {{- if $registry }}
+          image: "{{ $registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- else }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+          - name: app-env
+            mountPath: /app-secrets
+          # NOTE: Vault secrets are available at /app-secrets/.env
+          # The app's docker run.sh should source or copy this file to .env
+          # Or Laravel can be configured to load from this path
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            # Path to merged .env file from Vault Agent
+            - name: DOTENV_PATH
+              value: "/app-secrets/.env"
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "cp /app-secrets/.env /var/www/.env || true"]

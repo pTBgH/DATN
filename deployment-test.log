@@ -1,0 +1,1814 @@
+
+????????????????????????????????????????????????????????????
+?  PART 3: MICROSERVICES & INGRESS ROUTES                 ?
+?  Status: Deploying Ingress + Microservices via Helmfile ?
+????????????????????????????????????????????????????????????
+
+? Pre-flight check: Verifying cluster readiness...
+? Cluster and infrastructure are accessible
+?  [Pre-flight check] Duration: 1s
+? Continue with microservices deployment? (yes/no): 
+? Step 0: Setting up local Docker Registry and building microservice images...
+
+? Using LOCAL REGISTRY for image management...
+   Local Registry: http://localhost:5000
+   Local Registry UI: http://localhost:8088
+   ✓ Local Registry already running
+?  [0a. Local Registry setup] Duration: 14s
+   Registry endpoint: localhost:5000
+
+
+   Building and pushing microservice images...
+   Registry: localhost:5000
+
+   Cleaning up old or temporary images...
+Deleted Images:
+untagged: sha256:0578f7a141183c5831ede65ca15d425f32a6450741a1a46a55a7d31410e1bd3c
+deleted: sha256:0578f7a141183c5831ede65ca15d425f32a6450741a1a46a55a7d31410e1bd3c
+deleted: sha256:60dd9b68c201ba0ac9d35e463c15e5f21c60af0e864f2a2639d96f6f44460be4
+deleted: sha256:30dd041af1e54f0f6bee2c98ba1e795e363bd69cbf25fbcd5a09c97980455b96
+untagged: sha256:0d9ccc4a59d64fadbbfb52258d9bcbe8cab21086ce9796c6d53269b17483c92b
+deleted: sha256:0d9ccc4a59d64fadbbfb52258d9bcbe8cab21086ce9796c6d53269b17483c92b
+deleted: sha256:4787aae3eb0d93b3ea0a8e506b8100961a9b885d7a4a8021317af3bf7d450e5d
+deleted: sha256:c701f1c0685710254ccec646d3444132a73fc7503ecc5dbefe4b512098d070ad
+untagged: sha256:5f7d8b20839140e82259a47d046c6c74e647f700888f51b5d705a7cbddc64b46
+deleted: sha256:5f7d8b20839140e82259a47d046c6c74e647f700888f51b5d705a7cbddc64b46
+deleted: sha256:e01e7f1b7f1c4244e99fade6716f1024e4e8691021f2f0373448a0b9b5054bae
+deleted: sha256:e8d26a2bea6c5c1b7210d1dd0fd7a8dab25c26bbdcba42d846e8df6939346755
+untagged: sha256:a16223614410f63e333b73aa5963edb3305c94d6f19f2e8638cf36eb37f9b8d3
+deleted: sha256:a16223614410f63e333b73aa5963edb3305c94d6f19f2e8638cf36eb37f9b8d3
+deleted: sha256:fcee9d1069a4b119affffc76557a34ec63dffaab1a6d4e4da9b9dd38e6ee0879
+deleted: sha256:9dc1aea6736498f8fce2bec1be5e57326f06983386916b50508c57fbaa370d3c
+untagged: sha256:b8790e3b17ef8057a2d9cd2971773b992286b1385e6911c0acc282511d311ba3
+deleted: sha256:b8790e3b17ef8057a2d9cd2971773b992286b1385e6911c0acc282511d311ba3
+deleted: sha256:d9f8c1d220ee68e51a2a2d8c38547e71ad379a797a8cadbf82abe02b2ad4428d
+deleted: sha256:2234f4d419bce58b07ba711fcbc105b0629d42b5a1c3d80a9583a7b55d673cbd
+untagged: sha256:c4462f6b791e3b876f5002c12a42159f8ddfbd049762b299b91c0ee242cc1882
+deleted: sha256:c4462f6b791e3b876f5002c12a42159f8ddfbd049762b299b91c0ee242cc1882
+deleted: sha256:c9f37b679c7f234a827cf27ae5f1e62e5ebd39488b74191b8cff74ff2270123c
+deleted: sha256:5d4133fdd1dba78fc3e1c8346295c6959c560ba0b157c1a7748fde695ed83f40
+untagged: sha256:fa7d9c231f6fab32dfa86fac23a0b2e360de7005ea78dde962371d7708f8595f
+deleted: sha256:fa7d9c231f6fab32dfa86fac23a0b2e360de7005ea78dde962371d7708f8595f
+deleted: sha256:8a414450e51b701b2bb469ee5c63a3c27542d03a857d4940278c00b60a69a068
+deleted: sha256:b702e1e42e55af680c053a08a8e45229878e7bd891013b93d9ae48dc7a5b1fa9
+
+Total reclaimed space: 181.8kB
+
+   Running build script...
+
+════════════════════════════════════════════════════════
+🐳 DOCKER IMAGE BUILD & PUSH SCRIPT
+════════════════════════════════════════════════════════
+Registry: localhost:5000
+
+✅ Docker daemon is available
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: hiring-service
+   Image: localhost:5000/job7189/hiring-service:v1.7.4
+   From: src/hiring_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 2.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B 0.0s done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.3s done
+#5 DONE 0.3s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 1.4s
+
+#4 [internal] load build context
+#4 transferring context: 673.74kB 0.5s done
+#4 DONE 0.5s
+
+#7 [21/22] RUN composer install --optimize-autoloader --no-dev
+#7 CACHED
+
+#8 [18/22] RUN mkdir -p /etc/docker
+#8 CACHED
+
+#9 [ 7/22] RUN apt-get install -y supervisor
+#9 CACHED
+
+#10 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#10 CACHED
+
+#11 [20/22] RUN chmod +x /etc/docker/run.sh
+#11 CACHED
+
+#12 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#12 CACHED
+
+#13 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#13 CACHED
+
+#14 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#14 CACHED
+
+#15 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#15 CACHED
+
+#16 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#16 CACHED
+
+#17 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#17 CACHED
+
+#18 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#18 CACHED
+
+#19 [ 2/22] WORKDIR /var/www
+#19 CACHED
+
+#20 [14/22] COPY . .
+#20 CACHED
+
+#21 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#21 CACHED
+
+#22 [11/22] RUN groupadd -g 1000 www
+#22 CACHED
+
+#23 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#23 CACHED
+
+#24 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#24 CACHED
+
+#25 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#25 CACHED
+
+#26 [13/22] WORKDIR /var/www
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:142519aa8f8ba37930733f4d00db5c16e25b9a168e93f4facb895b0c5c6cf60b 0.1s done
+#28 exporting config sha256:126996eefd0bad42780882b3b220608e1b381f79533d715539beb581bd616aad 0.1s done
+#28 exporting attestation manifest sha256:33a954a4746c22b15741b072702972493b11a37114ac0e98b5351238db598e5e 0.1s done
+#28 exporting manifest list sha256:7a5a1ee05dcd06707e92d41f4973913dde7ead3c5af6bae1a66b8716f5b1cd21
+#28 exporting manifest list sha256:7a5a1ee05dcd06707e92d41f4973913dde7ead3c5af6bae1a66b8716f5b1cd21 0.1s done
+#28 naming to localhost:5000/job7189/hiring-service:v1.7.4 0.0s done
+#28 unpacking to localhost:5000/job7189/hiring-service:v1.7.4
+#28 unpacking to localhost:5000/job7189/hiring-service:v1.7.4 0.2s done
+#28 DONE 1.2s
+✅ Build successful: localhost:5000/job7189/hiring-service:v1.7.4
+   Verified: Image exists with tag v1.7.4
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/hiring-service]
+d5bd5a582c8b: Waiting
+923304f6a9ad: Waiting
+bc0965b23a04: Waiting
+cbab86a070fe: Waiting
+8ed0320a0e96: Waiting
+231e98f061b6: Waiting
+093131cb422d: Waiting
+c4762cd5616a: Waiting
+6c5558e64ca0: Waiting
+06e909f0f60d: Waiting
+718cd1c38c1f: Waiting
+73fcd10b8198: Waiting
+f9570a224dad: Waiting
+e6e220682de0: Waiting
+acafbe7ac6a1: Waiting
+e5b6ddc3b418: Waiting
+4f4fb700ef54: Waiting
+2911300f6c32: Waiting
+af0e1de5d421: Waiting
+9c278fca4892: Waiting
+5000b85b9330: Waiting
+e25ad9070d5c: Waiting
+05cfb920912c: Waiting
+ff0394f0f842: Waiting
+8db7a4fee81c: Waiting
+c358ad1ed979: Waiting
+6d019b1741d9: Waiting
+8725ff662526: Waiting
+64546a5bf3a4: Waiting
+8ed8f3a33a76: Waiting
+22277151bb94: Waiting
+6d019b1741d9: Waiting
+8725ff662526: Waiting
+64546a5bf3a4: Waiting
+8ed8f3a33a76: Waiting
+22277151bb94: Waiting
+923304f6a9ad: Waiting
+bc0965b23a04: Waiting
+cbab86a070fe: Waiting
+8ed0320a0e96: Waiting
+231e98f061b6: Waiting
+093131cb422d: Waiting
+c4762cd5616a: Waiting
+6c5558e64ca0: Waiting
+06e909f0f60d: Waiting
+718cd1c38c1f: Waiting
+73fcd10b8198: Waiting
+f9570a224dad: Waiting
+e6e220682de0: Waiting
+acafbe7ac6a1: Waiting
+e5b6ddc3b418: Waiting
+4f4fb700ef54: Waiting
+2911300f6c32: Waiting
+af0e1de5d421: Waiting
+9c278fca4892: Waiting
+5000b85b9330: Waiting
+e25ad9070d5c: Waiting
+05cfb920912c: Waiting
+ff0394f0f842: Waiting
+8db7a4fee81c: Waiting
+c358ad1ed979: Waiting
+5000b85b9330: Waiting
+e25ad9070d5c: Waiting
+05cfb920912c: Layer already exists
+ff0394f0f842: Waiting
+8db7a4fee81c: Layer already exists
+c358ad1ed979: Layer already exists
+6d019b1741d9: Waiting
+8725ff662526: Layer already exists
+64546a5bf3a4: Layer already exists
+8ed8f3a33a76: Layer already exists
+22277151bb94: Waiting
+923304f6a9ad: Waiting
+bc0965b23a04: Layer already exists
+cbab86a070fe: Waiting
+8ed0320a0e96: Layer already exists
+231e98f061b6: Waiting
+093131cb422d: Layer already exists
+c4762cd5616a: Waiting
+6c5558e64ca0: Waiting
+06e909f0f60d: Waiting
+718cd1c38c1f: Layer already exists
+73fcd10b8198: Layer already exists
+f9570a224dad: Layer already exists
+e6e220682de0: Layer already exists
+acafbe7ac6a1: Waiting
+e5b6ddc3b418: Layer already exists
+4f4fb700ef54: Layer already exists
+2911300f6c32: Layer already exists
+af0e1de5d421: Waiting
+9c278fca4892: Waiting
+acafbe7ac6a1: Waiting
+af0e1de5d421: Layer already exists
+9c278fca4892: Layer already exists
+5000b85b9330: Layer already exists
+e25ad9070d5c: Layer already exists
+ff0394f0f842: Waiting
+6d019b1741d9: Layer already exists
+22277151bb94: Layer already exists
+923304f6a9ad: Waiting
+cbab86a070fe: Layer already exists
+231e98f061b6: Waiting
+c4762cd5616a: Waiting
+6c5558e64ca0: Layer already exists
+06e909f0f60d: Waiting
+acafbe7ac6a1: Layer already exists
+ff0394f0f842: Layer already exists
+d5bd5a582c8b: Pushed
+923304f6a9ad: Layer already exists
+231e98f061b6: Layer already exists
+c4762cd5616a: Layer already exists
+06e909f0f60d: Layer already exists
+v1.7.4: digest: sha256:7a5a1ee05dcd06707e92d41f4973913dde7ead3c5af6bae1a66b8716f5b1cd21 size: 856
+✅ Push successful: localhost:5000/job7189/hiring-service:v1.7.4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: communication-service
+   Image: localhost:5000/job7189/communication-service:v1.1.6
+   From: src/communication_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#5 DONE 0.1s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 486.46kB 0.2s done
+#4 DONE 0.2s
+
+#7 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#7 CACHED
+
+#8 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#8 CACHED
+
+#9 [11/22] RUN groupadd -g 1000 www
+#9 CACHED
+
+#10 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#10 CACHED
+
+#11 [ 2/22] WORKDIR /var/www
+#11 CACHED
+
+#12 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#12 CACHED
+
+#13 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#13 CACHED
+
+#14 [20/22] RUN chmod +x /etc/docker/run.sh
+#14 CACHED
+
+#15 [21/22] RUN composer install --optimize-autoloader --no-dev
+#15 CACHED
+
+#16 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#16 CACHED
+
+#17 [ 7/22] RUN apt-get install -y supervisor
+#17 CACHED
+
+#18 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#18 CACHED
+
+#19 [13/22] WORKDIR /var/www
+#19 CACHED
+
+#20 [14/22] COPY . .
+#20 CACHED
+
+#21 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#21 CACHED
+
+#22 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#22 CACHED
+
+#23 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#23 CACHED
+
+#24 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#24 CACHED
+
+#25 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#25 CACHED
+
+#26 [18/22] RUN mkdir -p /etc/docker
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:2c0ee69db476dea9436b95dd271a52edb5664059d093e2174f5e3e5cab85bf46
+#28 exporting manifest sha256:2c0ee69db476dea9436b95dd271a52edb5664059d093e2174f5e3e5cab85bf46 0.0s done
+#28 exporting config sha256:f6894f97a3dc115826d815e77269fbc67f6ab6513a4e1487577b06a86aa7a5e6 0.0s done
+#28 exporting attestation manifest sha256:f38cc99252a9f0211c5a8a039d25ae66e81b91b01bbc2e7ab94059570c1234dd
+#28 exporting attestation manifest sha256:f38cc99252a9f0211c5a8a039d25ae66e81b91b01bbc2e7ab94059570c1234dd 0.1s done
+#28 exporting manifest list sha256:3488b5e00638703f14e8e110b4266d9e790bcf1a6f66f300daf8091c5ba0f8ed 0.0s done
+#28 naming to localhost:5000/job7189/communication-service:v1.1.6
+#28 naming to localhost:5000/job7189/communication-service:v1.1.6 done
+#28 unpacking to localhost:5000/job7189/communication-service:v1.1.6
+#28 unpacking to localhost:5000/job7189/communication-service:v1.1.6 0.2s done
+#28 DONE 0.9s
+✅ Build successful: localhost:5000/job7189/communication-service:v1.1.6
+   Verified: Image exists with tag v1.1.6
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/communication-service]
+0eb3622094e0: Waiting
+718cd1c38c1f: Waiting
+bc0965b23a04: Waiting
+9533a2081393: Waiting
+6c5558e64ca0: Waiting
+acafbe7ac6a1: Waiting
+8ed8f3a33a76: Waiting
+e25ad9070d5c: Waiting
+71dafcf44fff: Waiting
+9c278fca4892: Waiting
+2257c4490ca8: Waiting
+d80bea5a70eb: Waiting
+6d019b1741d9: Layer already exists
+64546a5bf3a4: Waiting
+05cfb920912c: Waiting
+e6e220682de0: Waiting
+2911300f6c32: Waiting
+51cf0a40bd09: Waiting
+73fcd10b8198: Layer already exists
+9c5ab5dac320: Waiting
+8725ff662526: Waiting
+56d4e55efcce: Pushed
+beccbb746b4f: Waiting
+ff0394f0f842: Waiting
+06e909f0f60d: Waiting
+ac03c2dca44f: Waiting
+f9570a224dad: Waiting
+c4762cd5616a: Waiting
+e5b6ddc3b418: Waiting
+4f4fb700ef54: Waiting
+5000b85b9330: Waiting
+4f4fb700ef54: Layer already exists
+5000b85b9330: Layer already exists
+0eb3622094e0: Layer already exists
+718cd1c38c1f: Layer already exists
+bc0965b23a04: Layer already exists
+9533a2081393: Layer already exists
+6c5558e64ca0: Layer already exists
+acafbe7ac6a1: Layer already exists
+8ed8f3a33a76: Layer already exists
+e25ad9070d5c: Layer already exists
+71dafcf44fff: Layer already exists
+9c278fca4892: Layer already exists
+2257c4490ca8: Layer already exists
+d80bea5a70eb: Layer already exists
+64546a5bf3a4: Layer already exists
+05cfb920912c: Layer already exists
+e6e220682de0: Layer already exists
+2911300f6c32: Layer already exists
+51cf0a40bd09: Layer already exists
+9c5ab5dac320: Layer already exists
+8725ff662526: Layer already exists
+beccbb746b4f: Layer already exists
+ff0394f0f842: Layer already exists
+06e909f0f60d: Layer already exists
+ac03c2dca44f: Layer already exists
+f9570a224dad: Layer already exists
+c4762cd5616a: Layer already exists
+e5b6ddc3b418: Layer already exists
+v1.1.6: digest: sha256:3488b5e00638703f14e8e110b4266d9e790bcf1a6f66f300daf8091c5ba0f8ed size: 856
+✅ Push successful: localhost:5000/job7189/communication-service:v1.1.6
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: storage-service
+   Image: localhost:5000/job7189/storage-service:v1.2.1
+   From: src/storage_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.37kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.8s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#5 DONE 0.1s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 442.13kB 0.1s done
+#4 DONE 0.2s
+
+#7 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#7 CACHED
+
+#8 [14/22] COPY . .
+#8 CACHED
+
+#9 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#9 CACHED
+
+#10 [20/22] RUN chmod +x /etc/docker/run.sh
+#10 CACHED
+
+#11 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#11 CACHED
+
+#12 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#12 CACHED
+
+#13 [21/22] RUN composer install --optimize-autoloader --no-dev
+#13 CACHED
+
+#14 [ 2/22] WORKDIR /var/www
+#14 CACHED
+
+#15 [18/22] RUN mkdir -p /etc/docker
+#15 CACHED
+
+#16 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#16 CACHED
+
+#17 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#17 CACHED
+
+#18 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo
+#18 CACHED
+
+#19 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#19 CACHED
+
+#20 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#20 CACHED
+
+#21 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#21 CACHED
+
+#22 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#22 CACHED
+
+#23 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#23 CACHED
+
+#24 [ 7/22] RUN apt-get install -y supervisor
+#24 CACHED
+
+#25 [11/22] RUN groupadd -g 1000 www
+#25 CACHED
+
+#26 [13/22] WORKDIR /var/www
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:10377f29485f2cdb289f8d9d7a9cad13cad295e82e283099de7cc0b516a18ceb 0.0s done
+#28 exporting config sha256:a56ca6bceef37888abb39d0d3543f9a9d9e519a127d256e6e08ec35b49e0a639 0.0s done
+#28 exporting attestation manifest sha256:554e0e625db0234444285049b6af25f4a95644947f9cf86ee288d659e3f2a5fc
+#28 exporting attestation manifest sha256:554e0e625db0234444285049b6af25f4a95644947f9cf86ee288d659e3f2a5fc 0.1s done
+#28 exporting manifest list sha256:f5bff1a1b9b1333fd551f7a67841615cb0891fb8bf88c2eb94add5c998f238aa 0.0s done
+#28 naming to localhost:5000/job7189/storage-service:v1.2.1
+#28 naming to localhost:5000/job7189/storage-service:v1.2.1 done
+#28 unpacking to localhost:5000/job7189/storage-service:v1.2.1
+#28 unpacking to localhost:5000/job7189/storage-service:v1.2.1 0.2s done
+#28 DONE 0.9s
+✅ Build successful: localhost:5000/job7189/storage-service:v1.2.1
+   Verified: Image exists with tag v1.2.1
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/storage-service]
+b6695e540be6: Waiting
+73fcd10b8198: Waiting
+2437ad881206: Waiting
+bc0965b23a04: Waiting
+718cd1c38c1f: Waiting
+9c278fca4892: Waiting
+df54dc3150db: Waiting
+7cebffdae013: Waiting
+4f4fb700ef54: Waiting
+1185f1c994c9: Waiting
+68e2542557ce: Waiting
+176d0a7fcaa7: Waiting
+20875dc437fd: Waiting
+17aed3dd3879: Waiting
+e5b6ddc3b418: Waiting
+e6e220682de0: Waiting
+2911300f6c32: Waiting
+8274b7edca9f: Waiting
+60d4d2069012: Waiting
+c0a3ba49e09d: Waiting
+83d162e1305a: Waiting
+64546a5bf3a4: Waiting
+e25ad9070d5c: Waiting
+6b2bdcb37315: Waiting
+6c5558e64ca0: Waiting
+5bb365315176: Waiting
+f82c28fa8eef: Waiting
+8725ff662526: Waiting
+6e6089eb6f8b: Waiting
+8ef0cba8b2c7: Waiting
+8c72667582fc: Waiting
+bc0965b23a04: Waiting
+718cd1c38c1f: Waiting
+9c278fca4892: Waiting
+df54dc3150db: Layer already exists
+7cebffdae013: Waiting
+b6695e540be6: Pushed
+4f4fb700ef54: Layer already exists
+1185f1c994c9: Layer already exists
+68e2542557ce: Waiting
+176d0a7fcaa7: Layer already exists
+20875dc437fd: Layer already exists
+17aed3dd3879: Waiting
+e5b6ddc3b418: Layer already exists
+e6e220682de0: Layer already exists
+2911300f6c32: Layer already exists
+8274b7edca9f: Waiting
+60d4d2069012: Layer already exists
+c0a3ba49e09d: Layer already exists
+83d162e1305a: Waiting
+64546a5bf3a4: Layer already exists
+e25ad9070d5c: Layer already exists
+6b2bdcb37315: Waiting
+6c5558e64ca0: Waiting
+5bb365315176: Waiting
+f82c28fa8eef: Layer already exists
+8725ff662526: Layer already exists
+6e6089eb6f8b: Layer already exists
+8ef0cba8b2c7: Waiting
+8c72667582fc: Layer already exists
+73fcd10b8198: Waiting
+2437ad881206: Layer already exists
+68e2542557ce: Layer already exists
+17aed3dd3879: Layer already exists
+8274b7edca9f: Layer already exists
+83d162e1305a: Layer already exists
+6b2bdcb37315: Layer already exists
+6c5558e64ca0: Layer already exists
+5bb365315176: Layer already exists
+8ef0cba8b2c7: Layer already exists
+73fcd10b8198: Layer already exists
+bc0965b23a04: Layer already exists
+718cd1c38c1f: Layer already exists
+9c278fca4892: Layer already exists
+7cebffdae013: Layer already exists
+v1.2.1: digest: sha256:f5bff1a1b9b1333fd551f7a67841615cb0891fb8bf88c2eb94add5c998f238aa size: 856
+✅ Push successful: localhost:5000/job7189/storage-service:v1.2.1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: candidate-service
+   Image: localhost:5000/job7189/candidate-service:v1.0.0
+   From: src/candidate_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.8s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#5 DONE 0.1s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 476.19kB 0.1s done
+#4 DONE 0.1s
+
+#7 [14/22] COPY . .
+#7 CACHED
+
+#8 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#8 CACHED
+
+#9 [18/22] RUN mkdir -p /etc/docker
+#9 CACHED
+
+#10 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#10 CACHED
+
+#11 [ 7/22] RUN apt-get install -y supervisor
+#11 CACHED
+
+#12 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#12 CACHED
+
+#13 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#13 CACHED
+
+#14 [ 2/22] WORKDIR /var/www
+#14 CACHED
+
+#15 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#15 CACHED
+
+#16 [11/22] RUN groupadd -g 1000 www
+#16 CACHED
+
+#17 [20/22] RUN chmod +x /etc/docker/run.sh
+#17 CACHED
+
+#18 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#18 CACHED
+
+#19 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#19 CACHED
+
+#20 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#20 CACHED
+
+#21 [21/22] RUN composer install --optimize-autoloader --no-dev
+#21 CACHED
+
+#22 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#22 CACHED
+
+#23 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#23 CACHED
+
+#24 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#24 CACHED
+
+#25 [13/22] WORKDIR /var/www
+#25 CACHED
+
+#26 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:bedf8a161950c9d88263ad85f6206f0bfe7f07389f665be9d04a3ab9e76a939d 0.0s done
+#28 exporting config sha256:f1f8d1a42b8822fd74f75d6aced6fa19e5001a925873e115ff036266aac79edc 0.0s done
+#28 exporting attestation manifest sha256:ddaffcefbbb34793cb7955437d17775f6d9c674ba88069b4b7a7e8ba4ba3f799
+#28 exporting attestation manifest sha256:ddaffcefbbb34793cb7955437d17775f6d9c674ba88069b4b7a7e8ba4ba3f799 0.1s done
+#28 exporting manifest list sha256:c0309f8d0dd6e89621b880f14ec5790a346eeed94350f03d9280d8afe4ee79f9 0.0s done
+#28 naming to localhost:5000/job7189/candidate-service:v1.0.0
+#28 naming to localhost:5000/job7189/candidate-service:v1.0.0 done
+#28 unpacking to localhost:5000/job7189/candidate-service:v1.0.0
+#28 unpacking to localhost:5000/job7189/candidate-service:v1.0.0 0.2s done
+#28 DONE 0.8s
+✅ Build successful: localhost:5000/job7189/candidate-service:v1.0.0
+   Verified: Image exists with tag v1.0.0
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/candidate-service]
+73fcd10b8198: Waiting
+f9570a224dad: Waiting
+b86a47ee3416: Waiting
+9c278fca4892: Waiting
+6c5558e64ca0: Waiting
+2ddb314cd217: Waiting
+05cfb920912c: Waiting
+6d019b1741d9: Waiting
+5000b85b9330: Waiting
+2911300f6c32: Waiting
+e5b6ddc3b418: Waiting
+e6e220682de0: Waiting
+64546a5bf3a4: Waiting
+d43f6f377d1e: Waiting
+ff0394f0f842: Waiting
+e25ad9070d5c: Waiting
+bc0965b23a04: Waiting
+acafbe7ac6a1: Waiting
+85de757f4ce3: Waiting
+4f4fb700ef54: Waiting
+4c932953f8c3: Waiting
+8ed8f3a33a76: Waiting
+26fb3351a8d1: Layer already exists
+06e909f0f60d: Waiting
+609ed7a9867d: Waiting
+8725ff662526: Waiting
+5a2e98d7bf0d: Waiting
+c4762cd5616a: Waiting
+718cd1c38c1f: Waiting
+c69bb2816e5a: Pushed
+bffe42e87600: Waiting
+6c5558e64ca0: Layer already exists
+2ddb314cd217: Waiting
+05cfb920912c: Waiting
+6d019b1741d9: Layer already exists
+5000b85b9330: Waiting
+2911300f6c32: Layer already exists
+e5b6ddc3b418: Layer already exists
+e6e220682de0: Layer already exists
+64546a5bf3a4: Layer already exists
+d43f6f377d1e: Layer already exists
+ff0394f0f842: Layer already exists
+e25ad9070d5c: Layer already exists
+bc0965b23a04: Layer already exists
+acafbe7ac6a1: Layer already exists
+85de757f4ce3: Layer already exists
+4f4fb700ef54: Layer already exists
+4c932953f8c3: Layer already exists
+8ed8f3a33a76: Layer already exists
+06e909f0f60d: Layer already exists
+609ed7a9867d: Layer already exists
+8725ff662526: Waiting
+5a2e98d7bf0d: Waiting
+c4762cd5616a: Layer already exists
+718cd1c38c1f: Layer already exists
+bffe42e87600: Layer already exists
+73fcd10b8198: Layer already exists
+f9570a224dad: Waiting
+b86a47ee3416: Waiting
+9c278fca4892: Waiting
+8725ff662526: Layer already exists
+5a2e98d7bf0d: Layer already exists
+f9570a224dad: Layer already exists
+b86a47ee3416: Layer already exists
+9c278fca4892: Layer already exists
+2ddb314cd217: Layer already exists
+05cfb920912c: Layer already exists
+5000b85b9330: Layer already exists
+v1.0.0: digest: sha256:c0309f8d0dd6e89621b880f14ec5790a346eeed94350f03d9280d8afe4ee79f9 size: 856
+✅ Push successful: localhost:5000/job7189/candidate-service:v1.0.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: job-service
+   Image: localhost:5000/job7189/job-service:v1.0.0
+   From: src/job_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.8s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B 0.0s done
+#3 DONE 0.1s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#5 DONE 0.1s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 751.29kB 0.3s done
+#4 DONE 0.3s
+
+#7 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#7 CACHED
+
+#8 [21/22] RUN composer install --optimize-autoloader --no-dev
+#8 CACHED
+
+#9 [11/22] RUN groupadd -g 1000 www
+#9 CACHED
+
+#10 [13/22] WORKDIR /var/www
+#10 CACHED
+
+#11 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#11 CACHED
+
+#12 [20/22] RUN chmod +x /etc/docker/run.sh
+#12 CACHED
+
+#13 [ 2/22] WORKDIR /var/www
+#13 CACHED
+
+#14 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#14 CACHED
+
+#15 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#15 CACHED
+
+#16 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#16 CACHED
+
+#17 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#17 CACHED
+
+#18 [ 7/22] RUN apt-get install -y supervisor
+#18 CACHED
+
+#19 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#19 CACHED
+
+#20 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#20 CACHED
+
+#21 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#21 CACHED
+
+#22 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#22 CACHED
+
+#23 [14/22] COPY . .
+#23 CACHED
+
+#24 [18/22] RUN mkdir -p /etc/docker
+#24 CACHED
+
+#25 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#25 CACHED
+
+#26 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:1f48916d115bc0fe7d3cdc4a86d7755e0aebfb19d88344bf157dbc3f775e4f6e 0.0s done
+#28 exporting config sha256:3f20fd41f6a9b44f81c1f2f4f8d5ca0879166fc36b4c7a67a953e139cb665250 0.0s done
+#28 exporting attestation manifest sha256:1db4fe1416226448ae9e4fd15d8d49ee90fe72862fb65e3fd8352fe9bcbdf57c
+#28 exporting attestation manifest sha256:1db4fe1416226448ae9e4fd15d8d49ee90fe72862fb65e3fd8352fe9bcbdf57c 0.1s done
+#28 exporting manifest list sha256:0a7d0467b069960ca1a75f68a19b36279c4d6a24cb06a39eafdf2a1b35c4f90d 0.0s done
+#28 naming to localhost:5000/job7189/job-service:v1.0.0
+#28 naming to localhost:5000/job7189/job-service:v1.0.0 done
+#28 unpacking to localhost:5000/job7189/job-service:v1.0.0
+#28 unpacking to localhost:5000/job7189/job-service:v1.0.0 0.2s done
+#28 DONE 0.8s
+✅ Build successful: localhost:5000/job7189/job-service:v1.0.0
+   Verified: Image exists with tag v1.0.0
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/job-service]
+c4762cd5616a: Waiting
+6c5558e64ca0: Layer already exists
+ff0394f0f842: Waiting
+e5b6ddc3b418: Waiting
+6d019b1741d9: Layer already exists
+e6e220682de0: Waiting
+477a0997513e: Waiting
+8ed8f3a33a76: Waiting
+4f4fb700ef54: Waiting
+5000b85b9330: Waiting
+e25ad9070d5c: Waiting
+8725ff662526: Waiting
+7249336f6d57: Waiting
+06e679d1dfcd: Waiting
+f9570a224dad: Layer already exists
+06e909f0f60d: Waiting
+9c278fca4892: Layer already exists
+acafbe7ac6a1: Layer already exists
+64546a5bf3a4: Layer already exists
+05cfb920912c: Layer already exists
+7685fe983282: Waiting
+718cd1c38c1f: Waiting
+66b2db1c426e: Waiting
+783c616d2626: Waiting
+b83f6b18bd27: Waiting
+a2c8746d0936: Pushed
+2911300f6c32: Waiting
+bfbc55c6d0e7: Waiting
+9bbd1b562eac: Waiting
+73fcd10b8198: Waiting
+bc0965b23a04: Waiting
+477a0997513e: Layer already exists
+8ed8f3a33a76: Layer already exists
+4f4fb700ef54: Layer already exists
+5000b85b9330: Layer already exists
+e25ad9070d5c: Layer already exists
+8725ff662526: Layer already exists
+7249336f6d57: Layer already exists
+06e679d1dfcd: Layer already exists
+06e909f0f60d: Layer already exists
+7685fe983282: Layer already exists
+718cd1c38c1f: Layer already exists
+66b2db1c426e: Layer already exists
+783c616d2626: Layer already exists
+b83f6b18bd27: Layer already exists
+2911300f6c32: Layer already exists
+bfbc55c6d0e7: Layer already exists
+9bbd1b562eac: Layer already exists
+73fcd10b8198: Layer already exists
+bc0965b23a04: Layer already exists
+c4762cd5616a: Layer already exists
+ff0394f0f842: Layer already exists
+e5b6ddc3b418: Layer already exists
+e6e220682de0: Layer already exists
+v1.0.0: digest: sha256:0a7d0467b069960ca1a75f68a19b36279c4d6a24cb06a39eafdf2a1b35c4f90d size: 856
+✅ Push successful: localhost:5000/job7189/job-service:v1.0.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: workspace-service
+   Image: localhost:5000/job7189/workspace-service:v1.0.0
+   From: src/workspace_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.8s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B 0.0s done
+#3 DONE 0.0s
+
+#4 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#4 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#4 DONE 0.1s
+
+#5 [internal] load build context
+#5 DONE 0.0s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#5 [internal] load build context
+#5 transferring context: 728.80kB 0.2s done
+#5 DONE 0.3s
+
+#7 [18/22] RUN mkdir -p /etc/docker
+#7 CACHED
+
+#8 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#8 CACHED
+
+#9 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#9 CACHED
+
+#10 [13/22] WORKDIR /var/www
+#10 CACHED
+
+#11 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#11 CACHED
+
+#12 [14/22] COPY . .
+#12 CACHED
+
+#13 [ 2/22] WORKDIR /var/www
+#13 CACHED
+
+#14 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#14 CACHED
+
+#15 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#15 CACHED
+
+#16 [20/22] RUN chmod +x /etc/docker/run.sh
+#16 CACHED
+
+#17 [11/22] RUN groupadd -g 1000 www
+#17 CACHED
+
+#18 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#18 CACHED
+
+#19 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#19 CACHED
+
+#20 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#20 CACHED
+
+#21 [ 7/22] RUN apt-get install -y supervisor
+#21 CACHED
+
+#22 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#22 CACHED
+
+#23 [21/22] RUN composer install --optimize-autoloader --no-dev
+#23 CACHED
+
+#24 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#24 CACHED
+
+#25 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#25 CACHED
+
+#26 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:62e0ddd367677d2226a00f533fdc936dd788d0e1da416170269a1fac2587b40f 0.0s done
+#28 exporting config sha256:9203a27bf6450db2a0b83364c4f62088af2332dae9d97c5d96f879f1db603609 0.0s done
+#28 exporting attestation manifest sha256:07024938141b8e79653302ec983868d80b9785c31a59816050c2d107d9b78cf3
+#28 exporting attestation manifest sha256:07024938141b8e79653302ec983868d80b9785c31a59816050c2d107d9b78cf3 0.1s done
+#28 exporting manifest list sha256:a24323fd63b17ad5dfdc0a9c9123db6b68a42ebf023368fc7b2ebfb040c9210e 0.0s done
+#28 naming to localhost:5000/job7189/workspace-service:v1.0.0
+#28 naming to localhost:5000/job7189/workspace-service:v1.0.0 0.0s done
+#28 unpacking to localhost:5000/job7189/workspace-service:v1.0.0
+#28 unpacking to localhost:5000/job7189/workspace-service:v1.0.0 0.2s done
+#28 DONE 0.9s
+✅ Build successful: localhost:5000/job7189/workspace-service:v1.0.0
+   Verified: Image exists with tag v1.0.0
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/workspace-service]
+82eaf77b3987: Waiting
+e5f276c44553: Layer already exists
+f9570a224dad: Waiting
+ba2792332628: Waiting
+04eb8ce874f1: Waiting
+6d019b1741d9: Waiting
+4f4fb700ef54: Waiting
+9e0f9ff2488e: Waiting
+0a7a49677667: Waiting
+800518fce040: Waiting
+5000b85b9330: Waiting
+e6e220682de0: Waiting
+8ed8f3a33a76: Waiting
+f47040ba0552: Waiting
+8746f523b1ac: Waiting
+718cd1c38c1f: Waiting
+c4762cd5616a: Waiting
+05cfb920912c: Waiting
+ff0394f0f842: Waiting
+2911300f6c32: Waiting
+9c278fca4892: Waiting
+06e909f0f60d: Waiting
+e5b6ddc3b418: Waiting
+82eaf77b3987: Pushed
+78620193c1b7: Waiting
+8725ff662526: Waiting
+e25ad9070d5c: Waiting
+6c5558e64ca0: Waiting
+73fcd10b8198: Layer already exists
+bc0965b23a04: Waiting
+acafbe7ac6a1: Waiting
+64546a5bf3a4: Waiting
+9c278fca4892: Layer already exists
+06e909f0f60d: Waiting
+e5b6ddc3b418: Layer already exists
+78620193c1b7: Waiting
+8725ff662526: Waiting
+e25ad9070d5c: Waiting
+6c5558e64ca0: Waiting
+bc0965b23a04: Layer already exists
+acafbe7ac6a1: Layer already exists
+64546a5bf3a4: Waiting
+f9570a224dad: Waiting
+ba2792332628: Layer already exists
+04eb8ce874f1: Waiting
+6d019b1741d9: Layer already exists
+4f4fb700ef54: Waiting
+9e0f9ff2488e: Waiting
+0a7a49677667: Waiting
+800518fce040: Waiting
+5000b85b9330: Waiting
+e6e220682de0: Waiting
+8ed8f3a33a76: Waiting
+f47040ba0552: Waiting
+8746f523b1ac: Layer already exists
+718cd1c38c1f: Layer already exists
+c4762cd5616a: Waiting
+05cfb920912c: Layer already exists
+ff0394f0f842: Waiting
+2911300f6c32: Waiting
+f9570a224dad: Waiting
+04eb8ce874f1: Layer already exists
+4f4fb700ef54: Layer already exists
+9e0f9ff2488e: Layer already exists
+0a7a49677667: Layer already exists
+800518fce040: Layer already exists
+5000b85b9330: Layer already exists
+e6e220682de0: Layer already exists
+8ed8f3a33a76: Layer already exists
+f47040ba0552: Layer already exists
+c4762cd5616a: Layer already exists
+ff0394f0f842: Waiting
+2911300f6c32: Waiting
+06e909f0f60d: Layer already exists
+78620193c1b7: Layer already exists
+8725ff662526: Layer already exists
+e25ad9070d5c: Layer already exists
+6c5558e64ca0: Layer already exists
+64546a5bf3a4: Layer already exists
+f9570a224dad: Layer already exists
+ff0394f0f842: Layer already exists
+2911300f6c32: Layer already exists
+v1.0.0: digest: sha256:a24323fd63b17ad5dfdc0a9c9123db6b68a42ebf023368fc7b2ebfb040c9210e size: 856
+✅ Push successful: localhost:5000/job7189/workspace-service:v1.0.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Building: identity-service
+   Image: localhost:5000/job7189/identity-service:v2.7.8
+   From: src/identity_service/laravel_back
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶ Building Docker image...
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.production
+#1 transferring dockerfile: 2.38kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/php:8.4.1-fpm
+#2 DONE 0.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 DONE 0.0s
+
+#5 [ 1/22] FROM docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b
+#5 resolve docker.io/library/php:8.4.1-fpm@sha256:319fef0a241cb9ff1afd0b8c689633214be7c3bb4a4029c305dec103b5695d6b 0.1s done
+#5 DONE 0.1s
+
+#6 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#6 DONE 0.2s
+
+#4 [internal] load build context
+#4 transferring context: 1.04MB 0.3s done
+#4 DONE 0.3s
+
+#7 [14/22] COPY . .
+#7 CACHED
+
+#8 [ 8/22] RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf &&     echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+#8 CACHED
+
+#9 [11/22] RUN groupadd -g 1000 www
+#9 CACHED
+
+#10 [16/22] RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
+#10 CACHED
+
+#11 [ 2/22] WORKDIR /var/www
+#11 CACHED
+
+#12 [ 4/22] RUN chmod +x /usr/local/bin/install-php-extensions && sync &&     install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo rdkafka
+#12 CACHED
+
+#13 [ 6/22] RUN pecl install redis     && docker-php-ext-enable redis
+#13 CACHED
+
+#14 [ 9/22] RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+#14 CACHED
+
+#15 [21/22] RUN composer install --optimize-autoloader --no-dev
+#15 CACHED
+
+#16 [ 3/22] ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+#16 CACHED
+
+#17 [ 7/22] RUN apt-get install -y supervisor
+#17 CACHED
+
+#18 [17/22] RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+#18 CACHED
+
+#19 [10/22] RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+#19 CACHED
+
+#20 [18/22] RUN mkdir -p /etc/docker
+#20 CACHED
+
+#21 [20/22] RUN chmod +x /etc/docker/run.sh
+#21 CACHED
+
+#22 [ 5/22] RUN apt-get update && apt-get install -y     build-essential     libpng-dev     libjpeg62-turbo-dev     libfreetype6-dev     locales     zip     jpegoptim optipng pngquant gifsicle     unzip     git     curl     lua-zlib-dev     libmemcached-dev     libzip-dev     libonig-dev     pkg-config     libssl-dev     zlib1g-dev     nginx
+#22 CACHED
+
+#23 [19/22] RUN cp docker/run.sh /etc/docker/run.sh
+#23 CACHED
+
+#24 [12/22] RUN useradd -u 1000 -ms /bin/bash -g www www
+#24 CACHED
+
+#25 [15/22] RUN cp docker/supervisor.conf /etc/supervisord.conf
+#25 CACHED
+
+#26 [13/22] WORKDIR /var/www
+#26 CACHED
+
+#27 [22/22] RUN chmod -R ugo+w /var/www/storage
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:f36d090299561b66b63669628510d8d66d4e204aa10cc55112e84608453ab97e 0.0s done
+#28 exporting config sha256:8b5ce07d409ab558142ef2d1002ae6ca8ca94dbbc3cbf78f3b81f31561c18e7c 0.0s done
+#28 exporting attestation manifest sha256:2b76fe1e2c2aab9ff926e4772b97ba7c4ad768f2686a5072efca656aa701b549
+#28 exporting attestation manifest sha256:2b76fe1e2c2aab9ff926e4772b97ba7c4ad768f2686a5072efca656aa701b549 0.1s done
+#28 exporting manifest list sha256:b8c310425754307a8a514f2efb900e005d1102bfa754702238cfe1ec3b3cfac9 0.0s done
+#28 naming to localhost:5000/job7189/identity-service:v2.7.8
+#28 naming to localhost:5000/job7189/identity-service:v2.7.8 done
+#28 unpacking to localhost:5000/job7189/identity-service:v2.7.8
+#28 unpacking to localhost:5000/job7189/identity-service:v2.7.8 0.2s done
+#28 DONE 0.8s
+✅ Build successful: localhost:5000/job7189/identity-service:v2.7.8
+   Verified: Image exists with tag v2.7.8
+▶ Pushing to registry: localhost:5000
+The push refers to repository [localhost:5000/job7189/identity-service]
+46f2bd832878: Waiting
+e5b6ddc3b418: Waiting
+7e0dc1c75cd9: Waiting
+8725ff662526: Waiting
+bc0965b23a04: Waiting
+8ed8f3a33a76: Waiting
+fa670851672c: Waiting
+46f2bd832878: Pushed
+22d85b361077: Waiting
+f9570a224dad: Layer already exists
+c4762cd5616a: Waiting
+5000b85b9330: Waiting
+4f4fb700ef54: Waiting
+e25ad9070d5c: Waiting
+108eee83266b: Waiting
+f6674e2be716: Waiting
+64546a5bf3a4: Waiting
+9c278fca4892: Waiting
+ff0394f0f842: Waiting
+e6e220682de0: Waiting
+c72c1f6fd83f: Waiting
+acafbe7ac6a1: Waiting
+06e909f0f60d: Waiting
+2911300f6c32: Waiting
+9054a93e9cc9: Waiting
+6c5558e64ca0: Waiting
+8a71a363f6ff: Waiting
+2e5ee1c2f87d: Waiting
+73fcd10b8198: Waiting
+6d019b1741d9: Waiting
+718cd1c38c1f: Waiting
+05cfb920912c: Waiting
+acafbe7ac6a1: Layer already exists
+06e909f0f60d: Layer already exists
+2911300f6c32: Layer already exists
+9054a93e9cc9: Layer already exists
+6c5558e64ca0: Layer already exists
+8a71a363f6ff: Layer already exists
+2e5ee1c2f87d: Layer already exists
+73fcd10b8198: Layer already exists
+6d019b1741d9: Layer already exists
+718cd1c38c1f: Layer already exists
+05cfb920912c: Layer already exists
+e5b6ddc3b418: Layer already exists
+7e0dc1c75cd9: Layer already exists
+8725ff662526: Layer already exists
+bc0965b23a04: Layer already exists
+8ed8f3a33a76: Layer already exists
+fa670851672c: Layer already exists
+22d85b361077: Layer already exists
+c4762cd5616a: Layer already exists
+5000b85b9330: Layer already exists
+4f4fb700ef54: Layer already exists
+e25ad9070d5c: Layer already exists
+108eee83266b: Layer already exists
+f6674e2be716: Layer already exists
+64546a5bf3a4: Layer already exists
+9c278fca4892: Layer already exists
+ff0394f0f842: Layer already exists
+e6e220682de0: Layer already exists
+c72c1f6fd83f: Layer already exists
+v2.7.8: digest: sha256:b8c310425754307a8a514f2efb900e005d1102bfa754702238cfe1ec3b3cfac9 size: 856
+✅ Push successful: localhost:5000/job7189/identity-service:v2.7.8
+
+════════════════════════════════════════════════════════
+📊 BUILD SUMMARY
+════════════════════════════════════════════════════════
+✅ Successfully built and pushed:
+   • hiring-service
+   • communication-service
+   • storage-service
+   • candidate-service
+   • job-service
+   • workspace-service
+   • identity-service
+
+✅ All services built and pushed successfully!
+
+Checking which images exist locally...
+─────────────────────────────────────────────────────────
+✓ localhost:5000/job7189/hiring-service:v1.7.4
+✓ localhost:5000/job7189/communication-service:v1.1.6
+✓ localhost:5000/job7189/storage-service:v1.2.1
+✓ localhost:5000/job7189/candidate-service:v1.0.0
+✓ localhost:5000/job7189/job-service:v1.0.0
+✓ localhost:5000/job7189/workspace-service:v1.0.0
+✓ localhost:5000/job7189/identity-service:v2.7.8
+─────────────────────────────────────────────────────────
+
+Next step: Images are ready to be pulled by Kubernetes
+          From cluster (if using K8s registry): docker-registry.registry.svc.cluster.local:5000
+          From host: localhost:5000
+
+   ✓ Build and push completed
+?  [0d. Build and push images] Duration: 60s
+
+   Ensuring images are available in Kind cluster...
+   Retagging images to remove registry prefix...
+   ▶ Retagging: localhost:5000/job7189/identity-service:v2.7.8 → job7189/identity-service:v2.7.8
+   ▶ Retagging: localhost:5000/job7189/workspace-service:v1.0.0 → job7189/workspace-service:v1.0.0
+   ▶ Retagging: localhost:5000/job7189/job-service:v1.0.0 → job7189/job-service:v1.0.0
+   ▶ Retagging: localhost:5000/job7189/hiring-service:v1.7.4 → job7189/hiring-service:v1.7.4
+   ▶ Retagging: localhost:5000/job7189/candidate-service:v1.0.0 → job7189/candidate-service:v1.0.0
+   ▶ Retagging: localhost:5000/job7189/communication-service:v1.1.6 → job7189/communication-service:v1.1.6
+   ▶ Retagging: localhost:5000/job7189/storage-service:v1.2.1 → job7189/storage-service:v1.2.1
+?  [0e1. Retag images] Duration: 5s
+   Chart registry detected: "docker-registry.registry.svc.cluster.local:5000"
+   Tagging images with chart registry prefix (if present)...
+   ▶ Tagging: localhost:5000/job7189/identity-service:v2.7.8 → "docker-registry.registry.svc.cluster.local:5000"/job7189/identity-service:v2.7.8
+   ▶ Tagging: job7189/identity-service:v2.7.8 → "docker-registry.registry.svc.cluster.local:5000"/job7189/identity-service:v2.7.8
+   ▶ Tagging: localhost:5000/job7189/workspace-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/workspace-service:v1.0.0
+   ▶ Tagging: job7189/workspace-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/workspace-service:v1.0.0
+   ▶ Tagging: localhost:5000/job7189/job-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/job-service:v1.0.0
+   ▶ Tagging: job7189/job-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/job-service:v1.0.0
+   ▶ Tagging: localhost:5000/job7189/hiring-service:v1.7.4 → "docker-registry.registry.svc.cluster.local:5000"/job7189/hiring-service:v1.7.4
+   ▶ Tagging: job7189/hiring-service:v1.7.4 → "docker-registry.registry.svc.cluster.local:5000"/job7189/hiring-service:v1.7.4
+   ▶ Tagging: localhost:5000/job7189/candidate-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/candidate-service:v1.0.0
+   ▶ Tagging: job7189/candidate-service:v1.0.0 → "docker-registry.registry.svc.cluster.local:5000"/job7189/candidate-service:v1.0.0
+   ▶ Tagging: localhost:5000/job7189/communication-service:v1.1.6 → "docker-registry.registry.svc.cluster.local:5000"/job7189/communication-service:v1.1.6
+   ▶ Tagging: job7189/communication-service:v1.1.6 → "docker-registry.registry.svc.cluster.local:5000"/job7189/communication-service:v1.1.6
+   ▶ Tagging: localhost:5000/job7189/storage-service:v1.2.1 → "docker-registry.registry.svc.cluster.local:5000"/job7189/storage-service:v1.2.1
+   ▶ Tagging: job7189/storage-service:v1.2.1 → "docker-registry.registry.svc.cluster.local:5000"/job7189/storage-service:v1.2.1
+?  [0e1. Retag images] Duration: 9s
+
+   ⚡ Pushing images to in-cluster registry (fast path)...
+   Registry: "docker-registry.registry.svc.cluster.local:5000"
+
+
+   Pushing: job7189/identity-service:v2.7.8
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/identity-service:v2.7.8
+
+   Pushing: job7189/workspace-service:v1.0.0
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/workspace-service:v1.0.0
+
+   Pushing: job7189/job-service:v1.0.0
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/job-service:v1.0.0
+
+   Pushing: job7189/hiring-service:v1.7.4
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/hiring-service:v1.7.4
+
+   Pushing: job7189/candidate-service:v1.0.0
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/candidate-service:v1.0.0
+
+   Pushing: job7189/communication-service:v1.1.6
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/communication-service:v1.1.6
+
+   Pushing: job7189/storage-service:v1.2.1
+   ▶ Pushing to registry...
+   ✓ Push successful: "docker-registry.registry.svc.cluster.local:5000"/job7189/storage-service:v1.2.1
+?  [0e2. Push images to registry] Duration: 5s
+
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📦 Image Registry Push Summary:
+   ✓ Pushed: 7/7
+   ✓ All images pushed successfully!
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Pods will pull images on-demand from registry
+   (imagePullPolicy: IfNotPresent in Helm charts)
+
+
+?  Step 1: Deploying microservices via Helmfile...
+
+   Waiting for Kind cluster to be ready...
+   Checking Helm & Helmfile...
+
+▓▓▓ helmfile
+
+  Version              1.4.1
+  Git Commit           615e813
+  Build Date           03 Mar 26 12:58 UTC (4 weeks ago)
+  Commit Date          03 Mar 26 12:56 UTC (4 weeks ago)
+  Dirty Build          no
+  Go version           1.25.4
+  Compiler             gc
+  Platform             linux/amd64
+
+  │ A new release is available: 1.4.1 → v1.4.3
+  │ https://github.com/helmfile/helmfile/releases/tag/v1.4.3
+
+   Running helmfile apply to deploy microservices...
+   (This may take 2-5 minutes as pods initialize)
+
+Building dependency release=identity-service, chart=charts/laravel-app
+Building dependency release=workspace-service, chart=charts/laravel-app
+Building dependency release=job-service, chart=charts/laravel-app
+Building dependency release=hiring-service, chart=charts/laravel-app
+Building dependency release=candidate-service, chart=charts/laravel-app
+Building dependency release=communication-service, chart=charts/laravel-app
+Building dependency release=storage-service, chart=charts/laravel-app
+Building dependency release=fe-candidate, chart=charts/fe-candidate
+Building dependency release=fe-recruiter, chart=charts/fe-recruiter
+Comparing release=identity-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=workspace-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=job-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=hiring-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=candidate-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=communication-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=storage-service, chart=charts/laravel-app, namespace=job7189-apps
+Comparing release=fe-candidate, chart=charts/fe-candidate, namespace=frontend
+frontend, fe-candidate, Deployment (apps) has changed:
+  # Source: fe-candidate/templates/deployment.yaml
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: fe-candidate
+    labels:
+      helm.sh/chart: fe-candidate-1.0.0
+      app.kubernetes.io/name: fe-candidate
+      app.kubernetes.io/instance: fe-candidate
+      app.kubernetes.io/version: "1.0.0"
+      app.kubernetes.io/managed-by: Helm
+  spec:
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: fe-candidate
+        app.kubernetes.io/instance: fe-candidate
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: fe-candidate
+          app.kubernetes.io/instance: fe-candidate
+      spec:
+        serviceAccountName: fe-candidate
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        containers:
+        - name: fe-candidate
+          securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+-         image: "localhost:5000/fe-candidate:latest"
++         image: "fe-candidate:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+          - name: http
+            containerPort: 3000
+            protocol: TCP
+          livenessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /
+                port: http
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              timeoutSeconds: 5
+          readinessProbe:
+              failureThreshold: 2
+              httpGet:
+                path: /
+                port: http
+              initialDelaySeconds: 10
+              periodSeconds: 5
+              timeoutSeconds: 3
+          resources:
+              limits:
+                cpu: 500m
+                memory: 512Mi
+              requests:
+                cpu: 250m
+                memory: 256Mi
+          env:
+              - name: NODE_ENV
+                value: production
+              - name: NEXT_PUBLIC_API_BASE_URL
+                value: http://kong-proxy.gateway.svc.cluster.local:80
+              - name: NEXT_PUBLIC_KEYCLOAK_URL
+                value: http://keycloak.security.svc.cluster.local:8080
+              - name: NEXT_PUBLIC_KEYCLOAK_REALM
+                value: job7189
+              - name: NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
+                value: fe-candidate
+
+Comparing release=fe-recruiter, chart=charts/fe-recruiter, namespace=frontend
+frontend, fe-recruiter, Deployment (apps) has changed:
+  # Source: fe-recruiter/templates/deployment.yaml
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: fe-recruiter
+    labels:
+      helm.sh/chart: fe-recruiter-1.0.0
+      app.kubernetes.io/name: fe-recruiter
+      app.kubernetes.io/instance: fe-recruiter
+      app.kubernetes.io/version: "1.0.0"
+      app.kubernetes.io/managed-by: Helm
+  spec:
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: fe-recruiter
+        app.kubernetes.io/instance: fe-recruiter
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: fe-recruiter
+          app.kubernetes.io/instance: fe-recruiter
+      spec:
+        serviceAccountName: fe-recruiter
+        securityContext:
+          fsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        containers:
+        - name: fe-recruiter
+          securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+-         image: "localhost:5000/fe-recruiter:latest"
++         image: "fe-recruiter:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+          - name: http
+            containerPort: 3000
+            protocol: TCP
+          livenessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /
+                port: http
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              timeoutSeconds: 5
+          readinessProbe:
+              failureThreshold: 2
+              httpGet:
+                path: /
+                port: http
+              initialDelaySeconds: 10
+              periodSeconds: 5
+              timeoutSeconds: 3
+          resources:
+              limits:
+                cpu: 500m
+                memory: 512Mi
+              requests:
+                cpu: 250m
+                memory: 256Mi
+          env:
+              - name: NODE_ENV
+                value: production
+              - name: NEXT_PUBLIC_API_BASE_URL
+                value: http://kong-proxy.gateway.svc.cluster.local:80
+              - name: NEXT_PUBLIC_KEYCLOAK_URL
+                value: http://keycloak.security.svc.cluster.local:8080
+              - name: NEXT_PUBLIC_KEYCLOAK_REALM
+                value: job7189
+              - name: NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
+                value: fe-recruiter
+
+in ./helmfile.yaml: command "/usr/local/bin/helm" exited with non-zero status:
+
+PATH:
+  /usr/local/bin/helm
+
+ARGS:
+  0: helm (4 bytes)
+  1: diff (4 bytes)
+  2: upgrade (7 bytes)
+  3: --allow-unreleased (18 bytes)
+  4: candidate-service (17 bytes)
+  5: charts/laravel-app (18 bytes)
+  6: --kube-version (14 bytes)
+  7: 1.35.0 (6 bytes)
+  8: --namespace (11 bytes)
+  9: job7189-apps (12 bytes)
+  10: --values (8 bytes)
+  11: /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b (72 bytes)
+  12: --values (8 bytes)
+  13: /tmp/helmfile3809814045/job7189-apps-candidate-service-values-9dc7578dc (71 bytes)
+  14: --reset-values (14 bytes)
+  15: --detailed-exitcode (19 bytes)
+
+ERROR:
+  exit status 1
+
+EXIT STATUS
+  1
+
+STDERR:
+  Error: Failed to render chart: exit status 1: Error: failed to parse /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b: cannot unmarshal yaml document: error converting YAML to JSON: yaml: line 56: did not find expected key
+  Error: plugin "diff" exited with error
+
+COMBINED OUTPUT:
+  Error: Failed to render chart: exit status 1: Error: failed to parse /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b: cannot unmarshal yaml document: error converting YAML to JSON: yaml: line 56: did not find expected key
+  Error: plugin "diff" exited with error
+
+   ⚠️  Helmfile encountered issues (exit code: 1)
+   Helm releases may still be deploying...
+  10: --values (8 bytes)
+  11: /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b (72 bytes)
+  12: --values (8 bytes)
+  13: /tmp/helmfile3809814045/job7189-apps-candidate-service-values-9dc7578dc (71 bytes)
+  14: --reset-values (14 bytes)
+  15: --detailed-exitcode (19 bytes)
+
+ERROR:
+  exit status 1
+
+EXIT STATUS
+  1
+
+STDERR:
+  Error: Failed to render chart: exit status 1: Error: failed to parse /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b: cannot unmarshal yaml document: error converting YAML to JSON: yaml: line 56: did not find expected key
+  Error: plugin "diff" exited with error
+
+COMBINED OUTPUT:
+  Error: Failed to render chart: exit status 1: Error: failed to parse /tmp/helmfile1628489463/job7189-apps-candidate-service-values-69f6f8878b: cannot unmarshal yaml document: error converting YAML to JSON: yaml: line 56: did not find expected key
+  Error: plugin "diff" exited with error
+?  [1a. Helmfile apply] Duration: 12s
+
+   Waiting for pods to be created...
+   Verifying deployed releases...
+NAME                 	NAMESPACE   	REVISION	UPDATED                                	STATUS  	CHART             	APP VERSION
+candidate-service    	job7189-apps	4       	2026-04-01 08:40:08.948138239 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+cilium               	kube-system 	1       	2026-03-29 15:00:48.204268291 +0000 UTC	deployed	cilium-1.19.1     	1.19.1     
+communication-service	job7189-apps	5       	2026-04-01 08:40:09.169658179 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+fe-candidate         	frontend    	3       	2026-03-31 14:53:55.638968046 +0000 UTC	deployed	fe-candidate-1.0.0	1.0.0      
+fe-candidate-service 	job7189-apps	1       	2026-03-29 15:39:19.378991037 +0000 UTC	deployed	nextjs-app-0.1.0  	1.0.0      
+fe-recruiter         	frontend    	2       	2026-03-31 14:53:57.284233587 +0000 UTC	deployed	fe-recruiter-1.0.0	1.0.0      
+hiring-service       	job7189-apps	4       	2026-04-01 08:40:09.086675966 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+identity-service     	job7189-apps	4       	2026-04-01 08:40:09.002753783 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+job-service          	job7189-apps	4       	2026-04-01 08:40:09.072714927 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+storage-service      	job7189-apps	6       	2026-04-01 08:40:09.18692895 +0000 UTC 	deployed	laravel-app-1.0.0 	1.0.0      
+vault-agent          	vault       	1       	2026-04-02 02:45:36.732366351 +0000 UTC	deployed	vault-0.32.0      	1.21.2     
+workspace-service    	job7189-apps	4       	2026-04-01 08:40:08.572092495 +0000 UTC	deployed	laravel-app-1.0.0 	1.0.0      
+?  [1b. Helmfile deployment checkpoint] Duration: 4s
+
+? Step 2: Checking deployment status...
+
+   Giving pods time to initialize (15 seconds)...
+............... Done
+
+? Pod Status Summary:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NAME                                           READY   STATUS             RESTARTS      AGE     IP             NODE              NOMINATED NODE   READINESS GATES
+candidate-service-747c9f65db-hllwc             2/2     Running            4 (53m ago)   18h     10.244.1.111   job7189-worker2   <none>           <none>
+candidate-service-redis-67586c6d95-6dm5s       1/1     Running            6 (53m ago)   3d11h   10.244.3.243   job7189-worker    <none>           <none>
+communication-service-66959d9c79-78qtm         2/2     Running            4 (53m ago)   18h     10.244.1.95    job7189-worker2   <none>           <none>
+communication-service-redis-5c7fddc846-k8t6l   1/1     Running            6 (53m ago)   3d11h   10.244.3.207   job7189-worker    <none>           <none>
+fe-candidate-service-5ddf8899c-7n946           0/1     ImagePullBackOff   0             3d11h   10.244.2.142   job7189-worker3   <none>           <none>
+hiring-service-cb7c59545-797r5                 2/2     Running            4 (53m ago)   18h     10.244.3.62    job7189-worker    <none>           <none>
+hiring-service-redis-54df9744c9-7msrh          1/1     Running            6 (53m ago)   3d11h   10.244.1.229   job7189-worker2   <none>           <none>
+identity-service-6bf778cc46-8tdnz              2/2     Running            2 (53m ago)   11h     10.244.3.91    job7189-worker    <none>           <none>
+identity-service-redis-79bc494c5b-69f7r        1/1     Running            6 (53m ago)   3d11h   10.244.2.186   job7189-worker3   <none>           <none>
+job-service-5cc498d594-66tf6                   2/2     Running            4 (53m ago)   18h     10.244.2.140   job7189-worker3   <none>           <none>
+job-service-redis-7bd7474c6f-nqt47             1/1     Running            6 (53m ago)   3d11h   10.244.1.84    job7189-worker2   <none>           <none>
+storage-service-68d8c6db4b-zdt7d               2/2     Running            4 (53m ago)   18h     10.244.2.120   job7189-worker3   <none>           <none>
+storage-service-redis-5799d95f9f-dsfx8         1/1     Running            6             3d11h   10.244.3.39    job7189-worker    <none>           <none>
+workspace-service-846bc698ff-s4f66             2/2     Running            4 (53m ago)   18h     10.244.1.189   job7189-worker2   <none>           <none>
+workspace-service-redis-8478b7bdd7-sqn8x       1/1     Running            6 (53m ago)   3d11h   10.244.3.130   job7189-worker    <none>           <none>
+
+? Detailed Status by Namespace:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     21 kube-system
+     15 job7189-apps
+      4 frontend
+      3 vault
+      3 gateway
+      3 cert-manager
+      2 security
+      2 management
+      2 data
+      1 local-path-storage
+      1 ingress-nginx
+
+? Checking for Error States:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+????????????????????????????????????????????????
+? PART 3: MICROSERVICES - TIMING SUMMARY
+????????????????????????????????????????????????
+  0a. Local Registry setup                       14s
+  0d. Build and push images                      60s
+  0e1. Retag images                               9s
+  0e2. Push images to registry                    5s
+  1a. Helmfile apply                             12s
+  1b. Helmfile deployment checkpoint              4s
+  Pre-flight check                                1s
+------------------------------------------------
+  TOTAL                                         126s
+????????????????????????????????????????????????

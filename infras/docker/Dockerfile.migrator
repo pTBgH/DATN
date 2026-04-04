@@ -1,0 +1,45 @@
+# ==========================================
+# Dockerfile.migrator — ZTA Database Migration Image
+# ==========================================
+# PURPOSE: Ephemeral image for running Laravel migrations and SQL seed imports.
+# SECURITY (ZTA):
+#   - Runs as non-root user (uid=1000)
+#   - No secrets embedded; all DB credentials injected at runtime via Vault Agent
+#   - Image terminates immediately after migration completes
+#   - Multi-stage build to minimize attack surface
+# ==========================================
+
+# ── Stage 1: Base PHP with MySQL extensions ──
+FROM php:8.2-cli AS base
+
+# Install only the extensions needed for migration (minimal attack surface)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    default-mysql-client \
+    && docker-php-ext-install pdo pdo_mysql \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ── Stage 2: Migrator target ──
+FROM base AS migrator
+
+WORKDIR /app
+
+# ZTA: Create non-root user for migration execution
+RUN groupadd -g 1000 migrator && \
+    useradd -u 1000 -g migrator -m migrator
+
+# Copy Laravel application code
+COPY . /app
+
+# Install composer dependencies (production only, no dev)
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN composer install --optimize-autoloader --no-dev --no-interaction --no-progress 2>/dev/null || true
+
+# Keep only what's needed for migrations
+# (artisan, database/, config/, app/ bootstrap/ vendor/)
+RUN chown -R migrator:migrator /app
+
+# ZTA: Run as non-root
+USER migrator
+
+# Default: run migrations. Can be overridden by Kubernetes Job command.
+CMD ["php", "artisan", "migrate", "--force"]

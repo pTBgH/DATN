@@ -1,0 +1,215 @@
+{
+  "configuration" : { },
+  "description" : "Sơ đồ kiến trúc hệ thống tuyển dụng Job7189",
+  "documentation" : { },
+  "id" : 1,
+  "lastModifiedDate" : "2026-01-25T16:03:44Z",
+  "model" : {
+    "people" : [ {
+      "description" : "Người tìm việc có nhu cầu tìm kiếm cơ hội nghề nghiệp.",
+      "id" : "1",
+      "name" : "Candidate\n[Person]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "candidate"
+      },
+      "relationships" : [ {
+        "description" : "Sử dụng",
+        "destinationId" : "4",
+        "id" : "8",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Person,User"
+    }, {
+      "description" : "Nhà tuyển dụng của các tổ chức.",
+      "id" : "2",
+      "name" : "Recruiter\n[Person]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "recruiter"
+      },
+      "relationships" : [ {
+        "description" : "Sử dụng",
+        "destinationId" : "4",
+        "id" : "9",
+        "sourceId" : "2",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Person,User"
+    }, {
+      "description" : "Quản trị viên hệ thống Job7189.",
+      "id" : "3",
+      "name" : "System Admin\n[Person]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "sysAdmin"
+      },
+      "relationships" : [ {
+        "description" : "Sử dụng",
+        "destinationId" : "4",
+        "id" : "10",
+        "sourceId" : "3",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Person,User"
+    } ],
+    "softwareSystems" : [ {
+      "description" : "Hệ thống tuyển dụng trực tuyến kết nối ứng viên và nhà tuyển dụng.",
+      "documentation" : { },
+      "id" : "4",
+      "name" : "Job7189 System\n[Software System]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "jobSystem"
+      },
+      "relationships" : [ {
+        "description" : "Xác thực user sử dụng",
+        "destinationId" : "5",
+        "id" : "11",
+        "sourceId" : "4",
+        "tags" : "Relationship"
+      }, {
+        "description" : "Gửi emails sử dụng",
+        "destinationId" : "6",
+        "id" : "12",
+        "sourceId" : "4",
+        "tags" : "Relationship"
+      }, {
+        "description" : " Đọc từ và ghi vào",
+        "destinationId" : "7",
+        "id" : "13",
+        "sourceId" : "4",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Software System,Main System"
+    }, {
+      "description" : "Hệ thống xác thực, quản lý danh tính và phân quyền người dùng tập trung.",
+      "documentation" : { },
+      "id" : "5",
+      "name" : "IAM/IdP\n[Software System]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "idp"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Dịch vụ gửi email.",
+      "documentation" : { },
+      "id" : "6",
+      "name" : "Email Service\n[Software System]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "emailService"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Hệ thống lưu trữ đối tượng.",
+      "documentation" : { },
+      "id" : "7",
+      "name" : "Object Storage Service\n[Software System]",
+      "properties" : {
+        "structurizr.dsl.identifier" : "minioStorage"
+      },
+      "tags" : "Element,Software System,External"
+    } ]
+  },
+  "name" : "Job7189 Architecture",
+  "properties" : {
+    "structurizr.inspection.error" : "11",
+    "structurizr.dsl" : "d29ya3NwYWNlICJKb2I3MTg5IEFyY2hpdGVjdHVyZSIgIlPGoSDEkeG7kyBraeG6v24gdHLDumMgaOG7hyB0aOG7kW5nIHR1eeG7g24gZOG7pW5nIEpvYjcxODkiIHsKCiAgICBtb2RlbCB7CiAgICAgICAgIyBQZW9wbGUKICAgICAgICBjYW5kaWRhdGUgPSBwZXJzb24gIkNhbmRpZGF0ZVxuW1BlcnNvbl0iICJOZ8aw4budaSB0w6xtIHZp4buHYyBjw7Mgbmh1IGPhuqd1IHTDrG0ga2nhur9tIGPGoSBo4buZaSBuZ2jhu4EgbmdoaeG7h3AuIiAiVXNlciIKICAgICAgICAKICAgICAgICByZWNydWl0ZXIgPSBwZXJzb24gIlJlY3J1aXRlclxuW1BlcnNvbl0iICJOaMOgIHR1eeG7g24gZOG7pW5nIGPhu6dhIGPDoWMgdOG7lSBjaOG7qWMuIiAiVXNlciIKICAgICAgICAKICAgICAgICBzeXNBZG1pbiA9IHBlcnNvbiAiU3lzdGVtIEFkbWluXG5bUGVyc29uXSIgIlF14bqjbiB0cuG7iyB2acOqbiBo4buHIHRo4buRbmcgSm9iNzE4OS4iICJVc2VyIgoKICAgICAgICAjIFNvZnR3YXJlIFN5c3RlbSAoaW4gc2NvcGUpCiAgICAgICAgam9iU3lzdGVtID0gc29mdHdhcmVTeXN0ZW0gIkpvYjcxODkgU3lzdGVtXG5bU29mdHdhcmUgU3lzdGVtXSIgIkjhu4cgdGjhu5FuZyB0dXnhu4NuIGThu6VuZyB0cuG7sWMgdHV54bq/biBr4bq/dCBu4buRaSDhu6luZyB2acOqbiB2w6AgbmjDoCB0dXnhu4NuIGThu6VuZy4iIHsKICAgICAgICAgICAgdGFncyAiTWFpbiBTeXN0ZW0iCiAgICAgICAgfQoKICAgICAgICAjIEV4dGVybmFsIFNvZnR3YXJlIFN5c3RlbXMKICAgICAgICBpZHAgPSBzb2Z0d2FyZVN5c3RlbSAiSUFNL0lkUFxuW1NvZnR3YXJlIFN5c3RlbV0iICJI4buHIHRo4buRbmcgeMOhYyB0aOG7sWMsIHF14bqjbiBsw70gZGFuaCB0w61uaCB2w6AgcGjDom4gcXV54buBbiBuZ8aw4budaSBkw7luZyB04bqtcCB0cnVuZy4iICJFeHRlcm5hbCIKICAgICAgICAKICAgICAgICBlbWFpbFNlcnZpY2UgPSBzb2Z0d2FyZVN5c3RlbSAiRW1haWwgU2VydmljZVxuW1NvZnR3YXJlIFN5c3RlbV0iICJE4buLY2ggduG7pSBn4butaSBlbWFpbC4iICJFeHRlcm5hbCIKICAgICAgICAKICAgICAgICBtaW5pb1N0b3JhZ2UgPSBzb2Z0d2FyZVN5c3RlbSAiT2JqZWN0IFN0b3JhZ2UgU2VydmljZVxuW1NvZnR3YXJlIFN5c3RlbV0iICJI4buHIHRo4buRbmcgbMawdSB0cuG7ryDEkeG7kWkgdMaw4bujbmcuIiAiRXh0ZXJuYWwiCgogICAgICAgICMgUmVsYXRpb25zaGlwcyAtIFNpbXBsZSAmIEhpZ2gtbGV2ZWwKICAgICAgICBjYW5kaWRhdGUgLT4gam9iU3lzdGVtICJT4butIGThu6VuZyIKICAgICAgICByZWNydWl0ZXIgLT4gam9iU3lzdGVtICJT4butIGThu6VuZyIgIAogICAgICAgIHN5c0FkbWluIC0+IGpvYlN5c3RlbSAiU+G7rSBk4bulbmciCgogICAgICAgICMgU3lzdGVtIHRvIEV4dGVybmFsIC0gUHVycG9zZSBmb2N1c2VkCiAgICAgICAgam9iU3lzdGVtIC0+IGlkcCAiWMOhYyB0aOG7sWMgdXNlciBz4butIGThu6VuZyIKICAgICAgICBqb2JTeXN0ZW0gLT4gZW1haWxTZXJ2aWNlICJH4butaSBlbWFpbHMgc+G7rSBk4bulbmciCiAgICAgICAgam9iU3lzdGVtIC0+IG1pbmlvU3RvcmFnZSAiIMSQ4buNYyB04burIHbDoCBnaGkgdsOgbyIKICAgIH0KCiAgICB2aWV3cyB7CiAgICAgICAgc3lzdGVtQ29udGV4dCBqb2JTeXN0ZW0gIlN5c3RlbUNvbnRleHQiICJTxqEgxJHhu5Mgbmfhu68gY+G6o25oIGjhu4cgdGjhu5FuZyBKb2I3MTg5IiB7CiAgICAgICAgICAgIGluY2x1ZGUgKgogICAgICAgIH0KCiAgICAgICAgc3R5bGVzIHsKICAgICAgICAgICAgZWxlbWVudCAiU29mdHdhcmUgU3lzdGVtIiB7CiAgICAgICAgICAgICAgICBzaGFwZSBSb3VuZGVkQm94CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICMxMTY4YmQKICAgICAgICAgICAgICAgIGNvbG9yICNmZmZmZmYKICAgICAgICAgICAgICAgIGZvbnRTaXplIDM1CiAgICAgICAgICAgICAgICBNZXRhZGF0YSBmYWxzZQogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIk1haW4gU3lzdGVtIiB7CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICMxMTY4YmQKICAgICAgICAgICAgICAgIE1ldGFkYXRhIGZhbHNlCiAgICAgICAgICAgICAgICB3aWR0aCA1MDAKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJQZXJzb24iIHsKICAgICAgICAgICAgICAgIHNoYXBlIFBlcnNvbgogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjMDg0MjdiCiAgICAgICAgICAgICAgICBjb2xvciAjZmZmZmZmCiAgICAgICAgICAgICAgICBmb250U2l6ZSAzNQogICAgICAgICAgICAgICAgTWV0YWRhdGEgZmFsc2UKICAgICAgICAgICAgICAgIHdpZHRoIDUwMAogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkV4dGVybmFsIiB7CiAgICAgICAgICAgICAgICB3aWR0aCA1MDAKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzk5OTk5OQogICAgICAgICAgICAgICAgTWV0YWRhdGEgZmFsc2UKICAgICAgICAgICAgfQogICAgICAgICAgICByZWxhdGlvbnNoaXAgIlJlbGF0aW9uc2hpcCIgewogICAgICAgICAgICAgICAgdGhpY2tuZXNzIDUKICAgICAgICAgICAgICAgIGZvbnRTaXplIDQwCiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIHRoZW1lIGRlZmF1bHQKICAgIH0KfQ==",
+    "structurizr.inspection.info" : "0",
+    "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.warning" : "0"
+  },
+  "views" : {
+    "configuration" : {
+      "branding" : { },
+      "lastSavedView" : "SystemContext",
+      "styles" : {
+        "elements" : [ {
+          "background" : "#999999",
+          "metadata" : false,
+          "tag" : "External",
+          "width" : 500
+        }, {
+          "background" : "#1168bd",
+          "metadata" : false,
+          "tag" : "Main System",
+          "width" : 500
+        }, {
+          "background" : "#08427b",
+          "color" : "#ffffff",
+          "fontSize" : 35,
+          "metadata" : false,
+          "shape" : "Person",
+          "tag" : "Person",
+          "width" : 500
+        }, {
+          "background" : "#1168bd",
+          "color" : "#ffffff",
+          "fontSize" : 35,
+          "metadata" : false,
+          "shape" : "RoundedBox",
+          "tag" : "Software System"
+        } ],
+        "relationships" : [ {
+          "fontSize" : 40,
+          "tag" : "Relationship",
+          "thickness" : 5
+        } ]
+      },
+      "terminology" : { },
+      "themes" : [ "https://static.structurizr.com/themes/default/theme.json" ]
+    },
+    "systemContextViews" : [ {
+      "description" : "Sơ đồ ngữ cảnh hệ thống Job7189",
+      "dimensions" : {
+        "height" : 2016,
+        "width" : 2516
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 208,
+        "y" : 208
+      }, {
+        "id" : "2",
+        "x" : 1008,
+        "y" : 208
+      }, {
+        "id" : "3",
+        "x" : 1808,
+        "y" : 208
+      }, {
+        "id" : "4",
+        "x" : 1008,
+        "y" : 908
+      }, {
+        "id" : "5",
+        "x" : 208,
+        "y" : 1508
+      }, {
+        "id" : "6",
+        "x" : 1008,
+        "y" : 1508
+      }, {
+        "id" : "7",
+        "x" : 1808,
+        "y" : 1508
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "key" : "SystemContext",
+      "name" : "System Context View: Job7189 System\n[Software System]",
+      "order" : 1,
+      "paperSize" : "A4_Landscape",
+      "relationships" : [ {
+        "id" : "10"
+      }, {
+        "id" : "11"
+      }, {
+        "id" : "12"
+      }, {
+        "id" : "13"
+      }, {
+        "id" : "8"
+      }, {
+        "id" : "9"
+      } ],
+      "softwareSystemId" : "4"
+    } ]
+  }
+}

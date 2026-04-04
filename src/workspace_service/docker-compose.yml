@@ -1,0 +1,50 @@
+services:
+  rct_redis:
+    image: redis:7
+    container_name: rct_redis_service
+    ports:
+      - "6380:6379"
+    networks:
+      - existing_backend
+
+  rct_laravel:
+    build:
+      context: ./laravel_back
+      dockerfile: Dockerfile
+    container_name: rct_laravel_service
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./laravel_back:/var/www
+      - rct_laravel_vendor:/var/www/vendor
+      - ./docker/php/production.php.ini:/usr/local/etc/php/php.ini
+    networks:
+      - existing_backend
+  
+  # # Cài mongo để test, nhớ xóa
+  # mongo:
+  #   image: mongo:latest
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   networks: # <--- THÊM KHỐI NÀY VÀO
+  #     - existing_backend
+
+volumes:
+  rct_laravel_vendor:
+  mongo_data:
+
+networks:
+  existing_backend:
+    external: true
+    name: tj-backend_backend
+
+# # --- CÁC VOLUMES ĐƯỢC SỬ DỤNG ---
+# volumes:
+#   laravel_vendor:
+
+# # --- MẠNG CHUNG CHO TẤT CẢ CÁC SERVICE ---
+# networks:
+#   backend:
+#     driver: bridge

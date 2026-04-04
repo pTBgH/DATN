@@ -1,0 +1,105 @@
+name: Deploy Recruiter Backend
+
+env:
+  COMPOSE_PATH: /root/jobhula/topjob
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version của image mới (ví dụ: v25081908). Để trống để auto-detect latest tag từ Docker images.'
+        required: false
+      image_name:
+        description: 'Tên image để deploy (tj-rc-laravelapi)'
+        required: true
+        type: choice
+        options:
+          - tj-rc-laravelapi
+        default: 'tj-rc-laravelapi'
+      site_name:
+        description: 'Deploy cho site'
+        required: true
+        type: choice
+        options:
+          - neu-rc-laravelapi
+          - rc-laravelapi
+        default: 'neu-rc-laravelapi'
+
+jobs:
+  deploy-on-sdsrv01:
+    runs-on: sdsrv01  # Chạy trên runner local trên srv dcsrv01/sdsrv01
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@refs/heads/main  # Pull từ (@refs/heads/main OR @refs/tags/ver) về folder _work
+
+      - name: Determine version
+        id: get_version
+        run: |
+          if [ -z "${{ inputs.version }}" ]; then
+            VERSION=$(docker images ${{ inputs.image_name }} --format "{{.Tag}}" | grep '^v[0-9]\{6,8\}' | sort -V | tail -1)
+            if [ -z "$VERSION" ]; then
+              echo "Error: No valid version found for ${{ inputs.image_name }}"
+              exit 1
+            fi
+          else
+            VERSION=${{ inputs.version }}
+          fi
+          echo "Using version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Deploy site neu-rc-laravelapi
+        if: ${{ inputs.site_name == 'neu-rc-laravelapi' }}
+        run: |
+          cd ${{ env.COMPOSE_PATH }}/neu-rc-laravelapi
+          echo "Current containers before down:"
+          docker ps -a | grep ${{ inputs.image_name }} || echo "No running containers for ${{ inputs.image_name }}"
+          docker-compose down
+          echo "Docker-compose down completed."
+
+          echo "Update .env with new version"
+          if [ ! -f .env ]; then
+            echo "Error: .env file not found in ${{ env.COMPOSE_PATH }}/neu-rc-laravelapi"
+            exit 1
+          fi
+          cat .env | grep IMAGE_VERSION  # Debug: old version
+          sed -i "s/IMAGE_VERSION_LARAVELAPI=.*/IMAGE_VERSION_LARAVELAPI=${{ steps.get_version.outputs.version }}/" .env
+          echo "Updated .env with IMAGE_VERSION_LARAVELAPI=${{ steps.get_version.outputs.version }}"
+          cat .env | grep IMAGE_VERSION  # Debug: up new version
+
+          echo "Docker-compose up"
+          docker-compose up -d
+          echo "Docker-compose up completed."
+
+          echo "Containers after deployment:"
+          docker ps | grep ${{ steps.get_version.outputs.version }} || echo "No running containers for ${{ steps.get_version.outputs.version }}"
+          echo "Deployment log for ${{ inputs.image_name }}:${{ steps.get_version.outputs.version }} completed."
+          docker-compose logs
+
+      - name: Deploy site rc-laravelapi
+        if: ${{ inputs.site_name == 'rc-laravelapi' }}
+        run: |
+          cd ${{ env.COMPOSE_PATH }}/rc-laravelapi
+          echo "Current containers before down:"
+          docker ps -a | grep ${{ inputs.image_name }} || echo "No running containers for ${{ inputs.image_name }}"
+          docker-compose down
+          echo "Docker-compose down completed."
+
+          echo "Update .env with new version"
+          if [ ! -f .env ]; then
+            echo "Error: .env file not found in ${{ env.COMPOSE_PATH }}/rc-laravelapi"
+            exit 1
+          fi
+          cat .env | grep IMAGE_VERSION  # Debug: old version
+          sed -i "s/IMAGE_VERSION_LARAVELAPI=.*/IMAGE_VERSION_LARAVELAPI=${{ steps.get_version.outputs.version }}/" .env
+          echo "Updated .env with IMAGE_VERSION_LARAVELAPI=${{ steps.get_version.outputs.version }}"
+          cat .env | grep IMAGE_VERSION  # Debug: up new version
+
+          echo "Docker-compose up"
+          docker-compose up -d
+          echo "Docker-compose up completed."
+
+          echo "Containers after deployment:"
+          docker ps | grep ${{ steps.get_version.outputs.version }} || echo "No running containers for ${{ steps.get_version.outputs.version }}"
+          echo "Deployment log for ${{ inputs.image_name }}:${{ steps.get_version.outputs.version }} completed."
+          docker-compose logs

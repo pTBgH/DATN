@@ -1,0 +1,153 @@
+{
+    "info": {
+        "_postman_id": "ef7c74be-8b4f-4f53-8a7b-9cf4d9d5d001",
+        "name": "job7189 auth + api",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_host",
+            "value": "192.168.112.154"
+        },
+        {
+            "key": "node_port",
+            "value": "30003"
+        },
+        {
+            "key": "auth_host",
+            "value": "auth.job7189.local"
+        },
+        {
+            "key": "api_host",
+            "value": "api.job7189.com"
+        },
+        {
+            "key": "realm",
+            "value": "job7189"
+        },
+        {
+            "key": "client_id",
+            "value": "candidate-app-dev"
+        },
+        {
+            "key": "client_secret",
+            "value": "MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW"
+        },
+        {
+            "key": "access_token",
+            "value": ""
+        }
+    ],
+    "item": [
+        {
+            "name": "1) Get Access Token",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Host",
+                        "value": "{{auth_host}}"
+                    },
+                    {
+                        "key": "Content-Type",
+                        "value": "application/x-www-form-urlencoded"
+                    }
+                ],
+                "body": {
+                    "mode": "urlencoded",
+                    "urlencoded": [
+                        {
+                            "key": "grant_type",
+                            "value": "client_credentials",
+                            "type": "text"
+                        },
+                        {
+                            "key": "client_id",
+                            "value": "{{client_id}}",
+                            "type": "text"
+                        },
+                        {
+                            "key": "client_secret",
+                            "value": "{{client_secret}}",
+                            "type": "text"
+                        }
+                    ]
+                },
+                "url": {
+                    "raw": "http://{{base_host}}:{{node_port}}/realms/{{realm}}/protocol/openid-connect/token",
+                    "protocol": "http",
+                    "host": [
+                        "{{base_host}}"
+                    ],
+                    "port": "{{node_port}}",
+                    "path": [
+                        "realms",
+                        "{{realm}}",
+                        "protocol",
+                        "openid-connect",
+                        "token"
+                    ]
+                }
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test('status is 200', function () {",
+                            "  pm.response.to.have.status(200);",
+                            "});",
+                            "var json = pm.response.json();",
+                            "pm.test('has access_token', function () {",
+                            "  pm.expect(json.access_token).to.be.a('string');",
+                            "});",
+                            "pm.collectionVariables.set('access_token', json.access_token);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "2) Call Health API",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Host",
+                        "value": "{{api_host}}"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://{{base_host}}:{{node_port}}/api/health",
+                    "protocol": "http",
+                    "host": [
+                        "{{base_host}}"
+                    ],
+                    "port": "{{node_port}}",
+                    "path": [
+                        "api",
+                        "health"
+                    ]
+                }
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test('status is 200', function () {",
+                            "  pm.response.to.have.status(200);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ]
+        }
+    ]
+}

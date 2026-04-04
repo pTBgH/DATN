@@ -1,0 +1,24 @@
+.job-card {
+  transition: all 0.3s ease;
+  border: 1px solid #e8e8e8;
+}
+
+.job-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 102, 255, 0.15);
+  border-color: #0066FF;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ant-card {
+  animation: fadeIn 0.3s ease;
+}

@@ -1,0 +1,33 @@
+@startuml
+title Kịch bản: Di chuyển ứng viên qua các vòng (Move Stage)
+autonumber
+
+actor "Nhà tuyển dụng" as Recruiter
+participant "Frontend" as FE
+participant "Identity Service" as IDS
+participant "Hiring Service" as HS
+queue "Kafka" as Kafka
+participant "Comm Service" as Comm
+actor "Ứng viên" as Candidate
+
+Recruiter -> FE: Kéo ứng viên sang vòng "Phỏng vấn"
+FE -> HS: POST /applications/{id}/move\n(TargetStageID)
+activate HS
+
+HS -> IDS: GET /internal/users/{id}\n(Check quyền trong Workspace)
+activate IDS
+IDS --> HS: 200 OK (Hợp lệ)
+deactivate IDS
+
+HS -> HS: Cập nhật StageID trong DB
+HS -> Kafka: Publish event:\napplication.moved
+HS --> FE: 200 OK (Giao diện cập nhật ngay)
+deactivate HS
+
+== Xử lý hậu kỳ (Async) ==
+Kafka -> Comm: Consume event:\napplication.moved
+activate Comm
+Comm -> Comm: Lấy Email Template
+Comm -> Candidate: Gửi Email
+deactivate Comm
+@enduml

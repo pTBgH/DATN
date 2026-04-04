@@ -1,0 +1,118 @@
+name: Build Recruiter laravelapi backend
+
+env:
+  RUNNER_PATH: /root/jobhula/actions-runner
+  CHECKOUT_PATH: /root/jobhula/actions-runner/_work/tj-rc-backend/tj-rc-backend
+  COMPOSE_PATH: /root/jobhula/topjob/neu-rc-laravelapi
+  RUNNER_PATH_LOCAL: /opt/jobhula/actions-runner
+  CHECKOUT_PATH_LOCAL: /opt/jobhula/actions-runner/_work/tj-rc-backend/tj-rc-backend
+  COMPOSE_PATH_LOCAL: /opt/jobhula/project/topjob/rc-laravelapi
+  
+on:
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:
+
+jobs:
+  # for neu site
+  laravelapi-on-sdsrv01:
+    if: ${{ vars.JOB_LARAVELAPI_ENABLE == 'true' }}
+    runs-on: sdsrv01
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@refs/heads/main  # Pull từ (@refs/heads/main OR @refs/tags/ver) về folder _work
+      - name: Verify checkout
+        run: |
+          echo "Verify checkout completed."
+
+      - name: Generate version based on datetime
+        run: |
+          # Lấy timestamp theo định dạng vYYMMDDHH
+          VERSION=v$(TZ=Asia/Ho_Chi_Minh date +%y%m%d%H)
+          echo "Generated version: $VERSION"
+          # Lưu version vào env
+          echo "LARAVELAPI_VERSION=$VERSION" >> $GITHUB_ENV
+          
+      - name: Record start time
+        run: |
+          cd ${{ env.RUNNER_PATH }}
+          mkdir -p logs
+          echo "[laravelapi] Build started at $(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d %H:%M:%S %z') version ${{ env.LARAVELAPI_VERSION }}" >> logs/build.log
+
+
+      - name: Sync source & Restart container
+        if: ${{ vars.STE_LARAVELAPI_SYNC == 'true' }}
+        run: |
+          rsync -razv ${{ env.CHECKOUT_PATH }}/laravel_back/ ${{ env.COMPOSE_PATH }}/laravel_back/
+          # restart container
+          cd ${{ env.COMPOSE_PATH }}
+          docker-compose -f docker-compose.yml down
+          docker-compose -f docker-compose.yml up -d
+          docker-compose logs
+          
+      - name: Build Docker Image
+        if: ${{ vars.STE_LARAVELAPI_BUILD == 'true' }}
+        run: |
+          cd ${{ env.CHECKOUT_PATH }}/laravel_back/
+          docker build -f Dockerfile.production -t tj-rc-laravelapi:${{ env.LARAVELAPI_VERSION }} .
+          echo "Built image tj-rc-laravelapi:${{ env.LARAVELAPI_VERSION }}"
+
+
+      - name: Record end time
+        run: |
+          cd ${{ env.RUNNER_PATH }}
+          echo "[laravelapi] Build ended at $(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d %H:%M:%S %z') version ${{ env.LARAVELAPI_VERSION }}" >> logs/build.log
+
+  # for dev site
+  laravelapi-on-dcsrv01:
+    if: ${{ vars.JOB_LARAVELAPI_LOCAL_ENABLE == 'true' }}
+    runs-on: dcsrv01
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@refs/heads/main  # Pull từ (@refs/heads/main OR @refs/tags/ver) về folder _work
+      - name: Verify checkout
+        run: |
+          echo "Verify checkout completed."
+
+      - name: Generate version based on datetime
+        run: |
+          # Lấy timestamp theo định dạng vYYMMDDHH
+          VERSION=v$(TZ=Asia/Ho_Chi_Minh date +%y%m%d%H)
+          echo "Generated version: $VERSION"
+          # Lưu version vào env
+          echo "LARAVELAPI_VERSION=$VERSION" >> $GITHUB_ENV
+          
+      - name: Record start time
+        run: |
+          cd ${{ env.RUNNER_PATH_LOCAL }}
+          mkdir -p logs
+          echo "[laravelapi] Build started at $(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d %H:%M:%S %z') version ${{ env.LARAVELAPI_VERSION }}" >> logs/build.log
+
+
+      - name: Sync source & Restart container
+        if: ${{ vars.STE_LARAVELAPI_SYNC == 'true' }}
+        run: |
+          rsync -razv ${{ env.CHECKOUT_PATH_LOCAL }}/laravel_back/ ${{ env.COMPOSE_PATH_LOCAL }}/laravel_back/
+          # restart container
+          cd ${{ env.COMPOSE_PATH_LOCAL }}
+          docker-compose -f docker-compose.yml down
+          docker-compose -f docker-compose.yml up -d
+          docker-compose logs
+          
+      - name: Build Docker Image
+        if: ${{ vars.STE_LARAVELAPI_BUILD == 'true' }}
+        run: |
+          cd ${{ env.CHECKOUT_PATH_LOCAL }}/laravel_back/
+          docker build -f Dockerfile.production -t tj-rc-laravelapi:${{ env.LARAVELAPI_VERSION }} .
+          echo "Built image tj-rc-laravelapi:${{ env.LARAVELAPI_VERSION }}"
+
+
+      - name: Record end time
+        run: |
+          cd ${{ env.RUNNER_PATH_LOCAL }}
+          echo "[laravelapi] Build ended at $(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d %H:%M:%S %z') version ${{ env.LARAVELAPI_VERSION }}" >> logs/build.log
+
+

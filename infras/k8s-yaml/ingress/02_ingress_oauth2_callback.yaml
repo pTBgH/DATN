@@ -1,0 +1,139 @@
+# Tất cả /oauth2 callback Ingress nằm ở namespace security
+# Lý do: oauth2-proxy service chạy ở security
+#        Ingress backend phải cùng namespace với service nó trỏ đến
+#        auth-url annotation là HTTP string → gọi được cross-namespace qua DNS
+
+# ── db.job7189.local ──────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-db
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: db.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
+# ── kafka.job7189.local ───────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-kafka
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kafka.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
+# ── grafana.job7189.local ─────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-grafana
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
+# ── prometheus.job7189.local ──────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-prometheus
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: prometheus.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
+# ── hubble.job7189.local ──────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-hubble
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: hubble.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
+# ConfigMap chứa custom headers nginx forward vào OAuth2 Proxy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-headers
+  namespace: security
+data:
+  X-Forwarded-Host: "$http_host"
+  X-Forwarded-Proto: "http"

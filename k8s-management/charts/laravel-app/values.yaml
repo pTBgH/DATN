@@ -1,0 +1,30 @@
+replicaCount: 1
+
+registry:
+  url: "docker-registry.registry.svc.cluster.local:5000"
+
+image:
+  repository: nginx
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "change-me.local"
+
+env:
+  APP_ENV: production
+
+redis:
+  enabled: false
+  image: redis:7
+  port: 6379
+
+vault:
+  extraSecret: false
+  extraSecretTemplate: ""

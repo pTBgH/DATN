@@ -1,0 +1,123 @@
+{{- if .Values.migration }}
+{{- if .Values.migration.enabled }}
+# ==========================================
+# ZTA Migration Job — Ephemeral Database Schema Migration
+# ==========================================
+# SECURITY (ZTA):
+#   - Runs as Helm pre-install/pre-upgrade hook → executes BEFORE the main app
+#   - Auto-deleted on success (hook-succeeded) to minimize attack surface
+#   - Vault Agent sidecar injects dynamic DB credentials at runtime
+#   - Runs as non-root (uid=1000) with read-only root filesystem where possible
+#   - Job terminates after migration; no long-running credential exposure
+# ==========================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-migration
+  labels:
+    app: {{ .Release.Name }}-migration
+    component: migration
+  annotations:
+    # ZTA: Run before app deployment, clean up on success
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  # ZTA: Job must complete within 10 minutes or be killed
+  activeDeadlineSeconds: 600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-migration
+      annotations:
+        # ZTA: Vault Agent injection for dynamic DB credentials
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/role: "{{ .Release.Name }}"
+        vault.hashicorp.com/tls-skip-verify: "true"
+        # ZTA: Pre-populate mode — Vault Agent exits after injecting secrets
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+
+        # Dynamic DB credentials from Vault
+        vault.hashicorp.com/agent-inject-secret-db: "database/creds/{{ .Release.Name }}"
+        vault.hashicorp.com/agent-inject-file-db: ".env.db"
+        vault.hashicorp.com/agent-inject-template-db: |-
+          {{`{{- with secret "database/creds/`}}{{ .Release.Name }}{{`" -}}
+          DB_USERNAME={{ .Data.username }}
+          DB_PASSWORD={{ .Data.password }}
+          {{ end }}`}}
+
+        # Common secrets (APP_KEY)
+        vault.hashicorp.com/agent-inject-secret-common: "secret/data/laravel-common"
+        vault.hashicorp.com/agent-inject-file-common: ".env.common"
+        vault.hashicorp.com/agent-inject-template-common: |-
+          {{`{{- with secret "secret/data/laravel-common" -}}
+          APP_KEY={{ .Data.data.APP_KEY }}
+          {{- end }}`}}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      restartPolicy: Never
+
+      # ZTA: Secure execution context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      containers:
+      - name: migrator
+        image: "{{ .Values.migration.image }}:{{ .Values.migration.tag | default .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+
+        # ZTA: Merge Vault secrets into .env and execute migration
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "═══════════════════════════════════════"
+          echo "🔐 ZTA Migration Job: {{ .Release.Name }}"
+          echo "═══════════════════════════════════════"
+
+          # Merge all Vault-injected env files
+          cat /vault/secrets/.env.common > /tmp/.env 2>/dev/null || true
+          cat /vault/secrets/.env.db >> /tmp/.env 2>/dev/null || true
+
+          # Add static env vars (DB_HOST, DB_DATABASE, etc.)
+          {{- range $key, $value := .Values.env }}
+          echo '{{ $key }}={{ $value }}' >> /tmp/.env
+          {{- end }}
+
+          # Copy merged env to Laravel's expected location
+          cp /tmp/.env /app/.env
+
+          echo "✓ Environment prepared with Vault-injected credentials"
+          echo ""
+
+          # Execute migration
+          echo "▶ Running: php artisan migrate --force"
+          php artisan migrate --force
+
+          echo ""
+          echo "✅ Migration completed successfully"
+          echo "═══════════════════════════════════════"
+
+        # ZTA: Container-level security hardening
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+{{- end }}
+{{- end }}

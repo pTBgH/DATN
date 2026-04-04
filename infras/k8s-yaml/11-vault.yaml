@@ -1,0 +1,258 @@
+# ==========================================
+# VAULT — Transit Auto-unseal
+# ==========================================
+# Kiến trúc:
+#   vault-dev  (dev mode)  → cung cấp Transit Engine để unseal vault-prod
+#   vault-prod (prod mode) → main Vault, data persistent trên PVC
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+
+---
+# ══════════════════════════════════════════
+# VAULT DEV — Transit Unsealer
+# ══════════════════════════════════════════
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-dev
+  namespace: vault
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-dev
+  namespace: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-dev
+  template:
+    metadata:
+      labels:
+        app: vault-dev
+    spec:
+      serviceAccountName: vault-dev
+      containers:
+      - name: vault-dev
+        image: hashicorp/vault:1.17
+        command:
+        - vault
+        - server
+        - -dev
+        - -dev-listen-address=0.0.0.0:8300
+        - -dev-root-token-id=vault-dev-root-token   # token cố định để dễ config
+        ports:
+        - containerPort: 8300
+          name: api
+        env:
+        - name: VAULT_ADDR
+          value: "http://127.0.0.1:8300"
+        - name: VAULT_TOKEN
+          value: "vault-dev-root-token"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-dev
+  namespace: vault
+spec:
+  type: ClusterIP
+  ports:
+  - name: api
+    port: 8300
+    targetPort: 8300
+  selector:
+    app: vault-dev
+
+---
+# ══════════════════════════════════════════
+# VAULT PROD — Main Vault với TLS
+# ══════════════════════════════════════════
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault
+  namespace: vault
+
+---
+# ClusterRole: Vault cần verify K8s ServiceAccount tokens
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-server-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: vault
+  namespace: vault
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  namespace: vault
+data:
+  vault.hcl: |
+    storage "file" {
+      path = "/vault/data"
+    }
+
+    listener "tcp" {
+      address       = "0.0.0.0:8200"
+      tls_cert_file = "/vault/tls/tls.crt"
+      tls_key_file  = "/vault/tls/tls.key"
+    }
+
+    # Transit Auto-unseal — dùng vault-dev làm unsealer
+    seal "transit" {
+      address         = "http://vault-dev.vault.svc.cluster.local:8300"
+      token           = "vault-dev-root-token"
+      disable_renewal = "false"
+      key_name        = "vault-prod-unseal-key"
+      mount_path      = "transit/"
+    }
+
+    ui            = true
+    disable_mlock = true
+    api_addr      = "https://vault.vault.svc.cluster.local:8200"
+    cluster_addr  = "https://vault.vault.svc.cluster.local:8201"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vault-data
+  namespace: vault
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  serviceName: vault
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      serviceAccountName: vault
+      # Chờ vault-dev sẵn sàng trước khi vault-prod start
+      initContainers:
+      - name: wait-for-vault-dev
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for vault-dev..."
+          until wget -qO- http://vault-dev.vault.svc.cluster.local:8300/v1/sys/health > /dev/null 2>&1; do
+            echo "vault-dev not ready, retrying in 3s..."
+            sleep 3
+          done
+          echo "vault-dev is ready!"
+      containers:
+      - name: vault
+        image: hashicorp/vault:1.17
+        command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+        ports:
+        - containerPort: 8200
+          name: api
+        - containerPort: 8201
+          name: cluster
+        env:
+        - name: VAULT_ADDR
+          value: "https://127.0.0.1:8200"
+        - name: VAULT_CACERT
+          value: "/vault/tls/ca.crt"
+        - name: VAULT_SKIP_VERIFY
+          value: "true"
+        volumeMounts:
+        - name: config
+          mountPath: /vault/config
+        - name: tls
+          mountPath: /vault/tls
+        - name: data
+          mountPath: /vault/data
+        readinessProbe:
+          httpGet:
+            path: /v1/sys/health?standbyok=true&sealedok=true&uninitok=true
+            port: 8200
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        securityContext:
+          capabilities:
+            add: ["IPC_LOCK"]
+      volumes:
+      - name: config
+        configMap:
+          name: vault-config
+      - name: tls
+        secret:
+          secretName: vault-tls
+          items:
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          - key: ca.crt
+            path: ca.crt
+      - name: data
+        persistentVolumeClaim:
+          claimName: vault-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  type: ClusterIP
+  ports:
+  - name: api
+    port: 8200
+    targetPort: 8200
+  - name: cluster
+    port: 8201
+    targetPort: 8201
+  selector:
+    app: vault

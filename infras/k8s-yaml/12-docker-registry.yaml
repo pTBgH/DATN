@@ -1,0 +1,140 @@
+---
+# Docker Registry - K8s Native deployment
+# Lưu trữ images cho microservices, accessible từ cluster + local host
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+
+---
+# PVC cho registry data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-storage
+  namespace: registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# Deployment - Docker Registry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry
+  namespace: registry
+  labels:
+    app: docker-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-registry
+  template:
+    metadata:
+      labels:
+        app: docker-registry
+    spec:
+      containers:
+      - name: registry
+        image: registry:2
+        ports:
+        - containerPort: 5000
+          name: registry
+        volumeMounts:
+        - name: registry-storage
+          mountPath: /var/lib/registry
+        env:
+        - name: REGISTRY_STORAGE_DELETE_ENABLED
+          value: "true"
+        # Allow pushing without SSL (local dev environment)
+        - name: REGISTRY_HTTP_ADDR
+          value: "0.0.0.0:5000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /v2/
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: registry-storage
+        persistentVolumeClaim:
+          claimName: registry-storage
+
+---
+# Service - ClusterIP (for pods inside cluster)
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry
+  namespace: registry
+  labels:
+    app: docker-registry
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
+    protocol: TCP
+    name: registry
+  selector:
+    app: docker-registry
+
+---
+# Service - NodePort (for host docker cli access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-nodeport
+  namespace: registry
+  labels:
+    app: docker-registry
+spec:
+  type: NodePort
+  ports:
+  - port: 5000
+    targetPort: 5000
+    nodePort: 30500
+    protocol: TCP
+    name: registry
+  selector:
+    app: docker-registry
+
+---
+# Service Account for registry operations (not strictly needed for basic registry, but good practice)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docker-registry
+  namespace: registry
+
+---
+# Ingress cho Registry UI (optional - dùng localhost:30500 nếu không cần web UI)
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: docker-registry-ui
+#   namespace: registry
+# spec:
+#   rules:
+#   - host: registry.job7189.local
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: docker-registry-ui
+#             port:
+#               number: 80

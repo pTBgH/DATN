@@ -1,0 +1,59 @@
+registry:
+  url: ""
+
+env:
+  # APP_NAME: Job7189
+  # ⚠️ NOTE: APP_KEY, secrets, and passwords are injected by Vault Agent
+  # See: vault.hashicorp.com/agent-inject annotations in deployment.yaml
+  
+  APP_ENV: production
+  APP_DEBUG: "true"
+  # APP_KEY will be injected by Vault Agent from secret/data/laravel-common
+  
+  APP_LOCALE: en
+  APP_FALLBACK_LOCALE: en
+  APP_FAKER_LOCALE: en_US
+  
+  APP_MAINTENANCE_DRIVER: file
+  
+  PHP_CLI_SERVER_WORKERS: 4
+  BCRYPT_ROUNDS: 12
+
+  LOG_CHANNEL: "stderr"
+  LOG_STACK: single
+  LOG_DEPRECATIONS_CHANNEL: null
+  LOG_LEVEL: debug
+  
+  PAGINATION_SIZE: 10
+
+  BROADCAST_CONNECTION: log
+  FILESYSTEM_DISK: local
+  QUEUE_CONNECTION: redis
+
+  SESSION_DRIVER: database
+  SESSION_LIFETIME: 120
+  SESSION_ENCRYPT: false
+  SESSION_PATH: /
+  SESSION_DOMAIN: null
+
+  CACHE_STORE: redis
+
+  REDIS_CLIENT: phpredis
+  REDIS_PASSWORD: null
+  REDIS_PORT: 6379
+
+  KAFKA_BROKERS: "kafka-0.kafka-svc.data.svc.cluster.local:9092"
+
+  KEYCLOAK_REALM: "job7189"
+  KEYCLOAK_BASE_URL: "http://keycloak.security.svc.cluster.local:8080"
+  KEYCLOAK_RECRUITER_CLIENT_ID: "recruiter-app-dev"
+  KEYCLOAK_CANDIDATE_CLIENT_ID: "candidate-app-dev"
+
+vault:
+  # Enables per-service secrets injection
+  extraSecret: false
+  extraSecretTemplate: |
+    {{- with secret "secret/data/keycloak" -}}
+    KEYCLOAK_RECRUITER_CLIENT_SECRET={{ .Data.data.recruiter-client-secret }}
+    KEYCLOAK_CANDIDATE_CLIENT_SECRET={{ .Data.data.candidate-client-secret }}
+    {{- end }}

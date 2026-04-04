@@ -1,0 +1,4 @@
+# Ép kiểu xuống dòng cho các file script và cấu hình
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

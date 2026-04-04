@@ -1,0 +1,44 @@
+# ==========================================
+# MySQL Database Initialization — ZTA Compliant
+# ==========================================
+# PURPOSE: Create empty databases ONLY.
+# SECURITY (ZTA):
+#   - Strictly NO passwords, NO user creations, NO GRANT statements.
+#   - All user/credential management is delegated to HashiCorp Vault
+#     dynamic database credentials engine.
+#   - This ConfigMap is mounted into MySQL's /docker-entrypoint-initdb.d/
+#     and runs ONLY on first boot (empty data dir).
+# ==========================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-databases
+  namespace: data
+data:
+  01-create-databases.sql: |
+    -- ZTA: Create empty databases only. NO users, NO passwords, NO grants.
+    -- All credential management is handled by Vault dynamic DB engine.
+    
+    CREATE DATABASE IF NOT EXISTS `job7189keycloak`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_identity_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_workspace_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_job_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_hiring_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_candidate_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_communication_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE IF NOT EXISTS `job7189_storage_db`
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

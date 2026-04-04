@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-config
+  namespace: security
+data:
+  oauth2-proxy.cfg: |
+    # Provider
+    provider = "keycloak-oidc"
+
+    # Keycloak OIDC endpoint — dùng external hostname auth.job7189.local
+    # Pod có hostAliases mapping auth.job7189.local → 10.111.186.54 (keycloak service IP)
+    # Browser redirect sẽ được gửi đến auth.job7189.local (Windows phải có trong hosts file)
+    oidc_issuer_url = "http://auth.job7189.local:8080/realms/7189_internal"
+
+    # Client đã tạo trong Keycloak
+    client_id = "oauth2-proxy"
+    # client_secret đọc từ env var (inject từ Secret bên dưới)
+
+    # URL Keycloak redirect browser về sau khi login
+    # Phải khớp chính xác với Valid Redirect URIs đã điền trong Keycloak
+    # redirect_url để trống → OAuth2 Proxy tự build từ X-Forwarded-Host header
+    # nginx sẽ forward host header vào, OAuth2 Proxy dùng đó để build callback URL
+    # Hoạt động cho cả db.job7189.local và kafka.job7189.local
+
+    # Cho phép tất cả email domain — vì đây là internal realm, không cần restrict
+    email_domains = ["*"]
+
+    # Chỉ cho phép user có role này trong realm 7189_internal
+    # Format: <realm>::<role_name>  (2 dấu ::)
+    allowed_roles = ["internal-tools-access"]
+
+    # OAuth2 Proxy không cần forward lên upstream — nginx lo việc đó
+    # Dùng file:///dev/null để OAuth2 Proxy không tự proxy
+    upstreams = ["file:///dev/null"]
+
+    # Cookie config
+    cookie_secure = false        # false vì đang dùng http, không có TLS
+    cookie_httponly = true
+    cookie_samesite = "lax"
+    # Đặt cookie cho toàn bộ domain .job7189.local
+    # Không có dòng này → cookie chỉ set cho db.job7189.local, không được gửi lại
+    cookie_domains = [".job7189.local"]
+
+    # Skip provider CA verify — vì đang dùng http không có cert
+    ssl_insecure_skip_verify = true
+
+    # Port OAuth2 Proxy lắng nghe
+    http_address = "0.0.0.0:4180"
+
+    # Các path không cần auth (health check)
+    skip_auth_routes = ["/ping"]
+    
+    # Tin tưởng X-Forwarded-Host từ nginx để tự build redirect_url đúng
+    reverse_proxy = true
+
+---
+# Secret chứa cookie-secret và client-secret
+# cookie-secret: chạy lệnh sau để generate
+#   python3 -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+# client-secret: lấy từ tab Credentials của client oauth2-proxy trong Keycloak
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oauth2-proxy-secret
+  namespace: security
+type: Opaque
+stringData:
+  client-secret: "8iAntNwXzjJUSbw1m1tHpM3JigJUTeAE"
+  cookie-secret: "v92UDXzSJJZhKAldJT9M76rSH4MSGxTyWu9sbL-F8jg="
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: security
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      # Inject DNS mapping cho pod — auth.job7189.local → keycloak service IP
+      # Cho phép pod + browser đều dùng cùng external hostname
+      hostAliases:
+      - ip: "10.111.186.54"
+        hostnames:
+        - "auth.job7189.local"
+      # initContainer chờ Keycloak sẵn sàng trước khi oauth2-proxy start
+      # Dùng external hostname (auth.job7189.local) - sẽ resolve qua hostAliases
+      initContainers:
+      - name: wait-for-keycloak
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Keycloak..."
+          until wget -qO- http://auth.job7189.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+            echo "Keycloak not ready, retrying in 5s..."
+            sleep 5
+          done
+          echo "Keycloak is ready!"
+      containers:
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        args:
+        - "--config=/etc/oauth2-proxy/oauth2-proxy.cfg"
+        env:
+        # client-secret inject từ Secret — không hardcode vào ConfigMap
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth2-proxy-secret
+              key: client-secret
+        # cookie-secret inject từ Secret
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth2-proxy-secret
+              key: cookie-secret
+        ports:
+        - containerPort: 4180
+        volumeMounts:
+        - name: config
+          mountPath: /etc/oauth2-proxy
+          readOnly: true
+        # startupProbe: chờ Keycloak sẵn sàng trước khi OAuth2 Proxy start
+        # failureThreshold * periodSeconds = 60 * 5 = 300s tối đa chờ Keycloak
+        startupProbe:
+          httpGet:
+            path: /ping
+            port: 4180
+          failureThreshold: 60
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 4180
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 4180
+          initialDelaySeconds: 10
+          periodSeconds: 30
+      volumes:
+      - name: config
+        configMap:
+          name: oauth2-proxy-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: security
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 4180   # OAuth2 Proxy listen ở 4180, Service expose ra 80
+  selector:
+    app: oauth2-proxy

@@ -1,0 +1,51 @@
+# 1. Kết nối tới API Server của Kind
+# Lưu ý: Thay "172.18.0.2" bằng IP thật bạn vừa lấy từ lệnh docker inspect
+# k8sServiceHost: "172.22.0.3"
+# k8sServicePort: 6443
+
+ipam:
+  mode: kubernetes
+
+
+# 2. Cấu hình định tuyến an toàn cho VMware + Kind
+routingMode: "tunnel"
+tunnelProtocol: "vxlan"
+
+# 3. Thay thế kube-proxy để tối ưu eBPF
+# kubeProxyReplacement: true
+kubeProxyReplacement: true
+
+# 4. Gắn đúng vào interface ens33 để tránh loạn định tuyến SSH
+# devices: "ens33"
+# devices: "eth0"
+# directRoutingDevice: "eth0"
+
+# 5. Bật Hubble (Mắt thần) để quan sát traffic
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# 6. Tắt IPv6 để hệ thống gọn nhẹ, tránh xung đột
+ipv6:
+  enabled: false
+
+# 7. Hỗ trợ Operator (Quản lý các tài nguyên Cilium)
+operator:
+  replicas: 1
+  # Ép 2 Pod Operator phải nằm trên 2 Node vật lý khác nhau (Anti-Affinity)
+#  affinity:
+ #   podAntiAffinity:
+  #    requiredDuringSchedulingIgnoredDuringExecution:
+   #   - labelSelector:
+    #      matchExpressions:
+     #     - key: io.cilium/app
+      #      operator: In
+       #     values:
+        #    - operator
+        #topologyKey: "kubernetes.io/hostname"
+
+gatewayAPI:
+  enabled: true

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  registry:
+    image: registry:2
+    container_name: local-registry
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./registry-data:/var/lib/registry # Persist data: Lưu trữ image thật trên máy host, không lo mất khi tắt container
+
+  registry-ui:
+    image: joxit/docker-registry-ui:static
+    container_name: local-registry-ui
+    restart: always
+    ports:
+      - "8088:80"
+    environment:
+      - REGISTRY_TITLE=My Local Registry
+      - REGISTRY_URL=http://localhost:5000
+      - DELETE_IMAGES=true # Cho phép xoá image từ giao diện UI
+    depends_on:
+      - registry

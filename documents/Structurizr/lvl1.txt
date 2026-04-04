@@ -1,0 +1,73 @@
+workspace "Job7189 Architecture" "Sơ đồ kiến trúc hệ thống tuyển dụng Job7189" {
+
+    model {
+        # People
+        candidate = person "Candidate\n[Person]" "Người tìm việc có nhu cầu tìm kiếm cơ hội nghề nghiệp." "User"
+        
+        recruiter = person "Recruiter\n[Person]" "Nhà tuyển dụng của các công ty, doanh nghiệp." "User"
+        
+        sysAdmin = person "System Admin\n[Person]" "Quản trị viên hệ thống Job7189." "User"
+
+        # Software System (in scope)
+        jobSystem = softwareSystem "Job7189 System\n[Software System]" "Hệ thống tuyển dụng trực tuyến kết nối ứng viên và nhà tuyển dụng." {
+            tags "Main System"
+        }
+
+        # External Software Systems
+        keycloak = softwareSystem "Keycloak\n[Software System]" "Hệ thống quản lý danh tính và truy cập." "External"
+        
+        emailService = softwareSystem "Email Service\n[Software System]" "Dịch vụ gửi email." "External"
+        
+        minioStorage = softwareSystem "MinIO Storage\n[Software System]" "Hệ thống lưu trữ đối tượng (object storage)." "External"
+
+        # Relationships - Simple & High-level
+        candidate -> jobSystem "Sử dụng"
+        recruiter -> jobSystem "Sử dụng"  
+        sysAdmin -> jobSystem "Sử dụng"
+
+        # System to External - Purpose focused
+        jobSystem -> keycloak "Xác thực user sử dụng"
+        jobSystem -> emailService "Gửi emails sử dụng"
+        jobSystem -> minioStorage " Đọc từ và ghi vào"
+    }
+
+    views {
+        systemContext jobSystem "SystemContext" "Sơ đồ ngữ cảnh hệ thống Job7189" {
+            include *
+        }
+
+        styles {
+            element "Software System" {
+                shape RoundedBox
+                background #1168bd
+                color #ffffff
+                fontSize 35
+                Metadata false
+            }
+            element "Main System" {
+                background #1168bd
+                Metadata false
+                width 500
+            }
+            element "Person" {
+                shape Person
+                background #08427b
+                color #ffffff
+                fontSize 35
+                Metadata false
+                width 500
+            }
+            element "External" {
+                width 500
+                background #999999
+                Metadata false
+            }
+            relationship "Relationship" {
+                thickness 5
+                fontSize 40
+            }
+        }
+
+        theme default
+    }
+}

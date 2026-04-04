@@ -1,0 +1,13 @@
+apiVersion: v2
+name: fe-candidate
+description: A Helm chart for Kubernetes deployment of fe-candidate (Next.js app)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: DOAN2 Team
+    email: team@doan2.local
+keywords:
+  - nextjs
+  - frontend
+  - candidate

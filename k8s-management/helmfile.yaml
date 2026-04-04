@@ -1,0 +1,70 @@
+releases:  
+  # Identity
+  - name: identity-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/identity-values.yaml
+
+  # Workspace (Thay cho Company)
+  - name: workspace-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/workspace-values.yaml
+
+  # Job
+  - name: job-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/job-values.yaml
+
+  # Hiring Service
+  - name: hiring-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/hiring-values.yaml
+
+  # Candidate
+  - name: candidate-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/candidate-values.yaml
+
+  # Communication (Chat & Email)
+  - name: communication-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/communication-values.yaml
+
+  # Storage Utility
+  - name: storage-service
+    namespace: job7189-apps
+    chart: ./charts/laravel-app
+    values:
+      - values/laravel-common-values.yaml
+      - values/storage-values.yaml
+
+  # Frontend - Candidate Portal
+  - name: fe-candidate
+    namespace: frontend
+    chart: ./charts/fe-candidate
+    values:
+      - values/fe-candidate-values.yaml
+
+  # Frontend - Recruiter Portal
+  - name: fe-recruiter
+    namespace: frontend
+    chart: ./charts/fe-recruiter
+    values:
+      - values/fe-recruiter-values.yaml

@@ -1,0 +1,49 @@
+replicaCount: 2
+
+image:
+  registry: docker-registry.registry.svc.cluster.local:5000
+  repository: fe-recruiter
+  pullPolicy: IfNotPresent
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: true
+  hosts:
+    - host: recruiter.app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: recruiter-tls
+      hosts:
+        - recruiter.app.local
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+env:
+  - name: NODE_ENV
+    value: production
+  - name: NEXT_PUBLIC_API_BASE_URL
+    value: http://kong-proxy.gateway.svc.cluster.local:80
+  - name: NEXT_PUBLIC_KEYCLOAK_URL
+    value: http://keycloak.security.svc.cluster.local:8080
+  - name: NEXT_PUBLIC_KEYCLOAK_REALM
+    value: job7189
+  - name: NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
+    value: fe-recruiter

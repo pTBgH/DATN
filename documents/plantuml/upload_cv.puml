@@ -1,0 +1,60 @@
+@startuml
+title Kịch bản: Ứng tuyển việc làm (Upload CV & Apply)
+autonumber
+
+actor "Ứng viên" as User
+participant "Frontend" as FE
+participant "Storage Service" as SS
+database "MinIO" as MinIO
+participant "Candidate Service" as CS
+participant "Job Service" as JS
+participant "Hiring Service" as HS
+queue "Kafka" as Kafka
+participant "Comm Service" as Comm
+
+== Bước 1: Upload CV vật lý ==
+User -> FE: Chọn CV và bấm Ứng tuyển
+FE -> SS: GET /presigned-url
+activate SS
+SS --> FE: Trả về Presigned URL
+deactivate SS
+
+FE -> MinIO: PUT /object (Upload trực tiếp)
+activate MinIO
+MinIO --> FE: 200 OK
+deactivate MinIO
+
+== Bước 2: Lưu Metadata CV ==
+FE -> CS: POST /resumes (FilePath)
+activate CS
+CS -> CS: Lưu DB
+CS --> FE: 201 Created (ResumeID)
+deactivate CS
+
+== Bước 3: Thực hiện Ứng tuyển ==
+FE -> HS: POST /jobs/{id}/apply (ResumeID)
+activate HS
+
+HS -> JS: Check JobStatus
+activate JS
+JS --> HS: Trả về JobStatus
+deactivate JS
+
+alt JobStatus = PUBLISHED
+    HS -> HS: Tạo JobApplication\n(Stage: Pending)
+    HS -> Kafka: Publish event:\napp.created
+    HS --> FE: 200 OK (Thành công)
+else JobStatus != PUBLISHED
+    HS --> FE: 409 Conflict ("Job không mở")
+end
+
+deactivate HS
+
+== Bước 4: Thông báo (Async) ==
+Kafka -> Comm: Consume event: \napp.created
+activate Comm
+Comm -> Comm: Tạo email\nxác nhận
+Comm -> User: Gửi Email thông báo
+deactivate Comm
+
+@enduml

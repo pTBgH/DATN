@@ -97,17 +97,7 @@ else
     echo ""
     echo "    Chạy theo thứ tự:"
     echo "      cd $SCRIPT_DIR"
-    echo "      bash 00_cleanup_vault.sh"
-    echo "      cd .."
-    echo "      kubectl apply -f 10-cert-manager-issuer.yaml"
-    echo "      kubectl apply -f 11-vault.yaml"
-    echo "      cd vault-scripts"
-    echo "      bash 01_setup_vault_dev.sh"
-    echo "      bash 02_init_vault_prod.sh"
-    echo "      bash 03_setup_vault_prod.sh"
-    echo "      bash 04_push_static_secrets.sh"
-    echo "      bash 05_setup_dynamic_db.sh"
-    echo "      bash 06_setup_policies.sh"
+    echo "      bash 99-fast-rebuild-vault.sh"
     echo ""
     exit 1
   else
@@ -134,7 +124,7 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
   fi
 
   if [ "$INIT" = "no" ] && [ "$KEY_EXISTED" = "yes" ]; then
-    echo "    vault-prod chưa init — cần chạy bash 02_init_vault_prod.sh"
+    echo "    vault-prod chưa init — nên chạy bash 99-fast-rebuild-vault.sh"
     break
   fi
 
@@ -151,9 +141,5 @@ echo "==> Done!"
 if [ "$KEY_EXISTED" = "new" ]; then
   echo ""
   echo "    Key vừa tạo mới. Tiếp theo chạy:"
-  echo "      bash 02_init_vault_prod.sh"
-  echo "      bash 03_setup_vault_prod.sh"
-  echo "      bash 04_push_static_secrets.sh"
-  echo "      bash 05_setup_dynamic_db.sh"
-  echo "      bash 06_setup_policies.sh"
+  echo "      bash 99-fast-rebuild-vault.sh"
 fi

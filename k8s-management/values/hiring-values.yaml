@@ -1,7 +1,7 @@
-registry:
-  url: "docker-registry.registry.svc.cluster.local:5000"
+# registry:
+#   url: "docker-registry.registry.svc.cluster.local:5000"
 image:
-  registry: docker-registry.registry.svc.cluster.local:5000
+  # registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/hiring-service
   tag: "v1.7.6"
   pullPolicy: Always

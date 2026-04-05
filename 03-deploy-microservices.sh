@@ -33,6 +33,200 @@ print_summary() {
 
 trap print_summary EXIT
 
+# ==================== VALIDATION/RECOVERY FUNCTIONS ====================
+declare -a LARAVEL_SERVICES=(
+  "identity-service"
+  "workspace-service"
+  "job-service"
+  "hiring-service"
+  "candidate-service"
+  "communication-service"
+  "storage-service"
+)
+
+print_failed_pod_diagnostics() {
+  local pod_name=$1
+
+  echo ""
+  echo "   🔎 Diagnostics for pod: $pod_name"
+  echo "   ----------------------------------------"
+
+  echo "   Init Containers:"
+  kubectl describe pod -n job7189-apps "$pod_name" 2>/dev/null | sed -n '/^Init Containers:/,/^Containers:/p' || true
+
+  echo ""
+  echo "   Events:"
+  kubectl describe pod -n job7189-apps "$pod_name" 2>/dev/null | sed -n '/^Events:/,$p' || true
+
+  echo ""
+  echo "   Init container logs:"
+  for init_name in $(kubectl get pod -n job7189-apps "$pod_name" -o jsonpath='{range .spec.initContainers[*]}{.name}{" "}{end}' 2>/dev/null); do
+    echo "   --- $pod_name / $init_name ---"
+    kubectl logs -n job7189-apps "$pod_name" -c "$init_name" --tail=200 2>/dev/null || true
+  done
+}
+
+verify_registry_tags() {
+  local missing=0
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "❌ ERROR: curl is required to verify registry tags"
+    return 1
+  fi
+
+  echo "   Verifying required Laravel images in local registry ($REGISTRY_HOST)..."
+  for full_image in "${REQUIRED_IMAGES[@]}"; do
+    local repo="${full_image%:*}"
+    local tag="${full_image##*:}"
+    local tags_json
+
+    tags_json=$(curl -fsS "http://${REGISTRY_HOST}/v2/${repo}/tags/list" 2>/dev/null || true)
+    if echo "$tags_json" | grep -q "\"${tag}\""; then
+      echo "   ✓ ${repo}:${tag}"
+    else
+      echo "   ✗ Missing in registry: ${repo}:${tag}"
+      missing=$((missing + 1))
+    fi
+  done
+
+  [ "$missing" -eq 0 ]
+}
+
+wait_for_vault_unsealed() {
+  local timeout=${1:-300}
+  local start_time=$(date +%s)
+
+  echo "   Waiting for Vault pod to become ready..."
+  kubectl wait --for=condition=Ready=True pod/vault-0 -n vault --timeout="${timeout}s" >/dev/null 2>&1 || true
+
+  while true; do
+    if kubectl exec -n vault vault-0 -- vault status 2>/dev/null | grep -q "Sealed[[:space:]]*false"; then
+      echo "   ✓ Vault is initialized and unsealed"
+      return 0
+    fi
+
+    local elapsed=$(( $(date +%s) - start_time ))
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "❌ ERROR: Vault is not unsealed after ${timeout}s"
+      kubectl get pod -n vault -o wide || true
+      return 1
+    fi
+
+    echo "   ... Vault not ready yet (${elapsed}s/${timeout}s)"
+    sleep 5
+  done
+}
+
+get_vault_root_token() {
+  local init_file="infras/k8s-yaml/vault-scripts/vault-prod-init.json"
+  if [ ! -f "$init_file" ]; then
+    echo ""
+    return 1
+  fi
+
+  python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('root_token',''))" "$init_file" 2>/dev/null || true
+}
+
+vault_dynamic_db_ready() {
+  local root_token=$1
+
+  if [ -z "$root_token" ]; then
+    return 1
+  fi
+
+  if ! kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault read -format=json database/config/mysql >/dev/null 2>&1"; then
+    return 1
+  fi
+
+  local svc
+  for svc in "${LARAVEL_SERVICES[@]}"; do
+    if ! kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault read -format=json database/roles/${svc} >/dev/null 2>&1"; then
+      echo "   ✗ Missing Vault DB role: ${svc}"
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+ensure_vault_dynamic_db_ready() {
+  local repair_script="infras/k8s-yaml/vault-scripts/99-fast-rebuild-vault.sh"
+  local attempt
+
+  for attempt in 1 2; do
+    echo "   Vault dynamic DB readiness check (attempt ${attempt}/2)..."
+
+    if wait_for_vault_unsealed 300; then
+      local root_token
+      root_token=$(get_vault_root_token || true)
+
+      if vault_dynamic_db_ready "$root_token"; then
+        echo "   ✓ Vault dynamic credentials backend is ready"
+        return 0
+      fi
+    fi
+
+    if [ "$attempt" -lt 2 ]; then
+      if [ ! -f "$repair_script" ]; then
+        echo "❌ ERROR: Vault repair script not found: $repair_script"
+        return 1
+      fi
+
+      echo "   ⚠️  Vault dynamic DB config is missing. Running repair pipeline..."
+      bash "$repair_script"
+    fi
+  done
+
+  echo "❌ ERROR: Vault dynamic credentials backend is not ready after repair"
+  return 1
+}
+
+wait_for_laravel_deployments_ready() {
+  local timeout=${1:-900}
+  local start_time=$(date +%s)
+
+  echo ""
+  echo "   Waiting for Laravel deployments to become Ready..."
+
+  while true; do
+    local not_ready=0
+    local svc
+
+    for svc in "${LARAVEL_SERVICES[@]}"; do
+      local desired ready
+      desired=$(kubectl get deploy -n job7189-apps "$svc" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+      ready=$(kubectl get deploy -n job7189-apps "$svc" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+
+      desired=${desired:-0}
+      ready=${ready:-0}
+
+      if [ "$desired" -eq 0 ] || [ "$ready" -lt "$desired" ]; then
+        not_ready=$((not_ready + 1))
+      fi
+    done
+
+    if [ "$not_ready" -eq 0 ]; then
+      echo "   ✓ All Laravel deployments are Ready"
+      return 0
+    fi
+
+    local elapsed=$(( $(date +%s) - start_time ))
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "❌ ERROR: Laravel deployments are not Ready after ${timeout}s"
+      kubectl get pod -n job7189-apps -o wide || true
+
+      for pod_name in $(kubectl get pod -n job7189-apps --no-headers 2>/dev/null | awk '$3!="Running" {print $1}'); do
+        print_failed_pod_diagnostics "$pod_name"
+      done
+
+      return 1
+    fi
+
+    echo "   ... Still waiting (${elapsed}s/${timeout}s)"
+    sleep 10
+  done
+}
+
 # ==================== SCRIPT START ====================
 echo ""
 echo "????????????????????????????????????????????????????????????"
@@ -54,15 +248,15 @@ INFRA_CHECK=$(kubectl get pod -n management 2>/dev/null | wc -l)
 if [ "$INFRA_CHECK" -lt 2 ]; then
   echo "?  WARNING: Infrastructure may not be fully deployed yet."
   echo "   Please ensure 02-deploy-infrastructure.sh has completed."
-  # read -p "Continue anyway? (yes/no): " answer
-  # [[ "$answer" == "yes" ]] || exit 1
+  read -p "Continue anyway? (yes/no): " answer
+  [[ "$answer" == "yes" ]] || exit 1
 fi
 
 echo "? Cluster and infrastructure are accessible"
 log_time "Pre-flight check"
 
-# read -p "? Continue with microservices deployment? (yes/no): " answer
-# [[ "$answer" == "yes" ]] || exit 1
+read -p "? Continue with microservices deployment? (yes/no): " answer
+[[ "$answer" == "yes" ]] || exit 1
 
 # ========================
 # 0. Setup Docker Registry & Build Images
@@ -188,10 +382,10 @@ log_time "0e1. Retag images"
 
 # Determine chart registry FQDN used by Helm charts (fallback to chart default)
 CHART_VALUES_FILE="k8s-management/charts/laravel-app/values.yaml"
-CHART_REGISTRY="docker-registry.registry.svc.cluster.local:5000"
+CHART_REGISTRY="172.17.0.1:5000"
 if [ -f "$CHART_VALUES_FILE" ]; then
-  CHART_REGISTRY=$(awk '/^registry:/{r=1} r&&/url:/{print $2; exit}' "$CHART_VALUES_FILE" 2>/dev/null || true)
-  CHART_REGISTRY=${CHART_REGISTRY:-docker-registry.registry.svc.cluster.local:5000}
+  CHART_REGISTRY=$(awk '/^registry:/{r=1} r&&/url:/{print $2; exit}' "$CHART_VALUES_FILE" 2>/dev/null | tr -d ' "\r' || true)
+  CHART_REGISTRY=${CHART_REGISTRY:-172.17.0.1:5000}
 fi
 
 echo "   Chart registry detected: $CHART_REGISTRY"
@@ -282,6 +476,25 @@ if [ $PUSH_COUNT -eq ${#REQUIRED_IMAGES[@]} ]; then
   echo "   ✓ All images pushed successfully!"
 fi
 echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if ! verify_registry_tags; then
+  echo ""
+  echo "❌ CRITICAL ERROR: One or more required Laravel images are missing in local registry"
+  echo "   Please verify 04-build-and-push-images.sh and registry availability before deploying"
+  exit 1
+fi
+log_time "0e3. Verify registry tags"
+
+echo ""
+echo "   Validating Vault dynamic credentials backend before Helmfile deploy..."
+if ! ensure_vault_dynamic_db_ready; then
+  echo ""
+  echo "❌ CRITICAL ERROR: Vault dynamic DB credentials are not ready"
+  echo "   Deployment stopped to avoid pods stuck in Init state"
+  exit 1
+fi
+log_time "0f. Vault dynamic DB readiness"
+
 echo ""
 echo "   Pods will pull images on-demand from registry"
 echo "   (imagePullPolicy: IfNotPresent in Helm charts)"
@@ -316,11 +529,11 @@ helmfile version || {
 cd k8s-management
 
 echo ""
-echo "   Running helmfile apply to deploy microservices..."
+echo "   Running helmfile apply to deploy Laravel microservices (job7189-apps)..."
 echo "   (This may take 2-5 minutes as pods initialize)"
 echo ""
 
-if helmfile apply 2>&1 | tee /tmp/helmfile-output.log; then
+if helmfile --selector namespace=job7189-apps apply 2>&1 | tee /tmp/helmfile-output.log; then
   echo ""
   echo "   ✓ Helmfile apply completed"
 else
@@ -338,8 +551,16 @@ echo "   Waiting for pods to be created..."
 sleep 3
 
 echo "   Verifying deployed releases..."
-helm list -A 2>/dev/null | head -20 || echo "    (checking Helm releases...)"
+helm list -n job7189-apps 2>/dev/null || echo "    (checking Helm releases...)"
 log_time "1b. Helmfile deployment checkpoint"
+
+if ! wait_for_laravel_deployments_ready 900; then
+  echo ""
+  echo "❌ CRITICAL ERROR: Laravel pods failed to reach Running state"
+  echo "   Root-cause diagnostics are printed above"
+  exit 1
+fi
+log_time "1c. Laravel readiness gate"
 
 cd - > /dev/null
 

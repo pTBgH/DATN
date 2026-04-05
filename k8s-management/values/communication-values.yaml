@@ -1,8 +1,8 @@
 image:
-  registry: docker-registry.registry.svc.cluster.local:5000
+  # registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/communication-service
   tag: "v1.1.9"
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP

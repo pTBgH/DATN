@@ -55,6 +55,29 @@ wait_for_pods() {
   return 0  # Don't fail, continue anyway
 }
 
+wait_for_keycloak_admin_api() {
+  local pod_name=$1
+  local admin_password=$2
+  local retries=${3:-30}
+
+  echo "   Waiting for Keycloak Admin API..."
+  for ((attempt=1; attempt<=retries; attempt++)); do
+    if kubectl exec -n security "$pod_name" -- /opt/keycloak/bin/kcadm.sh config credentials \
+      --server http://127.0.0.1:8080 \
+      --realm master \
+      --user admin \
+      --password "$admin_password" >/dev/null 2>&1; then
+      echo "    ? Keycloak Admin API ready"
+      return 0
+    fi
+    echo "    (admin API not ready yet, attempt $attempt/$retries)"
+    sleep 5
+  done
+
+  echo "?  Keycloak Admin API readiness timeout"
+  return 1
+}
+
 # ==================== SCRIPT START ====================
 echo ""
 echo "????????????????????????????????????????????????????????????"
@@ -151,6 +174,57 @@ else
   echo "    (WARNING: Keycloak may still be initializing, forcing continue)"
 fi
 log_time "1d4. Wait for Keycloak ready"
+
+# Import additional realm for API auth tests without impacting existing realm-infra import.
+echo ""
+echo "? Importing additional Keycloak realm: job7189..."
+
+REALM_JOB7189_FILE="infras/keycloak/realms/realm-job7189.json"
+# Hardcoded from postman/job7189-auth-api.postman_collection.json
+POSTMAN_CLIENT_ID="candidate-app-dev"
+POSTMAN_CLIENT_SECRET="MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW"
+
+if [ ! -f "$REALM_JOB7189_FILE" ]; then
+  echo "?  WARNING: $REALM_JOB7189_FILE not found, skipping additional realm import"
+else
+  KEYCLOAK_POD=$(kubectl get pod -n security -l app=keycloak -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -z "$KEYCLOAK_POD" ]; then
+    echo "?  WARNING: Keycloak pod not found, skipping additional realm import"
+  elif wait_for_keycloak_admin_api "$KEYCLOAK_POD" "$KEYCLOAK_ADMIN_PASS"; then
+    echo "   Copying $REALM_JOB7189_FILE into Keycloak pod..."
+    kubectl exec -i -n security "$KEYCLOAK_POD" -- sh -c "cat > /tmp/realm-job7189.json" < "$REALM_JOB7189_FILE"
+
+    echo "   Importing realm and enforcing Postman client credentials..."
+    if kubectl exec -n security "$KEYCLOAK_POD" -- sh -c "
+      set -e
+      KCADM=/opt/keycloak/bin/kcadm.sh
+      \$KCADM config credentials --server http://127.0.0.1:8080 --realm master --user admin --password '$KEYCLOAK_ADMIN_PASS' >/dev/null
+      if \$KCADM get realms/job7189 >/dev/null 2>&1; then
+        echo '    Realm job7189 already exists, skipping create'
+      else
+        \$KCADM create realms -f /tmp/realm-job7189.json >/dev/null
+        echo '    Realm job7189 imported'
+      fi
+
+      CLIENT_UUID=\$(\$KCADM get clients -r job7189 -q clientId='$POSTMAN_CLIENT_ID' --fields id 2>/dev/null | sed -n 's/.*\"id\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p' | head -n1)
+      if [ -z \"\$CLIENT_UUID\" ]; then
+        echo '    ERROR: client candidate-app-dev not found in realm job7189'
+        exit 1
+      fi
+
+      \$KCADM create clients/\$CLIENT_UUID/client-secret -r job7189 -s value='$POSTMAN_CLIENT_SECRET' >/dev/null
+      echo '    Client secret for candidate-app-dev has been set from Postman collection'
+      rm -f /tmp/realm-job7189.json
+    "; then
+      echo "   ? Additional realm import completed"
+    else
+      echo "?  WARNING: Additional realm import encountered issues"
+    fi
+  else
+    echo "?  WARNING: Keycloak Admin API not ready, skipping additional realm import"
+  fi
+fi
+log_time "1d5. Import realm-job7189"
 
 # ======== KAFKA DEPLOYMENT ========
 echo ""
@@ -285,7 +359,7 @@ log_time "5b. Wait for Vault initialization"
 # 6. Vault Configuration Scripts
 # ========================
 echo ""
-echo "?  Step 6: Running Vault configuration scripts..."
+echo "?  Step 6: Running Vault fast rebuild pipeline..."
 
 if [ ! -d "infras/k8s-yaml/vault-scripts" ]; then
   echo "? ERROR: vault-scripts directory not found!"
@@ -294,63 +368,14 @@ fi
 
 cd infras/k8s-yaml/vault-scripts
 
-echo "   o Running 01_setup_vault_dev.sh..."
-if [ -f "01_setup_vault_dev.sh" ]; then
-  bash 01_setup_vault_dev.sh || echo "?  01_setup_vault_dev.sh encountered issues"
-  log_time "6a. Setup Vault DEV"
+echo "   o Running 99-fast-rebuild-vault.sh..."
+if [ -f "99-fast-rebuild-vault.sh" ]; then
+  bash 99-fast-rebuild-vault.sh || echo "?  99-fast-rebuild-vault.sh encountered issues"
+  log_time "6a. Vault fast rebuild pipeline"
 else
-  echo "?  01_setup_vault_dev.sh not found, skipping"
-fi
-
-echo "   o Running 02_init_vault_prod.sh..."
-if [ -f "02_init_vault_prod.sh" ]; then
-  bash 02_init_vault_prod.sh || echo "?  02_init_vault_prod.sh encountered issues"
-  log_time "6b. Init Vault PROD"
-else
-  echo "?  02_init_vault_prod.sh not found, skipping"
-fi
-
-echo "   o Running 03_setup_vault_prod.sh..."
-if [ -f "03_setup_vault_prod.sh" ]; then
-  bash 03_setup_vault_prod.sh || echo "?  03_setup_vault_prod.sh encountered issues"
-  log_time "6c. Setup Vault PROD"
-else
-  echo "?  03_setup_vault_prod.sh not found, skipping"
-fi
-
-echo "   o Running 04_push_static_secrets.sh..."
-if [ -f "04_push_static_secrets.sh" ]; then
-  bash 04_push_static_secrets.sh || echo "?  04_push_static_secrets.sh encountered issues"
-  log_time "6d. Push static secrets"
-else
-  echo "?  04_push_static_secrets.sh not found, skipping"
-fi
-
-echo "   o Running 05_setup_dynamic_db.sh..."
-if [ -f "05_setup_dynamic_db.sh" ]; then
-  bash 05_setup_dynamic_db.sh || echo "?  05_setup_dynamic_db.sh encountered issues"
-  log_time "6e. Setup dynamic DB"
-else
-  echo "?  05_setup_dynamic_db.sh not found, skipping"
-fi
-
-echo "   o Running 06_setup_policies.sh..."
-if [ -f "06_setup_policies.sh" ]; then
-  bash 06_setup_policies.sh || echo "?  06_setup_policies.sh encountered issues"
-  log_time "6f. Setup policies"
-else
-  echo "?  06_setup_policies.sh not found, skipping"
-fi
-
-echo "   o Applying Vault injector..."
-if [ -f "07_install_injector.sh" ]; then
-  bash 07_install_injector.sh || echo "?  07_install_injector.sh encountered issues"
-  log_time "6g. Install injector"
-else
-  echo "?  07_install_injector.sh not found, trying YAML instead..."
-  if [ -f "vault-injector-values.yaml" ]; then
-    kubectl apply -f vault-injector-values.yaml 2>/dev/null || echo "    (vault injector YAML apply)"
-  fi
+  echo "? ERROR: 99-fast-rebuild-vault.sh not found!"
+  cd - > /dev/null
+  exit 1
 fi
 
 cd - > /dev/null

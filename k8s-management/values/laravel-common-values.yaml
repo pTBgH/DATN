@@ -1,5 +1,6 @@
 registry:
-  url: ""
+  # Kind nodes pull backend images directly from host local registry.
+  url: "172.17.0.1:5000"
 
 env:
   # APP_NAME: Job7189

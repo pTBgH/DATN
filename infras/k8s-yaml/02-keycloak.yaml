@@ -38,8 +38,8 @@ spec:
 
       containers:
       - name: keycloak
-        image: keycloak-custom:v1.0
-        imagePullPolicy: IfNotPresent
+        image: 172.17.0.1:5000/job7189/keycloak-custom:v1.0
+        imagePullPolicy: Always
         command: ["/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]       
         env:
         - name: KC_DB

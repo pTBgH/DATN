@@ -33,6 +33,14 @@ print_summary() {
 
 trap print_summary EXIT
 
+# ==================== CONFIGURATION ====================
+CLUSTER_NAME="job7189"
+REGISTRY_HOST="localhost:5000"
+NODE_REGISTRY_ENDPOINT="172.17.0.1:5000"
+KEYCLOAK_IMAGE_REPO="job7189/keycloak-custom"
+KEYCLOAK_IMAGE_TAG="v1.0"
+FORCE_REBUILD_IMAGES="${FORCE_REBUILD_IMAGES:-0}"
+
 # ==================== HELPER FUNCTIONS ====================
 wait_for_pods() {
   local label=$1
@@ -78,6 +86,77 @@ wait_for_keycloak_admin_api() {
   return 1
 }
 
+get_secret_value() {
+  local namespace=$1
+  local key=$2
+
+  kubectl get secret app-secrets -n "$namespace" \
+    -o go-template="{{index .data \"$key\"}}" 2>/dev/null | base64 -d 2>/dev/null || true
+}
+
+current_mysql_root_password() {
+  kubectl exec -n data deploy/mysql -- sh -lc 'printf "%s" "$MYSQL_ROOT_PASSWORD"' 2>/dev/null || true
+}
+
+ensure_local_registry() {
+  if [ ! -d "infras/local-registry" ]; then
+    echo "? ERROR: infras/local-registry directory not found"
+    return 1
+  fi
+
+  if docker ps 2>/dev/null | grep -q "local-registry"; then
+    echo "   ✓ Local Registry already running"
+    return 0
+  fi
+
+  echo "   Starting local Docker Registry via docker-compose..."
+  (cd infras/local-registry && docker-compose up -d)
+  sleep 2
+  echo "   ✓ Local Registry started"
+}
+
+configure_kind_registry_access() {
+  local registry_endpoint=$1
+  local nodes
+  local node
+
+  nodes=$(kind get nodes --name "$CLUSTER_NAME" 2>/dev/null || true)
+  if [ -z "$nodes" ]; then
+    nodes=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^job7189-' || true)
+  fi
+
+  if [ -z "$nodes" ]; then
+    echo "? ERROR: Unable to find Kind nodes for cluster $CLUSTER_NAME"
+    return 1
+  fi
+
+  for node in $nodes; do
+    docker exec "$node" sh -lc "mkdir -p /etc/containerd/certs.d/${registry_endpoint}"
+    docker exec "$node" sh -lc "cat > /etc/containerd/certs.d/${registry_endpoint}/hosts.toml <<'EOF'
+server = \"http://${registry_endpoint}\"
+
+[host.\"http://${registry_endpoint}\"]
+  capabilities = [\"pull\", \"resolve\", \"push\"]
+  skip_verify = true
+EOF"
+  done
+
+  echo "   ✓ Kind nodes configured for registry endpoint: ${registry_endpoint}"
+}
+
+registry_has_tag() {
+  local repository=$1
+  local tag=$2
+  local tags_json
+
+  if ! command -v curl >/dev/null 2>&1; then
+    return 1
+  fi
+
+  tags_json=$(curl -fsS "http://${REGISTRY_HOST}/v2/${repository}/tags/list" 2>/dev/null || true)
+  echo "$tags_json" | grep -q "\"${tag}\""
+}
+
 # ==================== SCRIPT START ====================
 echo ""
 echo "????????????????????????????????????????????????????????????"
@@ -110,12 +189,44 @@ log_time "Pre-flight check"
 echo ""
 echo "🔐 Step 1: Generating secure credentials (ZTA — no hardcoded passwords)..."
 
-# ZTA: Generate random passwords at deploy time
-MYSQL_ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-KEYCLOAK_ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
-VAULT_MANAGER_PASS=$(openssl rand -base64 20 | tr -d '/+=' | head -c 20)
+# Prefer active credentials when components already exist to avoid password drift.
+MYSQL_ROOT_PASS=""
+KEYCLOAK_ADMIN_PASS=""
+VAULT_MANAGER_PASS=""
 
-echo "   ✓ Random passwords generated (never written to disk)"
+ACTIVE_MYSQL_ROOT_PASS=$(current_mysql_root_password)
+if [ -n "$ACTIVE_MYSQL_ROOT_PASS" ]; then
+  MYSQL_ROOT_PASS="$ACTIVE_MYSQL_ROOT_PASS"
+  echo "   ✓ Reusing active MySQL root password from running mysql pod"
+else
+  SECRET_MYSQL_ROOT_PASS=$(get_secret_value data mysql-root-password)
+  if [ -n "$SECRET_MYSQL_ROOT_PASS" ]; then
+    MYSQL_ROOT_PASS="$SECRET_MYSQL_ROOT_PASS"
+    echo "   ✓ Reusing MySQL root password from existing secret"
+  else
+    MYSQL_ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
+    echo "   ✓ Generated new MySQL root password"
+  fi
+fi
+
+KEYCLOAK_ADMIN_PASS=$(get_secret_value security keycloak-admin-password)
+if [ -z "$KEYCLOAK_ADMIN_PASS" ]; then
+  KEYCLOAK_ADMIN_PASS=$(get_secret_value data keycloak-admin-password)
+fi
+if [ -n "$KEYCLOAK_ADMIN_PASS" ]; then
+  echo "   ✓ Reusing Keycloak admin password from existing secret"
+else
+  KEYCLOAK_ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+  echo "   ✓ Generated new Keycloak admin password"
+fi
+
+VAULT_MANAGER_PASS=$(get_secret_value data vault-manager-password)
+if [ -n "$VAULT_MANAGER_PASS" ]; then
+  echo "   ✓ Reusing Vault manager password from existing secret"
+else
+  VAULT_MANAGER_PASS=$(openssl rand -base64 20 | tr -d '/+=' | head -c 20)
+  echo "   ✓ Generated new Vault manager password"
+fi
 
 # ZTA: Create Kubernetes Secret with generated passwords
 kubectl create secret generic app-secrets \
@@ -146,17 +257,37 @@ log_time "1c. Apply 01-mysql-phpmyadmin.yaml"
 
 # ======== KEYCLOAK SPECIAL HANDLING ========
 echo ""
-echo "? Building and deploying Keycloak..."
+echo "? Building and deploying Keycloak (registry mode)..."
 
-echo "   Step 1: Building Keycloak Docker image..."
-cd infras/keycloak
-docker build -t keycloak-custom:v1.0 .
-cd ../..
-log_time "1d1. Build Keycloak image"
+echo "   Step 0: Ensuring local registry is ready..."
+if ! ensure_local_registry; then
+  echo "? ERROR: Failed to start local registry"
+  exit 1
+fi
+log_time "1d0. Ensure local registry"
 
-echo "   Step 2: Loading image into Kind cluster..."
-kind load docker-image keycloak-custom:v1.0 --name job7189
-log_time "1d2. Load Keycloak image to Kind"
+echo "   Step 0b: Configuring Kind nodes for registry pulls..."
+if ! configure_kind_registry_access "$NODE_REGISTRY_ENDPOINT"; then
+  echo "? ERROR: Failed to configure Kind registry access"
+  exit 1
+fi
+log_time "1d0b. Configure Kind registry access"
+
+KEYCLOAK_LOCAL_IMAGE="${REGISTRY_HOST}/${KEYCLOAK_IMAGE_REPO}:${KEYCLOAK_IMAGE_TAG}"
+
+if [ "$FORCE_REBUILD_IMAGES" != "1" ] && registry_has_tag "$KEYCLOAK_IMAGE_REPO" "$KEYCLOAK_IMAGE_TAG"; then
+  echo "   Step 1: Keycloak image already exists in registry, skipping build"
+  docker pull "$KEYCLOAK_LOCAL_IMAGE" >/dev/null 2>&1 || true
+else
+  echo "   Step 1: Building Keycloak Docker image..."
+  cd infras/keycloak
+  docker build -t "$KEYCLOAK_LOCAL_IMAGE" .
+  cd ../..
+
+  echo "   Step 2: Pushing Keycloak image to local registry..."
+  docker push "$KEYCLOAK_LOCAL_IMAGE"
+fi
+log_time "1d1. Build/push Keycloak image"
 
 echo "   Step 3: Deploying Keycloak..."
 kubectl apply -f infras/k8s-yaml/02-keycloak.yaml

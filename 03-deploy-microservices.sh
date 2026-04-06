@@ -92,6 +92,51 @@ verify_registry_tags() {
   [ "$missing" -eq 0 ]
 }
 
+configure_kind_registry_access() {
+  local registry_endpoint=$1
+  local nodes
+  local node
+
+  nodes=$(kind get nodes --name job7189 2>/dev/null || true)
+  if [ -z "$nodes" ]; then
+    nodes=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^job7189-' || true)
+  fi
+
+  if [ -z "$nodes" ]; then
+    echo "❌ ERROR: Unable to find Kind nodes for cluster job7189"
+    return 1
+  fi
+
+  echo "   Configuring Kind nodes to allow HTTP pulls from ${registry_endpoint}..."
+  for node in $nodes; do
+    docker exec "$node" sh -lc "mkdir -p /etc/containerd/certs.d/${registry_endpoint}"
+    docker exec "$node" sh -lc "cat > /etc/containerd/certs.d/${registry_endpoint}/hosts.toml <<'EOF'
+server = \"http://${registry_endpoint}\"
+
+[host.\"http://${registry_endpoint}\"]
+  capabilities = [\"pull\", \"resolve\", \"push\"]
+  skip_verify = true
+EOF"
+  done
+
+  local probe_node sample_image
+  probe_node=$(echo "$nodes" | head -n1)
+  sample_image="${registry_endpoint}/${REQUIRED_IMAGES[0]}"
+
+  if docker exec "$probe_node" sh -lc "command -v crictl >/dev/null 2>&1"; then
+    if docker exec "$probe_node" sh -lc "crictl pull ${sample_image} >/dev/null 2>&1"; then
+      echo "   ✓ Kind node pull probe succeeded: ${sample_image}"
+    else
+      echo "❌ ERROR: Kind node pull probe failed: ${sample_image}"
+      return 1
+    fi
+  else
+    echo "   ⚠️  crictl not found in ${probe_node}; skipped pull probe"
+  fi
+
+  return 0
+}
+
 wait_for_vault_unsealed() {
   local timeout=${1:-300}
   local start_time=$(date +%s)
@@ -125,6 +170,51 @@ get_vault_root_token() {
   fi
 
   python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('root_token',''))" "$init_file" 2>/dev/null || true
+}
+
+get_secret_value() {
+  local namespace=$1
+  local key=$2
+
+  kubectl get secret app-secrets -n "$namespace" \
+    -o go-template="{{index .data \"$key\"}}" 2>/dev/null | base64 -d 2>/dev/null || true
+}
+
+patch_secret_value() {
+  local namespace=$1
+  local key=$2
+  local value=$3
+  local encoded
+
+  encoded=$(printf '%s' "$value" | base64 | tr -d '\n')
+  kubectl patch secret app-secrets -n "$namespace" --type merge \
+    -p "{\"data\":{\"$key\":\"$encoded\"}}" >/dev/null
+}
+
+reconcile_mysql_root_secret() {
+  local live_mysql_root
+  local data_secret_mysql
+  local security_secret_mysql
+
+  live_mysql_root=$(kubectl exec -n data deploy/mysql -- sh -lc 'printf "%s" "$MYSQL_ROOT_PASSWORD"' 2>/dev/null || true)
+  if [ -z "$live_mysql_root" ]; then
+    echo "   ⚠️  Could not read active MYSQL_ROOT_PASSWORD from deploy/mysql; skipping secret reconciliation"
+    return 0
+  fi
+
+  data_secret_mysql=$(get_secret_value data mysql-root-password)
+  if [ "$data_secret_mysql" != "$live_mysql_root" ]; then
+    patch_secret_value data mysql-root-password "$live_mysql_root"
+    echo "   ✓ Reconciled data/app-secrets mysql-root-password with running MySQL"
+  fi
+
+  security_secret_mysql=$(get_secret_value security mysql-root-password)
+  if [ -n "$security_secret_mysql" ] && [ "$security_secret_mysql" != "$live_mysql_root" ]; then
+    patch_secret_value security mysql-root-password "$live_mysql_root"
+    echo "   ✓ Reconciled security/app-secrets mysql-root-password with running MySQL"
+  fi
+
+  return 0
 }
 
 vault_dynamic_db_ready() {
@@ -255,8 +345,8 @@ fi
 echo "? Cluster and infrastructure are accessible"
 log_time "Pre-flight check"
 
-read -p "? Continue with microservices deployment? (yes/no): " answer
-[[ "$answer" == "yes" ]] || exit 1
+# read -p "? Continue with microservices deployment? (yes/no): " answer
+# [[ "$answer" == "yes" ]] || exit 1
 
 # ========================
 # 0. Setup Docker Registry & Build Images
@@ -384,11 +474,18 @@ log_time "0e1. Retag images"
 CHART_VALUES_FILE="k8s-management/charts/laravel-app/values.yaml"
 CHART_REGISTRY="172.17.0.1:5000"
 if [ -f "$CHART_VALUES_FILE" ]; then
-  CHART_REGISTRY=$(awk '/^registry:/{r=1} r&&/url:/{print $2; exit}' "$CHART_VALUES_FILE" 2>/dev/null | tr -d ' "\r' || true)
+  CHART_REGISTRY=$(grep -m 1 -E '^[[:space:]]*url:' "$CHART_VALUES_FILE" | sed -E 's/^[[:space:]]*url:[[:space:]]*//; s/[[:space:]]+$//; s/^"//; s/"$//; s/\r$//' || true)
   CHART_REGISTRY=${CHART_REGISTRY:-172.17.0.1:5000}
 fi
 
 echo "   Chart registry detected: $CHART_REGISTRY"
+
+if ! configure_kind_registry_access "$CHART_REGISTRY"; then
+  echo ""
+  echo "❌ CRITICAL ERROR: Failed to configure Kind nodes for local registry pulls"
+  exit 1
+fi
+log_time "0e1. Configure Kind registry access"
 
 # Also ensure images are available under the chart registry name used in manifests
 echo "   Tagging images with chart registry prefix (if present)..."
@@ -484,6 +581,11 @@ if ! verify_registry_tags; then
   exit 1
 fi
 log_time "0e3. Verify registry tags"
+
+echo ""
+echo "   Reconciling MySQL root credentials before Vault DB validation..."
+reconcile_mysql_root_secret
+log_time "0f0. Reconcile MySQL root secret"
 
 echo ""
 echo "   Validating Vault dynamic credentials backend before Helmfile deploy..."

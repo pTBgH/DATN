@@ -659,7 +659,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "**********",
+      "secret": "MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW",
       "redirectUris": [
         "http://fe-candidate-dev.job7189.local/*"
       ],

@@ -508,6 +508,27 @@ done
 
 log_time "0e1. Retag images"
 
+# Clean up redundant local tags — only keep chart-registry-prefixed images
+echo "   Cleaning up redundant local tags (keeping only ${CHART_REGISTRY} prefix)..."
+for full_image in "${REQUIRED_IMAGES[@]}"; do
+  # Remove bare tag (e.g., job7189/identity-service:v2.8.6)
+  if docker image inspect "$full_image" &>/dev/null; then
+    echo "   ▶ Removing redundant: $full_image"
+    docker rmi "$full_image" 2>/dev/null || true
+  fi
+
+  # Remove localhost:5000 prefixed tag (redundant since chart uses 172.17.0.1:5000)
+  registry_image="${REGISTRY_HOST}/${full_image}"
+  chart_image="${CHART_REGISTRY}/${full_image}"
+  if [ "$registry_image" != "$chart_image" ] && docker image inspect "$registry_image" &>/dev/null; then
+    echo "   ▶ Removing redundant: $registry_image"
+    docker rmi "$registry_image" 2>/dev/null || true
+  fi
+done
+echo "   ✓ Redundant tags cleaned"
+
+log_time "0e1b. Clean redundant tags"
+
 # ========================
 # 0e2. Push images to in-cluster registry (instead of kind load)
 # ========================

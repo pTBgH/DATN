@@ -512,10 +512,66 @@ fi
 cd - > /dev/null
 
 # ========================
-# 7. COMPREHENSIVE VALIDATION
+# 8. Deploy ELK Stack (Elasticsearch, Kibana, Filebeat)
 # ========================
 echo ""
-echo "? Step 7: Comprehensive validation of Phase 2..."
+echo "📊 Step 8: Deploying ELK Stack (Elasticsearch, Kibana, Filebeat)..."
+
+echo "   Deploying Elasticsearch & Kibana..."
+kubectl apply -f infras/k8s-yaml/05-elasticsearch.yaml
+log_time "8a. Apply Elasticsearch + Kibana"
+
+echo "   Waiting for Elasticsearch to be ready..."
+if kubectl wait --for=condition=Ready=True pod \
+  -l app=elasticsearch \
+  -n monitoring \
+  --timeout=300s 2>/dev/null; then
+  echo "    ✓ Elasticsearch is ready"
+else
+  echo "⚠  Elasticsearch wait timeout - checking status..."
+  kubectl get pod -n monitoring -l app=elasticsearch -o wide || true
+  echo "    (WARNING: Elasticsearch may still be initializing)"
+fi
+log_time "8b. Wait for Elasticsearch ready"
+
+echo "   Deploying Filebeat..."
+kubectl apply -f infras/k8s-yaml/06-filebeat.yaml
+log_time "8c. Apply Filebeat"
+
+echo "   Waiting for Filebeat to be ready..."
+sleep 5
+if kubectl wait --for=condition=Ready=True pod \
+  -l k8s-app=filebeat \
+  -n monitoring \
+  --timeout=120s 2>/dev/null; then
+  echo "    ✓ Filebeat is ready"
+else
+  echo "⚠  Filebeat wait timeout - checking status..."
+  kubectl get pod -n monitoring -l k8s-app=filebeat -o wide || true
+  echo "    (WARNING: Filebeat may still be starting)"
+fi
+log_time "8d. Wait for Filebeat ready"
+
+echo "   Waiting for Kibana to be ready..."
+if kubectl wait --for=condition=Ready=True pod \
+  -l app=kibana \
+  -n monitoring \
+  --timeout=300s 2>/dev/null; then
+  echo "    ✓ Kibana is ready"
+else
+  echo "⚠  Kibana wait timeout - checking status..."
+  kubectl get pod -n monitoring -l app=kibana -o wide || true
+  echo "    (WARNING: Kibana may still be starting)"
+fi
+log_time "8e. Wait for Kibana ready"
+
+echo "✓ ELK Stack deployment completed"
+
+# ========================
+# 9. COMPREHENSIVE VALIDATION
+# ========================
+echo ""
+echo "📋 Step 9: Comprehensive validation of Phase 2..."
 
 echo ""
 echo "? Checking all deployed services..."

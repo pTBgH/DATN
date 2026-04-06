@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: filebeat
-  namespace: job7189-monitoring
+  namespace: monitoring
   labels:
     k8s-app: filebeat
 ---
@@ -37,7 +37,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: filebeat
-  namespace: job7189-monitoring
+  namespace: monitoring
 roleRef:
   kind: ClusterRole
   name: filebeat
@@ -50,7 +50,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: filebeat-config
-  namespace: job7189-monitoring
+  namespace: monitoring
   labels:
     k8s-app: filebeat
 data:
@@ -76,8 +76,15 @@ data:
         - drop_event:
             when:
               not:
-                equals:
-                  kubernetes.namespace: "job7189-ns"
+                or:
+                  - equals:
+                      kubernetes.namespace: "job7189-apps"
+                  - equals:
+                      kubernetes.namespace: "gateway"
+                  - equals:
+                      kubernetes.namespace: "security"
+                  - equals:
+                      kubernetes.namespace: "data"
 
     output.elasticsearch:
       hosts: ['elasticsearch:9200']
@@ -96,7 +103,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: filebeat
-  namespace: job7189-monitoring
+  namespace: monitoring
   labels:
     k8s-app: filebeat
 spec:

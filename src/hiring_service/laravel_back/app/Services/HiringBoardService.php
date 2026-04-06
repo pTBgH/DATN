@@ -115,7 +115,7 @@ class HiringBoardService
                 $this->workflowEngine->trigger($pipelineId, 'stage_entry', $context);
 
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Workflow Trigger Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Workflow Trigger Failed: " . $e->getMessage()]);
             }
 
             return ['success' => true, 'message' => 'Moved successfully.'];

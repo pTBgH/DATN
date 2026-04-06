@@ -50,7 +50,7 @@ class InterviewController extends Controller
 
         return response()->json(new InterviewResource($interview), 201);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Error scheduling interview: ' . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => 'Error scheduling interview: ' . $e->getMessage()]);
             return response()->json(['message' => 'Error scheduling interview', 'error' => $e->getMessage()], 500);
         }
     }

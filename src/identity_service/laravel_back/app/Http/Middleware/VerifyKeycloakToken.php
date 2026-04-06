@@ -84,7 +84,7 @@ class VerifyKeycloakToken
                 $user->type = 'candidate';
                 
             } else {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "Unknown AZP in Identity: $azp");
+                (new StructuredLogger('system', 'warning'))->warning(['message' => "Unknown AZP in Identity: $azp"]);
                 return response()->json(['message' => 'Unauthorized Client'], 401);
             }
 
@@ -93,7 +93,7 @@ class VerifyKeycloakToken
             return $next($request);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Auth Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Auth Failed: " . $e->getMessage()]);
             return response()->json(['message' => 'Unauthorized'], 401);
         }
     }

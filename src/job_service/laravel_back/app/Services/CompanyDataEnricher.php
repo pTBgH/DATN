@@ -62,7 +62,7 @@ class CompanyDataEnricher
                     }
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Enrichment Batch Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Enrichment Batch Failed: " . $e->getMessage()]);
             }
         }
 

@@ -97,7 +97,7 @@ class HiringPipelineController extends Controller
                     ]
                 ]);
             } catch (Throwable $k) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Created): " . $k->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Created): " . $k->getMessage()]);
             }
             // Trả về Resource
             return response()->json(new HiringPipelineResource($pipeline->load('stages')), 201);
@@ -156,7 +156,7 @@ class HiringPipelineController extends Controller
                     ]
                 ]);
             } catch (Throwable $k) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Updated): " . $k->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Updated): " . $k->getMessage()]);
             }
 
             // Trả về Resource
@@ -199,7 +199,7 @@ class HiringPipelineController extends Controller
                 ]
             ]);
         } catch (Throwable $k) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Deleted): " . $k->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Deleted): " . $k->getMessage()]);
         }
         
         return response()->json(null, 204);

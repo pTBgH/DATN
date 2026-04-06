@@ -25,7 +25,7 @@ class EmailService
 
         } catch (\Exception $e) {
             // 3. Ghi Log Thất bại
-            (new StructuredLogger('system', 'error'))->error(['message' => "Mail Send Error: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Mail Send Error: " . $e->getMessage()]);
             $this->logToDb($to, $subject, $body, 'failed', $e->getMessage(), $source);
             return false;
         }
@@ -44,7 +44,7 @@ class EmailService
                 'CreatedAt'    => now()
             ]);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Failed to log email to DB: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Failed to log email to DB: " . $e->getMessage()]);
         }
     }
 }

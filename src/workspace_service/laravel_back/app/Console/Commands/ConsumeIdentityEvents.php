@@ -62,7 +62,7 @@ class ConsumeIdentityEvents extends Command
             } elseif ($message->err === RD_KAFKA_RESP_ERR__TIMED_OUT) {
                 Log::debug("Consumer timeout (no new messages)");
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka error: " . $message->errstr());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka error: " . $message->errstr()]);
             }
         }
     }

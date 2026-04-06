@@ -46,7 +46,7 @@ class JobApplicationController extends Controller
             $response = Http::timeout(2)->get("{$jobUrl}/api/public/jobs/{$jobId}");
             
             if (!$response->successful()) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Job Not Found. Status: " . $response->status());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Job Not Found. Status: " . $response->status()]);
                 return response()->json(['message' => 'Job not found or closed'], 404);
             }
             
@@ -60,12 +60,12 @@ class JobApplicationController extends Controller
             $companyName = $jobData['company_name'] ?? $jobData['CompanyNameSnapshot'] ?? 'Unknown Company';
             
             if (!$workspaceId) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Missing Company ID in Job Response", (array)$jobData);
+                (new StructuredLogger('system', 'error'))->error(['message' => "Missing Company ID in Job Response", (array)$jobData]);
                 return response()->json(['message' => 'Invalid Job Data (Missing WorkspaceID)'], 500);
             }
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Service Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Service Failed: " . $e->getMessage()]);
             return response()->json(['message' => 'Cannot verify job details'], 500);
         }
 
@@ -94,7 +94,7 @@ class JobApplicationController extends Controller
             try {
                 $this->kafka->produce('job7189.applications', $eventData);
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage()]);
             }
 
             (new StructuredLogger('system', 'action'))->info(['message' => "Kafka event sent.", ['app_id' => $applicationId]);
@@ -105,7 +105,7 @@ class JobApplicationController extends Controller
             ], 202);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage()]);
             return response()->json(['message' => 'Application failed due to system error'], 500);
         }
     }
@@ -124,10 +124,10 @@ class JobApplicationController extends Controller
             if ($response->successful()) {
                 $applications = $response->json();
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Hiring Service Error: " . $response->status() . " Body: " . $response->body());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Hiring Service Error: " . $response->status() . " Body: " . $response->body()]);
             }
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Call Hiring Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Call Hiring Failed: " . $e->getMessage()]);
             return response()->json(['data' => []]);
         }
 
@@ -151,10 +151,10 @@ class JobApplicationController extends Controller
                     $jobsMap = $jobResponse->json();
                     (new StructuredLogger('system', 'action'))->info(['message' => "Job Batch Info:", $jobsMap); // Uncomment để debug
                 } else {
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Job Batch Failed: " . $jobResponse->status());
+                    (new StructuredLogger('system', 'error'))->error(['message' => "Job Batch Failed: " . $jobResponse->status()]);
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Batch Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Batch Failed: " . $e->getMessage()]);
             }
         }
 

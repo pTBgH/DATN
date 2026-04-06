@@ -105,7 +105,7 @@ class JobCompanyController extends Controller
             return new JobCompanyResource($company->fresh(['location', 'size', 'industry']));
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Update Company Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Update Company Failed: " . $e->getMessage()]);
             return response()->json(['message' => 'Update failed', 'error' => $e->getMessage()], 500);
         }
     }

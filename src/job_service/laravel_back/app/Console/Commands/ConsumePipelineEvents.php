@@ -48,7 +48,7 @@ class ConsumePipelineEvents extends Command
 
                     $consumer->commit($message);
                 } catch (\Exception $e) {
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Pipeline Sync Error: " . $e->getMessage());
+                    (new StructuredLogger('system', 'error'))->error(['message' => "Pipeline Sync Error: " . $e->getMessage()]);
                 }
             }
         }

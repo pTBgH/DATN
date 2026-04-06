@@ -63,7 +63,8 @@ class RecruiterController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage()]);
+
         }
         Cache::forget("profile:full:{$recruiter->RecruiterID}");
         
@@ -101,7 +102,7 @@ class RecruiterController extends Controller
                     (new StructuredLogger('system', 'warning'))->warning(['message' => "Cannot fetch workspaces. Status: " . $response->status());
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Service Unreachable: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Service Unreachable: " . $e->getMessage()]);
                 // Vẫn giữ $workspaces = [] để code chạy tiếp
             }
 

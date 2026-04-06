@@ -7,6 +7,14 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLIENT_SECRET_ENV_FILE="${CLIENT_SECRET_ENV_FILE:-${SCRIPT_DIR}/keycloak-client-secrets.env}"
+
+if [ -f "$CLIENT_SECRET_ENV_FILE" ]; then
+    # shellcheck disable=SC1090
+    source "$CLIENT_SECRET_ENV_FILE"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -18,13 +26,18 @@ NC='\033[0m' # No Color
 # Use ingress endpoint by default, can override with env var
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://172.22.0.4:30003}"
 KEYCLOAK_AUTH_HOST="${KEYCLOAK_AUTH_HOST:-auth.job7189.local}"
-KEYCLOAK_REALM="job7189"
+KEYCLOAK_REALM="${KEYCLOAK_REALM:-job7189}"
 GRANT_TYPE="client_credentials"
+
+CANDIDATE_CLIENT_ID="${KEYCLOAK_CANDIDATE_CLIENT_ID:-candidate-app-dev}"
+CANDIDATE_CLIENT_SECRET="${KEYCLOAK_CANDIDATE_CLIENT_SECRET:-}"
+RECRUITER_CLIENT_ID="${KEYCLOAK_RECRUITER_CLIENT_ID:-recruiter-app-dev}"
+RECRUITER_CLIENT_SECRET="${KEYCLOAK_RECRUITER_CLIENT_SECRET:-}"
 
 # Client configs
 declare -A CLIENTS=(
-    ["0"]="candidate-app-dev:MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW"
-    ["1"]="recruiter-app-dev:yqKvrD4kuUC34robywaDmAcPmfyxhm5v"
+    ["0"]="${CANDIDATE_CLIENT_ID}:${CANDIDATE_CLIENT_SECRET}"
+    ["1"]="${RECRUITER_CLIENT_ID}:${RECRUITER_CLIENT_SECRET}"
 )
 
 declare -A NAMES=(
@@ -32,15 +45,17 @@ declare -A NAMES=(
     ["1"]="Recruiter Service"
 )
 
+ARG1="${1:-}"
+
 # Parse arguments or prompt
-if [ "$1" != "" ] && [ "$1" != "0" ] && [ "$1" != "1" ]; then
+if [ "$ARG1" != "" ] && [ "$ARG1" != "0" ] && [ "$ARG1" != "1" ]; then
     echo "Usage: $0 [0|1]"
     echo "  0 = Candidate Service token"
     echo "  1 = Recruiter Service token"
     exit 1
 fi
 
-if [ "$1" == "" ]; then
+if [ "$ARG1" == "" ]; then
     echo ""
     echo -e "${BLUE}=== Keycloak Token Generator ===${NC}"
     echo ""
@@ -50,7 +65,7 @@ if [ "$1" == "" ]; then
     echo ""
     read -p "Enter choice [0-1]: " CHOICE
 else
-    CHOICE=$1
+    CHOICE=$ARG1
 fi
 
 # Validate choice
@@ -62,6 +77,13 @@ fi
 # Get client credentials
 IFS=':' read -r CLIENT_ID CLIENT_SECRET <<< "${CLIENTS[$CHOICE]}"
 SERVICE_NAME="${NAMES[$CHOICE]}"
+
+if [ -z "$CLIENT_SECRET" ]; then
+    echo -e "${RED}❌ Client secret is empty for ${CLIENT_ID}.${NC}"
+    echo "   Run ./setup-auth.sh to synchronize current secrets from Keycloak,"
+    echo "   or set KEYCLOAK_*_CLIENT_SECRET env vars before running this script."
+    exit 1
+fi
 
 echo ""
 echo -e "${YELLOW}Getting token for: ${SERVICE_NAME}${NC}"

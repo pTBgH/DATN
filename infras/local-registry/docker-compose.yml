@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   registry:
     image: registry:2
@@ -7,18 +5,28 @@ services:
     restart: always
     ports:
       - "5000:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: '["http://192.168.112.154:8088"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: '["HEAD", "GET", "OPTIONS", "DELETE"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Credentials: '[true]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: '["Authorization", "Accept", "Cache-Control"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: '["Docker-Content-Digest"]'
     volumes:
-      - ./registry-data:/var/lib/registry # Persist data: Lưu trữ image thật trên máy host, không lo mất khi tắt container
+      - ./registry-data:/var/lib/registry  # giữ nguyên, data không mất
 
   registry-ui:
-    image: joxit/docker-registry-ui:static
+    image: joxit/docker-registry-ui:latest
     container_name: local-registry-ui
     restart: always
     ports:
       - "8088:80"
     environment:
-      - REGISTRY_TITLE=My Local Registry
-      - REGISTRY_URL=http://localhost:5000
-      - DELETE_IMAGES=true # Cho phép xoá image từ giao diện UI
+      - SINGLE_REGISTRY=true
+      - REGISTRY_TITLE=My Docker Registry
+      - REGISTRY_URL=http://192.168.112.154:5000
+      - DELETE_IMAGES=true
+      - SHOW_CONTENT_DIGEST=true
+      - NGINX_PROXY_PASS_URL=http://registry:5000
     depends_on:
       - registry

@@ -46,7 +46,7 @@ class ConsumeWorkspaceEvents extends Command
                     $consumer->commit($message);
                 } catch (\Exception $e) {
                     // Log lỗi để không chết consumer loop
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Sync Error: " . $e->getMessage());
+                    (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Sync Error: " . $e->getMessage()]);
                 }
             }
         }

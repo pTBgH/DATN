@@ -3,9 +3,6 @@
 namespace App\Support\Logging;
 
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class StructuredLogger
 {

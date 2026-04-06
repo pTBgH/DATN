@@ -49,7 +49,7 @@ class HiringBoardController extends Controller
             return response()->json($result['data']);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "HiringBoardController Error: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "HiringBoardController Error: " . $e->getMessage()]);
             return response()->json(['message' => 'Internal Server Error'], 500);
         }
     }
@@ -106,7 +106,7 @@ class HiringBoardController extends Controller
             return null;
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Fetch Job Info Exception: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Fetch Job Info Exception: " . $e->getMessage()]);
             return null;
         }
     }

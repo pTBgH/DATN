@@ -37,7 +37,7 @@ class WorkspaceInternalClient
                     }
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "WorkspaceInternalClient Error: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "WorkspaceInternalClient Error: " . $e->getMessage()]);
             }
 
             // Fallback nếu lỗi

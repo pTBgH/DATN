@@ -42,7 +42,7 @@ class KafkaHelper
         $result = $producer->flush(10000);
 
         if (RD_KAFKA_RESP_ERR_NO_ERROR !== $result) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $result);
+            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $result]);
             throw new \Exception("Failed to send message to Kafka");
         }
         

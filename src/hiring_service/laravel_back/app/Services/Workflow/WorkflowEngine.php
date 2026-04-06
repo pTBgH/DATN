@@ -118,7 +118,7 @@ class WorkflowEngine
 
                 } catch (\Exception $e) {
                     $nodeError = $e->getMessage();
-                    (new StructuredLogger('system', 'error'))->error(['message' => "  -> Node Failed: " . $nodeError);
+                    (new StructuredLogger('system', 'error'))->error(['message' => "  -> Node Failed: " . $nodeError]);
                 }
             } else {
                 $nodeError = "Handler not found: {$nodeType}";

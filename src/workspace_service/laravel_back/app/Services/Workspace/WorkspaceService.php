@@ -68,7 +68,7 @@ class WorkspaceService
                 (new StructuredLogger('system', 'action'))->info(['message' => "Kafka [workspace.created] sent", ['ws_id' => $workspaceId]);
             } catch (Throwable $e) {
                 // Log lỗi nhưng không rollback DB để tránh chặn user
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Publish Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Publish Failed: " . $e->getMessage()]);
             }
             DB::table('workspace_members')->insert([
                 'WorkspaceID' => $workspaceId,
@@ -121,7 +121,8 @@ class WorkspaceService
             try {
                 $this->kafkaHelper->produce('job7189.workspace', $kafkaPayload);
             } catch (Throwable $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage());
+                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage()]);
+
             }
 
             return $workspace;

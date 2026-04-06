@@ -43,7 +43,7 @@ class ConsumeApplications extends Command
                     break;
 
                 default:
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Error: " . $message->errstr());
+                    (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Error: " . $message->errstr()]);
                     break;
             }
         }
@@ -98,7 +98,7 @@ class ConsumeApplications extends Command
             $this->info("Saved Application [{$data['application_id']}] with Stage [{$stageId}]");
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "DB Save Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "DB Save Failed: " . $e->getMessage()]);
         }
     }
 

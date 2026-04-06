@@ -55,7 +55,7 @@ class CheckPermission
                     return $next($request);
                 }
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "CheckPermission: Unknown permission name '{$permissionName}' in route.");
+                (new StructuredLogger('system', 'error'))->error(['message' => "CheckPermission: Unknown permission name '{$permissionName}' in route."]);
             }
         }
 

@@ -10,10 +10,60 @@ consumers:
     jwt_secrets:
       - algorithm: RS256
         key: "http://auth.job7189.local/realms/job7189"
+        # BEGIN JOB7189 JWT PUBLIC KEY
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ioBZRZUKmSY20QjSDM+UX9puzYAgFG91/boFK1Sy41aHIs3ohIWJHZFtXvKSO75GxePMvmoh5tPo0GQNyKMNvrngyQfeQPY4b2JrxjyPXRRaHCWKYyqCWjZv2x3KipJOivLn+ZmgohPe7r7JIdpxrRVZJt/jS2H2cdpMtUNlYHvj3teRfuTZgBsWDHQoz7ig/qCnO7EhtDpJ/9X4p/w3lD1Opr/oEtrQzmq7PJTlWRd+6gut/Ur/oEOrmuCnnGQ//Om993UkFpfikATAkRCIJO8lH2BYq+t9xnOQb7mltHwgs43m8AwdN3HZvZ2ae6rqAfJypMPIP9J/QOTiGHLnQIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoh5YbcD9tqbnhwFUev1m
+          vPBzDRLP7Xf0ykj96KeDHwlQ0+oYoowJ7grH0KYKg2gojMBmXDTdMcqqSSHIAzMs
+          2Q7FEwhzwFLP+pUSB00RLaasUcE0eQdUr0VnPU3Z2aJmitpAI4X75vGUyIJ5DIyI
+          qO4wgM2itK8rvvOASOejwzTgE45U3yq+4Mbk+hpA0zG5M4V1XRYXYjuOlti0gddj
+          pntT4YSuXXo5g0R+qJpVC19uBppvHAc5AHVuM5yETWRjmM2hhBcGHCBKU7OCuF7G
+          D9iHlhD0G8j4KGX7u7cicwb1Rg7mfj1l5RkUruZf4R+Zjhs/cSCfbUWk9+qjWFm7
+          RwIDAQAB
           -----END PUBLIC KEY-----
+        # END JOB7189 JWT PUBLIC KEY
+      - algorithm: RS256
+        key: "http://auth.job7189.local:8080/realms/job7189"
+        # BEGIN JOB7189 JWT PUBLIC KEY
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoh5YbcD9tqbnhwFUev1m
+          vPBzDRLP7Xf0ykj96KeDHwlQ0+oYoowJ7grH0KYKg2gojMBmXDTdMcqqSSHIAzMs
+          2Q7FEwhzwFLP+pUSB00RLaasUcE0eQdUr0VnPU3Z2aJmitpAI4X75vGUyIJ5DIyI
+          qO4wgM2itK8rvvOASOejwzTgE45U3yq+4Mbk+hpA0zG5M4V1XRYXYjuOlti0gddj
+          pntT4YSuXXo5g0R+qJpVC19uBppvHAc5AHVuM5yETWRjmM2hhBcGHCBKU7OCuF7G
+          D9iHlhD0G8j4KGX7u7cicwb1Rg7mfj1l5RkUruZf4R+Zjhs/cSCfbUWk9+qjWFm7
+          RwIDAQAB
+          -----END PUBLIC KEY-----
+        # END JOB7189 JWT PUBLIC KEY
+      - algorithm: RS256
+        key: "http://localhost:8080/realms/job7189"
+        # BEGIN JOB7189 JWT PUBLIC KEY
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoh5YbcD9tqbnhwFUev1m
+          vPBzDRLP7Xf0ykj96KeDHwlQ0+oYoowJ7grH0KYKg2gojMBmXDTdMcqqSSHIAzMs
+          2Q7FEwhzwFLP+pUSB00RLaasUcE0eQdUr0VnPU3Z2aJmitpAI4X75vGUyIJ5DIyI
+          qO4wgM2itK8rvvOASOejwzTgE45U3yq+4Mbk+hpA0zG5M4V1XRYXYjuOlti0gddj
+          pntT4YSuXXo5g0R+qJpVC19uBppvHAc5AHVuM5yETWRjmM2hhBcGHCBKU7OCuF7G
+          D9iHlhD0G8j4KGX7u7cicwb1Rg7mfj1l5RkUruZf4R+Zjhs/cSCfbUWk9+qjWFm7
+          RwIDAQAB
+          -----END PUBLIC KEY-----
+        # END JOB7189 JWT PUBLIC KEY
+      - algorithm: RS256
+        key: "http://keycloak.security.svc.cluster.local:8080/realms/job7189"
+        # BEGIN JOB7189 JWT PUBLIC KEY
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoh5YbcD9tqbnhwFUev1m
+          vPBzDRLP7Xf0ykj96KeDHwlQ0+oYoowJ7grH0KYKg2gojMBmXDTdMcqqSSHIAzMs
+          2Q7FEwhzwFLP+pUSB00RLaasUcE0eQdUr0VnPU3Z2aJmitpAI4X75vGUyIJ5DIyI
+          qO4wgM2itK8rvvOASOejwzTgE45U3yq+4Mbk+hpA0zG5M4V1XRYXYjuOlti0gddj
+          pntT4YSuXXo5g0R+qJpVC19uBppvHAc5AHVuM5yETWRjmM2hhBcGHCBKU7OCuF7G
+          D9iHlhD0G8j4KGX7u7cicwb1Rg7mfj1l5RkUruZf4R+Zjhs/cSCfbUWk9+qjWFm7
+          RwIDAQAB
+          -----END PUBLIC KEY-----
+        # END JOB7189 JWT PUBLIC KEY
 
 # ======================================================
 # 2. SERVICES & ROUTES
@@ -70,6 +120,19 @@ services:
       - name: kafbat-route
         paths: ["/kafka"]
         strip_path: true
+
+  - name: keycloak-service
+    url: http://keycloak.security.svc.cluster.local:8080
+    routes:
+      - name: keycloak-realms-route
+        paths: ["/realms"]
+        strip_path: false
+      - name: keycloak-resources-route
+        paths: ["/resources"]
+        strip_path: false
+      - name: keycloak-admin-route
+        paths: ["/admin"]
+        strip_path: false
 
   # ======================
   # IDENTITY

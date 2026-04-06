@@ -88,7 +88,7 @@ class IdentifyUserContext
                 ]);
             }
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Sync Failed: " . $e->getMessage());
+            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Sync Failed: " . $e->getMessage()]);
         }
         return null;
     }

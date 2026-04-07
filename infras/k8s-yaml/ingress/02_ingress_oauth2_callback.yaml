@@ -103,6 +103,31 @@ spec:
                   number: 80
 
 ---
+# ── kibana.job7189.local ──────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-oauth2-kibana
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "security/oauth2-proxy-headers"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kibana.job7189.local
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+
+---
 # ── hubble.job7189.local ──────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress

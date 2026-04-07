@@ -141,7 +141,7 @@ services:
     url: http://identity-service.job7189-apps.svc.cluster.local:80
     routes:
       - { name: identity-profiles, paths: ["/api/recruiters/profile"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false }
       - { name: identity-admin, paths: ["/api/admin/users"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: identity-health, paths: ["/api/health"], strip_path: false }
 

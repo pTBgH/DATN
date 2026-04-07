@@ -58,7 +58,7 @@ return [
             'formatter' => MonologFormatterLineFormatter::class,
             'formatter_with' => [
                 'format' => "%message%
-",
+            ",
             ],
         ],
 

@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Support\Logging\StructuredLogger;
 
-
 use Illuminate\Support\Facades\Cache;
 use Firebase\JWT\JWT;
 use Firebase\JWT\JWK;

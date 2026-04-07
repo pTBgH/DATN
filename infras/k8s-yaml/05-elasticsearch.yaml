@@ -110,7 +110,7 @@ metadata:
 spec:
   type: NodePort
   ports:
-  - port: 5601
+  - port: 80
     targetPort: 5601
     nodePort: 30601
   selector:

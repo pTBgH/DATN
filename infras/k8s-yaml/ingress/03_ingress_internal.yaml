@@ -125,3 +125,28 @@ spec:
                 name: hubble-ui
                 port:
                   number: 80
+
+---
+# ── Kibana ───────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-kibana
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.security.svc.cluster.local/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "http://$http_host/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: kibana.job7189.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kibana
+                port:
+                  number: 80

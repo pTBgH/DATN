@@ -4,9 +4,6 @@ namespace App\Workflow\Nodes;
 
 use App\Services\Kafka\KafkaHelper;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class SendEmailNode implements WorkflowNodeInterface
 {
@@ -24,7 +21,7 @@ class SendEmailNode implements WorkflowNodeInterface
 
     public function execute(array $context, array $parameters): array
     {
-        (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow Node: SendEmail] Executing...");
+        Log::info("[Workflow Node: SendEmail] Executing...");
 
         // $parameters ở đây đã được ExpressionResolver xử lý (thay thế biến {{..}} thành giá trị thật)
         
@@ -33,7 +30,7 @@ class SendEmailNode implements WorkflowNodeInterface
         $variables = $parameters['variables'] ?? [];
 
         if (!$to) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "[Workflow Node: SendEmail] Missing 'to' email address.");
+            Log::error("[Workflow Node: SendEmail] Missing 'to' email address.");
             throw new \Exception("Missing email address");
         }
 
@@ -48,7 +45,7 @@ class SendEmailNode implements WorkflowNodeInterface
             ]
         ]);
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow Node: SendEmail] Command sent to Kafka for: {$to}");
+        Log::info("[Workflow Node: SendEmail] Command sent to Kafka for: {$to}");
 
         return [
             'status' => 'sent',

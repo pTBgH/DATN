@@ -8,9 +8,6 @@ use App\Models\Job\JobJd;
 use App\Models\Job\JobSubJd;
 use App\Models\Job\JobStat;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 use Throwable;
 

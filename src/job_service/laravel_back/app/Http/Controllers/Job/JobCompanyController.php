@@ -9,9 +9,6 @@ use App\Http\Resources\JobCompanyResource; // (File Resource bạn đã tạo �
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class JobCompanyController extends Controller
 {
@@ -105,7 +102,7 @@ class JobCompanyController extends Controller
             return new JobCompanyResource($company->fresh(['location', 'size', 'industry']));
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Update Company Failed: " . $e->getMessage()]);
+            Log::error("Update Company Failed: " . $e->getMessage());
             return response()->json(['message' => 'Update failed', 'error' => $e->getMessage()], 500);
         }
     }

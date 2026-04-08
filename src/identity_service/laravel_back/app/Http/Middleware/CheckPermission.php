@@ -6,9 +6,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use App\Services\Workspace\PermissionService;
 use App\Enums\WorkspacePermission;
 use App\Enums\JobPermission;
@@ -41,7 +38,7 @@ class CheckPermission
         }
 
         if (!$recruiter || !$workspaceId) {
-            // (new StructuredLogger('system', 'warning'))->warning(['message' => "CheckPermission: Missing context.", ['user' => $recruiter ? $recruiter->id : 'null', 'ws' => $workspaceId]);
+            // Log::warning("CheckPermission: Missing context.", ['user' => $recruiter ? $recruiter->id : 'null', 'ws' => $workspaceId]);
             return response()->json(['message' => 'Unauthorized context.'], 403);
         }
 
@@ -56,7 +53,7 @@ class CheckPermission
                     return $next($request);
                 }
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "CheckPermission: Unknown permission name '{$permissionName}' in route."]);
+                Log::error("CheckPermission: Unknown permission name '{$permissionName}' in route.");
             }
         }
 

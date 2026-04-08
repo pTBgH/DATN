@@ -9,9 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class HiringBoardController extends Controller
 {
@@ -49,7 +46,7 @@ class HiringBoardController extends Controller
             return response()->json($result['data']);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "HiringBoardController Error: " . $e->getMessage()]);
+            Log::error("HiringBoardController Error: " . $e->getMessage());
             return response()->json(['message' => 'Internal Server Error'], 500);
         }
     }
@@ -102,11 +99,11 @@ class HiringBoardController extends Controller
                 return isset($data['data']) ? $data['data'] : $data;
             }
 
-            (new StructuredLogger('system', 'warning'))->warning(['message' => "Fetch Job failed. Status: {$response->status()} - URL: {$url}");
+            Log::warning("Fetch Job failed. Status: {$response->status()} - URL: {$url}");
             return null;
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Fetch Job Info Exception: " . $e->getMessage()]);
+            Log::error("Fetch Job Info Exception: " . $e->getMessage());
             return null;
         }
     }

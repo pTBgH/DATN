@@ -5,9 +5,6 @@ namespace App\Services;
 use App\Jobs\FinalizeFileUpload;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
 use Exception;

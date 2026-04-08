@@ -5,9 +5,6 @@ namespace App\Services\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class PermissionGate
 {
@@ -30,7 +27,7 @@ class PermissionGate
                     return $response->json(); // Trả về ['job' => 123, 'workspace' => 456...]
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "PermissionGate Error: " . $e->getMessage()]);
+                Log::error("PermissionGate Error: " . $e->getMessage());
             }
             return null;
         });

@@ -4,9 +4,6 @@ namespace App\Services\Workflow;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class ExpressionResolver
 {
@@ -27,7 +24,7 @@ class ExpressionResolver
             if (is_string($value)) {
                 // Chỉ log nếu thấy có dấu hiệu biến động
                 if (str_contains($value, '{{')) {
-                    // (new StructuredLogger('system', 'action'))->info(['message' => "[ExpressionResolver] Resolving string: {$value}");
+                    // Log::info("[ExpressionResolver] Resolving string: {$value}");
                 }
                 $resolved[$key] = $this->interpolate($value, $context);
             } else {
@@ -51,7 +48,7 @@ class ExpressionResolver
             $value = data_get($context, $path);
 
             if (is_null($value)) {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "[ExpressionResolver] Variable not found in context: {{$path}}");
+                Log::warning("[ExpressionResolver] Variable not found in context: {{$path}}");
                 return ''; // Trả về rỗng nếu không tìm thấy
             }
 

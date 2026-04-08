@@ -7,9 +7,6 @@ use App\Models\Job\JobSubJd;
 use App\Services\Job\JobVersioningService;
 use App\Enums\JobStatusEnum;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Contracts\Auth\Authenticatable; 
 use Throwable;
 

@@ -4,9 +4,6 @@ namespace App\Services\Recruiter;
 
 use App\Models\Recruiter\Recruiter;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 
 class RecruiterService
@@ -59,7 +56,7 @@ class RecruiterService
         }
 
         if ($recruiter->StatusID !== 1) {
-            (new StructuredLogger('system', 'warning'))->warning(['message' => 'Recruiter tried to request approval from invalid state.', [
+            Log::warning('Recruiter tried to request approval from invalid state.', [
                 'recruiter_id' => $recruiter->RecruiterID,
                 'current_status' => $recruiter->StatusID
             ]);

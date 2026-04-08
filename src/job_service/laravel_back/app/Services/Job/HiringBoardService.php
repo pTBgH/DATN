@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Job;
+namespace App\Services;
 
 use App\Models\Job\JobSubJd;
 use App\Models\Recruiter\Recruiter;
@@ -9,9 +9,6 @@ use App\Models\Job\JobApplication;
 use App\Models\Hiring\PipelineStage;
 use App\Http\Resources\Hiring\CandidateCardResource;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\DB;
 use Throwable;
 

@@ -6,8 +6,6 @@ use Illuminate\Console\Command;
 use App\Services\Kafka\KafkaHelper;
 use App\Models\ServiceUser; // <--- Model local
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
 
 class ConsumeIdentityEvents extends Command
 {
@@ -20,7 +18,7 @@ class ConsumeIdentityEvents extends Command
         $consumer = $kafka->createConsumer($groupId, ['job7189.identity']);
 
         $this->info("Listening for Identity events (Group: $groupId)...");
-        (new StructuredLogger('system', 'action'))->info(['message' => "Kafka Consumer started - Group: $groupId");
+        Log::info("Kafka Consumer started - Group: $groupId");
 
         while (true) {
             $message = $consumer->consume(5000);
@@ -35,25 +33,25 @@ class ConsumeIdentityEvents extends Command
             
             if ($message->err === RD_KAFKA_RESP_ERR_NO_ERROR) {
                 try {
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Raw payload: " . $message->payload);
+                    Log::info("Raw payload: " . $message->payload);
                     
                     $payload = json_decode($message->payload, true);
                     
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Decoded payload", $payload);
+                    Log::info("Decoded payload", $payload);
                     
                     $eventType = $payload['event_type'] ?? '';
                     
                     if ($eventType === 'user.updated') {
                         $this->syncUser($payload['data']);
                     } else {
-                        (new StructuredLogger('system', 'warning'))->warning(['message' => "Unknown event type: $eventType");
+                        Log::warning("Unknown event type: $eventType");
                     }
                     
                     $consumer->commit($message);
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Message committed successfully");
+                    Log::info("Message committed successfully");
                     
                 } catch (\Exception $e) {
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Identity Sync Error: " . $e->getMessage(), [
+                    Log::error("Identity Sync Error: " . $e->getMessage(), [
                         'trace' => $e->getTraceAsString()
                     ]);
                 }
@@ -62,7 +60,7 @@ class ConsumeIdentityEvents extends Command
             } elseif ($message->err === RD_KAFKA_RESP_ERR__TIMED_OUT) {
                 Log::debug("Consumer timeout (no new messages)");
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka error: " . $message->errstr()]);
+                Log::error("Kafka error: " . $message->errstr());
             }
         }
     }
@@ -79,7 +77,7 @@ class ConsumeIdentityEvents extends Command
 
         $user->saveQuietly(); // hoặc $user->save(['timestamps' => false]) nếu cần
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "Manually synced name: " . ($user->name ?? 'null'));
+        Log::info("Manually synced name: " . ($user->name ?? 'null'));
         $this->info("Synced name → " . ($user->name ?? 'null'));
     }
 
@@ -98,7 +96,7 @@ class ConsumeIdentityEvents extends Command
     //     );
         
     //     Log::debug("Synced User Data: ", $data);
-    //     (new StructuredLogger('system', 'action'))->info(['message' => "Synced User: " . $data['name']);
+    //     Log::info("Synced User: " . $data['name']);
 
     //     $this->info("Synced User: " . $data['name']);
     // }

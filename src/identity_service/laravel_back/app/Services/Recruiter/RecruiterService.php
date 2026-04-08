@@ -4,9 +4,6 @@ namespace App\Services\Recruiter;
 
 use App\Models\Recruiter\Recruiter;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 
 class RecruiterService
@@ -59,7 +56,7 @@ class RecruiterService
         }
 
         if ($recruiter->StatusID !== 1) {
-            (new StructuredLogger('system', 'warning'))->warning(['message' => 'Recruiter tried to request approval from invalid state.', [
+            Log::warning('Recruiter tried to request approval from invalid state.', [
                 'recruiter_id' => $recruiter->RecruiterID,
                 'current_status' => $recruiter->StatusID
             ]);
@@ -75,7 +72,7 @@ class RecruiterService
     {
         $recruiter->interestedSectors()->sync($jobSectorIds);
 
-        (new StructuredLogger('system', 'action'))->info(['message' => 'Recruiter updated interested sectors.', [
+        Log::info('Recruiter updated interested sectors.', [
             'recruiter_id' => $recruiter->RecruiterID,
             'job_sectors' => $jobSectorIds
         ]);
@@ -107,7 +104,7 @@ class RecruiterService
                 $updateData['LastName'] = $validatedData['last_name'];
 
             // Log để debug xem data chuẩn bị update là gì
-            (new StructuredLogger('system', 'action'))->info(['message' => 'Updating Recruiter DB Data:', $updateData);
+            Log::info('Updating Recruiter DB Data:', $updateData);
             unset($recruiter->type);
 
             $recruiter->update($updateData);

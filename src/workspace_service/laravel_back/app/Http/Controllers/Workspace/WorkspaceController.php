@@ -12,8 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
 use Throwable;
 
 class WorkspaceController extends Controller
@@ -63,7 +61,7 @@ class WorkspaceController extends Controller
             return new WorkspaceResource($workspace);
 
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Create WS Error', ['error' => $e->getMessage()]);
+            Log::error('Create WS Error', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Failed to create workspace.', 'debug' => $e->getMessage()], 500);
         }
     }
@@ -103,7 +101,7 @@ class WorkspaceController extends Controller
             return new WorkspaceResource($updatedWorkspace);
 
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Update WS Error', ['error' => $e->getMessage()]);
+            Log::error('Update WS Error', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Failed to update workspace.'], 500);
         }
     }

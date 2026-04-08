@@ -12,9 +12,6 @@ use App\Enums\PipelinePermission;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Contracts\Auth\Authenticatable;
 
 class PermissionService

@@ -6,9 +6,6 @@ use App\Mail\GenericMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class EmailService
 {
@@ -25,7 +22,7 @@ class EmailService
 
         } catch (\Exception $e) {
             // 3. Ghi Log Thất bại
-            (new StructuredLogger('system', 'error'))->error(['message' => "Mail Send Error: " . $e->getMessage()]);
+            Log::error("Mail Send Error: " . $e->getMessage());
             $this->logToDb($to, $subject, $body, 'failed', $e->getMessage(), $source);
             return false;
         }
@@ -44,7 +41,7 @@ class EmailService
                 'CreatedAt'    => now()
             ]);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Failed to log email to DB: " . $e->getMessage()]);
+            Log::error("Failed to log email to DB: " . $e->getMessage());
         }
     }
 }

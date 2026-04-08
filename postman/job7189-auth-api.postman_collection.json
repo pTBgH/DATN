@@ -7,7 +7,7 @@
     "variable": [
         {
             "key": "base_host",
-            "value": "192.168.112.154"
+            "value": "192.168.112.158"
         },
         {
             "key": "node_port",

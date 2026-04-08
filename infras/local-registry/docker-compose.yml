@@ -7,7 +7,7 @@ services:
       - "5000:5000"
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
-      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: '["http://192.168.112.154:8088"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: '["http://192.168.112.158:8088"]'
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: '["HEAD", "GET", "OPTIONS", "DELETE"]'
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Credentials: '[true]'
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: '["Authorization", "Accept", "Cache-Control"]'
@@ -24,7 +24,7 @@ services:
     environment:
       - SINGLE_REGISTRY=true
       - REGISTRY_TITLE=My Docker Registry
-      - REGISTRY_URL=http://192.168.112.154:5000
+      - REGISTRY_URL=http://192.168.112.158:5000
       - DELETE_IMAGES=true
       - SHOW_CONTENT_DIGEST=true
       - NGINX_PROXY_PASS_URL=http://registry:5000

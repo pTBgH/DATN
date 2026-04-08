@@ -8,9 +8,6 @@ use App\Models\Hiring\PipelineStage;
 use App\Http\Resources\Hiring\CandidateCardResource;
 use App\Http\Resources\Hiring\ApplicationDetailResource;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Auth\Authenticatable;
 use App\Services\Kafka\KafkaHelper;
@@ -101,7 +98,7 @@ class HiringBoardService
                 $application->save();
             });
 
-            (new StructuredLogger('system', 'action'))->info(['message' => "Application moved to Stage: " . $newStage->Name);
+            Log::info("Application moved to Stage: " . $newStage->Name);
 
             // 2. Trigger Workflow Automation (Logic giữ nguyên)
             try {
@@ -115,7 +112,7 @@ class HiringBoardService
                 $this->workflowEngine->trigger($pipelineId, 'stage_entry', $context);
 
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Workflow Trigger Failed: " . $e->getMessage()]);
+                Log::error("Workflow Trigger Failed: " . $e->getMessage());
             }
 
             return ['success' => true, 'message' => 'Moved successfully.'];

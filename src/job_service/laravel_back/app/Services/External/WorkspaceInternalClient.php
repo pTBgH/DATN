@@ -4,9 +4,6 @@ namespace App\Services\External;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Cache;
 
 class WorkspaceInternalClient
@@ -37,7 +34,7 @@ class WorkspaceInternalClient
                     }
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "WorkspaceInternalClient Error: " . $e->getMessage()]);
+                Log::error("WorkspaceInternalClient Error: " . $e->getMessage());
             }
 
             // Fallback nếu lỗi

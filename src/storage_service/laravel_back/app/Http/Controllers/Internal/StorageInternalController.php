@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 
 class StorageInternalController extends Controller
 {
-    public function getViewUrl(Request $request)
+public function getViewUrl(Request $request)
     {
         $path = $request->input('path');
         if (!$path) return response()->json(['url' => null]);
@@ -32,7 +32,7 @@ class StorageInternalController extends Controller
         $parsedInternal = parse_url($internalUri);
         $pathQuery = ($parsedInternal['path'] ?? '') . '?' . ($parsedInternal['query'] ?? '');
         
-        $finalUrl = str_replace('http://192.168.112.154:8080', 'http://localhost:9000', $internalUri);
+        $finalUrl = str_replace('minio:9000', 'localhost:9000', $internalUri);
 
         return response()->json(['url' => $finalUrl]);
     }

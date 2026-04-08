@@ -9,9 +9,6 @@ use App\Services\Kafka\KafkaHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 use Throwable;
 
@@ -97,13 +94,13 @@ class HiringPipelineController extends Controller
                     ]
                 ]);
             } catch (Throwable $k) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Created): " . $k->getMessage()]);
+                Log::error("Kafka Produce Error (Pipeline Created): " . $k->getMessage());
             }
             // Trả về Resource
             return response()->json(new HiringPipelineResource($pipeline->load('stages')), 201);
 
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Create Pipeline Failed', ['error' => $e->getMessage()]);
+            Log::error('Create Pipeline Failed', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Internal Server Error'], 500);
         }
     }
@@ -156,7 +153,7 @@ class HiringPipelineController extends Controller
                     ]
                 ]);
             } catch (Throwable $k) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Updated): " . $k->getMessage()]);
+                Log::error("Kafka Produce Error (Pipeline Updated): " . $k->getMessage());
             }
 
             // Trả về Resource
@@ -199,7 +196,7 @@ class HiringPipelineController extends Controller
                 ]
             ]);
         } catch (Throwable $k) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Error (Pipeline Deleted): " . $k->getMessage()]);
+            Log::error("Kafka Produce Error (Pipeline Deleted): " . $k->getMessage());
         }
         
         return response()->json(null, 204);

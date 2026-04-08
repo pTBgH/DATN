@@ -4,9 +4,6 @@ namespace App\Http\Controllers\Job\Traits;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 trait HandlesJobStatusResponse
 {

@@ -7,16 +7,13 @@ use App\Models\Recruiter\Recruiter;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class IdentityInternalController extends Controller
 {
     public function syncUser(Request $request)
     {
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "Toi duoc goi ne");
+        Log::info("Toi duoc goi ne");
 
         $kcid = $request->input('keycloak_id');
         $type = $request->input('type');
@@ -36,12 +33,12 @@ class IdentityInternalController extends Controller
             $recruiter = Recruiter::where('KeycloakUserID', $kcid)->first();
 
             if (!$recruiter) {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "Recruiter with Keycloak ID {$kcid} not found in DB.");
+                Log::warning("Recruiter with Keycloak ID {$kcid} not found in DB.");
                 return response()->json(['message' => 'Recruiter profile not found'], 404);
             }
 
             if ($recruiter->StatusID != 1) {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "Recruiter with Keycloak ID {$kcid} is inactive or banned.");
+                Log::warning("Recruiter with Keycloak ID {$kcid} is inactive or banned.");
                 return response()->json(['message' => 'Account is Banned/Inactive'], 403);
             }
             
@@ -56,7 +53,7 @@ class IdentityInternalController extends Controller
             $candidate = User::where('KeycloakUserID', $kcid)->first();
 
             if (!$candidate) {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "Candidate with Keycloak ID {$kcid} not found in DB.");
+                Log::warning("Candidate with Keycloak ID {$kcid} not found in DB.");
                 return response()->json(['message' => 'Candidate profile not found'], 404);
             }
 
@@ -68,8 +65,8 @@ class IdentityInternalController extends Controller
             $lastName = $candidate->LastName;
         }
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "SyncUser: Type={$type}, KeycloakID={$kcid}, InternalID={$id}");
-        (new StructuredLogger('system', 'action'))->info(['message' => "SyncUser Data: id={$id}, Email={$email}, UserName={$user_name}, FirstName={$firstName}, LastName={$lastName}");
+        Log::info("SyncUser: Type={$type}, KeycloakID={$kcid}, InternalID={$id}");
+        Log::info("SyncUser Data: id={$id}, Email={$email}, UserName={$user_name}, FirstName={$firstName}, LastName={$lastName}");
 
         return response()->json([
             'id' => $id,

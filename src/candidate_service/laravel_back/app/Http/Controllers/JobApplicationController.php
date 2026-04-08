@@ -8,9 +8,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 
@@ -25,7 +22,7 @@ class JobApplicationController extends Controller
 
     public function apply(Request $request, string $jobId)
     {
-        (new StructuredLogger('system', 'action'))->info(['message' => "User " . Auth::id() . " is applying to Job ID: {$jobId}");
+        Log::info("User " . Auth::id() . " is applying to Job ID: {$jobId}");
         
         $request->validate(['cv_id' => 'required|exists:usr_cvs,CVID']);
 
@@ -46,7 +43,7 @@ class JobApplicationController extends Controller
             $response = Http::timeout(2)->get("{$jobUrl}/api/public/jobs/{$jobId}");
             
             if (!$response->successful()) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Job Not Found. Status: " . $response->status()]);
+                Log::error("Job Not Found. Status: " . $response->status());
                 return response()->json(['message' => 'Job not found or closed'], 404);
             }
             
@@ -60,12 +57,12 @@ class JobApplicationController extends Controller
             $companyName = $jobData['company_name'] ?? $jobData['CompanyNameSnapshot'] ?? 'Unknown Company';
             
             if (!$workspaceId) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Missing Company ID in Job Response", (array)$jobData]);
+                Log::error("Missing Company ID in Job Response", (array)$jobData);
                 return response()->json(['message' => 'Invalid Job Data (Missing WorkspaceID)'], 500);
             }
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Service Failed: " . $e->getMessage()]);
+            Log::error("Call Job Service Failed: " . $e->getMessage());
             return response()->json(['message' => 'Cannot verify job details'], 500);
         }
 
@@ -94,10 +91,10 @@ class JobApplicationController extends Controller
             try {
                 $this->kafka->produce('job7189.applications', $eventData);
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage()]);
+                Log::error("Kafka Produce Failed: " . $e->getMessage());
             }
 
-            (new StructuredLogger('system', 'action'))->info(['message' => "Kafka event sent.", ['app_id' => $applicationId]);
+            Log::info("Kafka event sent.", ['app_id' => $applicationId]);
 
             return response()->json([
                 'application_id' => $applicationId,
@@ -105,7 +102,7 @@ class JobApplicationController extends Controller
             ], 202);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $e->getMessage()]);
+            Log::error("Kafka Produce Failed: " . $e->getMessage());
             return response()->json(['message' => 'Application failed due to system error'], 500);
         }
     }
@@ -113,7 +110,7 @@ class JobApplicationController extends Controller
     public function myHistory()
     {
         $userId = Auth::id();
-        (new StructuredLogger('system', 'action'))->info(['message' => "Fetching history for User: {$userId}");
+        Log::info("Fetching history for User: {$userId}");
 
         // 1. Gọi Hiring Service lấy danh sách đơn
         $applications = [];
@@ -124,10 +121,10 @@ class JobApplicationController extends Controller
             if ($response->successful()) {
                 $applications = $response->json();
             } else {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Hiring Service Error: " . $response->status() . " Body: " . $response->body()]);
+                Log::error("Hiring Service Error: " . $response->status() . " Body: " . $response->body());
             }
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Call Hiring Failed: " . $e->getMessage()]);
+            Log::error("Call Hiring Failed: " . $e->getMessage());
             return response()->json(['data' => []]);
         }
 
@@ -149,12 +146,12 @@ class JobApplicationController extends Controller
 
                 if ($jobResponse->successful()) {
                     $jobsMap = $jobResponse->json();
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Job Batch Info:", $jobsMap); // Uncomment để debug
+                    Log::info("Job Batch Info:", $jobsMap); // Uncomment để debug
                 } else {
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Job Batch Failed: " . $jobResponse->status()]);
+                    Log::error("Job Batch Failed: " . $jobResponse->status());
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Call Job Batch Failed: " . $e->getMessage()]);
+                Log::error("Call Job Batch Failed: " . $e->getMessage());
             }
         }
 

@@ -1,15 +1,13 @@
 <?php
 
 namespace App\Services\Job;
-    
+
 use App\Enums\JobStatusEnum;
 use App\Events\JobStateChanged;
 use App\Models\Job\JobSubJd;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
 use Illuminate\Support\Arr;
 use Mews\Purifier\Purifier;
 use Illuminate\Database\Query\Builder;

@@ -110,8 +110,8 @@ class CandidateProfileController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage()]);
-            }
+            Log::error("Kafka Update Failed: " . $e->getMessage());
+        }
 
         return $this->show();
     }

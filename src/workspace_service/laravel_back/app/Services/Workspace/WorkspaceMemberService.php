@@ -14,9 +14,6 @@ use App\Enums\CandidatePermission;
 use App\Enums\PipelinePermission;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Throwable;
@@ -116,7 +113,7 @@ class WorkspaceMemberService
                 $ws->Name 
             ));
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Mail failed', ['email' => $email, 'error' => $e->getMessage()]);
+            Log::error('Mail failed', ['email' => $email, 'error' => $e->getMessage()]);
         }
     }
 
@@ -149,7 +146,7 @@ class WorkspaceMemberService
                 'code'      => 200
             ];
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => '[JoinCode] Error', ['msg' => $e->getMessage()]);
+            Log::error('[JoinCode] Error', ['msg' => $e->getMessage()]);
             return $this->error('System error.', 500);
         }
     }
@@ -250,7 +247,7 @@ class WorkspaceMemberService
                 return ['success' => true, 'message' => $result];
             });
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => $errorMsg, ['error' => $e->getMessage()]);
+            Log::error($errorMsg, ['error' => $e->getMessage()]);
             return ['success' => false, 'message' => $errorMsg, 'code' => 500];
         }
     }

@@ -5,9 +5,6 @@ namespace App\Services\Workflow;
 use App\Models\Job\JobApplication;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class WorkflowContextBuilder
 {
@@ -16,7 +13,7 @@ class WorkflowContextBuilder
      */
     public function buildForStageMove(JobApplication $application, string $newStageName, string $actorId): array
     {
-        (new StructuredLogger('system', 'action'))->info(['message' => "[ContextBuilder] Building context for AppID: {$application->ApplicationID}");
+        Log::info("[ContextBuilder] Building context for AppID: {$application->ApplicationID}");
 
         // 1. Dữ liệu cơ bản có sẵn trong Hiring DB
         $context = [
@@ -39,7 +36,7 @@ class WorkflowContextBuilder
         $context['job_title']    = $jobInfo['title'] ?? 'Công việc';
         $context['company_name'] = $jobInfo['company_name'] ?? 'Công ty';
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "[ContextBuilder] Context built successfully.", ['keys' => array_keys($context)]);
+        Log::info("[ContextBuilder] Context built successfully.", ['keys' => array_keys($context)]);
 
         return $context;
     }
@@ -51,7 +48,7 @@ class WorkflowContextBuilder
             // Gọi API Internal lấy chi tiết user
             $fullUrl = "{$url}/api/internal/users/{$userId}";
             
-            (new StructuredLogger('system', 'action'))->info(['message' => "[ContextBuilder] Calling Identity: {$fullUrl}");
+            Log::info("[ContextBuilder] Calling Identity: {$fullUrl}");
 
             $response = Http::timeout(2)->get($fullUrl);
             
@@ -59,9 +56,9 @@ class WorkflowContextBuilder
                 return $response->json();
             }
             
-            (new StructuredLogger('system', 'warning'))->warning(['message' => "[ContextBuilder] Fetch Candidate Failed: " . $response->status());
+            Log::warning("[ContextBuilder] Fetch Candidate Failed: " . $response->status());
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "[ContextBuilder] Fetch Candidate Exception: " . $e->getMessage());
+            Log::error("[ContextBuilder] Fetch Candidate Exception: " . $e->getMessage());
         }
         return [];
     }
@@ -83,9 +80,9 @@ class WorkflowContextBuilder
                 ];
             }
             
-            (new StructuredLogger('system', 'warning'))->warning(['message' => "[ContextBuilder] Fetch Job Failed: " . $response->status());
+            Log::warning("[ContextBuilder] Fetch Job Failed: " . $response->status());
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "[ContextBuilder] Fetch Job Exception: " . $e->getMessage());
+            Log::error("[ContextBuilder] Fetch Job Exception: " . $e->getMessage());
         }
         return [];
     }

@@ -13,9 +13,6 @@ use App\Models\Workspace;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Ramsey\Uuid\Uuid;
 use Throwable;
 
@@ -65,10 +62,10 @@ class WorkspaceService
 
             try {
                 $this->kafkaHelper->produce('job7189.workspace', $kafkaPayload);
-                (new StructuredLogger('system', 'action'))->info(['message' => "Kafka [workspace.created] sent", ['ws_id' => $workspaceId]);
+                Log::info("Kafka [workspace.created] sent", ['ws_id' => $workspaceId]);
             } catch (Throwable $e) {
                 // Log lỗi nhưng không rollback DB để tránh chặn user
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Publish Failed: " . $e->getMessage()]);
+                Log::error("Kafka Publish Failed: " . $e->getMessage());
             }
             DB::table('workspace_members')->insert([
                 'WorkspaceID' => $workspaceId,
@@ -92,7 +89,7 @@ class WorkspaceService
             $workspace->member_status = 1; 
             // ---------------------------------------------------
 
-            (new StructuredLogger('system', 'action'))->info(['message' => 'Workspace created.', ['ws_id' => $workspaceId]);
+            Log::info('Workspace created.', ['ws_id' => $workspaceId]);
             
             return $workspace;
         });
@@ -121,8 +118,7 @@ class WorkspaceService
             try {
                 $this->kafkaHelper->produce('job7189.workspace', $kafkaPayload);
             } catch (Throwable $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage()]);
-
+                Log::error("Kafka Update Failed: " . $e->getMessage());
             }
 
             return $workspace;
@@ -140,10 +136,10 @@ class WorkspaceService
             // 2. Bắn Kafka (Optional: để Job Service xóa/ẩn Company)
             // $this->kafkaHelper->produce...
 
-            (new StructuredLogger('system', 'action'))->info(['message' => "Workspace deleted.", ['ws_id' => $workspaceId]);
+            Log::info("Workspace deleted.", ['ws_id' => $workspaceId]);
 
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Failed to delete workspace.', [
+            Log::error('Failed to delete workspace.', [
                 'ws_id' => $workspaceId,
                 'error' => $e->getMessage()
             ]);

@@ -6,9 +6,6 @@ use RdKafka\Conf;
 use RdKafka\Producer;
 use RdKafka\KafkaConsumer;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class KafkaHelper
 {
@@ -42,11 +39,11 @@ class KafkaHelper
         $result = $producer->flush(10000);
 
         if (RD_KAFKA_RESP_ERR_NO_ERROR !== $result) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Produce Failed: " . $result]);
+            Log::error("Kafka Produce Failed: " . $result);
             throw new \Exception("Failed to send message to Kafka");
         }
         
-        (new StructuredLogger('system', 'action'))->info(['message' => "Kafka Sent to [$topicName]: $payload");
+        Log::info("Kafka Sent to {$topicName}: $payload");
     }
 
     /**

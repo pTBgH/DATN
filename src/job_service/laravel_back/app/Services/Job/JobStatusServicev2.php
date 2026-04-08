@@ -8,9 +8,6 @@ use App\Models\Job\JobSubJd;
 use App\Services\CompanyDataEnricher; // <--- Dùng cái này để lấy tên công ty
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -169,7 +166,7 @@ class JobStatusServicev2
             $job->status = JobStatusEnum::PUBLISHED;
 
             // Thay ActivityLog bằng Log thường để tránh crash
-            (new StructuredLogger('system', 'action'))->info(['message' => "Admin approved Job {$job->JobID}");
+            Log::info("Admin approved Job {$job->JobID}");
 
             return 'Job approved and published.';
 
@@ -190,7 +187,7 @@ class JobStatusServicev2
             $job->status = JobStatusEnum::REJECTED;
             
             // Log lý do
-            (new StructuredLogger('system', 'action'))->info(['message' => "Admin rejected Job {$job->JobID}. Reason: {$reason}");
+            Log::info("Admin rejected Job {$job->JobID}. Reason: {$reason}");
 
             return 'Job has been rejected.';
 

@@ -1,11 +1,17 @@
 <?php
-
-namespace App\Traits;
+namespace App\Services\Model\Traits;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 
 trait PaginationTrait
 {
+    /**
+     * Thực hiện phân trang cho một Builder hoặc Collection.
+     *
+     * @param \Illuminate\Contracts\Support\Arrayable|\Illuminate\Support\Collection|\Illuminate\Database\Query\Builder $queryOrItems
+     * @param int|null $perPage  Số bản ghi/trang, nếu null lấy từ config
+     * @return LengthAwarePaginator
+     */
     protected function paginate($queryOrItems, ?int $perPage = null): LengthAwarePaginator
     {
         $perPage    = $perPage ?: config('services.pagination.size');

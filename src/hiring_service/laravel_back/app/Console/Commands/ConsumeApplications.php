@@ -8,9 +8,6 @@ use App\Models\Job\JobApplication;
 use App\Models\Hiring\HiringPipeline;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Http;
 
 class ConsumeApplications extends Command
@@ -43,7 +40,7 @@ class ConsumeApplications extends Command
                     break;
 
                 default:
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Error: " . $message->errstr()]);
+                    Log::error("Kafka Error: " . $message->errstr());
                     break;
             }
         }
@@ -57,8 +54,8 @@ class ConsumeApplications extends Command
         $data = $payload['data'];
         $this->info("Processing Application: " . $data['application_id']);
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "Received Application Event", $data);
-        (new StructuredLogger('system', 'action'))->info(['message' => "Assigning Stage for Application: " . $data['application_id']);
+        Log::info("Received Application Event", $data);
+        Log::info("Assigning Stage for Application: " . $data['application_id']);
 
         // 1. Tìm Pipeline & Stage đầu tiên
         // Logic: Lấy Pipeline Default của Workspace -> Lấy Stage có order thấp nhất
@@ -98,7 +95,7 @@ class ConsumeApplications extends Command
             $this->info("Saved Application [{$data['application_id']}] with Stage [{$stageId}]");
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "DB Save Failed: " . $e->getMessage()]);
+            Log::error("DB Save Failed: " . $e->getMessage());
         }
     }
 

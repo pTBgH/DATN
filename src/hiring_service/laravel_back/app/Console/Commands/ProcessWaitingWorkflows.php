@@ -28,7 +28,7 @@ class ProcessWaitingWorkflows extends Command
         } catch (\Exception $e) {
             // Catch lỗi để không làm crash scheduler
             $this->error("Error: " . $e->getMessage());
-            \Illuminate\Support\Facades\(new StructuredLogger('system', 'error'))->error(['message' => "Scheduler Error: " . $e->getMessage()]);
+            \Illuminate\Support\Facades\Log::error("Scheduler Error: " . $e->getMessage());
             return 1; // Return exit code 1
         }
         

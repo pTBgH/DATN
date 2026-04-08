@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Auth\GenericUser;
 use App\Models\ServiceUser; // <--- Model mới
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class IdentifyUserContext
 {
@@ -88,7 +85,7 @@ class IdentifyUserContext
                 ]);
             }
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Sync Failed: " . $e->getMessage()]);
+            Log::error("Identity Sync Failed: " . $e->getMessage());
         }
         return null;
     }

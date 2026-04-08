@@ -7,9 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth; // Sử dụng Facade cho gọn gàng
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Firebase\JWT\JWT;
 use Firebase\JWT\JWK; 
 use App\Models\Recruiter\Recruiter;

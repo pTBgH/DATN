@@ -5,9 +5,6 @@ namespace App\Services\Recruiter;
 
 use App\Models\RecruiterJobInteract;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class InteractionService
 {

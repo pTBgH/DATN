@@ -7,9 +7,6 @@ use App\Models\Hiring\HiringPipeline;
 use App\Workflow\NodeRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class WorkflowController extends Controller
 {
@@ -33,7 +30,7 @@ class WorkflowController extends Controller
                 ->where('WorkspaceID', $workspaceId)
                 ->firstOrFail();
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            (new StructuredLogger('system', 'warning'))->warning(['message' => "Pipeline not found: {$pipelineId} in Workspace: {$workspaceId}");
+            Log::warning("Pipeline not found: {$pipelineId} in Workspace: {$workspaceId}");
             return response()->json(['error' => 'Pipeline not found'], 404);
         }
 
@@ -58,7 +55,7 @@ class WorkflowController extends Controller
         $pipeline->WorkflowConfig = $data;
         $pipeline->save();
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "Workflow updated for Pipeline {$pipelineId}");
+        Log::info("Workflow updated for Pipeline {$pipelineId}");
 
         return response()->json([
             'message' => 'Workflow configuration saved successfully.',

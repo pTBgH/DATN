@@ -6,9 +6,6 @@ use Illuminate\Console\Command;
 use App\Services\Kafka\KafkaHelper;
 use App\Models\Job\JobPipeline;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class ConsumePipelineEvents extends Command
 {
@@ -22,7 +19,7 @@ class ConsumePipelineEvents extends Command
         $consumer = $kafka->createConsumer($groupId, $topics);
 
         $this->info("Listening for Pipeline events...");
-        (new StructuredLogger('system', 'action'))->info(['message' => "Kafka Consumer [Pipeline] started.");
+        Log::info("Kafka Consumer [Pipeline] started.");
 
         while (true) {
             $message = $consumer->consume(5000);
@@ -33,7 +30,7 @@ class ConsumePipelineEvents extends Command
                     $eventType = $payload['event_type'] ?? '';
                     $data = $payload['data'] ?? [];
 
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Pipeline Event: $eventType", ['id' => $data['pipeline_id'] ?? '']);
+                    Log::info("Pipeline Event: $eventType", ['id' => $data['pipeline_id'] ?? '']);
 
                     switch ($eventType) {
                         case 'pipeline.created':
@@ -48,7 +45,7 @@ class ConsumePipelineEvents extends Command
 
                     $consumer->commit($message);
                 } catch (\Exception $e) {
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Pipeline Sync Error: " . $e->getMessage()]);
+                    Log::error("Pipeline Sync Error: " . $e->getMessage());
                 }
             }
         }

@@ -9,9 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use App\Http\Controllers\Job\Traits\JobValidationRules;
 use App\Http\Controllers\Job\Traits\HandlesJobUpdate;
 use App\Http\Resources\JobSubJdResource;
@@ -96,7 +93,7 @@ class JobController extends Controller
     {
         $job = JobJd::with('company')->where('JobID', $id)->first();
 
-        (new StructuredLogger('system', 'action'))->info(['message' => 'Public job detail requested.', ['identifier' => $id]);
+        Log::info('Public job detail requested.', ['identifier' => $id]);
 
         // Fallback slug
         if (!$job) {
@@ -104,7 +101,7 @@ class JobController extends Controller
         }
 
         if (!$job) {
-            (new StructuredLogger('system', 'warning'))->warning(['message' => "Public job detail not found for identifier: {$id}");
+            Log::warning("Public job detail not found for identifier: {$id}");
             return response()->json(['message' => 'Job not found or closed'], 404);
         }
 

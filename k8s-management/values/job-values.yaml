@@ -1,7 +1,7 @@
 image:
   registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/job-service
-  tag: "v1.0.1"
+  tag: "v1.0.4"
   pullPolicy: Always
   
 service:

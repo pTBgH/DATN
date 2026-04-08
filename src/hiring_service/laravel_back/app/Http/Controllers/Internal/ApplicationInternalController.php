@@ -74,7 +74,7 @@ class ApplicationInternalController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Internal Apply Error: " . $e->getMessage()]);
+            Log::error("Internal Apply Error: " . $e->getMessage());
             return response()->json(['message' => 'Internal Error', 'error' => $e->getMessage()], 500);
         }
     }

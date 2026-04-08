@@ -10,8 +10,6 @@ use Firebase\JWT\JWK;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
 use Symfony\Component\HttpFoundation\Response;
 use Firebase\JWT\ExpiredException; // Thêm exception này để bắt lỗi hết hạn
 use Firebase\JWT\SignatureInvalidException;
@@ -61,7 +59,7 @@ class VerifyKeycloakToken
             $sub = $decoded->sub ?? null;
 
             if (!$sub) {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => 'Middleware STOPPED: No "sub" claim in token.');
+                Log::warning('Middleware STOPPED: No "sub" claim in token.');
                 return response()->json(['message' => 'Invalid token payload.'], 401);
             }
             $recruiter = Recruiter::firstOrCreate(

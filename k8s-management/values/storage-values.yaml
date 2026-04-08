@@ -1,7 +1,7 @@
 image:
   registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/storage-service
-  tag: "v1.3.1"
+  tag: "v1.3.3"
   pullPolicy: IfNotPresent
 
 service:
@@ -20,11 +20,11 @@ env:
   DB_CONNECTION: mysql
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
-  DB_DATABASE: job7189
+  DB_DATABASE: job7189_storage_db
   # DB_USERNAME will be injected by Vault Agent
   # DB_PASSWORD will be injected by Vault Agent from database/creds/storage-service
   
-  MINIO_ENDPOINT: "http://192.168.112.154:8080"
+  MINIO_ENDPOINT: "http://192.168.112.158:8080"
   # MINIO_KEY and MINIO_SECRET will be injected by Vault Agent from secret/data/storage-service
   
   MINIO_REGION: "us-east-1"
@@ -37,7 +37,7 @@ env:
   # AWS credentials will be injected by Vault Agent from secret/data/storage-service
   AWS_DEFAULT_REGION: "us-east-1"
   AWS_BUCKET: "job7189-storage"
-  AWS_ENDPOINT: "http://192.168.112.154:8080"
+  AWS_ENDPOINT: "http://192.168.112.158:8080"
   AWS_USE_PATH_STYLE_ENDPOINT: true
 
   # NEXTJS_INTERNAL_API_SECRET will be injected by Vault Agent from secret/data/storage-service

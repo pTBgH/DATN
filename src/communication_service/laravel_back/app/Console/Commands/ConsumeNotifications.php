@@ -6,9 +6,6 @@ use Illuminate\Console\Command;
 use App\Services\Kafka\KafkaHelper;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use App\Mail\GenericMail;
 
 class ConsumeNotifications extends Command
@@ -43,7 +40,7 @@ class ConsumeNotifications extends Command
                         $consumer->commit($message);
                     } catch (\Throwable $e) {
                         $this->error("❌ Error: " . $e->getMessage());
-                        (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Message Processing Failed", [
+                        Log::error("Kafka Message Processing Failed", [
                             'error' => $e->getMessage(),
                             'trace' => $e->getTraceAsString()
                         ]);
@@ -117,7 +114,7 @@ class ConsumeNotifications extends Command
 
         } catch (\Exception $e) {
             $this->error("Failed: " . $e->getMessage());
-            (new StructuredLogger('system', 'error'))->error(['message' => "Email Failed", [
+            Log::error("Email Failed", [
                 'recipient' => $email,
                 'error' => $e->getMessage()
             ]);
@@ -153,7 +150,7 @@ class ConsumeNotifications extends Command
 
         } catch (\Exception $e) {
             $this->error("❌ Failed: " . $e->getMessage());
-            (new StructuredLogger('system', 'error'))->error(['message' => "Email Failed", [
+            Log::error("Email Failed", [
                 'recipient' => $email,
                 'error' => $e->getMessage()
             ]);
@@ -190,7 +187,7 @@ class ConsumeNotifications extends Command
 
         } catch (\Exception $e) {
             $this->error("❌ Failed to send email: " . $e->getMessage());
-            (new StructuredLogger('system', 'error'))->error(['message' => "Email Command Failed", ['error' => $e->getMessage()]);
+            Log::error("Email Command Failed", ['error' => $e->getMessage()]);
         }
     }
 }

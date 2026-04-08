@@ -8,9 +8,6 @@ use App\Http\Resources\RecruiterResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Http;  // <--- Bắt buộc có
 use Illuminate\Support\Facades\Cache; // <--- Bắt buộc có
 use App\Services\Kafka\KafkaHelper;
@@ -63,8 +60,7 @@ class RecruiterController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Kafka Update Failed: " . $e->getMessage()]);
-
+            Log::error("Kafka Update Failed: " . $e->getMessage());
         }
         Cache::forget("profile:full:{$recruiter->RecruiterID}");
         
@@ -99,10 +95,10 @@ class RecruiterController extends Controller
                     $workspaces = $response->json();
                 } else {
                     // Log nhẹ để biết, không throw lỗi ra ngoài
-                    (new StructuredLogger('system', 'warning'))->warning(['message' => "Cannot fetch workspaces. Status: " . $response->status());
+                    Log::warning("Cannot fetch workspaces. Status: " . $response->status());
                 }
             } catch (\Exception $e) {
-                (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Service Unreachable: " . $e->getMessage()]);
+                Log::error("Workspace Service Unreachable: " . $e->getMessage());
                 // Vẫn giữ $workspaces = [] để code chạy tiếp
             }
 

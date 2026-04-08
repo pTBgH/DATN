@@ -9,9 +9,6 @@ use App\Http\Resources\Hiring\InterviewResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class InterviewController extends Controller
 {
@@ -50,7 +47,7 @@ class InterviewController extends Controller
 
         return response()->json(new InterviewResource($interview), 201);
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Error scheduling interview: ' . $e->getMessage()]);
+            Log::error('Error scheduling interview: ' . $e->getMessage());
             return response()->json(['message' => 'Error scheduling interview', 'error' => $e->getMessage()], 500);
         }
     }

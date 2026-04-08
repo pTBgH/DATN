@@ -7,9 +7,6 @@ use App\Models\Hiring\HiringExecution;
 use App\Workflow\NodeRegistry;
 use App\Services\Workflow\ExpressionResolver;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Str;
 
 class WorkflowEngine
@@ -25,12 +22,12 @@ class WorkflowEngine
 
     public function trigger(string $pipelineId, string $triggerEvent, array $contextData)
     {
-        (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] Trigger signal received. Event: {$triggerEvent}, Pipeline: {$pipelineId}");
+        Log::info("[Workflow] Trigger signal received. Event: {$triggerEvent}, Pipeline: {$pipelineId}");
 
         $pipeline = HiringPipeline::find($pipelineId);
         
         if (!$pipeline || empty($pipeline->WorkflowConfig)) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "[Workflow] Pipeline not found in DB.");
+            Log::error("[Workflow] Pipeline not found in DB.");
             return;
         }
 
@@ -40,7 +37,7 @@ class WorkflowEngine
         }
 
         if (empty($config)) {
-            (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] No workflow config found.");
+            Log::info("[Workflow] No workflow config found.");
             return;
         }
 
@@ -56,11 +53,11 @@ class WorkflowEngine
         });
 
         if (!$startNode) {
-            (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] No matching trigger node found.");
+            Log::info("[Workflow] No matching trigger node found.");
             return;
         }
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] Starting execution from Node: " . $startNode['id']);
+        Log::info("[Workflow] Starting execution from Node: " . $startNode['id']);
 
         $execution = HiringExecution::create([
             'ExecutionID' => Str::uuid(),
@@ -82,7 +79,7 @@ class WorkflowEngine
         $nodeType = $currentNode['type'];
         
         $startTime = microtime(true);
-        (new StructuredLogger('system', 'action'))->info(['message' => "  -> Processing Node: {$nodeType} [{$nodeId}]");
+        Log::info("  -> Processing Node: {$nodeType} [{$nodeId}]");
 
         $execution->update(['CurrentNode' => $nodeId]);
 
@@ -102,7 +99,7 @@ class WorkflowEngine
 
                     // --- [MỚI] XỬ LÝ TÍN HIỆU WAIT ---
                     if (isset($nodeOutput['__signal']) && $nodeOutput['__signal'] === 'wait') {
-                        (new StructuredLogger('system', 'action'))->info(['message' => "  -> Workflow PAUSED. Waiting until: " . $nodeOutput['wait_until']);
+                        Log::info("  -> Workflow PAUSED. Waiting until: " . $nodeOutput['wait_until']);
                         
                         // Lưu trạng thái ngủ đông
                         $execution->update([
@@ -118,7 +115,7 @@ class WorkflowEngine
 
                 } catch (\Exception $e) {
                     $nodeError = $e->getMessage();
-                    (new StructuredLogger('system', 'error'))->error(['message' => "  -> Node Failed: " . $nodeError]);
+                    Log::error("  -> Node Failed: " . $nodeError);
                 }
             } else {
                 $nodeError = "Handler not found: {$nodeType}";
@@ -182,7 +179,7 @@ class WorkflowEngine
         // Nếu không còn node nào nối tiếp -> Kết thúc
         if (!$hasNext) {
             $execution->update(['Status' => 'completed', 'FinishedAt' => now()]);
-            (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] Execution Completed.");
+            Log::info("[Workflow] Execution Completed.");
         }
     }
 
@@ -194,7 +191,7 @@ class WorkflowEngine
         $execution = HiringExecution::find($executionId);
         if (!$execution || $execution->Status !== 'waiting') return;
 
-        (new StructuredLogger('system', 'action'))->info(['message' => "[Workflow] Resuming Execution: {$executionId}");
+        Log::info("[Workflow] Resuming Execution: {$executionId}");
 
         // Lấy lại config
         $pipeline = HiringPipeline::find($execution->PipelineID);

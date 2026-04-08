@@ -8,9 +8,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 // Nhớ copy Enum PipelinePermission sang Hiring Service
 use App\Enums\PipelinePermission; 
 

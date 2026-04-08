@@ -51,16 +51,6 @@ return [
     */
 
     'channels' => [
-        'structured' => [
-            'driver' => 'single',
-            'path' => storage_path('logs/structured.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
-            'formatter' => MonologFormatterLineFormatter::class,
-            'formatter_with' => [
-                'format' => "%message%
-",
-            ],
-        ],
 
         'stack' => [
             'driver' => 'stack',

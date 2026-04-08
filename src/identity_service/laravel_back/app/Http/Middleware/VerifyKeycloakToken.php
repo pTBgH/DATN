@@ -9,8 +9,6 @@ use App\Models\User; // <--- Import Model Candidate mới
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
 use Illuminate\Support\Facades\Cache;
 use Firebase\JWT\JWT;
 use Firebase\JWT\JWK;
@@ -83,7 +81,7 @@ class VerifyKeycloakToken
                 $user->type = 'candidate';
                 
             } else {
-                (new StructuredLogger('system', 'warning'))->warning(['message' => "Unknown AZP in Identity: $azp"]);
+                Log::warning("Unknown AZP in Identity: $azp");
                 return response()->json(['message' => 'Unauthorized Client'], 401);
             }
 
@@ -92,7 +90,7 @@ class VerifyKeycloakToken
             return $next($request);
 
         } catch (\Exception $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Identity Auth Failed: " . $e->getMessage()]);
+            Log::error("Identity Auth Failed: " . $e->getMessage());
             return response()->json(['message' => 'Unauthorized'], 401);
         }
     }

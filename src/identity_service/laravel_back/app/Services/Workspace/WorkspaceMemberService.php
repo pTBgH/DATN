@@ -14,9 +14,6 @@ use App\Enums\CandidatePermission;
 use App\Enums\PipelinePermission;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -100,7 +97,7 @@ class WorkspaceMemberService
 
     public function inviteMembers(Workspace $workspace, Recruiter $inviter, array $invitations): array
     {
-        (new StructuredLogger('system', 'action'))->info(['message' => '[InviteMembers] START', ['ws' => $workspace->WorkspaceID, 'count' => count($invitations)]);
+        Log::info('[InviteMembers] START', ['ws' => $workspace->WorkspaceID, 'count' => count($invitations)]);
         
         return $this->transaction(function () use ($workspace, $inviter, $invitations) {
             foreach ($invitations as $data) {
@@ -134,7 +131,7 @@ class WorkspaceMemberService
                 $ws->companyProfile->CompanyName ?? $ws->Name
             ));
         } catch (Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => 'Mail failed', ['email' => $email, 'error' => $e->getMessage()]);
+            Log::error('Mail failed', ['email' => $email, 'error' => $e->getMessage()]);
         }
     }
 
@@ -303,7 +300,7 @@ class WorkspaceMemberService
 
     private function exception(string $msg, Throwable $e): array 
     {
-        (new StructuredLogger('system', 'error'))->error(['message' => $msg, ['error' => $e->getMessage()]);
+        Log::error($msg, ['error' => $e->getMessage()]);
         return ['success' => false, 'message' => $msg]; // Hide detail in prod
     }
 

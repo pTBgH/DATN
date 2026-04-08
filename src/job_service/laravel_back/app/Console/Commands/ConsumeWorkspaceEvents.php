@@ -8,9 +8,6 @@ use App\Models\Job\JobCompany;
 use App\Models\Sys\SysLocation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class ConsumeWorkspaceEvents extends Command
 {
@@ -24,7 +21,7 @@ class ConsumeWorkspaceEvents extends Command
         $consumer = $kafka->createConsumer($groupId, $topics);
 
         $this->info("Listening for Workspace events...");
-        (new StructuredLogger('system', 'action'))->info(['message' => "Kafka Consumer [Workspace] started.");
+        Log::info("Kafka Consumer [Workspace] started.");
 
         while (true) {
             $message = $consumer->consume(5000);
@@ -35,7 +32,7 @@ class ConsumeWorkspaceEvents extends Command
                     $eventType = $payload['event_type'] ?? '';
                     $data = $payload['data'] ?? [];
 
-                    (new StructuredLogger('system', 'action'))->info(['message' => "Received event: $eventType", ['id' => $data['workspace_id'] ?? 'N/A']);
+                    Log::info("Received event: $eventType", ['id' => $data['workspace_id'] ?? 'N/A']);
 
                     if ($eventType === 'workspace.created') {
                         $this->handleWorkspaceCreated($data);
@@ -46,7 +43,7 @@ class ConsumeWorkspaceEvents extends Command
                     $consumer->commit($message);
                 } catch (\Exception $e) {
                     // Log lỗi để không chết consumer loop
-                    (new StructuredLogger('system', 'error'))->error(['message' => "Workspace Sync Error: " . $e->getMessage()]);
+                    Log::error("Workspace Sync Error: " . $e->getMessage());
                 }
             }
         }
@@ -95,7 +92,7 @@ class ConsumeWorkspaceEvents extends Command
 
         // Kiểm tra nếu tạo thành công mới log
         if ($company) {
-            (new StructuredLogger('system', 'action'))->info(['message' => "Created Company Success", $company->toArray());
+            Log::info("Created Company Success", $company->toArray());
             $this->info("Created Company: $workspaceId");
         }
     }

@@ -13,9 +13,6 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use App\Models\Job\JobStat;
 use App\Models\Traits\HasUuids; // 1. Import Trait
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 use App\Models\Job\JobPipeline;
 
 class JobSubJd extends Model

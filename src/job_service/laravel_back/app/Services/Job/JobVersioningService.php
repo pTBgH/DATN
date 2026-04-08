@@ -9,9 +9,6 @@ use App\Models\Recruiter\Recruiter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Support\Logging\StructuredLogger;
-
-
 
 class JobVersioningService
 {
@@ -80,12 +77,12 @@ class JobVersioningService
                 }
             });
 
-            (new StructuredLogger('system', 'action'))->info(['message' => "Job version recorded.", [
+            Log::info("Job version recorded.", [
                 'job_id' => $job->JobID, 'new_version' => $newVersion
             ]);
 
         } catch (\Throwable $e) {
-            (new StructuredLogger('system', 'error'))->error(['message' => "Exception in JobVersioningService@recordChanges", [
+            Log::error("Exception in JobVersioningService@recordChanges", [
                 'job_id' => $job->JobID, 'error' => $e->getMessage()
             ]);
             // Ném lại lỗi để transaction bên ngoài (JobService) có thể rollback

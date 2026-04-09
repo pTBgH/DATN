@@ -1,0 +1,12 @@
+{
+  "request_id": "c73bac0b-b02e-3017-77b5-3a54dda6c3d8",
+  "lease_id": "database/creds/identity-service/RMeSFyQfnf2sVb0W0kFOBsBp",
+  "lease_duration": 3600,
+  "renewable": true,
+  "data": {
+    "password": "-x0mjq2pyL-YqdfraKnb",
+    "username": "v-kubernetes-identity-s-P3SXZTNq"
+  },
+  "warnings": null,
+  "mount_type": "database"
+}

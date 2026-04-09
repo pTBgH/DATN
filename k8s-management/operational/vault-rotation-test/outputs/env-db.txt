@@ -1,0 +1,2 @@
+DB_USERNAME="v-kubernetes-identity-s-BGPG47Zu"
+DB_PASSWORD="CXvIOgWiNS-QzK92sVUj"

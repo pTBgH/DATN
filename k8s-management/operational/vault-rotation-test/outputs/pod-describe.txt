@@ -1,0 +1,8 @@
+Name:             identity-service-65977b665-fwsks
+Namespace:        job7189-apps
+Node:             job7189-worker3
+IP:               10.244.2.15
+Init container: vault-agent-init (Completed)
+Containers: env-loader, app, vault-agent
+Status: Running, Ready True
+Recent events: Pod sandbox changed ~25m ago; several container restarts ~26m ago; normal start/pull events.

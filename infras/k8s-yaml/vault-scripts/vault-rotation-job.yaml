@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-rotation-test
+  namespace: job7189-apps
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: Never
+      containers:
+      - name: vault-cli
+        image: hashicorp/vault:1.21.2
+        command: ["/bin/sh","-c"]
+        args:
+          - |
+            set -euo pipefail
+            echo "Running vault rotation test..."
+            export VAULT_ADDR=https://vault.vault.svc.cluster.local:8200
+            export VAULT_SKIP_VERIFY=true
+            # token is mounted from secret 'vault-admin-token' key 'token'
+            export VAULT_TOKEN="$(cat /etc/vault/token 2>/dev/null || true)"
+            if [ -z "$VAULT_TOKEN" ]; then
+              echo "ERROR: VAULT_TOKEN not found in /etc/vault/token" >&2
+              exit 2
+            fi
+
+            # backup role
+            echo "Backing up role to /tmp/role-backup.json"
+            vault read -format=json database/roles/identity-service > /tmp/role-backup.json || { echo "failed to read role"; exit 3; }
+            cat /tmp/role-backup.json
+
+            # set short TTL for test (5 minutes)
+            echo "Writing test TTL: default_ttl=300 max_ttl=3600"
+            vault write database/roles/identity-service default_ttl=300 max_ttl=3600 || { echo "failed to write role"; exit 4; }
+
+            # request a credential to confirm TTL
+            echo "Requesting a credential to confirm lease_duration"
+            vault read -format=json database/creds/identity-service > /tmp/creds.json || { echo "failed to read creds"; exit 5; }
+            cat /tmp/creds.json
+
+            # revoke existing leases to force rotation
+            echo "Revoking leases with prefix database/creds/identity-service"
+            vault lease revoke -prefix database/creds/identity-service || echo "revoke may have failed or not permitted"
+
+            echo "Done. Saved outputs under /tmp. Pod will exit now."
+        volumeMounts:
+        - name: vault-token
+          mountPath: /etc/vault
+          readOnly: true
+      volumes:
+      - name: vault-token
+        secret:
+          secretName: vault-admin-token
+          items:
+          - key: token
+            path: token

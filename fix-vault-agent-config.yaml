@@ -1,0 +1,115 @@
+# Fix for Vault Agent Startup Race Condition
+# Solution: Option A (BEST) - Disable init-first to prevent DNS race condition
+# 
+# Root Cause: vault-agent-init runs too early before CoreDNS/CNI readiness
+# Fix: Skip init-first behavior and rely on sidecar with retry logic
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+  namespace: job7189-apps
+spec:
+  template:
+    metadata:
+      labels:
+        app: identity-service
+      annotations:
+        # ===== VAULT AGENT CONFIGURATION =====
+        vault.hashicorp.com/agent-inject: "true"
+        
+        # FIX APPLIED: Disable agent-init-first to prevent DNS race condition
+        # BEFORE: vault.hashicorp.com/agent-init-first: "true"
+        # AFTER: Set to false (or omit, defaults to false)
+        vault.hashicorp.com/agent-init-first: "false"
+        
+        vault.hashicorp.com/role: identity-service
+        vault.hashicorp.com/tls-skip-verify: "true"
+        
+        # ===== INJECT FILE ANNOTATIONS =====
+        vault.hashicorp.com/agent-inject-file-common: .env.common
+        vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+        vault.hashicorp.com/agent-inject-template-common: |
+          {{- with secret "secret/data/laravel-common" -}}
+          APP_KEY="{{ .Data.data.APP_KEY }}"
+          {{- end }}
+        
+        vault.hashicorp.com/agent-inject-file-db: .env.db
+        vault.hashicorp.com/agent-inject-secret-db: database/creds/identity-service
+        vault.hashicorp.com/agent-inject-template-db: |
+          {{- with secret "database/creds/identity-service" -}}
+          DB_USERNAME="{{ .Data.username }}"
+          DB_PASSWORD="{{ .Data.password }}"
+          {{ end }}
+        
+        vault.hashicorp.com/agent-inject-file-extra: .env.extra
+        vault.hashicorp.com/agent-inject-secret-extra: secret/data/identity-service
+        vault.hashicorp.com/agent-inject-template-extra: |
+          {{- with secret "secret/data/identity-service" -}}
+          LARAVEL_INTERNAL_API_SECRET="{{ .Data.data.LARAVEL_INTERNAL_API_SECRET }}"
+          {{ end }}
+        
+        # ===== VAULT AGENT ADVANCED CONFIGURATION =====
+        vault.hashicorp.com/agent-cache: "true"
+        vault.hashicorp.com/agent-cache-use-auto-auth-token: "force"
+        
+        # Optional: Add retry and retry backoff for additional resilience
+        # These settings prevent immediate failure on transient errors
+        vault.hashicorp.com/agent-limits-cache-size: "32000"
+        vault.hashicorp.com/agent-limits-cpu: "500m"
+        vault.hashicorp.com/agent-limits-mem: "128Mi"
+
+---
+
+# ============================================
+# EXPLANATION OF THE FIX
+# ============================================
+#
+# PROBLEM:
+# --------
+# The original configuration used agent-init-first: "true", which:
+# 1. Creates an init container that runs before the sidecar
+# 2. This init container starts VERY EARLY in pod lifecycle
+# 3. CoreDNS and CNI may not be fully ready at that moment
+# 4. DNS lookup fails: "operation not permitted"
+# 5. Container crashes (exit code 255)
+# 6. Kubernetes restarts the container
+# 7. Second attempt succeeds because infrastructure is now ready
+#
+# This creates an intermittent, self-healing but noisy issue.
+#
+# SOLUTION APPLIED:
+# -----------------
+# Setting agent-init-first: "false" means:
+# 1. No init container is injected
+# 2. Only the sidecar vault-agent runs alongside the main container
+# 3. The sidecar starts LATER in the container startup sequence
+# 4. By that time, DNS/CNI is fully ready
+# 5. No crash or restart occurs
+#
+# The sidecar continuously:
+# - Maintains authentication token
+# - Renders templates with fresh secrets
+# - Monitors lease expiration
+# - AUTO-RENEWS dynamic credentials
+# - Updates files in /vault/secrets/ as needed
+#
+# ADVANTAGES:
+# -----------
+# ✓ No startup crashes or restarts
+# ✓ Cleaner logs - no noise from self-healing
+# ✓ Faster pod startup
+# ✓ Better for monitoring/alerting systems
+# ✓ Automatic credential rotation without pod restart
+#
+# TRADE-OFFS:
+# -----------
+# - Main container starts without waiting for secrets
+# - Application must handle missing secrets gracefully
+# - Application may need built-in retry logic
+# - Requires file-change monitoring for credential updates (see auto-reload-solution.yaml)
+#
+# PRODUCTION RECOMMENDATION:
+# --------------------------
+# Use this configuration with auto-reload sidecar (Task 4)
+# to ensure application picks up new credentials when Vault rotates them

@@ -15,7 +15,7 @@ spec:
         app: {{ .Release.Name }}
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/agent-init-first: "false"
         vault.hashicorp.com/role: "{{ .Release.Name }}"
         vault.hashicorp.com/tls-skip-verify: "true"
         vault.hashicorp.com/agent-inject-status: "update"
@@ -51,49 +51,30 @@ spec:
       - name: app-env
         emptyDir:
           medium: Memory
-      initContainers:
-      - name: env-loader
-        image: busybox:1.36
-        command:
-        - sh
-        - -c
-        - |
-          # Gộp tất cả .env.* files thành 1 file .env duy nhất
-          # Chờ Vault Agent inject xong (wait for secrets to be ready)
-          # Wait for database secrets if they exist, up to 30 seconds
-          for i in $(seq 1 30); do
-            if [ -f /vault/secrets/.env.db ]; then
-              echo "✓ Vault secrets ready"
-              break
-            fi
-            if [ $i -eq 1 ]; then
-              echo "⏳ Waiting for Vault Agent to inject credentials (will timeout after 30s)..."
-            fi
-            sleep 1
-          done
-          
-          echo "✓ Proceeding with available environment files..."
-          
-          # Merge all env files: common → db → extra
-          cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
-          cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
-          [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
-          
-          echo "✓ Environment files merged"
-          echo ""
-          echo "📄 Final .env file preview (first 10 lines):"
-          head -10 /vault/secrets/.env
-          echo ""
-          
-          # Copy to app directory so Laravel can read it
-          cp /vault/secrets/.env /app-secrets/.env
-          chmod 644 /app-secrets/.env
-          
-          echo "✓ .env file ready at /app-secrets/.env"
-        volumeMounts:
-        - name: app-env
-          mountPath: /app-secrets
+      initContainers: []
       containers:
+        - name: env-loader
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              # Continuous watcher to merge .env files
+              while true; do
+                if [ -f /vault/secrets/.env.db ]; then
+                  cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+                  cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+                  [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+                  cp /vault/secrets/.env /app-secrets/.env
+                  chmod 644 /app-secrets/.env
+                  cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+                fi
+                sleep 5
+              done
+          volumeMounts:
+            - name: app-env
+              mountPath: /app-secrets
+
         - name: app
           {{- $registry := include "registry.url" . -}}
           {{- if $registry }}

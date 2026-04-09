@@ -38,6 +38,12 @@ spec:
           
           {{ end }}`}}
 
+        # Sentinel file with lease id to signal rotation
+        vault.hashicorp.com/agent-inject-template-db-lease: |-
+          {{`{{- with secret "database/creds/`}}{{ .Release.Name }}{{`" -}}
+          LEASE_ID="{{ .LeaseID }}"
+          {{- end }}`}}
+
         {{- if .Values.vault.extraSecret }}
         # Service-specific secrets
         vault.hashicorp.com/agent-inject-secret-extra: "secret/data/{{ .Release.Name }}"
@@ -67,6 +73,9 @@ spec:
                   [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
                   cp /vault/secrets/.env /app-secrets/.env
                   chmod 644 /app-secrets/.env
+                  # copy lease sentinel if present (used to trigger app reload)
+                  [ -f /vault/secrets/.env.db.lease ] && cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+                  [ -f /app-secrets/.env.db.lease ] && chmod 644 /app-secrets/.env.db.lease || true
                   cp /app-secrets/.env /var/www/.env 2>/dev/null || true
                 fi
                 sleep 5

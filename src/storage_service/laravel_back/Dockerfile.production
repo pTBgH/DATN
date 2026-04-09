@@ -64,6 +64,8 @@ COPY . .
 RUN cp docker/supervisor.conf /etc/supervisord.conf
 RUN cp docker/php.ini /usr/local/etc/php/conf.d/app.ini
 RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
+RUN cp docker/watch-env.sh /usr/local/bin/watch-env.sh || true
+RUN chmod +x /usr/local/bin/watch-env.sh || true
 
 # Change run.sh to /etc/docker folder. Added by lapbt
 RUN mkdir -p /etc/docker

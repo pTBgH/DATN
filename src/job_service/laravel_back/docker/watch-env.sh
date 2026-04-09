@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
-SENTINEL=/app-secrets/.env.db.lease
-LAST=""
+WATCH_FILE=/app-secrets/.env
+LAST_SUM=""
 while true; do
-  if [ -f "$SENTINEL" ]; then
-    cur=$(cat "$SENTINEL" 2>/dev/null || echo "")
-    if [ "$cur" != "$LAST" ]; then
-      LAST="$cur"
+  if [ -f "$WATCH_FILE" ]; then
+    SUM=$(md5sum "$WATCH_FILE" 2>/dev/null | cut -d' ' -f1 || echo "")
+    if [ "$SUM" != "$LAST_SUM" ]; then
+      LAST_SUM="$SUM"
       date -Iseconds >&2 || true
-      echo "[watch-env] sentinel changed; restarting php-fpm" >&2 || true
+      echo "[watch-env] .env changed; restarting php-fpm" >&2 || true
       if command -v supervisorctl >/dev/null 2>&1; then
         supervisorctl restart php8-fpm || true
       else

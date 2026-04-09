@@ -1,0 +1,12 @@
+{
+  "request_id": "55d81c6f-d75f-ae1a-8ba7-0a23ad2e4091",
+  "lease_id": "database/creds/identity-service/P59uJ59CCfKMe6N8krmXUu7U",
+  "lease_duration": 300,
+  "renewable": true,
+  "data": {
+    "password": "jA1Md6hsPwurCLL-imdo",
+    "username": "v-root-identity-s-SqGo5x4CrYPuyn"
+  },
+  "warnings": null,
+  "mount_type": "database"
+}

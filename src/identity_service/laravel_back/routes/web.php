@@ -20,3 +20,8 @@ use App\Http\Controllers\Controller;
 // Route::get('/csrf-token', function () {
 //     return response()->json(['csrf_token' => csrf_token()]);
 // });
+
+// Include internal-only routes (hot-reload) if present
+if (file_exists(__DIR__ . '/internal.php')) {
+	require __DIR__ . '/internal.php';
+}

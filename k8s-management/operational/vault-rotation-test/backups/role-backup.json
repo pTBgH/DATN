@@ -1,22 +1,22 @@
 {
-  "request_id": "9f89b995-fc49-bde0-9a27-75c6a9c5d675",
-  "lease_id": "",
-  "lease_duration": 0,
-  "renewable": false,
-  "data": {
-    "creation_statements": [
-      "CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}'; GRANT SELECT,INSERT,UPDATE,DELETE ON job7189_identity_db.* TO '{{name}}'@'%';"
-    ],
-    "credential_type": "password",
-    "db_name": "mysql",
-    "default_ttl": 3600,
-    "max_ttl": 86400,
-    "renew_statements": [],
-    "revocation_statements": [
-      "DROP USER IF EXISTS '{{name}}'@'%';"
-    ],
-    "rollback_statements": []
-  },
-  "warnings": null,
-  "mount_type": "database"
+    "request_id": "9f89b995-fc49-bde0-9a27-75c6a9c5d675",
+    "lease_id": "",
+    "lease_duration": 0,
+    "renewable": false,
+    "data": {
+        "creation_statements": [
+            "CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}'; GRANT SELECT,INSERT,UPDATE,DELETE ON job7189_identity_db.* TO '{{name}}'@'%';"
+        ],
+        "credential_type": "password",
+        "db_name": "mysql",
+        "default_ttl": 3600,
+        "max_ttl": 86400,
+        "renew_statements": [],
+        "revocation_statements": [
+            "DROP USER IF EXISTS '{{name}}'@'%';"
+        ],
+        "rollback_statements": []
+    },
+    "warnings": null,
+    "mount_type": "database"
 }

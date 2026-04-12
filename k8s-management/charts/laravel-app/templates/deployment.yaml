@@ -17,6 +17,8 @@ spec:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/role: "{{ .Release.Name }}"
+        # Skip TLS verification for Vault (cluster uses self-signed cert)
+        vault.hashicorp.com/tls-skip-verify: "true"
         vault.hashicorp.com/agent-inject-status: "update"
 
         # Common secrets — APP_KEY
@@ -34,6 +36,8 @@ spec:
           {{`{{- with secret "database/creds/`}}{{ .Release.Name }}{{`" -}}
           DB_USERNAME="{{ .Data.username }}"
           DB_PASSWORD="{{ .Data.password }}"
+          
+          LEASE_ID="{{ .LeaseID }}"
           
           {{ end }}`}}
 

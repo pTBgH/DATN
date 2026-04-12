@@ -67,7 +67,7 @@ RUN cp docker/nginx.conf /etc/nginx/sites-enabled/default
 RUN cp docker/watch-env.sh /usr/local/bin/watch-env.sh || true
 RUN chmod +x /usr/local/bin/watch-env.sh || true
 
-# Change run.sh to /etc/docker folder. Added by lapbt
+# Change run.sh to /etc/docker folder. 
 RUN mkdir -p /etc/docker
 RUN cp docker/run.sh /etc/docker/run.sh
 RUN chmod +x /etc/docker/run.sh

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-env-watcher-script
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+data:
+  env-watcher.sh: |-
+{{ .Files.Get "files/env-watcher.sh" | indent 4 }}

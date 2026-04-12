@@ -4,8 +4,8 @@ registry:
   # url: "docker-registry.registry.svc.cluster.local:5000"
   url: "172.17.0.1:5000"
 image:
-  repository: nginx
-  tag: latest
+  repository: job7189/identity-service
+  tag: v2.8.12
   pullPolicy: Always
 
 service:

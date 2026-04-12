@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-watcher-script
+  namespace: job7189-apps
+data:
+  env-watcher.sh: |
+$(sed -n '1,200p' /home/ptb/project/DATN/k8s-management/charts/laravel-app/files/env-watcher.sh | sed 's/^/    /')

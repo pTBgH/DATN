@@ -21,6 +21,10 @@ Route::middleware([VerifyKeycloakToken::class])->group(function () {
 // 2. API Nội bộ (Cho Job/Hiring Service gọi để map ID)
 Route::prefix('internal')->group(function () {
     Route::post('/auth/sync-user', [\App\Http\Controllers\Internal\IdentityInternalController::class, 'syncUser']);
+    // Include hot-reload internal route (no session/cookie middleware)
+    if (file_exists(__DIR__ . '/internal.php')) {
+        require __DIR__ . '/internal.php';
+    }
     // Route::get('/auth/map-user/{keycloakId}', [\App\Http\Controllers\Internal\IdentityInternalController::class, 'mapUser']);
     Route::get('/users/{id}', [\App\Http\Controllers\Internal\IdentityInternalController::class, 'getUserDetail']);
 });

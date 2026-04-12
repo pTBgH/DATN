@@ -54,7 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => 'default',
+            'channels' => ['default'],
             'ignore_exceptions' => true,
         ],
 
@@ -149,18 +149,17 @@ return [
         ],
 
         'daily_activity' => [
-            'driver' => 'custom',
+            'driver' => 'daily',
             'path' => storage_path('logs/activity/activity.log'),
-            'via' => \App\Logging\CreateJsonLogger::class,
             'level' => 'info',
+            'days' => 14,
         ],
 
         'default' => [
-            'driver' => 'custom', // <-- PHẢI LÀ 'custom' để gọi via
-            'via' => \App\Logging\CreateJsonLogger::class,
-            'path' => storage_path('logs/laravel.log'), // File log mặc định
+            'driver' => 'single',
+            'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 7, // <-- Giữ log trong 7 ngày
+            'replace_placeholders' => true,
         ],
     ],
 

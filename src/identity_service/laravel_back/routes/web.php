@@ -21,7 +21,4 @@ use App\Http\Controllers\Controller;
 //     return response()->json(['csrf_token' => csrf_token()]);
 // });
 
-// Include internal-only routes (hot-reload) if present
-if (file_exists(__DIR__ . '/internal.php')) {
-	require __DIR__ . '/internal.php';
-}
+// Internal-only routes moved to API routes (no session middleware)

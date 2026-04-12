@@ -1,8 +1,10 @@
 image:
-  registry: docker-registry.registry.svc.cluster.local:5000
+  registry: ""
   repository: job7189/identity-service
-  tag: "v2.8.12"
-  pullPolicy: Always
+  tag: "v2.8.18"
+  pullPolicy: IfNotPresent
+
+  internalReloadToken: "another-really-secure-token"
 
 service:
   type: ClusterIP

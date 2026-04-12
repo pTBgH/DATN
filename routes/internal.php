@@ -10,7 +10,7 @@ use App\Providers\HotReloadServiceProvider;
  * and mounted in a local/internal middleware group (or protected by network policy).
  */
 
-Route::post('/internal/reload-db', function (Request $request) {
+Route::post('/reload-db', function (Request $request) {
     $token = $request->header('X-Internal-Token', '');
     $expected = env('INTERNAL_RELOAD_TOKEN', '');
     if (empty($expected) || !hash_equals($expected, $token)) {

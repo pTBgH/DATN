@@ -153,7 +153,7 @@ spec:
               /usr/local/bin/env-watcher.sh
           env:
             - name: RELOAD_URL
-              value: "http://127.0.0.1:8080/internal/reload-db"
+              value: "http://127.0.0.1:8000/internal/reload-db"
             - name: RELOAD_TOKEN
               valueFrom:
                 secretKeyRef:

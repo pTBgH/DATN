@@ -54,25 +54,15 @@ spec:
     metadata:
       labels:
         app: mysql
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-inject-secret-mysql: "secret/data/mysql"
+        vault.hashicorp.com/agent-inject-template-mysql: "{{- with secret \"secret/data/mysql\" -}}{{ index .Data.data \"root-password\" }}{{- end }}"
+        vault.hashicorp.com/agent-inject-file-mysql: "mysql-root-password"
+        vault.hashicorp.com/role: mysql
+        vault.hashicorp.com/tls-skip-verify: "true"
     spec:
       serviceAccountName: mysql
-      initContainers:
-      - name: vault-init
-        image: hashicorp/vault:1.17.6
-        command:
-          - "/bin/sh"
-          - "-c"
-          - |
-            set -e
-            export VAULT_ADDR=https://vault.vault.svc.cluster.local:8200
-            export VAULT_SKIP_VERIFY=true
-            # Authenticate using Kubernetes auth and write root password to shared volume
-            vault login -method=kubernetes role=mysql jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token >/dev/null 2>&1 || exit 2
-            vault kv get -field=root-password secret/mysql > /vault/secrets/mysql-root-password
-            chmod 600 /vault/secrets/mysql-root-password
-        volumeMounts:
-        - name: vault-secret
-          mountPath: /vault/secrets
       containers:
       - name: mysql
         image: mysql:8.0
@@ -95,8 +85,6 @@ spec:
           mountPath: /etc/mysql/conf.d
         - name: mysql-init-scripts
           mountPath: /docker-entrypoint-initdb.d
-        - name: vault-secret
-          mountPath: /vault/secrets
       volumes:
       - name: mysql-storage
         persistentVolumeClaim:
@@ -107,8 +95,7 @@ spec:
       - name: mysql-init-scripts
         configMap:
           name: mysql-init-databases
-      - name: vault-secret
-        emptyDir: {}
+      # Vault Agent injector will provide the /vault/secrets volume, do not create a duplicate here
 
 ---
 # --- 5. MySQL Service (Nội bộ) ---

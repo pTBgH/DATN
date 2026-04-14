@@ -1,0 +1,69 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-job7189-apps
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-data
+  namespace: data
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+
+---
+# Allow identity-service in job7189-apps to reach mysql in data on TCP/3306
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-identity-to-mysql
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      app: identity-service
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: mysql
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+  # Allow DNS to kube-dns (cluster IP)
+  - toCIDR:
+    - "10.96.0.10/32"
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+
+---
+# Allow mysql pod to accept traffic only from identity-service in job7189-apps
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-from-identity
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: identity-service
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP

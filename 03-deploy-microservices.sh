@@ -193,25 +193,22 @@ patch_secret_value() {
 
 reconcile_mysql_root_secret() {
   local live_mysql_root
-  local data_secret_mysql
-  local security_secret_mysql
-
   live_mysql_root=$(kubectl exec -n data deploy/mysql -- sh -lc 'printf "%s" "$MYSQL_ROOT_PASSWORD"' 2>/dev/null || true)
   if [ -z "$live_mysql_root" ]; then
     echo "   ⚠️  Could not read active MYSQL_ROOT_PASSWORD from deploy/mysql; skipping secret reconciliation"
     return 0
   fi
 
-  data_secret_mysql=$(get_secret_value data mysql-root-password)
-  if [ "$data_secret_mysql" != "$live_mysql_root" ]; then
-    patch_secret_value data mysql-root-password "$live_mysql_root"
-    echo "   ✓ Reconciled data/app-secrets mysql-root-password with running MySQL"
-  fi
-
-  security_secret_mysql=$(get_secret_value security mysql-root-password)
-  if [ -n "$security_secret_mysql" ] && [ "$security_secret_mysql" != "$live_mysql_root" ]; then
-    patch_secret_value security mysql-root-password "$live_mysql_root"
-    echo "   ✓ Reconciled security/app-secrets mysql-root-password with running MySQL"
+  # If Vault is available, write the MySQL root into Vault KV so that only Vault holds the secret.
+  local root_token
+  root_token=$(get_vault_root_token || true)
+  if [ -n "$root_token" ]; then
+    echo "   ✓ Writing live MySQL root password into Vault KV (secret/mysql)"
+    kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault kv put secret/mysql root-password='${live_mysql_root}'" >/dev/null 2>&1 || {
+      echo "   ⚠️  Failed to write MySQL root to Vault; ensure Vault is unsealed and root token valid"
+    }
+  else
+    echo "   ⚠️  Vault root token not found; skipping write to Vault (no cluster-wide mysql-root secret will be updated)"
   fi
 
   return 0
@@ -342,6 +339,27 @@ if [ "$INFRA_CHECK" -lt 2 ]; then
   [[ "$answer" == "yes" ]] || exit 1
 fi
 
+# Ensure required namespaces exist (idempotent)
+for ns in vault data management job7189-apps security gateway monitoring; do
+  if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
+    echo "? Namespace '$ns' not found — creating"
+    kubectl create namespace "$ns" || true
+  fi
+done
+
+# Ensure core infrastructure services are healthy before deploying microservices
+echo "? Verifying MySQL and Vault readiness before microservices deployment"
+kubectl get pod -n data -l app=mysql -o wide 2>/dev/null || true
+if ! kubectl wait --for=condition=Ready=True pod -l app=mysql -n data --timeout=180s 2>/dev/null; then
+  echo "! ERROR: MySQL pods did not become Ready within 180s — aborting microservices deploy"
+  kubectl get pod -n data -o wide || true
+  exit 1
+fi
+
+if ! wait_for_vault_unsealed 180; then
+  echo "! ERROR: Vault is not unsealed/ready within 180s — aborting microservices deploy"
+  exit 1
+fi
 echo "? Cluster and infrastructure are accessible"
 log_time "Pre-flight check"
 

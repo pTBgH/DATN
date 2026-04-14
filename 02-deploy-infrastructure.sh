@@ -180,6 +180,15 @@ fi
 echo "? Cluster is accessible"
 log_time "Pre-flight check"
 
+# Ensure required namespaces exist (idempotent)
+for ns in vault data management job7189-apps security gateway monitoring ingress-nginx cert-manager; do
+  if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
+    echo "? Namespace '$ns' not found — creating"
+    kubectl create namespace "$ns" || true
+  fi
+done
+log_time "Pre-flight: ensure namespaces"
+
 # read -p "? Continue with infrastructure deployment? (yes/no): " answer
 # [[ "$answer" == "yes" ]] || exit 1
 
@@ -228,22 +237,25 @@ else
   echo "   ✓ Generated new Vault manager password"
 fi
 
-# ZTA: Create Kubernetes Secret with generated passwords
+# ZTA: Create Kubernetes Secret with generated passwords (do NOT store MySQL root here)
+# Note: MySQL root password is stored only in Vault (and optionally a minimal, namespaced secret
+# created during bootstrap). Avoid writing mysql-root-password into the cluster-wide `app-secrets`.
 kubectl create secret generic app-secrets \
   --namespace=data \
-  --from-literal=mysql-root-password="$MYSQL_ROOT_PASS" \
   --from-literal=keycloak-admin-password="$KEYCLOAK_ADMIN_PASS" \
   --from-literal=vault-manager-password="$VAULT_MANAGER_PASS" \
   --dry-run=client -o yaml | kubectl apply -f -
-echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'data'"
+echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'data' (without mysql-root-password)"
 
-# Also create a copy in security namespace for Keycloak
+# Also create a copy in security namespace for Keycloak (without mysql password)
 kubectl create secret generic app-secrets \
   --namespace=security \
-  --from-literal=mysql-root-password="$MYSQL_ROOT_PASS" \
   --from-literal=keycloak-admin-password="$KEYCLOAK_ADMIN_PASS" \
   --dry-run=client -o yaml | kubectl apply -f -
-echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'security'"
+echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'security' (without mysql-root-password)"
+
+# NOTE: For the pure Vault-driven flow we no longer create a K8s secret for MySQL root.
+echo "   ✓ Skipping creation of mysql-root K8s Secret (using Vault-driven bootstrap)"
 
 log_time "1a. Generate ZTA credentials"
 
@@ -254,6 +266,10 @@ log_time "1b. Apply mysql-init-configmap.yaml"
 echo "   Deploying MySQL & phpMyAdmin..."
 kubectl apply -f infras/k8s-yaml/01-mysql-phpmyadmin.yaml
 log_time "1c. Apply 01-mysql-phpmyadmin.yaml"
+
+echo "   Waiting for MySQL pods to be Ready (up to 180s)"
+wait_for_pods "app=mysql" data 180
+
 
 # ======== KEYCLOAK SPECIAL HANDLING ========
 echo ""
@@ -470,8 +486,14 @@ log_time "3b. Ingress deployment checkpoint"
 # ========================
 echo ""
 echo "? Step 4: Setting up cert-manager issuer..."
-kubectl apply -f infras/k8s-yaml/10-cert-manager-issuer.yaml
-log_time "4a. Apply cert-manager-issuer.yaml"
+echo "    Checking for cert-manager CRDs before applying issuer/certificate resources"
+if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then
+  kubectl apply -f infras/k8s-yaml/10-cert-manager-issuer.yaml
+  log_time "4a. Apply cert-manager-issuer.yaml"
+else
+  echo "    ! cert-manager CRDs not found; skipping issuer/certificate apply. Ensure cert-manager is installed (run 01-setup-cluster.sh)"
+  log_time "4a. Skip cert-manager issuer (CRDs missing)"
+fi
 
 # ========================
 # 5. Deploy Vault
@@ -481,9 +503,8 @@ echo "? Step 5: Deploying Vault infrastructure..."
 kubectl apply -f infras/k8s-yaml/11-vault.yaml
 log_time "5a. Apply Vault deployment"
 
-echo "    Waiting for Vault pods..."
-sleep 10
-kubectl get pod -n vault -o wide 2>/dev/null | grep vault || echo "    (Vault pods initializing)"
+echo "    Waiting for Vault pods to be Ready (up to 180s)"
+wait_for_pods "app=vault" vault 180
 log_time "5b. Wait for Vault initialization"
 
 # ========================
@@ -501,7 +522,8 @@ cd infras/k8s-yaml/vault-scripts
 
 echo "   o Running 99-fast-rebuild-vault.sh..."
 if [ -f "99-fast-rebuild-vault.sh" ]; then
-  bash 99-fast-rebuild-vault.sh || echo "?  99-fast-rebuild-vault.sh encountered issues"
+  # Pass MYSQL_ROOT_PASS to the fast rebuild pipeline so the Vault bootstrap remains the authoritative source
+  MYSQL_ROOT_PASS="$MYSQL_ROOT_PASS" bash 99-fast-rebuild-vault.sh || echo "?  99-fast-rebuild-vault.sh encountered issues"
   log_time "6a. Vault fast rebuild pipeline"
 else
   echo "? ERROR: 99-fast-rebuild-vault.sh not found!"

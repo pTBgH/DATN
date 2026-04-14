@@ -2,59 +2,87 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mysql-config
-  namespace: data
-data:
-  custom.cnf: |
-    [mysqld]
-    # ID định danh duy nhất (Bắt buộc cho Replication/Kafka)
-    server-id = 1
-    # Bật ghi log nhị phân
-    log_bin = mysql-bin
-    # Định dạng log là ROW (để bắt được thay đổi dữ liệu chi tiết)
-    binlog_format = ROW
-    # Giữ log trong 7 ngày
-    binlog_expire_logs_seconds = 604800
-    binlog_row_image = FULL
+  ---
+  # --- 3. MySQL ServiceAccount (for Vault Kubernetes auth) ---
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: mysql
+    namespace: data
 
----
-# --- 2. Ổ cứng cho MySQL ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mysql-pvc
-  namespace: data
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-
----
-# --- 3. MySQL Deployment ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mysql
-  namespace: data
-spec:
-  selector:
-    matchLabels:
-      app: mysql
-  template:
-    metadata:
-      labels:
+  ---
+  # --- 4. MySQL Deployment (Vault-init initContainer writes root password into shared emptyDir) ---
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: mysql
+    namespace: data
+  spec:
+    selector:
+      matchLabels:
         app: mysql
-    spec:
-      containers:
-      - name: mysql
-        image: mysql:8.0
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: app-secrets
+    template:
+      metadata:
+        labels:
+          app: mysql
+      spec:
+        serviceAccountName: mysql
+        initContainers:
+        - name: vault-init
+          image: hashicorp/vault:1.17.6
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              set -e
+              export VAULT_ADDR=https://vault.vault.svc.cluster.local:8200
+              export VAULT_SKIP_VERIFY=true
+              # Authenticate using Kubernetes auth and write root password to shared volume
+              vault login -method=kubernetes role=mysql jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token >/dev/null 2>&1 || exit 2
+              vault kv get -field=root-password secret/mysql > /vault/secrets/mysql-root-password
+              chmod 600 /vault/secrets/mysql-root-password
+          volumeMounts:
+          - name: vault-secret
+            mountPath: /vault/secrets
+        containers:
+        - name: mysql
+          image: mysql:8.0
+          # The main container reads the root password from the file written by the initContainer
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              export MYSQL_ROOT_PASSWORD=$(cat /vault/secrets/mysql-root-password)
+              exec docker-entrypoint.sh mysqld
+          env:
+          - name: MYSQL_DATABASE
+            value: job7189keycloak
+          ports:
+          - containerPort: 3306
+          volumeMounts:
+          - name: mysql-storage
+            mountPath: /var/lib/mysql
+          - name: mysql-config-volume
+            mountPath: /etc/mysql/conf.d
+          - name: mysql-init-scripts
+            mountPath: /docker-entrypoint-initdb.d
+          - name: vault-secret
+            mountPath: /vault/secrets
+        volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        - name: mysql-config-volume
+          configMap:
+            name: mysql-config
+        - name: mysql-init-scripts
+          configMap:
+            name: mysql-init-databases
+        - name: vault-secret
+          emptyDir: {}
+              # Use a narrow, namespaced secret created during bootstrap by the Vault pipeline
+              # (or created manually). Do NOT rely on the cluster-wide `app-secrets` for root.
+              name: mysql-root
               key: mysql-root-password
         - name: MYSQL_DATABASE
           value: job7189keycloak

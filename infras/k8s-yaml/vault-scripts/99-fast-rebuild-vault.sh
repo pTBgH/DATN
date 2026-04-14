@@ -80,12 +80,18 @@ echo "    ✔ Init Vault-prod thành công!"
 # --- 5. BATCH EXECUTION IN VAULT-0 (Sát thủ rút ngắn thời gian) ---
 echo -e "\n==> [5/7] Chuẩn bị Data & Đẩy vào Vault (Batch Pipeline siêu tốc)..."
 
-MYSQL_ROOT_PASS=$(kubectl get secret app-secrets -n data -o jsonpath='{.data.mysql-root-password}' | base64 -d)
+## Prefer environment-supplied MYSQL_ROOT_PASS (02 will export it). Fall back to legacy app-secrets only if not set.
+if [ -z "${MYSQL_ROOT_PASS:-}" ]; then
+  MYSQL_ROOT_PASS=$(kubectl get secret app-secrets -n data -o jsonpath='{.data.mysql-root-password}' 2>/dev/null | base64 -d || true)
+fi
 KC_ADMIN_PASS=$(kubectl get secret app-secrets -n data -o jsonpath='{.data.keycloak-admin-password}' | base64 -d)
 VAULT_MGR_PASS=$(kubectl get secret app-secrets -n data -o jsonpath='{.data.vault-manager-password}' 2>/dev/null | base64 -d || true)
 if [ -z "$VAULT_MGR_PASS" ]; then
   VAULT_MGR_PASS=$(openssl rand -hex 16)
-  kubectl get secret app-secrets -n data -o json | python3 -c "import sys, json, base64; s = json.load(sys.stdin); s['data']['vault-manager-password'] = base64.b64encode(b'${VAULT_MGR_PASS}').decode(); json.dump(s, sys.stdout)" | kubectl replace -f -
+  # If app-secrets exists, update vault-manager there; otherwise ignore (we'll keep password only in Vault)
+  if kubectl get secret app-secrets -n data >/dev/null 2>&1; then
+    kubectl get secret app-secrets -n data -o json | python3 -c "import sys, json, base64; s = json.load(sys.stdin); s['data']['vault-manager-password'] = base64.b64encode(b'${VAULT_MGR_PASS}').decode(); json.dump(s, sys.stdout)" | kubectl replace -f - || true
+  fi
 fi
 
 echo "    -> Bơm kịch bản xử lý hàng loạt trực tiếp vào Pod vault-0..."
@@ -158,6 +164,16 @@ done
 
 vault write auth/kubernetes/role/oauth2-proxy bound_service_account_names=oauth2-proxy bound_service_account_namespaces=security policies=oauth2-proxy ttl=1h max_ttl=24h
 vault write auth/kubernetes/role/keycloak bound_service_account_names=keycloak bound_service_account_namespaces=security policies=keycloak ttl=1h max_ttl=24h
+
+# Create minimal policy and Kubernetes auth role for MySQL bootstrap init container
+vault policy write mysql-bootstrap - <<POL
+path "secret/data/mysql" { capabilities = ["read"] }
+POL
+vault write auth/kubernetes/role/mysql \
+  bound_service_account_names=mysql \
+  bound_service_account_namespaces=data \
+  policies=mysql-bootstrap \
+  ttl=1h max_ttl=24h
 EOF
 echo "    ✔ Bơm Data hoàn tất!"
 

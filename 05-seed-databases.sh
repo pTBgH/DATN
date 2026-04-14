@@ -18,17 +18,53 @@ echo "🌱 DATABASE SEED SCRIPT (ZTA Mode)"
 echo "════════════════════════════════════════════════════════"
 echo ""
 
-# ── ZTA: Read MySQL root password from Kubernetes Secret ──
-echo "🔐 Reading MySQL root password from Kubernetes Secret..."
-MYSQL_ROOT_PASS=$(kubectl get secret app-secrets -n data \
-  -o jsonpath='{.data.mysql-root-password}' | base64 -d)
+# ── ZTA: Obtain MySQL credentials from Vault (avoid cluster-wide secrets)
+echo "🔐 Obtaining MySQL credentials from Vault..."
 
-if [ -z "$MYSQL_ROOT_PASS" ]; then
-  echo "❌ ERROR: Could not read mysql-root-password from app-secrets in namespace 'data'"
-  echo "   Ensure the secret exists: kubectl get secret app-secrets -n data"
+# Ensure namespace 'data' exists and MySQL pod is ready
+if ! kubectl get namespace data >/dev/null 2>&1; then
+  echo "? Namespace 'data' not found — creating"
+  kubectl create namespace data || true
+fi
+echo "? Waiting up to 180s for MySQL pod to be Ready in namespace 'data'"
+if ! kubectl wait --for=condition=Ready=True pod -l app=mysql -n data --timeout=180s 2>/dev/null; then
+  echo "! ERROR: MySQL pods not ready in namespace 'data' — aborting seed"
+  kubectl get pod -n data -o wide || true
   exit 1
 fi
-echo "✓ MySQL root password retrieved from Kubernetes Secret"
+get_vault_root_token() {
+  local init_file="infras/k8s-yaml/vault-scripts/vault-prod-init.json"
+  if [ -f "$init_file" ]; then
+    python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('root_token',''))" "$init_file" 2>/dev/null || true
+  else
+    echo ""
+  fi
+}
+
+# Acquire Vault root token (created by the fast-rebuild pipeline). This is used only
+# by bootstrap/administrative tasks that must seed databases; application pods
+# should use dynamic credentials via database/creds/*.
+ROOT_TOKEN=$(get_vault_root_token || true)
+if [ -z "$ROOT_TOKEN" ]; then
+  echo "❌ ERROR: Vault root token not found (infras/k8s-yaml/vault-scripts/vault-prod-init.json)"
+  echo "   Ensure Vault has been initialized and the fast-rebuild pipeline has been run"
+  exit 1
+fi
+
+# Read vault-manager credentials from Vault (vault kv secret)
+CREDS_JSON=$(kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${ROOT_TOKEN}' vault kv get -format=json secret/vault-manager" 2>/dev/null || true)
+if [ -z "$CREDS_JSON" ]; then
+  echo "❌ ERROR: Could not read vault-manager credentials from Vault"
+  exit 1
+fi
+MYSQL_USER=$(echo "$CREDS_JSON" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("data",{}).get("data",{}).get("username",""))')
+MYSQL_PASS=$(echo "$CREDS_JSON" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("data",{}).get("data",{}).get("password",""))')
+
+if [ -z "$MYSQL_USER" ] || [ -z "$MYSQL_PASS" ]; then
+  echo "❌ ERROR: vault-manager credentials are missing in Vault"
+  exit 1
+fi
+echo "✓ Obtained vault-manager credentials from Vault (user: $MYSQL_USER)"
 
 # ── Locate SQL dump files ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,15 +124,41 @@ for sql_file in "${!DB_MAP[@]}"; do
     continue
   fi
 
-  # ZTA: Pipe SQL through kubectl exec (-i is required to forward stdin)
+  # ZTA: Create transformed SQL that drops existing tables, then run original SQL.
+  temp_sql=$(mktemp --suffix=.sql)
+  # 1) Build transformed SQL: disable FK checks, drop tables, then append original SQL (with INSERT -> INSERT IGNORE)
+  if ! printf "%s
+SET FOREIGN_KEY_CHECKS=0;\n" "-- transformed by seed script" > "$temp_sql"; then
+    echo "   ❌ Failed to start transformed SQL for $db_name"
+    rm -f "$temp_sql"
+    FAILED+=("$db_name")
+    continue
+  fi
+  if ! perl -0777 -ne 'while(/CREATE\s+TABLE\s+`?([^\s`(]+)`?\s*\(/ig){ print "DROP TABLE IF EXISTS `$1`;\n" }' "$sql_path" >> "$temp_sql"; then
+    echo "   ❌ Failed to extract table names for $db_name"
+    rm -f "$temp_sql"
+    FAILED+=("$db_name")
+    continue
+  fi
+  # re-enable FK checks after drops, then append original SQL (with INSERT -> INSERT IGNORE)
+  printf "SET FOREIGN_KEY_CHECKS=1;\n\n" >> "$temp_sql"
+  if ! perl -0777 -pe 's/\bINSERT\s+INTO\b/INSERT IGNORE INTO/ig' "$sql_path" >> "$temp_sql"; then
+    echo "   ❌ Failed to append transformed SQL for $db_name"
+    rm -f "$temp_sql"
+    FAILED+=("$db_name")
+    continue
+  fi
+
+  # 3) Apply transformed SQL into MySQL
   if kubectl exec -i -n data deploy/mysql -- \
-    mysql -uroot -p"${MYSQL_ROOT_PASS}" "$db_name" \
-    < "$sql_path" 2>&1; then
+    mysql -u"${MYSQL_USER}" -p"${MYSQL_PASS}" "$db_name" \
+    < "$temp_sql" 2>&1; then
     echo "   ✅ Seeded successfully: $db_name"
   else
     echo "   ❌ Failed to seed: $db_name"
     FAILED+=("$db_name")
   fi
+  rm -f "$temp_sql"
   echo ""
 done
 
@@ -115,7 +177,7 @@ fi
 echo ""
 echo "📋 Verify databases:"
 if kubectl exec -n data deploy/mysql -- \
-  mysql -uroot -p"${MYSQL_ROOT_PASS}" -e "SHOW DATABASES LIKE 'job7189%';" 2>/dev/null | \
+  mysql -u"${MYSQL_USER}" -p"${MYSQL_PASS}" -e "SHOW DATABASES LIKE 'job7189%';" 2>/dev/null | \
   grep job7189 || echo "   (unable to list databases)"; then
   :
 fi

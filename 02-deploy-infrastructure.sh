@@ -396,6 +396,12 @@ log_time "1e2. Wait for Kafka ready"
 echo ""
 echo "? Setting up and deploying Kong..."
 
+echo "   Step 0: Pre-loading kong:3.6 image into Kind cluster nodes (avoid Docker Hub pull delay)..."
+docker pull kong:3.6 2>/dev/null || true
+kind load docker-image kong:3.6 --name "$CLUSTER_NAME" 2>/dev/null || true
+echo "   ✓ kong:3.6 loaded into Kind cluster"
+log_time "1f0. Pre-load Kong image"
+
 echo "   Step 1: Creating Kong configuration ConfigMap..."
 bash infras/kong/01_setup_kong_config.sh
 log_time "1f1. Setup Kong ConfigMap"

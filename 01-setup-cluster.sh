@@ -75,10 +75,35 @@ helm repo update
 log_time "3. Add Helm repos"
 
 # ========================
+# Pre-Step 4: Wait for cluster API readiness
+# ========================
+# The Kind cluster API server can take extra time to complete TLS setup after
+# `kind create cluster` returns. If kubectl tries to validate manifests (OpenAPI
+# schema download) before the API server is fully up, it hits a TLS handshake
+# timeout. This loop waits until the API server is reachable before proceeding.
+echo "? [Pre-4] Waiting for Kubernetes API server to be ready..."
+_cluster_wait_max=120
+_cluster_wait_interval=5
+_cluster_wait_elapsed=0
+until kubectl cluster-info --request-timeout=5s >/dev/null 2>&1; do
+  if [ "$_cluster_wait_elapsed" -ge "$_cluster_wait_max" ]; then
+    echo "    ! WARNING: cluster API not ready after ${_cluster_wait_max}s, proceeding anyway"
+    break
+  fi
+  echo "    ... API not ready yet (${_cluster_wait_elapsed}s elapsed), retrying in ${_cluster_wait_interval}s"
+  sleep "$_cluster_wait_interval"
+  _cluster_wait_elapsed=$((_cluster_wait_elapsed + _cluster_wait_interval))
+done
+echo "    ? Cluster API is ready (${_cluster_wait_elapsed}s waited)"
+
+# ========================
 # Step 4: Install Gateway API CRDs
 # ========================
 echo "? [4/8] Installing Gateway API CRDs..."
-kubectl apply --server-side -f \
+# --validate=false skips client-side OpenAPI schema validation, avoiding a
+# second TLS handshake to the API server that can time out on slow starts.
+# Server-side apply (--server-side) still enforces correctness on the server.
+kubectl apply --server-side --validate=false -f \
   https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
 log_time "4. Install Gateway API v1.1.0"
 

@@ -1,0 +1,32 @@
+% !TEX encoding = UTF-8
+
+\chapter*{Kết luận}
+\addcontentsline{toc}{chapter}{Kết luận}
+
+Sau thời gian nghiên cứu và triển khai thực nghiệm đề tài \textbf{"Kiến trúc Microservice và Ứng dụng trong Xây dựng Hệ thống tuyển dụng"}, đồ án đã hoàn thành các mục tiêu đặt ra ban đầu. Dưới đây là các kết quả chính đạt được:
+
+\paragraph{Về mặt lý thuyết:}
+\begin{itemize}
+    \item Đồ án đã hệ thống hóa được triết lý của kiến trúc Microservices, tập trung vào sự cân bằng giữa tốc độ phát triển và an toàn vận hành ở quy mô lớn.
+    \item Nghiên cứu sâu và áp dụng thành công phương pháp luận \textbf{Thiết kế hướng miền (Domain-Driven Design)} để phân rã nghiệp vụ phức tạp thành 07 dịch vụ độc lập với ranh giới rõ ràng (\textit{Bounded Context}).
+    \item Làm rõ các mẫu thiết kế quan trọng trong hệ thống phân tán như: \textit{Database per Service}, \textit{API Gateway}, \textit{Event-Driven Architecture} và cơ chế nhất quán dữ liệu cuối cùng (\textit{Eventual Consistency}).
+\end{itemize}
+
+\paragraph{Về mặt thực nghiệm (Hệ thống job7189):}
+\begin{itemize}
+    \item Xây dựng thành công hệ thống Backend phân tán gồm 07 Microservices nghiệp vụ vận hành dựa trên framework Laravel và cơ sở dữ liệu MySQL độc lập.
+    \item Triển khai hạ tầng kỹ thuật hiện đại với \textbf{Kong API Gateway} đóng vai trò cửa ngõ xác thực tập trung và \textbf{Apache Kafka} làm xương sống cho giao tiếp bất đồng bộ giữa các dịch vụ.
+    \item Tối ưu hóa việc xử lý tệp tin (CV, hình ảnh) thông qua giải pháp \textbf{Presigned URL} với hệ thống \textbf{MinIO}, giúp giảm tải hoàn toàn băng thông cho các API nghiệp vụ.
+    \item Xây dựng quy trình tuyển dụng động (ATS Pipeline) linh hoạt, cho phép theo dõi ứng viên qua giao diện Kanban một cách trực quan và hiệu quả.
+    \item Thiết lập hệ thống giám sát nhật ký tập trung (\textbf{Centralized Logging}) dựa trên Elasticsearch và Kibana, cung cấp khả năng quan sát (Observability) cần thiết cho một kiến trúc phân tán.
+\end{itemize}
+
+\paragraph{Hạn chế và hướng phát triển:}
+Mặc dù đã đạt được những kết quả khả quan về mặt kiến trúc, đồ án vẫn còn một số điểm cần tiếp tục hoàn thiện:
+\begin{itemize}
+    \item \textbf{Khả năng chịu lỗi:} Cần bổ sung các mẫu thiết kế như \textit{Circuit Breaker} và \textit{Bulkhead} để tăng cường khả năng tự phục hồi khi có dịch vụ thành phần gặp sự cố.
+    \item \textbf{Tự động hóa triển khai:} Hiện tại hệ thống đang được triển khai thực nghiệm qua Docker Compose, hướng phát triển tiếp theo là xây dựng luồng CI/CD hoàn chỉnh trên nền tảng Kubernetes.
+    \item \textbf{Trình soạn thảo CV:} Trong tương lai, hệ thống có thể tích hợp thêm bộ công cụ chỉnh sửa CV trực tuyến và áp dụng các thuật toán so khớp (Matching) để nâng cao hiệu quả kết nối giữa ứng viên và doanh nghiệp.
+\end{itemize}
+
+Tóm lại, đồ án không chỉ dừng lại ở việc xây dựng một ứng dụng tuyển dụng mà quan trọng hơn là đã hiện thực hóa được một \textbf{Khung kiến trúc Microservices tiêu chuẩn}, có khả năng mở rộng linh hoạt và sẵn sàng thích ứng với các yêu cầu nghiệp vụ phức tạp trong thực tế.

@@ -1,0 +1,67 @@
+% !TEX root = ../main.tex
+
+% \clearpage
+\pagestyle{empty} % Trang này không có số trang hay header/footer
+
+% Sử dụng môi trường tcolorbox để tạo khung
+% Lỗi được sửa bằng cách XÓA tùy chọn "height=\textheight"
+% và để lệnh \vfill bên trong tự động giãn nội dung ra lấp đầy trang.
+\begin{tcolorbox}[
+    enhanced,
+    colback=white,      % Màu nền
+    colframe=black,     % Màu khung
+    boxrule=0.4pt,      % Độ dày viền
+    sharp corners       % Góc vuông
+]
+
+% === BẮT ĐẦU NỘI DUNG BÊN TRONG KHUNG ===
+
+\centering % Căn giữa tiêu đề
+{\Large\bfseries NHẬN XÉT CỦA GIẢNG VIÊN HƯỚNG DẪN \par}
+\vspace{1cm} % Khoảng trống sau tiêu đề
+
+\begin{flushleft} % Căn trái nội dung
+\large % Cỡ chữ cho các mục
+
+\textbf{1. Mục tiêu và nội dung của đồ án}
+\vspace{0.4cm}
+
+\hangindent=2em (a) Mục tiêu: \dotfill
+\par\dotfill
+\par\dotfill
+
+\vspace{0.6cm}
+\hangindent=2em (b) Nội dung: \dotfill
+\par\dotfill
+\par\dotfill
+\par\dotfill
+
+\vspace{0.8cm}
+\textbf{2. Kết quả đạt được:}
+\par\dotfill
+\par\dotfill
+\par\dotfill
+\par\dotfill
+
+\vspace{0.8cm}
+\textbf{3. Ý thức làm việc của sinh viên:}
+\par\dotfill
+\par\dotfill
+\par\dotfill
+\par\dotfill
+
+\end{flushleft}
+
+\vfill % Lệnh quan trọng: Đẩy tất cả nội dung bên dưới xuống cuối hộp
+
+% === NƠI KÝ TÊN ===
+\begin{flushright} % Căn phải
+    \textit{Hà Nội, ngày \hspace{1cm} tháng \hspace{1cm} năm 2026}
+    \vspace{0.5cm}\\ % Tăng khoảng cách để có chỗ ký tên
+    \textbf{Giảng viên hướng dẫn}
+    \vspace{2cm} % Thêm một chút đệm ở cuối
+\end{flushright}
+
+% === KẾT THÚC NỘI DUNG BÊN TRONG KHUNG ===
+
+\end{tcolorbox}

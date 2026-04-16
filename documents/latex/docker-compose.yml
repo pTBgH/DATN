@@ -1,0 +1,21 @@
+services:
+  latex:
+    build: .
+    container_name: my_latex_project
+    volumes:
+      - .:/workdir
+    working_dir: /workdir
+    # Lệnh biên dịch đầy đủ: pdflatex -> biber -> pdflatex x2
+    # Thêm -shell-escape để dùng được gói minted
+    # command: >
+    #   sh -c "pdflatex -shell-escape -interaction=nonstopmode main.tex && 
+    #          biber main && 
+    #          pdflatex -shell-escape main.tex && 
+    #          pdflatex -shell-escape main.tex"  
+
+    # command: latexmk -pdf -pvc -shell-escape -interaction=nonstopmode main.tex
+
+    command: >
+      latexmk -pdf -pvc -shell-escape -interaction=nonstopmode  -outdir=build  main.tex
+    # Đảm bảo file PDF tạo ra thuộc quyền sở hữu của bạn (Ubuntu)
+    user: "${UID:-1000}:${GID:-1000}"

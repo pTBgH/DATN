@@ -1,0 +1,6 @@
+\begin{figure}[H]
+    \centering
+    \includegraphics[height=0.8\textheight]{images/nsew.png}
+    \caption{Lưu lượng \textit{North-South} (từ Internet vào hệ thống) và \textit{East-West} (giữa các dịch vụ nội bộ)}
+    \label{fig:nsew}
+\end{figure}

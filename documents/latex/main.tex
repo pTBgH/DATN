@@ -1,0 +1,69 @@
+% !TEX root = main.tex
+% !TEX encoding = UTF-8
+
+\input{preamble.tex} 
+
+%=======================================================
+% THÔNG TIN TRANG BÌA
+%=======================================================
+% CẬP NHẬT LẠI TIÊU ĐỀ
+\title{KIẾN TRÚC MICROSERVICE VÀ ỨNG DỤNG TRONG HỆ THỐNG TUYỂN DỤNG}
+\author{Phùng Thái Bảo} % Giữ tên của bạn
+\date{Tháng 1 năm 2026}
+
+%=======================================================
+% BẮT ĐẦU TÀI LIỆU
+%=======================================================
+\begin{document}
+
+% PHẦN ĐẦU (FRONT MATTER)
+%---------------------------------------------------
+\input{frontmatter/cover.tex}
+
+\clearpage
+\null
+\thispagestyle{empty}
+\clearpage
+
+\pagenumbering{roman} 
+\pagestyle{plain} 
+
+\input{frontmatter/acknowledgement.tex}
+\clearpage
+
+\input{frontmatter/abstract.tex}
+\clearpage
+
+\input{frontmatter/instructor-comments.tex}
+\clearpage
+
+
+
+% Mục lục
+\tableofcontents
+\clearpage
+
+\listoffigures
+\clearpage
+\listoftables
+
+% PHẦN THÂN (MAIN MATTER)
+%---------------------------------------------------
+\clearpage
+\pagenumbering{arabic} 
+\pagestyle{fancy} 
+
+% NHẬP NỘI DUNG CÁC CHƯƠNG
+\input{chapters/chapter1.tex}
+\input{chapters/chapter2.tex}
+\input{chapters/chapter3.tex}
+% \input{chapters/chapterketluan.tex}
+
+% PHẦN CUỐI (BACK MATTER)
+%---------------------------------------------------
+\clearpage
+\pagestyle{plain} 
+
+\printbibliography
+ 
+\end{document}

@@ -34,7 +34,6 @@ spec:
         volumeMounts:
         - name: kong-config-volume
           mountPath: /opt/kong
-          readOnly: true
       volumes:
       - name: kong-config-volume
         configMap:

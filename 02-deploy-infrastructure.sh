@@ -69,24 +69,45 @@ wait_for_pods() {
   local label=$1
   local namespace=$2
   local timeout=${3:-300}
+  local start_time current_time elapsed
+  local pod_table total_pods ready_pods
   
   echo "    Checking pod status for $label in $namespace..."
-  kubectl get pod -n $namespace -l $label -o wide 2>/dev/null || echo "    (pods not created yet)"
-  
-  if kubectl wait --for=condition=Ready=True pod \
-    -l $label \
-    -n $namespace \
-    --timeout=${timeout}s 2>/dev/null; then
-    echo "    ✔ Pods ready: $label"
-  else
-    echo "⚠  Pod wait timeout for $label in $namespace"
-    kubectl get pod -n $namespace -l $label || true
-    if [ "$WAIT_STRICT" = "1" ]; then
-      echo "❌ Strict mode enabled. Stopping due to readiness timeout."
-      return 1
+  kubectl get pod -n "$namespace" -l "$label" -o wide 2>/dev/null || echo "    (pods not created yet)"
+
+  start_time=$(date +%s)
+  while true; do
+    pod_table=$(kubectl get pod -n "$namespace" -l "$label" --no-headers 2>/dev/null || true)
+
+    if [ -n "$pod_table" ]; then
+      total_pods=$(printf '%s\n' "$pod_table" | awk 'NF>0 && $3 != "Terminating" {count++} END {print count+0}')
+      ready_pods=$(printf '%s\n' "$pod_table" | awk 'NF>0 && $3 != "Terminating" {split($2,a,"/"); if (a[2] > 0 && a[1] == a[2]) count++} END {print count+0}')
+
+      if [ "$total_pods" -gt 0 ] && [ "$ready_pods" -eq "$total_pods" ]; then
+        echo "    ✔ Pods ready: $label ($ready_pods/$total_pods)"
+        return 0
+      fi
+
+      echo "    Waiting pods: $label ($ready_pods/$total_pods ready)"
+    else
+      echo "    Waiting pods: $label (0/0 ready)"
     fi
-    echo "    (Continuing because WAIT_STRICT=0)"
-  fi
+
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "⚠  Pod wait timeout for $label in $namespace"
+      kubectl get pod -n "$namespace" -l "$label" || true
+      if [ "$WAIT_STRICT" = "1" ]; then
+        echo "❌ Strict mode enabled. Stopping due to readiness timeout."
+        return 1
+      fi
+      echo "    (Continuing because WAIT_STRICT=0)"
+      return 0
+    fi
+
+    sleep 5
+  done
   return 0
 }
 
@@ -449,7 +470,9 @@ if [ -n "$NON_RUNNING_PODS" ]; then
   exit 1
 fi
 
-NOT_READY_PODS=$(kubectl get pod -A --no-headers 2>/dev/null | awk '{split($2,a,"/"); if (a[1] != a[2]) print $0}')
+NOT_READY_PODS=$(kubectl get pod -A --no-headers 2>/dev/null \
+  | awk '{split($3,a,"/"); if (a[1] != a[2]) print $0}' || true)
+
 if [ -n "$NOT_READY_PODS" ]; then
   echo "❌ Pods not fully Ready (READY column x/x):"
   echo "$NOT_READY_PODS"

@@ -142,12 +142,19 @@ echo -e "${BLUE}[4/4] Verification...${NC}"
 echo ""
 
 echo "  Local Docker images (job7189):"
-REMAINING=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '(job7189/|:5000/job7189/)' | wc -l || echo 0)
+# REMAINING=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '(job7189/|:5000/job7189/)' | wc -l || echo 0)
+REMAINING=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
+  | grep -E '(job7189/|:5000/job7189/)' || true)
+
+REMAINING=$(echo "$REMAINING" | wc -l)
+
 if [ "$REMAINING" -eq 0 ]; then
   echo -e "    ${GREEN}✓ Zero images${NC}"
 else
   echo -e "    ${YELLOW}⚠ $REMAINING image(s) still present${NC}"
-  docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '(job7189/|:5000/job7189/)' | sed 's/^/    /'
+  docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null \
+    | grep -E '(job7189/|:5000/job7189/)' \
+    | sed 's/^/    /' || true
 fi
 
 echo ""

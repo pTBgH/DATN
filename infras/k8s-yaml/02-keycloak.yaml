@@ -6,6 +6,13 @@
 #   - Admin password read from Kubernetes Secret 'app-secrets' (generated at deploy time)
 #   - NO hardcoded credentials in this file
 # ==========================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: security
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,6 +28,7 @@ spec:
       labels:
         app: keycloak
     spec:
+      serviceAccountName: keycloak
       initContainers:
       # Chờ MySQL thực sự ready — check TCP port, không check theo thời gian
       - name: wait-for-mysql
@@ -29,8 +37,15 @@ spec:
         - sh
         - -c
         - |
+          MAX_TRIES=60
+          TRY=0
           echo "Waiting for MySQL..."
           until nc -z mysql.data.svc.cluster.local 3306; do
+            TRY=$((TRY+1))
+            if [ "$TRY" -ge "$MAX_TRIES" ]; then
+              echo "ERROR: MySQL did not become reachable within $((MAX_TRIES*3))s" >&2
+              exit 1
+            fi
             echo "MySQL not ready, retrying in 3s..."
             sleep 3
           done

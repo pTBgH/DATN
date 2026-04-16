@@ -20,7 +20,11 @@ spec:
   egress: []
 
 ---
-# Allow identity-service in job7189-apps to reach mysql in data on TCP/3306
+# NOTE: This policy set uses ServiceAccount identity labels because
+# CiliumNetworkPolicy v2 does not provide a native fromServiceAccounts field.
+# ServiceAccount identity key: io.cilium.k8s.policy.serviceaccount
+
+# Allow identity-service SA in job7189-apps to reach mysql SA in data on TCP/3306
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -29,11 +33,13 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app: identity-service
+      io.cilium.k8s.policy.serviceaccount: identity-service
+      io.kubernetes.pod.namespace: job7189-apps
   egress:
   - toEndpoints:
     - matchLabels:
-        app: mysql
+        io.cilium.k8s.policy.serviceaccount: mysql
+        io.kubernetes.pod.namespace: data
     toPorts:
     - ports:
       - port: "3306"
@@ -49,7 +55,7 @@ spec:
         protocol: TCP
 
 ---
-# Allow mysql pod to accept traffic only from identity-service in job7189-apps
+# Allow mysql SA in data to accept traffic only from identity-service SA in job7189-apps
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -58,12 +64,131 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app: mysql
+      io.cilium.k8s.policy.serviceaccount: mysql
+      io.kubernetes.pod.namespace: data
   ingress:
   - fromEndpoints:
     - matchLabels:
-        app: identity-service
+        io.cilium.k8s.policy.serviceaccount: identity-service
+        io.kubernetes.pod.namespace: job7189-apps
     toPorts:
     - ports:
       - port: "3306"
         protocol: TCP
+
+---
+# Restrict identity-service to only allow HTTP GET /api/v1/auth (L7 enforcement)
+# Ingress source is constrained to pods that carry ServiceAccount identity labels.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: restrict-identity-api-l7
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: identity-service
+      io.kubernetes.pod.namespace: job7189-apps
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: io.cilium.k8s.policy.serviceaccount
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/v1/auth"
+  egress: []
+
+---
+# Allow identity-service SA to communicate with Vault SA in namespace vault on 8200
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-identity-to-vault
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: identity-service
+      io.kubernetes.pod.namespace: job7189-apps
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: vault
+        io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+  ingress: []
+
+---
+# Temporary: allow egress from test client SA to identity-service SA for verification
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-testclient-egress-to-identity
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: test-client-allowed
+      io.kubernetes.pod.namespace: job7189-apps
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: identity-service
+        io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+  ingress: []
+
+---
+# Allow mysql SA in data namespace to reach Vault SA on 8200 for bootstrap
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-to-vault
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: mysql
+      io.kubernetes.pod.namespace: data
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: vault
+        io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+  ingress: []
+
+---
+# Allow DNS egress to kube-dns (cluster DNS) so pods can resolve services
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toCIDR:
+    - "10.96.0.10/32"
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  ingress: []

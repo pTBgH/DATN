@@ -72,6 +72,13 @@ spec:
 # ==========================================
 # 2. KIBANA (Giao diện quản lý)
 # ==========================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kibana
+  namespace: monitoring
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -87,6 +94,7 @@ spec:
       labels:
         app: kibana
     spec:
+      serviceAccountName: kibana
       containers:
       - name: kibana
         image: docker.elastic.co/kibana/kibana:7.17.18

@@ -39,6 +39,7 @@ spec:
       labels:
         app: docker-registry
     spec:
+      serviceAccountName: docker-registry
       containers:
       - name: registry
         image: registry:2

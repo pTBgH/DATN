@@ -36,6 +36,7 @@ trap print_summary EXIT
 # ==================== CONFIGURATION ====================
 CLUSTER_NAME="job7189"
 CILIUM_VERSION="1.19.1"
+CERT_MANAGER_VERSION="v1.14.7"
 
 # ==================== SCRIPT START ====================
 echo ""
@@ -110,36 +111,8 @@ log_time "4. Install Gateway API v1.1.0"
 # ========================
 # Step 5: Install Cilium CNI
 # ========================
-echo "? [5/8] Installing Cilium CNI..."
-check_kernel_support() {
-  echo "    Checking node kernel versions for WireGuard support..."
-  local fail=0
-  for kv in $(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}:{.status.nodeInfo.kernelVersion}{"\n"}{end}'); do
-    node=${kv%%:*}
-    ver=${kv#*:}
-    # extract major and minor (e.g. 6.8 from 6.8.0-107-generic)
-    major=$(echo "$ver" | awk -F. '{print $1}')
-    minor=$(echo "$ver" | awk -F. '{print $2}')
-    if [ "$major" -gt 5 ] || ( [ "$major" -eq 5 ] && [ "$minor" -ge 6 ] ); then
-      echo "      $node: kernel $ver -> WireGuard support OK"
-    else
-      echo "      $node: kernel $ver -> WireGuard MAY NOT be supported"
-      fail=1
-    fi
-  done
-  if [ "$fail" -ne 0 ]; then
-    echo "\n[ERROR] One or more nodes may not support WireGuard. Aborting Cilium WireGuard enablement."
-    return 1
-  fi
-  return 0
-}
-
-# Check kernels before attempting to enable WireGuard
-if check_kernel_support; then
-  echo "    Proceeding with Helm upgrade to enable WireGuard and mesh auth"
-else
-  echo "    Skipping WireGuard enablement; installing Cilium with defaults"
-fi
+echo "? [5/8] Installing Cilium CNI (stability baseline: Plain HTTP, no WireGuard)..."
+echo "    Stability-first mode: encryption.enabled=false, authentication.enabled=false"
 
 # Use Helm upgrade/install (atomic) to ensure reproducible config
 helm upgrade --install cilium cilium/cilium \
@@ -147,8 +120,7 @@ helm upgrade --install cilium cilium/cilium \
   --namespace kube-system \
   -f k8s-management/cilium/cilium-values.yaml \
   --set image.pullPolicy=IfNotPresent \
-  --set encryption.enabled=true \
-  --set encryption.type=wireguard \
+  --set encryption.enabled=false \
   --set authentication.enabled=false \
   --reuse-values \
   --wait --timeout 10m
@@ -206,61 +178,14 @@ else
 fi
 
 # ========================
-# Step 5c: Apply ZTA CiliumNetworkPolicies for job7189-apps
+# Step 5c: Stability-first policy posture
 # ========================
-echo "? [5c] Applying Zero Trust CiliumNetworkPolicies (default-deny + auth-required)"
-cat <<'EOF' | kubectl apply -f -
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: default-deny-job7189-apps
-  namespace: job7189-apps
-spec:
-  endpointSelector: {}
-  ingress: []
-  egress: []
-  # An empty rule set for both ingress and egress enforces default deny for the namespace
-EOF
+echo "? [5c] Stability-first: skipping strict app policies during baseline"
+echo "    Security policies will be applied after all pods are 1/1 Ready"
 
-cat <<'EOF' | kubectl apply -f -
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: require-auth-identity-to-db
-  namespace: job7189-apps
-spec:
-  endpointSelector:
-    matchLabels:
-      app: identity-service
-  egress:
-  - toEndpoints:
-    - matchLabels:
-        app: mysql
-    authentication:
-      mode: required
-  # allow established return traffic implicitly via identity-based policies
-EOF
-
-echo "    Applied CiliumNetworkPolicy resources for job7189-apps"
-
-# Give policies a moment to propagate
-sleep 3
-
-# Post-upgrade: ensure config keys align (enable wireguard and L7 proxy, keep mesh-auth disabled until cert provider configured)
-echo "    Ensuring cilium-config keys: enable-wireguard=true, enable-l7-proxy=true, mesh-auth-enabled=false"
-kubectl -n kube-system patch configmap cilium-config --type merge -p '{"data":{"enable-wireguard":"true","enable-l7-proxy":"true","mesh-auth-enabled":"false"}}' || true
-
-# If running Kind locally, attempt to load wireguard on host node containers (docker). This is best-effort.
-if command -v docker >/dev/null 2>&1; then
-  for n in $(docker ps --format '{{.Names}}' | grep $CLUSTER_NAME || true); do
-    echo "    Trying modprobe wireguard on host container: $n"
-    docker exec $n sh -c 'modprobe wireguard || true; lsmod | grep wireguard || true' || true
-  done
-else
-  echo "    docker not found; skipping host modprobe step (you may need to nsenter/modprobe on hosts)"
-fi
-
-echo "    (Fast-Mode) skipping daemonset restart; Helm triggered rollout if needed"
+# Post-upgrade: keep Cilium L7 proxy enabled but WireGuard and mesh-auth disabled.
+echo "    Ensuring cilium-config keys: enable-wireguard=false, enable-l7-proxy=true, mesh-auth-enabled=false"
+kubectl -n kube-system patch configmap cilium-config --type merge -p '{"data":{"enable-wireguard":"false","enable-l7-proxy":"true","mesh-auth-enabled":"false"}}' || true
 
 
 # ========================
@@ -288,13 +213,19 @@ log_time "6. Create namespaces"
 # ========================
 echo "? [7/8] Installing cert-manager..."
 kubectl apply -f \
-  https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+  "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
 log_time "7a. Install cert-manager"
-echo "    Waiting up to 180s for cert-manager webhook pods to become Ready"
-if kubectl wait --for=condition=Ready=True pod -l app.kubernetes.io/component=webhook -n cert-manager --timeout=180s 2>/dev/null; then
-  echo "    ? cert-manager webhook ready"
+echo "    Waiting for cert-manager CRDs and core components to become healthy"
+kubectl wait --for=condition=Established crd/certificates.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+kubectl wait --for=condition=Established crd/issuers.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+kubectl wait --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+
+if kubectl -n cert-manager rollout status deploy/cert-manager --timeout=240s \
+  && kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=240s \
+  && kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=240s; then
+  echo "    ? cert-manager controller, cainjector, webhook are Ready"
 else
-  echo "    ! WARNING: cert-manager webhook did not become Ready within 180s"
+  echo "    ! WARNING: cert-manager is not fully healthy yet"
   kubectl -n cert-manager get pods -o wide || true
   kubectl get events -n cert-manager --sort-by='.lastTimestamp' | tail -n 10 || true
 fi

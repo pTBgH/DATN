@@ -122,14 +122,9 @@ data:
       tls_key_file  = "/vault/tls/tls.key"
     }
 
-    # Transit Auto-unseal — dùng vault-dev làm unsealer
-    seal "transit" {
-      address         = "http://vault-dev.vault.svc.cluster.local:8300"
-      token           = "vault-dev-root-token"
-      disable_renewal = "false"
-      key_name        = "vault-prod-unseal-key"
-      mount_path      = "transit/"
-    }
+    # Transit Auto-unseal — disabled for local bootstrap. Use manual unseal during PA bootstrap.
+    # To enable transit auto-unseal, re-add a transit seal stanza pointing at a reachable
+    # Vault transit unsealer (e.g., vault-dev) and ensure network policies allow access.
 
     ui            = true
     disable_mlock = true
@@ -175,12 +170,31 @@ spec:
         - sh
         - -c
         - |
-          echo "Waiting for vault-dev..."
-          until wget -qO- http://vault-dev.vault.svc.cluster.local:8300/v1/sys/health > /dev/null 2>&1; do
-            echo "vault-dev not ready, retrying in 3s..."
-            sleep 3
+          echo "Waiting for vault-dev (using service env vars if available)..."
+          TARGET_HOST="${VAULT_DEV_SERVICE_HOST:-vault-dev.vault.svc.cluster.local}"
+          TARGET_PORT="${VAULT_DEV_SERVICE_PORT:-8300}"
+          TRY=0
+          MAX_TRIES=150
+          while true; do
+            if wget -qO- "http://${TARGET_HOST}:${TARGET_PORT}/v1/sys/health" > /dev/null 2>&1; then
+              echo "vault-dev is ready (at ${TARGET_HOST}:${TARGET_PORT})"
+              break
+            fi
+            # fallback to DNS name if env var resolved differently
+            if [ "$TARGET_HOST" != "vault-dev.vault.svc.cluster.local" ]; then
+              if wget -qO- "http://vault-dev.vault.svc.cluster.local:${TARGET_PORT}/v1/sys/health" > /dev/null 2>&1; then
+                echo "vault-dev is ready via DNS"
+                break
+              fi
+            fi
+            TRY=$((TRY+1))
+            if [ $TRY -ge $MAX_TRIES ]; then
+              echo "ERROR: vault-dev did not become ready after $MAX_TRIES attempts" >&2
+              exit 1
+            fi
+            echo "vault-dev not ready, retrying in 2s... (attempt $TRY/$MAX_TRIES)"
+            sleep 2
           done
-          echo "vault-dev is ready!"
       containers:
       - name: vault
         image: hashicorp/vault:1.17
@@ -205,12 +219,18 @@ spec:
         - name: data
           mountPath: /vault/data
         readinessProbe:
-          httpGet:
-            path: /v1/sys/health?standbyok=true&sealedok=true&uninitok=true
-            port: 8200
-            scheme: HTTPS
+          exec:
+            command:
+            - sh
+            - -c
+            - |
+              STATUS_JSON=$(VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 vault status -format=json 2>/dev/null || true)
+              echo "$STATUS_JSON" | grep -q '"initialized"[[:space:]]*:[[:space:]]*true' && \
+              echo "$STATUS_JSON" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false'
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
         resources:
           requests:
             memory: "256Mi"

@@ -70,6 +70,13 @@ stringData:
   cookie-secret: "v92UDXzSJJZhKAldJT9M76rSH4MSGxTyWu9sbL-F8jg="
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oauth2-proxy
+  namespace: security
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -85,6 +92,7 @@ spec:
       labels:
         app: oauth2-proxy
     spec:
+      serviceAccountName: oauth2-proxy
       # Inject DNS mapping cho pod — auth.job7189.local → keycloak service IP
       # Cho phép pod + browser đều dùng cùng external hostname
       hostAliases:
@@ -101,8 +109,19 @@ spec:
         - sh
         - -c
         - |
+          MAX_TRIES=60
+          TRY=0
           echo "Waiting for Keycloak..."
+<<<<<<< HEAD
           until wget -qO- http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+=======
+          until wget -qO- http://auth.job7189.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+            TRY=$((TRY+1))
+            if [ "$TRY" -ge "$MAX_TRIES" ]; then
+              echo "ERROR: Keycloak endpoint not reachable after $((MAX_TRIES*5))s" >&2
+              exit 1
+            fi
+>>>>>>> 80f0a37 (pushhh)
             echo "Keycloak not ready, retrying in 5s..."
             sleep 5
           done

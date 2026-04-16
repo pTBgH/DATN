@@ -82,6 +82,13 @@ spec:
 # ==========================================
 # PHẦN 2: KAFBAT UI (Giao diện quản lý)
 # ==========================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kafbat
+  namespace: management
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -97,6 +104,7 @@ spec:
       labels:
         app: kafbat
     spec:
+      serviceAccountName: kafbat
       containers:
       - name: kafbat
         image: kafbat/kafka-ui:main

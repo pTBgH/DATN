@@ -1,6 +1,6 @@
 #!/bin/bash
 # Part 2: Deploy Infrastructure Services & Vault
-# This script: Deploys MySQL, Keycloak, Kafka, Kong, Vault, and related infrastructure
+# This script: Deploys Cert-Manager, Vault, MySQL, Keycloak, Kafka, Kong, and ELK
 set -euo pipefail
 
 # ==================== TIMING FUNCTIONS ====================
@@ -13,22 +13,22 @@ log_time() {
   local current_time=$(date +%s)
   local elapsed=$((current_time - STEP_START_TIME))
   STEP_TIMES["$step_name"]=$elapsed
-  echo "?  [$step_name] Duration: ${elapsed}s"
+  echo "⏱  [$step_name] Duration: ${elapsed}s"
   STEP_START_TIME=$current_time
 }
 
 print_summary() {
   local total_time=$(($(date +%s) - SCRIPT_START_TIME))
   echo ""
-  echo "????????????????????????????????????????????????"
-  echo "? PART 2: INFRASTRUCTURE - TIMING SUMMARY"
-  echo "????????????????????????????????????????????????"
+  echo "================================================"
+  echo "✅ PART 2: INFRASTRUCTURE - TIMING SUMMARY"
+  echo "================================================"
   for step in "${!STEP_TIMES[@]}"; do
     printf "  %-45s %3ds\n" "$step" "${STEP_TIMES[$step]}"
   done | sort
   echo "------------------------------------------------"
   printf "  %-45s %3ds\n" "TOTAL" "$total_time"
-  echo "????????????????????????????????????????????????"
+  echo "================================================"
 }
 
 trap print_summary EXIT
@@ -39,7 +39,30 @@ REGISTRY_HOST="localhost:5000"
 NODE_REGISTRY_ENDPOINT="172.17.0.1:5000"
 KEYCLOAK_IMAGE_REPO="job7189/keycloak-custom"
 KEYCLOAK_IMAGE_TAG="v1.0"
+CERT_MANAGER_VERSION="v1.14.7"
 FORCE_REBUILD_IMAGES="${FORCE_REBUILD_IMAGES:-0}"
+WAIT_STRICT="${WAIT_STRICT:-1}"
+CMD_TIMEOUT_SHORT="${CMD_TIMEOUT_SHORT:-25}"
+CMD_TIMEOUT_MEDIUM="${CMD_TIMEOUT_MEDIUM:-120}"
+CMD_TIMEOUT_LONG="${CMD_TIMEOUT_LONG:-600}"
+VAULT_REBUILD_TIMEOUT="${VAULT_REBUILD_TIMEOUT:-900}"
+DOCKER_BUILD_TIMEOUT="${DOCKER_BUILD_TIMEOUT:-1200}"
+DOCKER_PUSH_TIMEOUT="${DOCKER_PUSH_TIMEOUT:-600}"
+
+run_with_timeout() {
+  local timeout_seconds=$1
+  shift
+  local rc=0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --foreground "${timeout_seconds}s" "$@" || rc=$?
+    if [ "$rc" -eq 124 ]; then
+      echo "❌ Timeout after ${timeout_seconds}s: $*" >&2
+    fi
+    return "$rc"
+  else
+    "$@"
+  fi
+}
 
 # ==================== HELPER FUNCTIONS ====================
 wait_for_pods() {
@@ -54,13 +77,17 @@ wait_for_pods() {
     -l $label \
     -n $namespace \
     --timeout=${timeout}s 2>/dev/null; then
-    echo "    ? Pods ready: $label"
+    echo "    ✔ Pods ready: $label"
   else
-    echo "?  Pod wait timeout for $label in $namespace"
+    echo "⚠  Pod wait timeout for $label in $namespace"
     kubectl get pod -n $namespace -l $label || true
-    echo "    (Continuing anyway...)"
+    if [ "$WAIT_STRICT" = "1" ]; then
+      echo "❌ Strict mode enabled. Stopping due to readiness timeout."
+      return 1
+    fi
+    echo "    (Continuing because WAIT_STRICT=0)"
   fi
-  return 0  # Don't fail, continue anyway
+  return 0
 }
 
 wait_for_keycloak_admin_api() {
@@ -70,312 +97,254 @@ wait_for_keycloak_admin_api() {
 
   echo "   Waiting for Keycloak Admin API..."
   for ((attempt=1; attempt<=retries; attempt++)); do
-    if kubectl exec -n security "$pod_name" -- /opt/keycloak/bin/kcadm.sh config credentials \
+    if run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n security "$pod_name" -- /opt/keycloak/bin/kcadm.sh config credentials \
       --server http://127.0.0.1:8080 \
       --realm master \
       --user admin \
       --password "$admin_password" >/dev/null 2>&1; then
-      echo "    ? Keycloak Admin API ready"
+      echo "    ✔ Keycloak Admin API ready"
       return 0
     fi
     echo "    (admin API not ready yet, attempt $attempt/$retries)"
     sleep 5
   done
-
-  echo "?  Keycloak Admin API readiness timeout"
+  echo "⚠  Keycloak Admin API readiness timeout"
   return 1
 }
 
 get_secret_value() {
   local namespace=$1
   local key=$2
-
   kubectl get secret app-secrets -n "$namespace" \
     -o go-template="{{index .data \"$key\"}}" 2>/dev/null | base64 -d 2>/dev/null || true
 }
 
 current_mysql_root_password() {
-  kubectl exec -n data deploy/mysql -- sh -lc 'printf "%s" "$MYSQL_ROOT_PASSWORD"' 2>/dev/null || true
+  run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n data deploy/mysql -- sh -lc 'printf "%s" "$MYSQL_ROOT_PASSWORD"' 2>/dev/null || true
 }
 
 ensure_local_registry() {
   if [ ! -d "infras/local-registry" ]; then
-    echo "? ERROR: infras/local-registry directory not found"
+    echo "❌ ERROR: infras/local-registry directory not found"
     return 1
   fi
-
   if docker ps 2>/dev/null | grep -q "local-registry"; then
     echo "   ✓ Local Registry already running"
     return 0
   fi
-
   echo "   Starting local Docker Registry via docker-compose..."
-  (cd infras/local-registry && docker-compose up -d)
+  run_with_timeout "$CMD_TIMEOUT_MEDIUM" bash -lc 'cd infras/local-registry && docker-compose up -d'
   sleep 2
   echo "   ✓ Local Registry started"
 }
 
 configure_kind_registry_access() {
   local registry_endpoint=$1
-  local nodes
-  local node
-
-  nodes=$(kind get nodes --name "$CLUSTER_NAME" 2>/dev/null || true)
+  local nodes=$(kind get nodes --name "$CLUSTER_NAME" 2>/dev/null || true)
   if [ -z "$nodes" ]; then
     nodes=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^job7189-' || true)
   fi
-
   if [ -z "$nodes" ]; then
-    echo "? ERROR: Unable to find Kind nodes for cluster $CLUSTER_NAME"
+    echo "❌ ERROR: Unable to find Kind nodes for cluster $CLUSTER_NAME"
     return 1
   fi
-
   for node in $nodes; do
     docker exec "$node" sh -lc "mkdir -p /etc/containerd/certs.d/${registry_endpoint}"
-    docker exec "$node" sh -lc "cat > /etc/containerd/certs.d/${registry_endpoint}/hosts.toml <<'EOF'
+    docker exec "$node" sh -lc "cat > /etc/containerd/certs.d/${registry_endpoint}/hosts.toml <<EOF
 server = \"http://${registry_endpoint}\"
-
 [host.\"http://${registry_endpoint}\"]
   capabilities = [\"pull\", \"resolve\", \"push\"]
   skip_verify = true
 EOF"
   done
-
   echo "   ✓ Kind nodes configured for registry endpoint: ${registry_endpoint}"
 }
 
 registry_has_tag() {
   local repository=$1
   local tag=$2
-  local tags_json
+  if ! command -v curl >/dev/null 2>&1; then return 1; fi
+  curl -fsS "http://${REGISTRY_HOST}/v2/${repository}/tags/list" 2>/dev/null | grep -q "\"${tag}\""
+}
 
-  if ! command -v curl >/dev/null 2>&1; then
-    return 1
+install_cert_manager_if_missing() {
+  echo "🔍 Checking cert-manager CRDs..."
+  if ! kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then
+    echo "⚠ cert-manager CRDs missing - installing cert-manager..."
+    run_with_timeout "$CMD_TIMEOUT_MEDIUM" kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+  else
+    echo "   ✓ cert-manager CRDs present"
   fi
 
-  tags_json=$(curl -fsS "http://${REGISTRY_HOST}/v2/${repository}/tags/list" 2>/dev/null || true)
-  echo "$tags_json" | grep -q "\"${tag}\""
+  kubectl wait --for=condition=Established crd/certificates.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+  kubectl wait --for=condition=Established crd/issuers.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+  kubectl wait --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=180s >/dev/null 2>&1 || true
+
+  if kubectl -n cert-manager rollout status deploy/cert-manager --timeout=240s \
+    && kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=240s \
+    && kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=240s; then
+    echo "   ✓ cert-manager is healthy"
+  else
+    echo "❌ cert-manager is not fully healthy"
+    kubectl -n cert-manager get pods -o wide || true
+    return 1
+  fi
 }
 
 # ==================== SCRIPT START ====================
 echo ""
-echo "????????????????????????????????????????????????????????????"
-echo "?  PART 2: INFRASTRUCTURE SERVICES & VAULT                ?"
-echo "?  Status: Deploying MySQL, Kafka, Kong, Vault            ?"
-echo "????????????????????????????????????????????????????????????"
+echo "============================================================"
+echo "🚀 PART 2: INFRASTRUCTURE SERVICES & VAULT (ZTA ORDER)"
+echo "============================================================"
 echo ""
 
-# Check if cluster is ready
-echo "? Pre-flight check: Verifying cluster readiness..."
+# Pre-flight check
+echo "🔍 Pre-flight check: Verifying cluster readiness..."
 if ! kubectl get nodes &>/dev/null; then
-  echo "? ERROR: Kubernetes cluster not accessible!"
-  echo "   Please run 01-setup-cluster.sh first"
+  echo "❌ ERROR: Kubernetes cluster not accessible! Run 01-setup-cluster.sh first"
   exit 1
 fi
+echo "   ✓ Cluster is accessible"
 
-CLUSTER_STATUS=$(kubectl get pod -n kube-system -l k8s-app=cilium --no-headers 2>/dev/null | wc -l)
-if [ "$CLUSTER_STATUS" -lt 1 ]; then
-  echo "?  WARNING: Cilium pods not found. Continuing anyway..."
-fi
-echo "? Cluster is accessible"
-log_time "Pre-flight check"
-
-# Ensure required namespaces exist (idempotent)
+# Ensure required namespaces
 for ns in vault data management job7189-apps security gateway monitoring ingress-nginx cert-manager; do
-  if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
-    echo "? Namespace '$ns' not found — creating"
-    kubectl create namespace "$ns" || true
-  fi
+  kubectl get namespace "$ns" >/dev/null 2>&1 || kubectl create namespace "$ns" >/dev/null
 done
-log_time "Pre-flight: ensure namespaces"
-
-# read -p "? Continue with infrastructure deployment? (yes/no): " answer
-# [[ "$answer" == "yes" ]] || exit 1
+log_time "0. Pre-flight checks & Namespaces"
 
 # ========================
-# 1. Deploy Base Infrastructure (ZTA: Random Credentials)
+# 1. Generate Credentials
 # ========================
 echo ""
-echo "🔐 Step 1: Generating secure credentials (ZTA — no hardcoded passwords)..."
+echo "🔐 Step 1: Generating secure credentials..."
 
-# Prefer active credentials when components already exist to avoid password drift.
-MYSQL_ROOT_PASS=""
-KEYCLOAK_ADMIN_PASS=""
-VAULT_MANAGER_PASS=""
-
-ACTIVE_MYSQL_ROOT_PASS=$(current_mysql_root_password)
-if [ -n "$ACTIVE_MYSQL_ROOT_PASS" ]; then
-  MYSQL_ROOT_PASS="$ACTIVE_MYSQL_ROOT_PASS"
-  echo "   ✓ Reusing active MySQL root password from running mysql pod"
-else
-  SECRET_MYSQL_ROOT_PASS=$(get_secret_value data mysql-root-password)
-  if [ -n "$SECRET_MYSQL_ROOT_PASS" ]; then
-    MYSQL_ROOT_PASS="$SECRET_MYSQL_ROOT_PASS"
-    echo "   ✓ Reusing MySQL root password from existing secret"
-  else
-    MYSQL_ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-    echo "   ✓ Generated new MySQL root password"
-  fi
-fi
+MYSQL_ROOT_PASS=$(current_mysql_root_password)
+[ -z "$MYSQL_ROOT_PASS" ] && MYSQL_ROOT_PASS=$(get_secret_value data mysql-root-password)
+[ -z "$MYSQL_ROOT_PASS" ] && MYSQL_ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
 
 KEYCLOAK_ADMIN_PASS=$(get_secret_value security keycloak-admin-password)
-if [ -z "$KEYCLOAK_ADMIN_PASS" ]; then
-  KEYCLOAK_ADMIN_PASS=$(get_secret_value data keycloak-admin-password)
-fi
-if [ -n "$KEYCLOAK_ADMIN_PASS" ]; then
-  echo "   ✓ Reusing Keycloak admin password from existing secret"
-else
-  KEYCLOAK_ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
-  echo "   ✓ Generated new Keycloak admin password"
-fi
+[ -z "$KEYCLOAK_ADMIN_PASS" ] && KEYCLOAK_ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
 
 VAULT_MANAGER_PASS=$(get_secret_value data vault-manager-password)
-if [ -n "$VAULT_MANAGER_PASS" ]; then
-  echo "   ✓ Reusing Vault manager password from existing secret"
-else
-  VAULT_MANAGER_PASS=$(openssl rand -base64 20 | tr -d '/+=' | head -c 20)
-  echo "   ✓ Generated new Vault manager password"
-fi
+[ -z "$VAULT_MANAGER_PASS" ] && VAULT_MANAGER_PASS=$(openssl rand -base64 20 | tr -d '/+=' | head -c 20)
 
-# ZTA: Create Kubernetes Secret with generated passwords (do NOT store MySQL root here)
-# Note: MySQL root password is stored only in Vault (and optionally a minimal, namespaced secret
-# created during bootstrap). Avoid writing mysql-root-password into the cluster-wide `app-secrets`.
-kubectl create secret generic app-secrets \
-  --namespace=data \
+# Create secrets (NOTE: Injecting MySQL password to Security namespace so Keycloak works)
+kubectl create secret generic app-secrets --namespace=data \
+  --from-literal=mysql-root-password="$MYSQL_ROOT_PASS" \
   --from-literal=keycloak-admin-password="$KEYCLOAK_ADMIN_PASS" \
   --from-literal=vault-manager-password="$VAULT_MANAGER_PASS" \
   --dry-run=client -o yaml | kubectl apply -f -
-echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'data' (without mysql-root-password)"
 
-# Also create a copy in security namespace for Keycloak (without mysql password)
-kubectl create secret generic app-secrets \
-  --namespace=security \
+kubectl create secret generic app-secrets --namespace=security \
+  --from-literal=mysql-root-password="$MYSQL_ROOT_PASS" \
   --from-literal=keycloak-admin-password="$KEYCLOAK_ADMIN_PASS" \
   --dry-run=client -o yaml | kubectl apply -f -
-echo "   ✓ Kubernetes Secret 'app-secrets' created in namespace 'security' (without mysql-root-password)"
 
-# NOTE: For the pure Vault-driven flow we no longer create a K8s secret for MySQL root.
-echo "   ✓ Skipping creation of mysql-root K8s Secret (using Vault-driven bootstrap)"
+log_time "1. Generate Credentials"
 
-log_time "1a. Generate ZTA credentials"
+# ========================
+# 2. Deploy Cert-Manager Issuer (MOVED UP FOR VAULT)
+# ========================
+echo ""
+echo "🔐 Step 2: Setting up cert-manager issuer..."
+install_cert_manager_if_missing
+if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then
+  kubectl apply -f infras/k8s-yaml/10-cert-manager-issuer.yaml
+  sleep 5
+else
+  echo "   ⚠ Skip cert-manager issuer (CRDs missing)"
+fi
+log_time "2. Setup Cert-Manager Issuer"
 
-echo "   Deploying MySQL init ConfigMap (empty databases only)..."
+# ========================
+# 3. Deploy Vault & Config (MOVED UP FOR MYSQL)
+# ========================
+echo ""
+echo "🏦 Step 3: Deploying Vault infrastructure..."
+kubectl apply -f infras/k8s-yaml/11-vault.yaml
+
+echo "   Waiting for Vault pod to reach Running phase before bootstrap..."
+kubectl wait --for=jsonpath='{.status.phase}'=Running pod -l app=vault -n vault --timeout=180s >/dev/null 2>&1 || {
+  echo "❌ Vault pod did not reach Running phase in time"
+  kubectl get pod -n vault -l app=vault -o wide || true
+  exit 1
+}
+
+echo "   Running Vault fast rebuild pipeline..."
+if [ -d "infras/k8s-yaml/vault-scripts" ] && [ -f "infras/k8s-yaml/vault-scripts/99-fast-rebuild-vault.sh" ]; then
+  if ! run_with_timeout "$VAULT_REBUILD_TIMEOUT" bash -lc "cd infras/k8s-yaml/vault-scripts && MYSQL_ROOT_PASS='$MYSQL_ROOT_PASS' bash 99-fast-rebuild-vault.sh"; then
+    echo "❌ Vault config script timed out/failed"
+    exit 1
+  fi
+else
+  echo "⚠ Vault script not found, skipping config"
+fi
+
+# After bootstrap/unseal, Vault must be Ready in strict mode.
+wait_for_pods "app=vault" vault 240
+log_time "3. Vault Deployment & Config"
+
+# ========================
+# 4. Deploy MySQL (Now it can read from Vault)
+# ========================
+echo ""
+echo "🗄️ Step 4: Deploying MySQL & phpMyAdmin..."
 kubectl apply -f infras/k8s-yaml/mysql-init-configmap.yaml
-log_time "1b. Apply mysql-init-configmap.yaml"
-
-echo "   Deploying MySQL & phpMyAdmin..."
 kubectl apply -f infras/k8s-yaml/01-mysql-phpmyadmin.yaml
-log_time "1c. Apply 01-mysql-phpmyadmin.yaml"
-
-echo "   Waiting for MySQL pods to be Ready (up to 180s)"
 wait_for_pods "app=mysql" data 180
 
-
-# ======== KEYCLOAK SPECIAL HANDLING ========
-echo ""
-echo "? Building and deploying Keycloak (registry mode)..."
-
-echo "   Step 0: Ensuring local registry is ready..."
-if ! ensure_local_registry; then
-  echo "? ERROR: Failed to start local registry"
-  exit 1
-fi
-log_time "1d0. Ensure local registry"
-
-echo "   Step 0b: Configuring Kind nodes for registry pulls..."
-if ! configure_kind_registry_access "$NODE_REGISTRY_ENDPOINT"; then
-  echo "? ERROR: Failed to configure Kind registry access"
-  exit 1
-fi
-log_time "1d0b. Configure Kind registry access"
-
-KEYCLOAK_LOCAL_IMAGE="${REGISTRY_HOST}/${KEYCLOAK_IMAGE_REPO}:${KEYCLOAK_IMAGE_TAG}"
-
-if [ "$FORCE_REBUILD_IMAGES" != "1" ] && registry_has_tag "$KEYCLOAK_IMAGE_REPO" "$KEYCLOAK_IMAGE_TAG"; then
-  echo "   Step 1: Keycloak image already exists in registry, skipping build"
-  docker pull "$KEYCLOAK_LOCAL_IMAGE" >/dev/null 2>&1 || true
-else
-  echo "   Step 1: Building Keycloak Docker image..."
-  cd infras/keycloak
-  docker build -t "$KEYCLOAK_LOCAL_IMAGE" .
-  cd ../..
-
-  echo "   Step 2: Pushing Keycloak image to local registry..."
-  docker push "$KEYCLOAK_LOCAL_IMAGE"
-fi
-log_time "1d1. Build/push Keycloak image"
-
-echo "   Step 3: Deploying Keycloak..."
-kubectl apply -f infras/k8s-yaml/02-keycloak.yaml
-log_time "1d3. Apply Keycloak deployment"
-
-echo "   Step 4: WAITING for Keycloak to be ready (this may take 2-3 minutes)..."
-if kubectl wait --for=condition=Ready=True pod \
-  -l app=keycloak \
-  -n security \
-  --timeout=300s 2>/dev/null; then
-  echo "    ? Keycloak is ready"
-else
-  echo "?  Keycloak wait timeout - checking status..."
-  kubectl get pod -n security -l app=keycloak -o wide || true
-  echo "    (WARNING: Keycloak may still be initializing, forcing continue)"
-fi
-log_time "1d4. Wait for Keycloak ready"
-
-# Import additional realm for API auth tests without impacting existing realm-infra import.
-echo ""
-echo "? Importing additional Keycloak realm: job7189..."
-
-REALM_JOB7189_FILE="infras/keycloak/realms/realm-job7189.json"
-# Hardcoded from postman/job7189-auth-api.postman_collection.json
-POSTMAN_CLIENT_ID="candidate-app-dev"
-POSTMAN_CLIENT_SECRET="MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW"
-
-if [ ! -f "$REALM_JOB7189_FILE" ]; then
-  echo "?  WARNING: $REALM_JOB7189_FILE not found, skipping additional realm import"
-else
-  KEYCLOAK_POD=$(kubectl get pod -n security -l app=keycloak -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [ -z "$KEYCLOAK_POD" ]; then
-    echo "?  WARNING: Keycloak pod not found, skipping additional realm import"
-  elif wait_for_keycloak_admin_api "$KEYCLOAK_POD" "$KEYCLOAK_ADMIN_PASS"; then
-    echo "   Copying $REALM_JOB7189_FILE into Keycloak pod..."
-    kubectl exec -i -n security "$KEYCLOAK_POD" -- sh -c "cat > /tmp/realm-job7189.json" < "$REALM_JOB7189_FILE"
-
-    echo "   Importing realm and enforcing Postman client credentials..."
-    if kubectl exec -n security "$KEYCLOAK_POD" -- sh -c "
-      set -e
-      KCADM=/opt/keycloak/bin/kcadm.sh
-      \$KCADM config credentials --server http://127.0.0.1:8080 --realm master --user admin --password '$KEYCLOAK_ADMIN_PASS' >/dev/null
-      if \$KCADM get realms/job7189 >/dev/null 2>&1; then
-        echo '    Realm job7189 already exists, skipping create'
-      else
-        \$KCADM create realms -f /tmp/realm-job7189.json >/dev/null
-        echo '    Realm job7189 imported'
-      fi
-
-      CLIENT_UUID=\$(\$KCADM get clients -r job7189 -q clientId='$POSTMAN_CLIENT_ID' --fields id 2>/dev/null | sed -n 's/.*\"id\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p' | head -n1)
-      if [ -z \"\$CLIENT_UUID\" ]; then
-        echo '    ERROR: client candidate-app-dev not found in realm job7189'
-        exit 1
-      fi
-
-      \$KCADM create clients/\$CLIENT_UUID/client-secret -r job7189 -s value='$POSTMAN_CLIENT_SECRET' >/dev/null
-      echo '    Client secret for candidate-app-dev has been set from Postman collection'
-      rm -f /tmp/realm-job7189.json
-    "; then
-      echo "   ? Additional realm import completed"
-    else
-      echo "?  WARNING: Additional realm import encountered issues"
-    fi
-  else
-    echo "?  WARNING: Keycloak Admin API not ready, skipping additional realm import"
+MYSQL_POD=$(kubectl get pod -n data -l app=mysql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [ -n "$MYSQL_POD" ]; then
+  READY_STATE=$(kubectl get pod -n data "$MYSQL_POD" -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+  if [ "$READY_STATE" != "true" ]; then
+    echo "⚠ MySQL pod not ready, attempting rollout restart..."
+    kubectl -n data rollout restart deploy/mysql || true
+    kubectl wait --for=condition=Ready pod -l app=mysql -n data --timeout=120s 2>/dev/null || true
   fi
 fi
-log_time "1d5. Import realm-job7189"
+log_time "4. MySQL & phpMyAdmin"
 
-# ======== KAFKA DEPLOYMENT ========
+# ========================
+# 5. Deploy Keycloak (Now MySQL is ready)
+# ========================
 echo ""
-echo "? Deploying Kafka..."
+echo "🛡️ Step 5: Building and deploying Keycloak..."
+ensure_local_registry || true
+configure_kind_registry_access "$NODE_REGISTRY_ENDPOINT" || true
+
+KEYCLOAK_LOCAL_IMAGE="${REGISTRY_HOST}/${KEYCLOAK_IMAGE_REPO}:${KEYCLOAK_IMAGE_TAG}"
+if [ "$FORCE_REBUILD_IMAGES" != "1" ] && registry_has_tag "$KEYCLOAK_IMAGE_REPO" "$KEYCLOAK_IMAGE_TAG"; then
+  echo "   ✓ Keycloak image exists, skipping build"
+else
+  echo "   Building Keycloak image..."
+  run_with_timeout "$DOCKER_BUILD_TIMEOUT" bash -lc "cd infras/keycloak && docker build -t '$KEYCLOAK_LOCAL_IMAGE' ."
+  run_with_timeout "$DOCKER_PUSH_TIMEOUT" docker push "$KEYCLOAK_LOCAL_IMAGE"
+fi
+
+kubectl apply -f infras/k8s-yaml/02-keycloak.yaml
+wait_for_pods "app=keycloak" security 300
+
+# Import Keycloak Realm safely
+echo "   Importing Keycloak realm: job7189..."
+REALM_JOB7189_FILE="infras/keycloak/realms/realm-job7189.json"
+KEYCLOAK_POD=$(kubectl get pod -n security -l app=keycloak -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+
+if [ -f "$REALM_JOB7189_FILE" ] && [ -n "$KEYCLOAK_POD" ]; then
+  if wait_for_keycloak_admin_api "$KEYCLOAK_POD" "$KEYCLOAK_ADMIN_PASS"; then
+    kubectl exec -i -n security "$KEYCLOAK_POD" -- sh -c "cat > /tmp/realm-job7189.json" < "$REALM_JOB7189_FILE" || true
+    kubectl exec -n security "$KEYCLOAK_POD" -- sh -c "
+      /opt/keycloak/bin/kcadm.sh config credentials --server http://127.0.0.1:8080 --realm master --user admin --password '$KEYCLOAK_ADMIN_PASS' >/dev/null
+      /opt/keycloak/bin/kcadm.sh create realms -f /tmp/realm-job7189.json >/dev/null 2>&1 || echo 'Realm maybe exists'
+    " || echo "⚠ Realm import script encountered an error, continuing..."
+  fi
+fi
+log_time "5. Keycloak Setup"
+
+# ========================
+# 6. Deploy Kafka & Kong
+# ========================
+echo ""
+echo "📨 Step 6: Deploying Kafka & Kong..."
 kubectl apply -f infras/k8s-yaml/03-kafka.yaml
 log_time "1e1. Apply Kafka deployment"
 
@@ -408,270 +377,84 @@ log_time "1f1. Setup Kong ConfigMap"
 
 echo "   Step 2: Deploying Kong..."
 kubectl apply -f infras/k8s-yaml/04-kong-dbless.yaml
-log_time "1f2. Apply Kong deployment"
+wait_for_pods "app=kong-gateway" gateway 240
+log_time "6. Kafka & Kong"
 
-echo "   Step 3: WAITING for Kong to be ready (this may take 1-2 minutes)..."
-if kubectl wait --for=condition=Ready=True pod \
-  -l app=kong-gateway \
-  -n gateway \
-  --timeout=240s 2>/dev/null; then
-  echo "    ? Kong is ready"
-else
-  echo "?  Kong wait timeout - checking status..."
-  kubectl get pod -n gateway -l app=kong-gateway -o wide || true
-  echo "    (WARNING: Kong may still be initializing)"
+# ========================
+# 7. Oauth2-Proxy
+# ========================
+echo ""
+echo "🔐 Step 7: Setting up oauth2-proxy..."
+if ! run_with_timeout "$CMD_TIMEOUT_MEDIUM" bash infras/k8s-yaml/ingress/00_setup_oauth2_proxy.sh; then
+  if [ "$WAIT_STRICT" = "1" ]; then
+    echo "❌ oauth2-proxy setup script timed out/failed"
+    exit 1
+  fi
+  echo "⚠ oauth2-proxy setup script timed out/failed, continuing because WAIT_STRICT=0"
 fi
-log_time "1f3. Wait for Kong ready"
 
-echo ""
-echo "? Base infrastructure services deployed"
-
-# ======== OAUTH2-PROXY SETUP ========
-echo ""
-echo "? Step 2: Setting up oauth2-proxy authentication service..."
-
-echo "   Creating oauth2-proxy configuration and secrets..."
-bash infras/k8s-yaml/ingress/00_setup_oauth2_proxy.sh
-log_time "2a. Setup oauth2-proxy ConfigMap, Secret, Deployment"
-
-echo "   WAITING for oauth2-proxy to be ready (this may take 1-2 minutes)..."
 echo "   Checking if pod is running first..."
 RETRY=0
 while [ $RETRY -lt 30 ]; do
   OAUTH2_STATUS=$(kubectl get pod -n security -l app=oauth2-proxy --no-headers 2>/dev/null | wc -l)
   if [ "$OAUTH2_STATUS" -ge 1 ]; then
-    echo "    ? oauth2-proxy pod detected, now waiting for Ready condition..."
+    echo "    ✔ oauth2-proxy pod detected!"
     break
   fi
-  echo "    (waiting for pod to be created, attempt $((RETRY+1))/30)"
+  echo "    (waiting... attempt $((RETRY+1))/30)"
   sleep 2
-  ((RETRY++))
+  ((++RETRY)) # LỖI CRITICAL ĐÃ ĐƯỢC FIX Ở ĐÂY
 done
 
-if kubectl wait --for=condition=Ready=True pod \
-  -l app=oauth2-proxy \
-  -n security \
-  --timeout=240s 2>&1 | grep -q "condition met"; then
-  echo "    ? oauth2-proxy is ready"
-else
-  echo "?  oauth2-proxy condition check - verifying actual status..."
-  OAUTH2_READY=$(kubectl get pod -n security -l app=oauth2-proxy -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null || echo "unknown")
-  if [ "$OAUTH2_READY" = "true" ]; then
-    echo "    ? oauth2-proxy is actually READY (pod reports ready=true)"
-  else
-    kubectl get pod -n security -l app=oauth2-proxy -o wide || true
-    echo "    (WARNING: oauth2-proxy status unclear, it may still be initializing)"
-  fi
-fi
-log_time "2b. Wait for oauth2-proxy ready"
-
-# ======== INGRESS ROUTES SETUP ========
-echo ""
-echo "? Step 3: Deploying Ingress routes..."
-
-if [ ! -d "infras/k8s-yaml/ingress" ]; then
-  echo "? ERROR: ingress directory not found at infras/k8s-yaml/ingress"
-  exit 1
-fi
-
-echo "   Applying public, OAuth2, and internal ingress routes..."
-# Apply only YAML files, exclude bash scripts
-kubectl apply -f infras/k8s-yaml/ingress/01_ingress_public.yaml
-kubectl apply -f infras/k8s-yaml/ingress/02_ingress_oauth2_callback.yaml
-kubectl apply -f infras/k8s-yaml/ingress/03_ingress_internal.yaml
-kubectl apply -f infras/k8s-yaml/ingress/05_nginx_ingress_service.yaml
-kubectl apply -f infras/k8s-yaml/ingress/07_oauth2_proxy_alias.yaml
-log_time "3a. Deploy ingress routes"
-
-echo "   Checking ingress status..."
-kubectl get ingress -A 2>/dev/null | head -15 || echo "    (ingress resources initializing)"
-log_time "3b. Ingress deployment checkpoint"
+wait_for_pods "app=oauth2-proxy" security 240
+log_time "7. Oauth2-Proxy"
 
 # ========================
-# 4. Deploy Cert-Manager Issuer
+# 8. Ingress Routes
 # ========================
 echo ""
-echo "? Step 4: Setting up cert-manager issuer..."
-echo "    Checking for cert-manager CRDs before applying issuer/certificate resources"
-if kubectl get crd certificates.cert-manager.io >/dev/null 2>&1; then
-  kubectl apply -f infras/k8s-yaml/10-cert-manager-issuer.yaml
-  log_time "4a. Apply cert-manager-issuer.yaml"
-else
-  echo "    ! cert-manager CRDs not found; skipping issuer/certificate apply. Ensure cert-manager is installed (run 01-setup-cluster.sh)"
-  log_time "4a. Skip cert-manager issuer (CRDs missing)"
+echo "🌐 Step 8: Deploying Ingress routes..."
+if [ -d "infras/k8s-yaml/ingress" ]; then
+  kubectl apply -f infras/k8s-yaml/ingress/01_ingress_public.yaml
+  kubectl apply -f infras/k8s-yaml/ingress/02_ingress_oauth2_callback.yaml
+  kubectl apply -f infras/k8s-yaml/ingress/03_ingress_internal.yaml
+  kubectl apply -f infras/k8s-yaml/ingress/05_nginx_ingress_service.yaml
+  kubectl apply -f infras/k8s-yaml/ingress/07_oauth2_proxy_alias.yaml
 fi
+log_time "8. Ingress Routes"
 
 # ========================
-# 5. Deploy Vault
+# 9. ELK Stack
 # ========================
 echo ""
-echo "? Step 5: Deploying Vault infrastructure..."
-kubectl apply -f infras/k8s-yaml/11-vault.yaml
-log_time "5a. Apply Vault deployment"
-
-echo "    Waiting for Vault pods to be Ready (up to 180s)"
-wait_for_pods "app=vault" vault 180
-log_time "5b. Wait for Vault initialization"
-
-# ========================
-# 6. Vault Configuration Scripts
-# ========================
-echo ""
-echo "?  Step 6: Running Vault fast rebuild pipeline..."
-
-if [ ! -d "infras/k8s-yaml/vault-scripts" ]; then
-  echo "? ERROR: vault-scripts directory not found!"
-  exit 1
-fi
-
-cd infras/k8s-yaml/vault-scripts
-
-echo "   o Running 99-fast-rebuild-vault.sh..."
-if [ -f "99-fast-rebuild-vault.sh" ]; then
-  # Pass MYSQL_ROOT_PASS to the fast rebuild pipeline so the Vault bootstrap remains the authoritative source
-  MYSQL_ROOT_PASS="$MYSQL_ROOT_PASS" bash 99-fast-rebuild-vault.sh || echo "?  99-fast-rebuild-vault.sh encountered issues"
-  log_time "6a. Vault fast rebuild pipeline"
-else
-  echo "? ERROR: 99-fast-rebuild-vault.sh not found!"
-  cd - > /dev/null
-  exit 1
-fi
-
-cd - > /dev/null
-
-# ========================
-# 8. Deploy ELK Stack (Elasticsearch, Kibana, Filebeat)
-# ========================
-echo ""
-echo "📊 Step 8: Deploying ELK Stack (Elasticsearch, Kibana, Filebeat)..."
-
-echo "   Deploying Elasticsearch & Kibana..."
+echo "📊 Step 9: Deploying ELK Stack..."
 kubectl apply -f infras/k8s-yaml/05-elasticsearch.yaml
-log_time "8a. Apply Elasticsearch + Kibana"
+wait_for_pods "app=elasticsearch" monitoring 300
 
-echo "   Waiting for Elasticsearch to be ready..."
-if kubectl wait --for=condition=Ready=True pod \
-  -l app=elasticsearch \
-  -n monitoring \
-  --timeout=300s 2>/dev/null; then
-  echo "    ✓ Elasticsearch is ready"
-else
-  echo "⚠  Elasticsearch wait timeout - checking status..."
-  kubectl get pod -n monitoring -l app=elasticsearch -o wide || true
-  echo "    (WARNING: Elasticsearch may still be initializing)"
-fi
-log_time "8b. Wait for Elasticsearch ready"
-
-echo "   Deploying Filebeat..."
 kubectl apply -f infras/k8s-yaml/06-filebeat.yaml
-log_time "8c. Apply Filebeat"
+wait_for_pods "k8s-app=filebeat" monitoring 120
 
-echo "   Waiting for Filebeat to be ready..."
-sleep 5
-if kubectl wait --for=condition=Ready=True pod \
-  -l k8s-app=filebeat \
-  -n monitoring \
-  --timeout=120s 2>/dev/null; then
-  echo "    ✓ Filebeat is ready"
-else
-  echo "⚠  Filebeat wait timeout - checking status..."
-  kubectl get pod -n monitoring -l k8s-app=filebeat -o wide || true
-  echo "    (WARNING: Filebeat may still be starting)"
+kubectl wait --for=condition=Ready=True pod -l app=kibana -n monitoring --timeout=300s 2>/dev/null || echo "⚠ Kibana initializing"
+log_time "9. ELK Stack"
+
+# ========================
+# 10. VALIDATION
+# ========================
+echo ""
+echo "📋 Step 10: Validation Summary..."
+NON_RUNNING_PODS=$(kubectl get pod -A --field-selector=status.phase!=Running --no-headers 2>/dev/null || true)
+if [ -n "$NON_RUNNING_PODS" ]; then
+  echo "❌ Pods not in Running phase:"
+  echo "$NON_RUNNING_PODS"
+  exit 1
 fi
-log_time "8d. Wait for Filebeat ready"
 
-echo "   Waiting for Kibana to be ready..."
-if kubectl wait --for=condition=Ready=True pod \
-  -l app=kibana \
-  -n monitoring \
-  --timeout=300s 2>/dev/null; then
-  echo "    ✓ Kibana is ready"
-else
-  echo "⚠  Kibana wait timeout - checking status..."
-  kubectl get pod -n monitoring -l app=kibana -o wide || true
-  echo "    (WARNING: Kibana may still be starting)"
+NOT_READY_PODS=$(kubectl get pod -A --no-headers 2>/dev/null | awk '{split($2,a,"/"); if (a[1] != a[2]) print $0}')
+if [ -n "$NOT_READY_PODS" ]; then
+  echo "❌ Pods not fully Ready (READY column x/x):"
+  echo "$NOT_READY_PODS"
+  exit 1
 fi
-log_time "8e. Wait for Kibana ready"
 
-echo "✓ ELK Stack deployment completed"
-
-# ========================
-# 9. COMPREHENSIVE VALIDATION
-# ========================
-echo ""
-echo "📋 Step 9: Comprehensive validation of Phase 2..."
-
-echo ""
-echo "? Checking all deployed services..."
-echo ""
-echo "? 1. KEYCLOAK STATUS:"
-kubectl get pod -n security -l app=keycloak -o wide 2>/dev/null || echo "  (No keycloak pods found)"
-
-echo ""
-echo "? 2. OAUTH2-PROXY STATUS:"
-kubectl get pod -n security -l app=oauth2-proxy -o wide 2>/dev/null || echo "  (No oauth2-proxy pods found)"
-
-echo ""
-echo "? 3. INGRESS ROUTES:"
-kubectl get ingress -A 2>/dev/null || echo "  (No ingress routes found)"
-
-echo ""
-echo "? 4. KAFKA STATUS:"
-kubectl get pod -n data -l app.kubernetes.io/name=kafka -o wide 2>/dev/null || echo "  (No kafka pods found)"
-
-echo ""
-echo "? 5. KONG STATUS:"
-kubectl get pod -n gateway -l app=kong-gateway -o wide 2>/dev/null || echo "  (No kong pods found)"
-
-echo ""
-echo "? 6. VAULT STATUS:"
-kubectl get pod -n vault -l app=vault -o wide 2>/dev/null || echo "  (No vault pods found)"
-
-echo ""
-echo "? 7. MYSQL STATUS:"
-kubectl get pod -n data -l app=mysql -o wide 2>/dev/null || echo "  (No mysql pods found)"
-
-echo ""
-echo "? 8. CERTIFICATE ISSUERS:"
-kubectl get clusterissuer,issuer -A 2>/dev/null || echo "  (No issuers found)"
-
-echo ""
-echo "? All services summary:"
-echo "  Total Pods (all namespaces):"
-kubectl get pod -A --no-headers 2>/dev/null | wc -l
-echo "  Running pods:"
-kubectl get pod -A --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l
-echo "  Failed/Pending pods:"
-kubectl get pod -A --field-selector=status.phase!=Running --no-headers 2>/dev/null | head -10
-
-log_time "7. Final validation"
-
-# ========================
-# COMPLETED
-# ========================
-echo ""
-echo "? PART 2 COMPLETED: Infrastructure, Auth, Ingress, and Vault deployed"
-echo ""
-echo "? Infrastructure Status:"
-echo "   MySQL & phpMyAdmin - Deployed to 'data' namespace"
-echo "   Keycloak - Deployed to 'security' namespace (CRITICAL)"
-echo "   oauth2-proxy - Deployed to 'security' namespace (depends on Keycloak)"
-echo "   Kafka - Deployed to 'data' namespace"
-echo "   Kong - Deployed to 'gateway' namespace"
-echo "   Vault - Deployed to 'vault' namespace"
-echo "   Ingress Routes - Deployed to multiple namespaces (gateway, security, data)"
-echo ""
-echo "? Ingress Routes Deployed:"
-echo "   - Public API routes (Kong proxy)"
-echo "   - OAuth2 callback routes"
-echo "   - Internal tools routes"
-echo "   - Service aliases"
-echo ""
-echo "? NOTE: Services may take several minutes to fully stabilize!"
-echo "   Use: kubectl get pod -A to check status"
-echo ""
-echo "Next steps:"
-echo "  1. Wait 1-2 minutes for services to stabilize"
-echo "  2. Check: kubectl get pod -A | grep -E '(mysql|keycloak|kafka|kong|vault)'"
-echo "  3. Run: bash 03-deploy-microservices.sh"
-echo ""
+echo "   ✓ All pods are Running and Ready"
+echo "✔ PART 2 COMPLETED SUCCESSFULLY"

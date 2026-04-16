@@ -1,4 +1,12 @@
 {{- if .Values.redis.enabled -}}
+# --- Redis ServiceAccount ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-redis
+  labels:
+    app: {{ .Release.Name }}-redis
+---
 # --- Redis Deployment ---
 apiVersion: apps/v1
 kind: Deployment
@@ -16,6 +24,7 @@ spec:
       labels:
         app: {{ .Release.Name }}-redis
     spec:
+      serviceAccountName: {{ .Release.Name }}-redis
       containers:
         - name: redis
           image: {{ .Values.redis.image }}

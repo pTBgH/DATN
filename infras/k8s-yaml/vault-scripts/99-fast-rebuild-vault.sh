@@ -144,11 +144,11 @@ vault kv put secret/vault-manager username='vault_manager' password='${VAULT_MGR
 # Seed KV v2 paths required by vault-agent templates before microservices deploy.
 vault kv put secret/laravel-common app_env='production' app_debug='false' log_channel='stack' cache_store='file' queue_connection='sync'
 for SVC in identity-service workspace-service job-service hiring-service candidate-service communication-service storage-service; do
-  vault kv get secret/$SVC >/dev/null 2>&1 || vault kv put secret/$SVC service_name="$SVC" placeholder='set-real-values'
+  vault kv get secret/\$SVC >/dev/null 2>&1 || vault kv put secret/\$SVC service_name="\$SVC" placeholder='set-real-values'
 done
 
 # QUAN TRỌNG: verify_connection=false để không kẹt khi MySQL chưa sống
-vault write database/config/mysql plugin_name=mysql-database-plugin verify_connection=false connection_url='{{username}}:{{password}}@tcp(mysql.data.svc.cluster.local:3306)/' allowed_roles='*' username='vault_manager' password='${VAULT_MGR_PASS}'
+vault write database/config/mysql plugin_name=mysql-database-plugin verify_connection=false connection_url='{{username}}:{{password}}@tcp(mysql.data.svc.cluster.local:3306)/' allowed_roles='*' username='root' password='${MYSQL_ROOT_PASS}'
 
 for SVC_DB in identity-service:job7189_identity_db workspace-service:job7189_workspace_db job-service:job7189_job_db hiring-service:job7189_hiring_db candidate-service:job7189_candidate_db communication-service:job7189_communication_db storage-service:job7189_storage_db; do
   SVC="\${SVC_DB%%:*}"; DB="\${SVC_DB##*:}"

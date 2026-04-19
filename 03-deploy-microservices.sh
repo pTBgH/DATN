@@ -384,10 +384,10 @@ if ! kubectl get nodes &>/dev/null; then
   exit 1
 fi
 
-# Check if infrastructure is deployed
-INFRA_CHECK=$(kubectl get pod -n management 2>/dev/null | wc -l)
-if [ "$INFRA_CHECK" -lt 2 ]; then
-  echo "?  WARNING: Infrastructure may not be fully deployed yet."
+# Check if infrastructure is deployed (verify MySQL in 'data' namespace as indicator)
+INFRA_CHECK=$(kubectl get pod -n data -l app=mysql --no-headers 2>/dev/null | wc -l)
+if [ "$INFRA_CHECK" -lt 1 ]; then
+  echo "⚠  WARNING: Infrastructure may not be fully deployed yet."
   echo "   Please ensure 02-deploy-infrastructure.sh has completed."
   read -p "Continue anyway? (yes/no): " answer
   [[ "$answer" == "yes" ]] || exit 1

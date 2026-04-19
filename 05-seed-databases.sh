@@ -51,17 +51,17 @@ if [ -z "$ROOT_TOKEN" ]; then
   exit 1
 fi
 
-# Read vault-manager credentials from Vault (vault kv secret)
-CREDS_JSON=$(kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${ROOT_TOKEN}' vault kv get -format=json secret/vault-manager" 2>/dev/null || true)
+# Read MySQL root credentials from Vault (vault kv secret)
+CREDS_JSON=$(kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${ROOT_TOKEN}' vault kv get -format=json secret/mysql" 2>/dev/null || true)
 if [ -z "$CREDS_JSON" ]; then
-  echo "❌ ERROR: Could not read vault-manager credentials from Vault"
+  echo "❌ ERROR: Could not read secret/mysql credentials from Vault"
   exit 1
 fi
-MYSQL_USER=$(echo "$CREDS_JSON" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("data",{}).get("data",{}).get("username",""))')
-MYSQL_PASS=$(echo "$CREDS_JSON" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("data",{}).get("data",{}).get("password",""))')
+MYSQL_USER="root"
+MYSQL_PASS=$(echo "$CREDS_JSON" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("data",{}).get("data",{}).get("root-password",""))')
 
-if [ -z "$MYSQL_USER" ] || [ -z "$MYSQL_PASS" ]; then
-  echo "❌ ERROR: vault-manager credentials are missing in Vault"
+if [ -z "$MYSQL_PASS" ]; then
+  echo "❌ ERROR: MySQL root-password is missing in Vault"
   exit 1
 fi
 echo "✓ Obtained vault-manager credentials from Vault (user: $MYSQL_USER)"

@@ -234,7 +234,7 @@ $ curl -s http://api.job7189.com/api/health
 $ TOKEN=$(curl -s -X POST http://auth.job7189.local/realms/job7189/...) 
 $ curl -s -H "Authorization: Bearer $TOKEN" \
     http://api.job7189.com/api/recruiters/profile
-{"data":{"id":1,"name":"Recruiter A",...}}    # HTTP 200
+{{"data":{"id":1,"name":"Recruiter A",...}}    # HTTP 200
 \end{minted}
 \caption{Minh chứng: Kong từ chối request thiếu JWT (401) và chấp nhận khi có JWT hợp lệ (200)}
 \label{lst:jwt_proof}

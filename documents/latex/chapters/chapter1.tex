@@ -1,148 +1,298 @@
 % !TEX encoding = UTF-8
-\chapter{Tổng quan}
+\chapter{Tổng quan về Kiến trúc Zero Trust}
 
-\section{Đặt vấn đề}
+%==============================================================================
+% 1.1  TỪ PERIMETER-BASED ĐẾN ZERO TRUST
+%==============================================================================
+\section{Từ bảo mật vành đai đến Zero Trust}
 
-\subsection{Hạn chế của mô hình bảo mật dựa trên vành đai trong kiến trúc Microservices}
+\subsection{Sự thất bại của mô hình ``Lâu đài và Hào nước''}
 
-Trong nhiều thập kỷ, an toàn thông tin doanh nghiệp được xây dựng dựa trên mô hình phòng thủ chu vi (perimeter-based defense), hay còn gọi là chiến lược ``lâu đài và hào nước'' \cite[tr. 5]{gilman2017zero}. Mô hình này thiết lập ranh giới rõ ràng giữa mạng nội bộ được tin cậy và thế giới Internet bên ngoài thông qua tường lửa và VPN. Bất kỳ thực thể nào vượt qua được vành đai này đều được ngầm định trao cho sự tin cậy rất lớn để di chuyển bên trong mạng. 
+Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ chu vi (Perimeter-based defense)}, hay còn gọi là chiến lược \textbf{``Lâu đài và Hào nước'' (Castle-and-Moat)}. Mô hình này thiết lập một ranh giới cứng giữa mạng nội bộ (được coi là ``tin cậy'') và Internet (``không tin cậy'') thông qua các thiết bị tường lửa, VPN và hệ thống IDS/IPS. Bất kỳ thực thể nào vượt qua hàng phòng thủ biên giới đều được \textbf{mặc định tin tưởng} và cấp quyền truy cập rộng rãi — đây chính là khái niệm \textit{Implicit Trust} (tin cậy ngầm định) \cite{kindervag2010build}.
 
-Tuy nhiên, sự dịch chuyển từ các ứng dụng nguyên khối (Monolithic) sang kiến trúc vi dịch vụ (Microservices) đã làm ranh giới vật lý tĩnh này biến mất hoàn toàn. Việc chia nhỏ ứng dụng thành hàng trăm dịch vụ phân tán thay thế các lệnh gọi hàm nội bộ bằng các lệnh gọi qua mạng, từ đó tạo ra bề mặt tấn công rộng lớn. Một khi tin tặc vượt qua được vành đai bảo vệ bên ngoài, sự tin tưởng ngầm định của mô hình cũ cho phép chúng dễ dàng thực hiện dịch chuyển ngang (\textit{Lateral Movement}), leo thang đặc quyền và tiếp cận các tài sản quan trọng mà không gặp phải rào cản nào \cite[tr. 12]{rose2020zero}.
-
-Trong bối cảnh đó, tư duy Zero Trust yêu cầu thay đổi hoàn toàn giả định nền tảng: \textbf{mạng luôn bị xâm nhập} và mọi kết nối đều cần được xác thực, ủy quyền và đánh giá rủi ro liên tục. Thay vì mở rộng vành đai phòng thủ, ZTA thu nhỏ bề mặt tấn công bằng phân đoạn vi mô, kiểm soát theo danh tính và bối cảnh, đồng thời loại bỏ vùng tin cậy ẩn trong nội bộ \cite{rose2020zero}. Điều này đặc biệt phù hợp với kiến trúc Microservices, nơi lưu lượng \textit{East-West} chiếm ưu thế và rủi ro dịch chuyển ngang là mối đe dọa chính.
+Sự thất bại của mô hình này được minh chứng qua hàng loạt sự cố nghiêm trọng trong thập kỷ 2010-2020:
+\begin{itemize}
+    \item \textbf{Vụ SolarWinds (2020):} Kẻ tấn công cài mã độc vào bản cập nhật phần mềm quản trị mạng Orion. Khi doanh nghiệp cài đặt bản cập nhật ``tin cậy'' này bên trong vành đai, mã độc đã có quyền truy cập tự do vào toàn bộ hạ tầng nội bộ — bao gồm cả Bộ Tài chính Hoa Kỳ. Vành đai không phát hiện được bất kỳ dấu hiệu bất thường nào vì traffic đến từ một nguồn ``đã tin cậy''.
+    \item \textbf{Di chuyển ngang (Lateral Movement):} Trong mô hình Perimeter, một khi kẻ tấn công vượt qua hàng rào biên giới (ví dụ: lừa nhân viên click vào email phishing), chúng có thể tự do di chuyển giữa các hệ thống nội bộ mà không gặp bất kỳ rào cản nào — bởi mọi thực thể bên trong đều ``tin cậy'' nhau.
+    \item \textbf{Sự biến mất của vành đai vật lý:} Cloud computing, SaaS, làm việc từ xa (Work from Home) và BYOD khiến ranh giới ``bên trong'' và ``bên ngoài'' không còn tồn tại. Nhân viên truy cập dữ liệu doanh nghiệp từ quán cà phê, trên thiết bị cá nhân, qua mạng công cộng — vành đai vật lý không thể bảo vệ những kịch bản này.
+\end{itemize}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[height=0.8\textheight]{images/nsew.png}
+    \includegraphics[width=0.7\textwidth]{images/nsew.png}
     \caption{Lưu lượng \textit{North-South} (từ Internet vào hệ thống) và \textit{East-West} (giữa các dịch vụ nội bộ)}
     \label{fig:nsew}
 \end{figure}
 
-\newpage
 
-\subsection{Các thách thức bảo mật đặc thù của môi trường Kubernetes}
+\subsection{Zero Trust: Định nghĩa và phân biệt các cấp độ}
 
-Kubernetes là nền tảng điều phối container tiêu chuẩn, nhưng nó cũng mang lại những thách thức an ninh phức tạp. Môi trường này chứa các thực thể phù du (như \textit{Pod}) có vòng đời rất ngắn, bị xóa sổ và tạo mới liên tục với các địa chỉ IP thay đổi linh hoạt \cite{rice2019kubernetes}. Do đó, việc áp dụng các chính sách bảo mật dựa trên địa chỉ IP tĩnh như mô hình vành đai truyền thống trở nên vô dụng. 
+Đối mặt với sự thất bại của mô hình Perimeter, khái niệm Zero Trust (Không tin cậy) được John Kindervag đề xuất năm 2010 tại Forrester Research \cite{kindervag2010build}, và sau đó được chuẩn hóa thành kiến trúc tham chiếu trong \textbf{NIST SP 800-207} \cite{nist800207}.
 
-Bên cạnh đó, số lượng danh tính phi con người (\textit{Machine Identities, Workloads, Service Accounts}) giao tiếp với nhau (lưu lượng \textit{East-West}) áp đảo danh tính con người, tạo ra bài toán hóc búa về việc quản lý chuỗi bí mật (\textit{Secret Zero problem}). Nếu không có sự phân đoạn mạng vi mô (\textit{Micro-segmentation}), một container bị chiếm quyền điều khiển có thể trở thành bàn đạp để kẻ tấn công quét mạng và thâm nhập vào các vi dịch vụ trọng yếu khác đang chạy chung trên cùng một cụm.
+Cần phân biệt rõ ba cấp độ của khái niệm này:
+
+\begin{table}[H]
+\centering
+\caption{Phân biệt Zero Trust, ZTA và ZTE}
+\label{tab:zt_levels}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Thuật ngữ} & \textbf{Viết tắt} & \textbf{Định nghĩa} \\
+\hline
+Zero Trust & ZT & \textbf{Triết lý bảo mật:} ``Không bao giờ tin cậy, luôn luôn xác minh'' (\textit{Never trust, always verify}). Đây là tập hợp các nguyên tắc tư duy, không phải sản phẩm hay công nghệ cụ thể. \\
+\hline
+Zero Trust Architecture & ZTA & \textbf{Kiến trúc:} Bản thiết kế hệ thống áp dụng triết lý ZT. NIST SP 800-207 định nghĩa mô hình logic gồm PE (Policy Engine), PA (Policy Administrator) và PEP (Policy Enforcement Point). \\
+\hline
+Zero Trust Environment & ZTE & \textbf{Môi trường vận hành:} Hệ thống thực tế đang chạy, nơi kiến trúc ZTA đã được triển khai và đang thực thi chính sách. Đây là kết quả cuối cùng mà Chương 3 của đồ án hướng tới. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Triết lý cốt lõi của Zero Trust dựa trên hai giả định nền tảng:
+\begin{enumerate}
+    \item \textbf{Mạng luôn bị coi là đã bị xâm nhập} — hệ thống không bao giờ tin rằng mạng nội bộ an toàn.
+    \item \textbf{Mọi kết nối đều thù địch cho đến khi được xác minh} — bất kể nguồn gốc (nội bộ hay bên ngoài), mọi request đều phải trải qua xác thực, ủy quyền và đánh giá rủi ro.
+\end{enumerate}
 
 
+%==============================================================================
+% 1.2  KIẾN TRÚC LOGIC CỦA ZTA THEO NIST
+%==============================================================================
+\section{Kiến trúc logic của ZTA theo NIST SP 800-207}
 
-\subsection{Mục tiêu và phạm vi nghiên cứu}
+\subsection{7 nguyên lý cốt lõi (Seven Tenets)}
 
-Nhằm giải quyết những hạn chế của mô hình bảo mật cũ trong kiến trúc phân tán, mục tiêu của nghiên cứu là thiết kế và triển khai \textbf{Kiến trúc Zero Trust (ZTA)} để bảo vệ toàn diện hệ thống Microservices trên môi trường Kubernetes. Phạm vi nghiên cứu tập trung vào:
+NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai ZTA phải tuân thủ \cite{nist800207}:
+
+\begin{table}[H]
+\centering
+\caption{7 nguyên lý cốt lõi Zero Trust theo NIST SP 800-207}
+\label{tab:seven_tenets}
+\begin{tabularx}{\textwidth}{|c|p{4cm}|X|}
+\hline
+\textbf{\#} & \textbf{Nguyên lý} & \textbf{Nội dung} \\
+\hline
+1 & Mọi thứ đều là tài nguyên & Máy chủ, container, API endpoint, database — tất cả đều là tài nguyên cần bảo vệ riêng biệt. \\
+\hline
+2 & Bảo mật không phụ thuộc vị trí mạng & Giao tiếp nội bộ (cùng subnet) vẫn phải mã hóa và xác thực như traffic từ Internet. \\
+\hline
+3 & Cấp quyền theo phiên (\textit{per-session}) & Quyền truy cập được cấp tối thiểu (Least Privilege), đánh giá lại mỗi phiên, thu hồi ngay sau khi hoàn thành. \\
+\hline
+4 & Chính sách truy cập động & Quyết định dựa trên danh tính + trạng thái thiết bị + hành vi + thời gian + vị trí — không phải IP tĩnh. \\
+\hline
+5 & Giám sát toàn bộ tài sản & Liên tục đánh giá tính toàn vẹn và trạng thái tuân thủ của mọi thiết bị/workload. \\
+\hline
+6 & Xác thực liên tục & Không chỉ xác thực lần đầu — xác thực lại khi thực hiện hành động nhạy cảm hoặc khi ngữ cảnh thay đổi. \\
+\hline
+7 & Thu thập tối đa dữ liệu & Logs, metrics, traces từ mọi thành phần — làm đầu vào cho PE ra quyết định và cải thiện chính sách. \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Mô hình logic bắt buộc: PE, PA và PEP}
+
+NIST SP 800-207 định nghĩa một \textbf{kiến trúc logic} dựa trên nguyên tắc tách biệt hoàn toàn giữa \textbf{Mặt phẳng điều khiển (Control Plane)} — nơi ra quyết định, và \textbf{Mặt phẳng dữ liệu (Data Plane)} — nơi luồng dữ liệu thực tế di chuyển. Tiêu chuẩn này không ép buộc doanh nghiệp phải sử dụng một loại phần cứng hay phần mềm cụ thể nào \cite{nist800207}.
+
+Ba thành phần logic bắt buộc:
+
 \begin{itemize}
-    \item Áp dụng các công nghệ hiện đại như \textbf{eBPF} (thông qua \textit{Cilium} và \textit{Tetragon} \cite{cilium_docs}) để kiểm soát truy cập tầng mạng và giám sát an ninh tại thời gian thực (\textit{Runtime Security}) mà không làm suy giảm hiệu năng.
-    \item Tích hợp \textit{Identity Provider} làm điểm quản trị chính sách xác thực, kết hợp triển khai \textbf{mTLS (Mutual TLS)} nhằm xác thực danh tính hai chiều giữa các dịch vụ.
-    \item Xây dựng luồng (pipeline) giám sát và cảnh báo an ninh tập trung (\textit{Observability}) bằng ELK Stack, Prometheus và Grafana.
+    \item \textbf{Policy Engine (PE) — Động cơ Chính sách:} ``Bộ não'' của hệ thống ZTA. PE tiếp nhận request, tổng hợp dữ liệu từ nhiều nguồn (danh tính, trạng thái thiết bị, threat intelligence, lịch sử hành vi) và ra quyết định \texttt{Allow} hoặc \texttt{Deny}. PE không trực tiếp chặn hay cho phép gói tin — nó chỉ \textit{ra quyết định}.
+
+    \item \textbf{Policy Administrator (PA) — Quản trị Chính sách:} ``Cánh tay nối dài'' thực thi quyết định của PE. Khi PE quyết định Allow, PA tạo phiên kết nối (session token, credential tạm thời) hoặc cấu hình PEP để mở đường. Khi PE quyết định Deny, PA thu hồi session, revoke credential, hủy kết nối.
+
+    \item \textbf{Policy Enforcement Point (PEP) — Điểm Thực thi Chính sách:} Thành phần nằm trực tiếp trên đường dữ liệu, tiếp xúc với mọi gói tin. PEP chặn request, hỏi PE/PA, và thực thi quyết định (forward hoặc drop). PEP có thể là API Gateway, eBPF agent, hoặc proxy sidecar.
 \end{itemize}
-
-\newpage
-
-\section{Tổng quan về Kiến trúc Zero Trust (ZTA)}
-
-\subsection{Lịch sử hình thành và động lực ra đời}
-
-Khái niệm ``Zero Trust'' (Không tin cậy) lần đầu tiên được định hình bởi nhà phân tích John Kindervag vào năm 2010 khi ông làm việc tại Forrester Research \cite{kindervag2010build}, mặc dù những ý tưởng nền tảng về giải trừ chu vi (\textit{de-perimeterization}) đã được Jericho Forum đề cập từ năm 2004 \cite{jericho2004}. 
-
-Động lực chính dẫn đến sự ra đời của Zero Trust là sự bùng nổ của điện toán đám mây, ứng dụng SaaS và xu hướng làm việc từ xa, khiến ranh giới mạng nội bộ doanh nghiệp không còn tồn tại. Việc phụ thuộc vào ``sự tin cậy ngầm định'' đã tạo điều kiện cho các chiến thuật tấn công dịch chuyển ngang gây ra những vụ rò rỉ dữ liệu thảm khốc. Do đó, Zero Trust ra đời với triết lý cốt lõi: \textit{“Không bao giờ tin cậy, luôn luôn xác minh” (Never trust, always verify)}, yêu cầu mọi kết nối đều phải bị coi là thù địch cho đến khi được xác thực rõ ràng.
-
-% !TEX encoding = UTF-8
-
-\subsection{Các nguyên lý cốt lõi theo NIST SP 800-207}
-
-Viện Tiêu chuẩn và Công nghệ Quốc gia Hoa Kỳ (NIST) đã hệ thống hóa ZTA thông qua ấn phẩm NIST SP 800-207 \cite{rose2020zero} với 7 nguyên lý trọng tâm. Trọng tâm của mô hình này là đặt tài nguyên lên hàng đầu (\textit{Resource-First Security}), cụ thể:
-
-\begin{itemize}
-    \item \textbf{Mọi nguồn dữ liệu và dịch vụ điện toán đều là tài nguyên:} \\
-    Phạm vi bảo vệ không chỉ dừng lại ở máy chủ vật lý mà bao trùm mọi thiết bị, dịch vụ đám mây (SaaS), vi dịch vụ (Microservices) và hệ thống API. \\
-    Ví dụ: Một cổng thông tin nhân sự nội bộ (SaaS) và một API truy vấn cơ sở dữ liệu backend đều được hệ thống ZTA định danh là hai tài nguyên độc lập. Chúng yêu cầu các chính sách kiểm soát quyền truy cập riêng biệt thay vì chỉ được bảo vệ chung bởi một mạng riêng ảo (VPN).
-
-    \item \textbf{Mọi giao tiếp đều phải được bảo mật bất kể vị trí mạng:} \\
-    Hệ thống loại bỏ hoàn toàn khái niệm ``vùng tin cậy ẩn'' (\textit{implicit trust zone}). Mọi kết nối nội bộ (trong cùng một trung tâm dữ liệu) hay từ Internet đều phải được mã hóa và xác thực. \\
-    Ví dụ: Trong cụm Kubernetes, mặc dù vi dịch vụ \texttt{OrderService} và \texttt{PaymentService} nằm trên cùng một Node nội bộ, lưu lượng giao tiếp giữa chúng vẫn bắt buộc phải được mã hóa và xác thực danh tính hai chiều bằng chứng chỉ số (mTLS) để phòng ngừa bị nghe lén nếu mạng nội bộ bị xâm nhập.
-
-    \item \textbf{Quyền truy cập được cấp trên cơ sở từng phiên làm việc (per-session):} \\
-    Tuân thủ nghiêm ngặt nguyên tắc đặc quyền tối thiểu (\textit{Least Privilege}). Sự tin cậy được đánh giá trước khi kết nối và hệ thống chỉ cấp quyền vừa đủ để chủ thể thực hiện một tác vụ cụ thể, sau đó thu hồi ngay. \\
-    Ví dụ : Một người dùng được cấp quyền ``Chỉ đọc'' (Read-only) để xem báo cáo tài chính. Nếu người này cố gắng thực hiện lệnh ``Xóa'' (Delete) hoặc chuyển sang xem một tài liệu khác, hệ thống sẽ yêu cầu đánh giá lại quyền hạn cho phiên làm việc mới đó thay vì tiếp tục tin tưởng.
-
-    \item \textbf{Quyền truy cập được xác định bởi chính sách động (dynamic policy):} \\
-    Quyết định cấp quyền không dựa trên các quy tắc tĩnh (như dải địa chỉ IP) mà dựa trên việc tổng hợp nhiều tín hiệu ngữ cảnh: danh tính, trạng thái thiết bị, hành vi lịch sử, và vị trí địa lý. \\
-    Ví dụ: Một lập trình viên có thể truy cập vào mã nguồn của công ty từ laptop được cấp phát khi đang ngồi tại văn phòng. Tuy nhiên, nếu lập trình viên đó dùng chính tài khoản này nhưng đăng nhập từ mạng Wi-Fi công cộng tại quán cà phê hoặc trên một thiết bị cá nhân không được quản lý, hệ thống động (Policy Engine) sẽ lập tức từ chối truy cập.
-    
-    \item \textbf{Giám sát và đo lường tính toàn vẹn của mọi tài sản:} \\
-    Tổ chức phải liên tục đánh giá trạng thái an ninh của thiết bị. Truy cập sẽ bị từ chối nếu thiết bị có dấu hiệu bị thỏa hiệp hoặc không tuân thủ chính sách bảo mật. \\
-    Ví dụ: Hệ thống quản lý thiết bị (MDM) phát hiện laptop của nhân viên chưa cập nhật bản vá lỗ hổng hệ điều hành mới nhất hoặc phần mềm diệt virus đã bị tắt. Ngay lập tức, thiết bị này bị tước quyền truy cập vào các ứng dụng nội bộ cho đến khi hoàn tất việc cập nhật.
-    
-    \item \textbf{Xác thực và ủy quyền phải linh hoạt và thực thi nghiêm ngặt trước khi truy cập:} \\
-    Không chỉ xác thực một lần ở đầu phiên, hệ thống áp dụng xác thực đa yếu tố (MFA) và liên tục tái xác thực (\textit{continuous re-authentication}) trong suốt vòng đời của phiên kết nối. \\
-    Ví dụ: Quản trị viên hệ thống đám mây đã đăng nhập thành công vào AWS Console được 2 giờ. Tuy nhiên, khi người này thực hiện một hành động nhạy cảm cao như xóa một \textit{S3 Bucket} chứa dữ liệu người dùng, hệ thống bắt buộc họ phải cắm khóa bảo mật vật lý (YubiKey) hoặc nhập mã sinh trắc học để xác thực lại một lần nữa.
-
-    \item \textbf{Thu thập tối đa thông tin tình báo, nhật ký (Telemetry and Logs):} \\
-    Dữ liệu đo từ xa về mạng, thiết bị và hành vi được sử dụng để phân tích, cải thiện tư thế bảo mật và tự động tinh chỉnh chính sách theo thời gian thực. \\
-    Ví dụ: Nền tảng phân tích an ninh (SIEM) thu thập nhật ký truy cập và dùng học máy (Machine Learning) để phát hiện một tài khoản nhân sự đột nhiên tải xuống 1.000 hồ sơ ứng viên lúc 2 giờ sáng. Hệ thống tự động kích hoạt kịch bản phản ứng: khóa tạm thời tài khoản và gửi cảnh báo đỏ cho đội ngũ vận hành bảo mật (SOC).
-\end{itemize}
-
-\subsection{Năm trụ cột chức năng cốt lõi theo Mô hình CISA ZTMM 2.0}
-
-Để hiện thực hóa 7 nguyên tắc của NIST vào thực tiễn tổ chức, Cơ quan An ninh Mạng và Cơ sở Hạ tầng Hoa Kỳ (CISA) đã phát hành \textit{Mô hình Trưởng thành Zero Trust (ZTMM) phiên bản 2.0} \cite{cisa_ztmm2023}. Mô hình này chia kiến trúc Zero Trust thành 5 trụ cột cấu thành những lĩnh vực bảo vệ thiết yếu, được hỗ trợ bởi 3 năng lực xuyên suốt:
-
-\begin{itemize}
-    \item \textbf{Danh tính (Identity):} \\
-    Đảm bảo chỉ những người dùng hợp lệ và các thực thể phi nhân sự (máy móc, dịch vụ) mới có quyền truy cập. Yêu cầu thực thi MFA toàn diện và loại bỏ các đặc quyền thường trực (Standing privileges) thông qua cơ chế cấp quyền ``đúng lúc'' (\textit{Just-In-Time - JIT}). \\
-    Ví dụ: Thay vì cấp cho quản trị viên cơ sở dữ liệu (DBA) một tài khoản \texttt{root} vĩnh viễn, DBA phải tạo yêu cầu trên hệ thống quản lý danh tính (như HashiCorp Vault). Hệ thống sẽ sinh ra một bộ thông tin đăng nhập tạm thời, chỉ có hiệu lực đúng 60 phút để thực hiện công việc bảo trì, sau đó tự động hủy.
-    
-    \item \textbf{Thiết bị (Devices):} \\
-    Mọi thiết bị (máy chủ, di động, IoT, BYOD) kết nối vào mạng đều phải được kiểm kê và giám sát chặt chẽ về độ tin cậy, trạng thái tuân thủ và mức độ rủi ro theo thời gian thực. \\
-    Ví dụ: Triển khai giải pháp EDR (Endpoint Detection and Response) trên mọi máy chủ. Trước khi một máy chủ được phép lấy (pull) mã nguồn từ Gitlab nội bộ, hệ thống phải xác minh qua EDR rằng máy chủ đó không bị nhiễm mã độc.
-
-    \item \textbf{Mạng lưới (Networks):} \\
-    Quản lý luồng lưu lượng dựa trên rủi ro thay vì ranh giới vật lý, đồng thời áp dụng rộng rãi các cơ chế phân đoạn mạng vi mô (\textit{Micro-segmentation}) và mã hóa để bảo vệ dữ liệu đang truyền tải. \\
-    Ví dụ: Trong môi trường Kubernetes, sử dụng công nghệ eBPF (như \textit{Cilium}) để tạo các quy tắc mạng mức L7: Chỉ cho phép \textit{Frontend Pod} giao tiếp HTTP \texttt{GET} với \textit{Backend Pod} qua cổng \texttt{8080}. Mọi truy cập khác, ví dụ như từ Frontend chọc thẳng vào Database hoặc dùng giao thức khác, đều bị chặn ở mức nhân hệ điều hành (kernel-level).
-
-    \item \textbf{Ứng dụng và Khối lượng công việc (Applications and Workloads):} \\
-    Bảo mật lớp phần mềm và môi trường tính toán thông qua kiểm soát truy cập cực kỳ chi tiết (\textit{granular access}) cho cả ứng dụng on-premises và cloud, kết hợp đánh giá cấu hình động. \\
-    Ví dụ: Đặt một API Gateway (như \textit{Kong}) ở phía trước các vi dịch vụ. Bất kỳ yêu cầu (request) nào gửi đến API đều phải mang theo một token JWT hợp lệ. API Gateway sẽ giải mã token, kiểm tra chữ ký và đối chiếu quyền (Scope) trước khi định tuyến yêu cầu xuống vi dịch vụ bên dưới.
-
-    \item \textbf{Dữ liệu (Data):} \\
-    Đây là mục tiêu bảo vệ tối thượng của ZTA. Dữ liệu phải được phân loại, dán nhãn, mã hóa liên tục (ở cả trạng thái lưu trữ và truyền tải) và tích hợp sâu các công cụ Phòng chống Thất thoát Dữ liệu (DLP) để giám sát trích xuất trái phép. \\
-    Ví dụ: Dữ liệu thẻ tín dụng hoặc thông tin cá nhân (PII) của khách hàng trong MySQL được mã hóa minh bạch (TDE). Đồng thời, phần mềm DLP kiểm soát luồng ra internet, chặn đứng ngay lập tức hành vi một nhân viên cố tình đính kèm tệp dữ liệu khách hàng gửi lên Google Drive cá nhân.
-\end{itemize}
-
-Ba năng lực xuyên suốt (Cross-cutting capabilities) đóng vai trò kết nối 5 trụ cột trên thành một hệ thống hợp nhất bao gồm: \textbf{Tầm nhìn \& Phân tích (Visibility \& Analytics)}, \textbf{Tự động hóa \& Điều phối (Automation \& Orchestration)}, và \textbf{Quản trị (Governance)}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{images/ZTAPillars.png}
-    \caption{5 trụ cột của ZTA theo NIST 800 - 207}
+    \caption{5 trụ cột của ZTA theo NIST SP 800-207}
     \label{fig:ZTAPillars}
 \end{figure}
 
 
+\subsection{Vòng đời quyết định truy cập}
+
+Mỗi request trong hệ thống ZTA đều trải qua vòng đời 5 bước:
+
+\begin{enumerate}
+    \item \textbf{Chủ thể gửi request:} Người dùng hoặc workload gửi request truy cập tài nguyên.
+    \item \textbf{PEP chặn request:} PEP nằm trên đường dữ liệu, ngưng luồng và chuyển thông tin đến PE.
+    \item \textbf{PE đánh giá đa chiều:} PE tổng hợp: danh tính (JWT claims, SPIFFE ID) + trạng thái thiết bị (MDM) + threat intelligence (IoC feeds) + hành vi lịch sử (UEBA) → ra quyết định Allow/Deny.
+    \item \textbf{PA thực thi:} Nếu Allow → PA tạo session/credential tạm thời, cấu hình PEP mở đường. Nếu Deny → PA từ chối, ghi log.
+    \item \textbf{Giám sát liên tục:} Sau khi cho phép, hệ thống vẫn giám sát phiên. Nếu phát hiện anomaly → PE ra quyết định Deny mới → PA thu hồi quyền giữa chừng (\textit{continuous re-evaluation}).
+\end{enumerate}
+
+
 \subsection{Ba hướng triển khai theo NIST}
 
-Theo tài liệu của NIST \cite[tr. 12--14]{nist800207}, ZTA có thể được triển khai qua ba hướng tiếp cận chính:
+Tùy mục tiêu bảo vệ — con người, máy chủ hay ứng dụng — NIST chia ra 3 hướng tiếp cận \cite{nist800207}:
+
 \begin{itemize}
-    \item \textbf{Enhanced Identity Governance (Quản trị danh tính nâng cao):} Sử dụng danh tính làm thành phần cốt lõi để tạo chính sách. Quyền truy cập vào tài nguyên được cấp dựa trên danh tính và các thuộc tính được gán cho chủ thể đó, trong khi mạng có thể vẫn mở cho mọi kết nối ban đầu.
-    \item \textbf{Micro-segmentation (Phân khúc vi mô):} Chống lại kiến trúc mạng ``phẳng'' bằng cách sử dụng tường lửa hoặc cổng thông minh để chia mạng thành các phân đoạn rất nhỏ bao quanh từng tài nguyên hoặc nhóm tài nguyên. Cách này cô lập rủi ro và ngăn chặn triệt để sự di chuyển ngang của kẻ tấn công.
-    \item \textbf{Software Defined Perimeter (Chu vi xác định bằng phần mềm - SDP):} Dựa trên cơ sở hạ tầng mạng (thường là mạng lớp 7) để quản lý luồng. Một bộ điều khiển mạng (\textit{Network Controller}) sẽ động thiết lập và cấu hình các đường truyền an toàn giữa máy khách và tài nguyên dựa trên quyết định từ Động cơ chính sách.
+    \item \textbf{Enhanced Identity Governance (Quản trị Danh tính Nâng cao):} Lấy \textit{danh tính} làm trung tâm. Mọi quyết định truy cập dựa trên ``chủ thể là ai'' + ``thuộc tính gì'' (role, department, clearance level). Phù hợp với tổ chức có IdP mạnh (Okta, Azure AD, Keycloak).
+
+    \item \textbf{Micro-segmentation (Phân đoạn Vi mô):} Lấy \textit{mạng} làm trung tâm. Chia mạng thành các phân đoạn cực nhỏ bao quanh từng tài nguyên hoặc nhóm tài nguyên. Ngăn chặn di chuyển ngang bằng cách đảm bảo kẻ tấn công chiếm 1 phân đoạn vẫn không thể vươn sang phân đoạn kế bên.
+
+    \item \textbf{Software Defined Perimeter (Chu vi Định nghĩa bằng Phần mềm — SDP):} Lấy \textit{ứng dụng} làm trung tâm. Tài nguyên hoàn toàn ``tàng hình'' cho đến khi chủ thể xác thực thành công — network controller động thiết lập đường truyền an toàn giữa client và tài nguyên.
 \end{itemize}
 
-\subsection{So sánh ZTA với mô hình Perimeter-based Security}
+\textbf{Trong thực tế}, các tổ chức thường kết hợp cả 3 hướng: Identity Governance cho luồng North-South (người dùng → hệ thống), Micro-segmentation cho luồng East-West (service → service), và SDP cho truy cập từ xa.
 
-Sự khác biệt giữa Kiến trúc Zero Trust và Mô hình bảo mật vành đai truyền thống được thể hiện rõ rệt qua cách tiếp cận với sự tin cậy và quyền truy cập (Bảng \ref{tab:zta_vs_perimeter}). Mô hình ZTA khắc phục triệt để các lỗ hổng của kiến trúc cũ, đặc biệt trong việc ngăn ngừa tấn công dịch chuyển ngang.
 
-\begin{table}[htbp]
+%==============================================================================
+% 1.3  ZTA LÀ HỆ SINH THÁI
+%==============================================================================
+\section{ZTA là hệ sinh thái, không phải sản phẩm}
+
+\subsection{Tại sao không có ``một sản phẩm ZTA duy nhất''?}
+
+Một trong những quan niệm sai lầm phổ biến nhất là coi Zero Trust như một sản phẩm phần mềm ``đóng gói'' có thể mua và cài đặt một lần. Thực tế, ZTA là một \textbf{triết lý thiết kế và lộ trình kiến trúc}, không phải một sản phẩm đơn lẻ \cite{nist800207}. Không có nhà cung cấp nào (kể cả Cisco, Palo Alto hay Microsoft) có thể cung cấp 100\% các thành phần logic NIST trong một công cụ duy nhất mà không bộc lộ hai rủi ro:
+
+\begin{itemize}
+    \item \textbf{Vendor Lock-in (Bị kẹt nhà cung cấp):} Toàn bộ hệ thống phụ thuộc vào một nhà cung cấp. Nếu nhà cung cấp tăng giá, ngừng hỗ trợ, hoặc bị xâm nhập (như SolarWinds) — toàn bộ chiến lược ZTA sụp đổ.
+    \item \textbf{Single Point of Failure:} Một lỗ hổng trong sản phẩm duy nhất đó ảnh hưởng toàn bộ các lớp bảo vệ, từ định danh đến thực thi đến giám sát.
+\end{itemize}
+
+\subsection{Tiếp cận ``Best-of-Breed'' với công nghệ mã nguồn mở}
+
+Đồ án lựa chọn tiếp cận \textbf{Best-of-Breed} — chọn công cụ tốt nhất cho từng thành phần logic NIST, ưu tiên hệ sinh thái mã nguồn mở thuộc Cloud Native Computing Foundation (CNCF):
+
+\begin{table}[H]
 \centering
-\caption{So sánh Mô hình bảo mật vành đai và Kiến trúc Zero Trust}
+\caption{Ánh xạ thành phần logic NIST sang công nghệ mã nguồn mở}
+\label{tab:nist_cncf_mapping}
+\begin{tabularx}{\textwidth}{|p{2.8cm}|p{2.8cm}|X|}
+\hline
+\textbf{Thành phần NIST} & \textbf{Công nghệ} & \textbf{Vai trò} \\
+\hline
+PE (Policy Engine) & OPA/Rego + Keycloak & Ra quyết định truy cập dựa trên thuộc tính đa chiều (ABAC). \\
+\hline
+PA (Policy Admin) & HashiCorp Vault & Cấp phát credential động (JIT), thu hồi khi hết TTL, quản lý secrets. \\
+\hline
+PEP — North-South & Kong Gateway & API Gateway xác thực JWT Keycloak trên từng route, proxy đến backend. \\
+\hline
+PEP — East-West (L3-L7) & Cilium eBPF & Thực thi network policy tại kernel: L3/L4 (IP, port) + L7 (HTTP method, path). \\
+\hline
+PEP — Runtime & Tetragon eBPF & Giám sát syscall bên trong container, SIGKILL tiến trình đáng ngờ. \\
+\hline
+Identity — User & Keycloak & IdP cấp JWT (OIDC) cho người dùng qua OAuth 2.0 flow. \\
+\hline
+Identity — Workload & K8s ServiceAccount + SPIFFE & Định danh gắn chặt vào workload, cryptographic binding. \\
+\hline
+Observability & EFK + Prometheus + Grafana & Centralized logging, metrics thu thập, dashboard giám sát. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Ưu điểm:}
+\begin{itemize}
+    \item Mỗi thành phần có thể thay thế độc lập — ví dụ: đổi từ Keycloak sang Okta mà không ảnh hưởng Cilium hay Vault.
+    \item Không bị vendor lock-in — toàn bộ stack là mã nguồn mở.
+    \item Phù hợp với môi trường Cloud Native / Kubernetes — các công nghệ đều là CNCF graduated/incubating.
+\end{itemize}
+
+
+%==============================================================================
+% 1.4  MÔ HÌNH ĐE DỌA
+%==============================================================================
+\section{Mô hình đe dọa trước khi triển khai ZTA}
+
+\subsection{Bề mặt tấn công của Microservices}
+
+Kiến trúc Microservices thay đổi hoàn toàn bề mặt tấn công so với Monolith:
+
+\begin{itemize}
+    \item \textbf{Khủng hoảng định danh:} Định danh đã trở thành vành đai mới và là mục tiêu hàng đầu. Thông tin xác thực bị thỏa hiệp chiếm khoảng 20,5\% các vụ vi phạm dữ liệu \cite{gilman2017zero}.
+    \item \textbf{Secrets sprawl:} Mật khẩu database, API keys, TLS certificates nằm rải rác trong file \texttt{.env}, ConfigMaps, environment variables — mỗi điểm là một vector tấn công tiềm năng.
+    \item \textbf{Luồng East-West không kiểm soát:} Khi service gọi service qua HTTP plaintext nội bộ, kẻ tấn công thực hiện ARP Spoofing hoặc Man-in-the-Middle có thể đọc toàn bộ payload.
+    \item \textbf{Shared infrastructure:} Nhiều service chạy trên cùng node vật lý, chia sẻ kernel — container escape = kiểm soát toàn bộ node.
+\end{itemize}
+
+
+\subsection{Bảng đe dọa và biện pháp đối phó tương ứng}
+
+\begin{table}[H]
+\centering
+\caption{Mô hình đe dọa và biện pháp ZTA tương ứng}
+\label{tab:threat_countermeasure}
+\begin{tabularx}{\textwidth}{|p{3cm}|X|X|}
+\hline
+\textbf{Đe dọa} & \textbf{Mô tả} & \textbf{Biện pháp ZTA} \\
+\hline
+Credential Theft & Đánh cắp mật khẩu database hoặc API key từ file \texttt{.env} & Vault JIT: credential tạm thời TTL 1h, auto-revoke \\
+\hline
+Lateral Movement & Di chuyển ngang từ Pod bị xâm nhập sang service khác & Cilium Default Deny + micro-segmentation theo ServiceAccount \\
+\hline
+API Abuse & Gọi API nội bộ không xác thực để truy cập dữ liệu trái phép & Kong JWT Gateway + Cilium L7 HTTP Policy \\
+\hline
+Privilege Escalation & Leo thang đặc quyền từ user thường lên admin & ABAC with least privilege + continuous re-evaluation \\
+\hline
+Data Exfiltration & Trích xuất dữ liệu nhạy cảm qua kênh outbound & eBPF egress policy + EFK anomaly detection \\
+\hline
+Supply Chain Attack & Cài mã độc vào image hoặc dependency (kiểu SolarWinds) & Container image scanning + runtime enforcement (Tetragon) \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Ánh xạ MITRE ATT\&CK cho Kubernetes}
+
+\begin{table}[H]
+\centering
+\caption{Ánh xạ kỹ thuật tấn công MITRE ATT\&CK sang lớp ZTA phòng thủ}
+\label{tab:mitre_mapping}
+\begin{tabularx}{\textwidth}{|p{2.5cm}|p{3cm}|X|}
+\hline
+\textbf{Giai đoạn MITRE} & \textbf{Kỹ thuật K8s} & \textbf{Lớp ZTA phòng thủ} \\
+\hline
+Initial Access & Exposed Dashboard, Compromised Image & PEP Biên (Kong JWT) + Image Scanning \\
+\hline
+Execution & Exec into Container, New Container & PEP Runtime (Tetragon) — block \texttt{sys\_execve} \\
+\hline
+Persistence & Backdoor Container, Writable hostPath & Cilium Egress Deny + Read-only rootfs \\
+\hline
+Privilege Escalation & Privileged Container, hostPID & K8s Pod Security Standards + OPA Gatekeeper \\
+\hline
+Lateral Movement & Access K8s API, Service Discovery & Cilium Default Deny + L7 micro-segmentation \\
+\hline
+Collection & Sensitive Data in Secrets & Vault Dynamic Secrets + tmpfs \\
+\hline
+Exfiltration & Transfer to Cloud Account & eBPF Egress Policy + EFK alerting \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{So sánh ZTA với mô hình Perimeter-based}
+
+\begin{table}[H]
+\centering
+\caption{So sánh mô hình bảo mật truyền thống và Kiến trúc Zero Trust}
 \label{tab:zta_vs_perimeter}
 \begin{tabularx}{\textwidth}{|l|X|X|}
 \hline
 \rowcolor[HTML]{EFEFEF}
-\textbf{Tiêu chí} & \textbf{Mô hình vành đai (Perimeter-based)} & \textbf{Kiến trúc Zero Trust (ZTA)} \\ \hline
-\textbf{Giả định tin cậy} & Tin tưởng mặc định mọi thực thể bên trong mạng nội bộ. & Không tin tưởng bất kỳ thực thể nào, bất kể vị trí vật lý hay vị trí mạng. \\ \hline
-\textbf{Cơ chế xác thực} & Xác thực tĩnh một lần tại thời điểm đăng nhập (tại cổng vào). & Đánh giá rủi ro động, xác thực liên tục và cấp quyền theo từng phiên giao dịch. \\ \hline
-\textbf{Quyết định truy cập} & Dựa vào các thông tin tĩnh (ví dụ: địa chỉ IP, dải mạng). & Dựa trên danh tính xác thực mạnh, bối cảnh môi trường và mức độ rủi ro của thiết bị. \\ \hline
-\textbf{Chống dịch chuyển ngang} & Vô cùng yếu kém. Tin tặc dễ dàng di chuyển khi đã thâm nhập thành công. & Vô hiệu hóa thành công nhờ xác thực độc lập từng tài nguyên và phân đoạn mạng vi mô. \\ \hline
+\textbf{Tiêu chí} & \textbf{Perimeter-based} & \textbf{Zero Trust Architecture} \\
+\hline
+Giả định tin cậy & Tin tưởng mặc định mọi thực thể bên trong mạng & Không tin tưởng bất kỳ thực thể nào \\
+\hline
+Cơ chế xác thực & Một lần tại cổng vào & Liên tục, đa yếu tố, theo từng phiên \\
+\hline
+Quyết định truy cập & Dựa trên IP, subnet & Dựa trên danh tính + ngữ cảnh + rủi ro \\
+\hline
+Chống Lateral Movement & Rất yếu & Micro-segmentation + per-request enforcement \\
+\hline
+Secrets Management & Static (file .env) & Dynamic (Vault JIT, TTL, auto-revoke) \\
+\hline
+Observability & Chỉ log biên & Centralized: logs + metrics + traces \\
+\hline
 \end{tabularx}
 \end{table}
+
+
+\vspace{0.5cm}
+
+\begin{leftbar}
+\textbf{Cầu nối sang Chương 2:} Chương 1 đã xác lập nền tảng lý luận về kiến trúc Zero Trust: từ sự thất bại của mô hình Perimeter, qua 7 nguyên lý NIST và kiến trúc logic PE/PA/PEP, đến ánh xạ sơ bộ sang công nghệ mã nguồn mở và mô hình đe dọa. Tuy nhiên, việc triển khai ZTA trong môi trường \textit{Microservices trên Kubernetes} đặt ra những thách thức đặc thù mà lý thuyết chung chưa thể giải đáp — đặc biệt là bài toán PEP placement, ephemeral workload identity, ``thuế Sidecar'' và ngập lụt dữ liệu quan sát. Chương 2 sẽ phân tích những thách thức này và đề xuất một khung kiến trúc ZTA 5 lớp cụ thể cho hệ thống Microservices.
+\end{leftbar}

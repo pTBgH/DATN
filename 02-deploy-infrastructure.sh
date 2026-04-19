@@ -343,7 +343,27 @@ else
 fi
 
 kubectl apply -f infras/k8s-yaml/02-keycloak.yaml
-wait_for_pods "app=keycloak" security 300
+echo "   Waiting for Keycloak rollout (up to 900s due to first-boot DB migration/import)..."
+if kubectl -n security rollout status deploy/keycloak --timeout=900s; then
+  echo "   ✔ Keycloak rollout succeeded"
+else
+  echo "⚠  Keycloak rollout timeout/failure"
+  kubectl -n security get pods -l app=keycloak -o wide || true
+  KEYCLOAK_POD_DIAG=$(kubectl get pod -n security -l app=keycloak -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -n "$KEYCLOAK_POD_DIAG" ]; then
+    kubectl -n security describe pod "$KEYCLOAK_POD_DIAG" | sed -n '/^Events:/,$p' || true
+    kubectl -n security logs "$KEYCLOAK_POD_DIAG" --tail=120 || true
+    kubectl -n security logs "$KEYCLOAK_POD_DIAG" --previous --tail=120 || true
+  fi
+  if [ "$WAIT_STRICT" = "1" ]; then
+    echo "❌ Strict mode enabled. Stopping due to Keycloak rollout timeout."
+    exit 1
+  fi
+  echo "   (Continuing because WAIT_STRICT=0)"
+fi
+
+# Keep generic pod readiness check as a second gate after rollout status.
+wait_for_pods "app=keycloak" security 600
 
 # Import Keycloak Realm safely
 echo "   Importing Keycloak realm: job7189..."

@@ -1,311 +1,562 @@
 % !TEX encoding = UTF-8
-\chapter{Phương pháp phân tích và thiết kế kiến trúc Microservice}
+\chapter{Ứng dụng ZTA vào bảo mật hệ thống Microservices}
 
-\section{Thiết kế hướng miền}
+%==============================================================================
+% 2.1  ĐẶC ĐIỂM BẢO MẬT ĐẶC THÙ CỦA MICROSERVICES
+%==============================================================================
+\section{Đặc điểm bảo mật đặc thù của Microservices}
 
-\subsection{Giới thiệu về Thiết kế hướng miền}
-Thiết kế hướng miền (Domain-Driven Design - DDD) là phương pháp luận thiết kế phần mềm được Eric Evans giới thiệu trong tác phẩmkinh điển của mình \cite{evans2003}. DDD đặt miền nghiệp vụ (business domain) làm trung tâm của quá trình phát triển, thay vì xuất phát từ các yếu tố kỹ thuật như cơ sở dữ liệu hay framework.
+Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công (Attack Surface) của hệ thống. Mục này phân tích bốn đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức mà chúng tạo ra cho việc triển khai ZTA.
 
-Triết lý cốt lõi của DDD nhấn mạnh sự cộng tác chặt chẽ giữa các chuyên gia kỹ thuật và chuyên gia nghiệp vụ để xây dựng \textbf{Ngôn ngữ chung (Ubiquitous Language)} - một ngôn ngữ thống nhất được sử dụng xuyên suốt trong mã nguồn, tài liệu thiết kế và giao tiếp giữa các bên liên quan. DDD được cấu trúc thành hai tầng thiết kế chính:
-\begin{itemize}
-    \item \textbf{Thiết kế Chiến lược (Strategic Design):} Tập trung vào phân tích và phân rã miền nghiệp vụ lớn thành các phần nhỏ hơn, dễ quản lý. Đây được coi là "bản đồ địa hình nghiệp vụ" của hệ thống.
-    \item \textbf{Thiết kế Chiến thuật (Tactical Design):} Cung cấp các khối xây dựng (building blocks) và mẫu thiết kế cụ thể để triển khai mô hình miền trong mã nguồn.
-\end{itemize}
+\subsection{Sự bùng nổ lưu lượng nội bộ (East-West Traffic)}
 
-\subsection{Tính cần thiết của DDD trong kiến trúc Microservices}
-Thách thức lớn nhất khi xây dựng Microservices không nằm ở việc chọn Kubernetes hay Docker, mà nằm ở việc xác định \textbf{ranh giới dịch vụ (service boundaries)} một cách chính xác. Nếu ranh giới này được thiết kế sai, hệ thống sẽ nhanh chóng rơi vào bẫy "Distributed Monolith" (Khối nguyên khối phân tán) - một trạng thái tồi tệ nơi mọi thay đổi nhỏ về nghiệp vụ đều kéo theo sự sửa đổi đồng bộ trên nhiều dịch vụ. 
+Trong kiến trúc đơn khối (Monolith), hầu hết giao tiếp diễn ra bên trong bộ nhớ của một tiến trình duy nhất. Khi chuyển sang Microservices, các chức năng nghiệp vụ được tách rời, dẫn đến sự bùng nổ của lưu lượng \textbf{East-West} (giao tiếp giữa các dịch vụ nội bộ) so với lưu lượng \textbf{North-South} (client gọi vào hệ thống).
 
-DDD giải quyết vấn đề này thông qua các cơ chế:
-\begin{enumerate}
-    \item \textbf{Định nghĩa ranh giới tự nhiên:} Ngữ cảnh giới hạn (Bounded Context) cung cấp phương pháp xác định ranh giới dựa trên nghiệp vụ.
-    \item \textbf{Ưu tiên nguồn lực:} Phân loại miền con (Subdomain) theo nguyên tắc Pareto - Core Domain thường chỉ chiếm 20\% giá trị hệ thống nhưng đòi hỏi 80\% nỗ lực sáng tạo.
-    \item \textbf{Quản lý nhất quán dữ liệu:} Hỗ trợ thiết kế hệ thống phân tán với tính nhất quán cuối cùng (eventual consistency) thông qua Domain Events.
-    \item \textbf{Tuân thủ Định luật Conway:} Đảm bảo cấu trúc hệ thống phản ánh cấu trúc tổ chức, giảm ma sát trong phát triển.
-\end{enumerate}
+Các công cụ bảo mật truyền thống (tường lửa biên, IPS) chỉ giám sát lưu lượng North-South. Khi kẻ tấn công chiếm quyền một dịch vụ đơn lẻ, chúng có thể tự do di chuyển ngang trong mạng nội bộ bởi các dịch vụ bên trong thường ``mặc định tin tưởng'' nhau qua địa chỉ IP nội bộ \cite{rice2019kubernetes}. Một lỗ hổng tại một dịch vụ không trọng yếu có thể trở thành bàn đạp truy cập trái phép vào cơ sở dữ liệu nhạy cảm.
 
-\subsection{Thiết kế Chiến lược (Strategic Design)}
+\begin{leftbar}
+\textbf{Ví dụ trong JOB7189:} Khi người dùng xem danh sách công việc, request đi qua Kong Gateway → \texttt{job-service} phải gọi sang \texttt{identity-service} để xác thực quyền hạn và \texttt{workspace-service} để lấy thông tin doanh nghiệp. Tường lửa biên chỉ thấy request đầu tiên; toàn bộ trao đổi Token và dữ liệu bên trong nằm ngoài tầm kiểm soát của nó.
+\end{leftbar}
 
-\subsubsection{Phân loại Miền con (Subdomain) - La bàn đầu tư nguồn lực}
-DDD đề xuất phân rã miền nghiệp vụ thành các Subdomain để định hướng chiến lược đầu tư:
-
-\begin{table}[htbp]
-\centering
-\caption{Phân loại Miền con trong DDD}
-\label{tab:subdomain_types}
-\begin{tabularx}{\textwidth}{|l|X|c|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Loại miền con} & \textbf{Đặc điểm} & \textbf{Lợi thế} & \textbf{Chiến lược Microservice} \\ \hline
-\textbf{Core Domain} & Độc nhất, logic phức tạp, thay đổi thường xuyên. & Rất cao & Xây dựng in-house với đội ngũ giỏi nhất. \\ \hline
-\textbf{Supporting} & Cần thiết để vận hành nhưng không tạo khác biệt. & Thấp & Xây dựng nội bộ hoặc outsource. \\ \hline
-\textbf{Generic} & Phổ biến, đã được chuẩn hóa (Email, Auth). & Không & Chiến lược "Mua thay vì Xây" (SaaS/Open Source). \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Ngữ cảnh Giới hạn (Bounded Context)}
-\textbf{Định nghĩa:} Ngữ cảnh Giới hạn (Bounded Context - BC) là ranh giới rõ ràng nơi một mô hình miền cụ thể có ý nghĩa thống nhất. Một từ ngữ có thể mang nhiều ý nghĩa khác nhau tùy thuộc ngữ cảnh. 
-
-\begin{figure}[H]
+\begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.5\textwidth]{images/boundedcontext.png}
-    \caption{Từ ngữ "Sản phẩm" trong các Bounded Context khác nhau}
-    \label{fig:bounded_context}
+    \includegraphics[width=0.7\textwidth]{images/nsew.png}
+    \caption{Luồng lưu lượng North-South (từ ngoài vào) và East-West (giữa các service nội bộ)}
+    \label{fig:east_west_traffic}
 \end{figure}
 
 
-Ví dụ: thực thể "Sản phẩm" (Product) trong \textit{Sales Context} tập trung vào giá và khuyến mãi, trong khi ở \textit{Marketing Context}, "Sản phẩm" lại được biểu diễn thông qua các khía cạnh như định vị thị trường, nhóm khách hàng mục tiêu, thông điệp thương hiệu và mức độ tương tác của các chiến dịch marketing, phản ánh mục tiêu thu hút và xây dựng nhận thức thương hiệu.
+\subsection{Ephemeral Workloads: Sự lỗi thời của mô hình tin cậy dựa trên IP}
+
+Trên Kubernetes, các Pod/Container có đặc tính \textbf{tạm thời (ephemeral)}: được khởi tạo, tiêu hủy và mở rộng (scaling) liên tục dựa trên tải. Địa chỉ IP của Pod không cố định — một Pod lỗi khi khởi động lại sẽ nhận IP mới. Điều này khiến việc cấu hình tường lửa hay danh sách trắng dựa trên IP trở nên bất khả thi.
+
+Theo nguyên lý ZTA (Chương 1, Tenet 2), hệ thống không thể dựa vào ``vị trí mạng'' để xác lập lòng tin. Định danh phải được gắn chặt vào chính dịch vụ (\textit{Service Identity}) thông qua mTLS hoặc chứng chỉ SPIFFE thay vì các thuộc tính mạng biến đổi \cite{nist800207}.
 
 
-\textbf{Mối quan hệ với Microservice:} 
-Lý tưởng nhất là tỷ lệ 1:1 (Một Microservice bao trùm trọn vẹn một Bounded Context). Tuy nhiên, một Microservice không nên nhỏ hơn một Aggregate và không nên lớn hơn một Bounded Context.
+\subsection{Thách thức quản lý thông tin nhạy cảm (Secrets Management)}
 
-\subsubsection{Context Mapping - Định hình quan hệ xã hội và kỹ thuật}
-Context Map phản ánh mối quan hệ giữa các đội nhóm và sự phụ thuộc kỹ thuật:
+Môi trường Microservices yêu cầu một lượng lớn thông tin nhạy cảm (Secrets): mật khẩu database, API Keys bên thứ ba, khóa ký JWT. Nếu các bí mật này được cấu hình cứng (hardcode) trong file \texttt{.env} hoặc lưu trong Kubernetes ConfigMaps, nguy cơ rò rỉ rất cao khi mã nguồn bị lộ hoặc hệ thống quản lý cấu hình bị xâm nhập.
 
-\begin{table}[htbp]
-\centering
-\caption{Các mẫu quan hệ chính trong Context Mapping}
-\label{tab:context_mapping}
-\begin{tabularx}{\textwidth}{|l|X|c|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Mẫu quan hệ} & \textbf{Mô tả} & \textbf{Sự phụ thuộc} \\ \hline
-\textbf{Partnership} & Hai đội phối hợp chặt chẽ, thất bại một bên là thất bại cả hai. & Rất cao \\ \hline
-\textbf{Shared Kernel} & Chia sẻ một phần nhỏ mô hình (thư viện Value Objects chung). & Cao \\ \hline
-\textbf{Customer-Supplier} & Upstream cung cấp dịch vụ, Downstream có quyền yêu cầu. & Trung bình \\ \hline
-\textbf{Conformist} & Downstream buộc phải chấp nhận mô hình của Upstream. & Cao \\ \hline
-\textbf{ACL} & Lớp chống tham nhũng bảo vệ mô hình miền tinh sạch. & Thấp \\ \hline
-\textbf{Open Host (OHS)} & Cung cấp giao thức chuẩn công khai cho nhiều Downstream. & Thấp \\ \hline
-\end{tabularx}
-\end{table}
+Theo nguyên lý ZTA (Chương 1, Tenet 3 — per-session), bí mật phải được quản lý tập trung, cấp phát động với thời gian sống (TTL) ngắn, sinh ra cho từng phiên làm việc cụ thể, và tự động xoay vòng (rotation) để giảm thiểu Blast Radius nếu một dịch vụ bị chiếm quyền \cite{vault_docs}.
 
-\subsection{Thiết kế Chiến thuật (Tactical Design)}
 
-\subsubsection{Entity và Value Object}
+\subsection{Rủi ro từ hạ tầng dùng chung (Shared Infrastructure Risk)}
+
+Microservices thường vận hành trên cụm máy chủ dùng chung (Shared Cluster), tạo ra rủi ro ``thoát khỏi vùng cách ly'' (Isolation Breach):
+
 \begin{itemize}
-    \item \textbf{Entity (Thực thể):} Đối tượng được xác định bởi định danh (Identity) duy nhất, có vòng đời và trạng thái thay đổi (Ví dụ: Order, Candidate).
-    \item \textbf{Value Object (Đối tượng giá trị):} Đối tượng xác định bởi giá trị thuộc tính, bất biến (Immutable) và an toàn đa luồng (Ví dụ: Address, Money).
+    \item \textbf{Namespace chỉ là phân chia logic:} Trong Kubernetes, Namespace không phải ranh giới vật lý. Nếu không cấu hình Network Policies chặt chẽ, dịch vụ ở namespace này vẫn có thể quét port và tấn công dịch vụ ở namespace khác.
+    \item \textbf{Node sharing:} Các dịch vụ chia sẻ chung CPU, RAM và kernel trên cùng một Node vật lý. Nếu một container bị chiếm quyền và leo thang đặc quyền (Privilege Escalation) lên kernel, nó có thể kiểm soát mọi container khác trên Node đó.
 \end{itemize}
 
-\subsubsection{Cụm thực thể}
-Cụm thực thể (Aggregate) là cụm các Entity và Value Object liên quan chặt chẽ, được coi là một đơn vị nhất quán duy nhất cho các thay đổi dữ liệu. Mọi thay đổi phải thông qua \textbf{Aggregate Root}. 
-Các quy tắc thiết kế cụm thực thể trong Microservice:
+Nguyên lý ``Mạng luôn bị coi là đã bị xâm nhập'' (Tenet 1) buộc ta phải bảo vệ từng tài nguyên độc lập với mức độ an toàn của hạ tầng nền bên dưới \cite{nist800207}.
+
+
+%==============================================================================
+% 2.2  THÁCH THỨC TRIỂN KHAI ZTA TRÊN KUBERNETES
+%==============================================================================
+\section{Thách thức triển khai ZTA trên Kubernetes}
+
+Sau khi nắm rõ các đặc điểm bảo mật đặc thù của Microservices (Mục 2.1), mục này phân tích bốn thách thức kỹ thuật cụ thể khi áp dụng 7 nguyên lý NIST SP 800-207 (Chương 1, Mục 1.2.1) vào hạ tầng Kubernetes — nơi tính phân tán cao và tính ``phù du'' (ephemeral) tạo ra các bài toán không tồn tại trong mạng doanh nghiệp truyền thống.
+
+\subsection{Vị trí đặt PEP và mức độ chi tiết kiểm soát (Granularity Problem)}
+
+Thách thức lớn nhất là xác định PEP (Chương 1, Mục 1.2.2) nên hoạt động ở tầng nào trong mô hình OSI:
+
+\begin{itemize}
+    \item \textbf{Tầng L3/L4 (Network/Transport):} Công cụ mặc định \texttt{NetworkPolicy} (dựa trên \texttt{iptables}) chỉ kiểm soát qua IP và Port. Tuy nhiên, hàng chục dịch vụ cùng giao tiếp qua cổng 80/443 — kẻ tấn công lợi dụng cổng hợp lệ để di chuyển ngang. \texttt{iptables} không hiểu nội dung gói tin nên không đáp ứng yêu cầu ZTA.
+    
+    \item \textbf{Tầng L7 (Application):} Để thực thi per-request (Tenet 3), PEP phải đọc được HTTP method (GET, POST, DELETE), gRPC headers và giải mã JWT. Nếu lưu lượng được mã hóa mTLS, PEP phải thực hiện TLS Termination → đọc nội dung → mã hóa lại — đòi hỏi kiến trúc proxy phức tạp.
+    
+    \item \textbf{Tầng Runtime:} Ngay cả khi Pod có định danh hợp lệ và gửi API request đúng chuẩn, nó vẫn có thể là Pod đã bị chiếm quyền (Compromised Pod). ZTA đòi hỏi giám sát hành vi thực thi bên trong container — phát hiện khi dịch vụ web đột nhiên gọi \texttt{/bin/sh} hay quét bộ nhớ \cite{cilium_docs}.
+\end{itemize}
+
+
+\subsection{Bài toán định danh và lan truyền ngữ cảnh (Identity Problem)}
+
+Trong Kubernetes, khái niệm ``Subject'' (Chủ thể) trở nên phức tạp do sự giao thoa giữa con người và máy móc:
+
+\begin{itemize}
+    \item \textbf{Yếu kém của Workload Identity mặc định:} K8s sử dụng \texttt{ServiceAccount} dưới dạng Bearer Token tĩnh, được mount trực tiếp vào Pod. Token này tồn tại lâu dài, dễ bị đánh cắp, và thiếu cơ chế cryptographic binding — vi phạm nguyên lý ``Không tin cậy ngầm định'' của ZTA.
+    
+    \item \textbf{Đứt gãy ngữ cảnh người dùng (User Context Loss):} Khi request xuyên qua chuỗi 4-5 service (Frontend → Auth → Payment → Database), tại service cuối cùng hệ thống chỉ thấy ``Chủ thể'' là dịch vụ Payment, không còn thấy định danh người dùng ban đầu. Kiến trúc cần cơ chế \textbf{Identity Context Propagation} để PE (Chương 1) có thể đối chiếu cả \textit{người dùng là ai} và \textit{dịch vụ nào đang thực thi} \cite{nist800207}.
+\end{itemize}
+
+
+\subsection{Hiệu năng và ``Thuế Sidecar'' (Performance Problem)}
+
+Nguyên lý per-request (Tenet 3) ép buộc kiểm tra mọi gói tin nội bộ, tạo rào cản hiệu năng:
+
+\begin{itemize}
+    \item \textbf{Độ trễ do network hops:} Mô hình Sidecar Proxy truyền thống (Istio/Envoy) khiến mỗi luồng dữ liệu giữa hai Service A và B phải đi qua: \texttt{App A} → \texttt{Sidecar A} → \textit{Mạng} → \texttt{Sidecar B} → \texttt{App B}. Các chặng cộng dồn làm tăng latency gấp nhiều lần.
+    
+    \item \textbf{Chi phí tài nguyên:} Ở quy mô vài trăm Microservices, mỗi Pod phải ``cõng'' thêm một Proxy để giải mã TLS và hỏi PE liên tục, có thể chiếm \textbf{10--30\%} tổng CPU/RAM của cả cụm K8s. Thách thức này buộc các kỹ sư tìm đến giải pháp thực thi trực tiếp tại kernel (như eBPF) để loại bỏ ``thuế Sidecar'' \cite{cilium_docs}.
+\end{itemize}
+
+
+\subsection{Ngập lụt dữ liệu và khả năng quan sát (Observability Problem)}
+
+Nguyên lý thứ 7 (Thu thập tối đa thông tin) biến thành bài toán ``tìm kim đáy bể'' trong K8s:
+
+\begin{itemize}
+    \item \textbf{Sự vô nghĩa của IP:} Pod sống chỉ trong 5 phút và IP được cấp phát động. Cảnh báo ``Chặn truy cập từ IP 10.244.1.5 lúc 14:03'' hoàn toàn vô giá trị khi điều tra lúc 15:00 — IP đó có thể đã gán cho dịch vụ khác hoặc biến mất.
+    
+    \item \textbf{Thiếu ngữ cảnh:} Hàng triệu luồng kết nối mỗi giây. Hệ thống Telemetry phải \textbf{gắn nhãn ngữ cảnh tự động} — thay vì log thô ``IP A gọi IP B'', phải lưu dạng: \texttt{Subject (SPIFFE ID) + Resource (Namespace/Pod) + Action (HTTP Method) + Security Posture}. Chỉ khi đó, PE mới có thể tự động hóa Anomaly Detection \cite{elk_docs}.
+\end{itemize}
+
+
+%==============================================================================
+% 2.3  ĐỀ XUẤT KHUNG KIẾN TRÚC ZTA 5 LỚP
+%==============================================================================
+\section{Đề xuất khung kiến trúc Zero Trust cho hệ thống Microservices}
+
+Dựa trên phân tích các thách thức ở Mục 2.1 và 2.2, đồ án đề xuất \textbf{khung kiến trúc ZTA 5 lớp tích hợp}. Kiến trúc này chuyển trọng tâm từ bảo mật mạng biên sang bảo mật thực thể và dữ liệu, đảm bảo mọi luồng giao tiếp đều phải trải qua quy trình: \textbf{Định danh → Đánh giá Tư thế → Xác thực → Cấp quyền → Giám sát}.
+
+\subsection{Lớp 1: Định danh đa thực thể (Multi-Entity Identity Layer)}
+
+Lớp định danh đóng vai trò ``gốc tin cậy'' (Root of Trust) cho toàn bộ hệ thống. Đồ án đề xuất cơ chế \textbf{Dual-Identity} — xác thực kép giữa người dùng và dịch vụ thực thi:
+
+\begin{itemize}
+    \item \textbf{User Identity (Định danh người dùng):} Sử dụng giao thức \textbf{OIDC (OpenID Connect)} qua Keycloak. Thông tin người dùng được mã hóa trong JWT bao gồm các \texttt{claims} về vai trò (\texttt{roles}), phạm vi (\texttt{scope}), thời gian hết hạn (\texttt{exp}). JWT đóng vai trò bằng chứng định danh cho ``Chủ thể gốc'' (Originator).
+    
+    \item \textbf{Workload Identity (Định danh ứng dụng):} Triển khai tiêu chuẩn \textbf{SPIFFE} thông qua chứng chỉ X.509 ngắn hạn cho mỗi Pod. Mỗi dịch vụ được cấp một SPIFFE ID dạng:\\
+    \texttt{spiffe://job7189.local/ns/job7189-apps/sa/identity-service}\\
+    xác định chính xác dịch vụ đó là gì, thuộc namespace nào, dùng ServiceAccount nào.
+\end{itemize}
+
+Khi request được gửi, hệ thống kiểm tra tính hợp lệ của \textit{cả} JWT (người dùng có quyền?) \textit{và} SVID (dịch vụ gửi request có phải dịch vụ chính thống?). Việc kết hợp này ngăn tấn công Impersonation ngay cả khi một trong hai yếu tố bị thỏa hiệp.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/dual_identity_jwt_spiffe.png}
+    \caption{Cơ chế xác thực định danh kép (Dual-Identity) với JWT và SPIFFE SVID}
+    \label{fig:dual_identity}
+\end{figure}
+
+\subsubsection*{Cấu trúc JWT}
+
+Khi người dùng đăng nhập thành công, IdP (Keycloak) trả về Access Token dạng JWT gồm 3 phần (Header, Payload, Signature). Phần Payload chứa các claim mà PE dùng để ra quyết định:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{json}
+{
+  "exp": 1713245000,
+  "iat": 1713235000,
+  "iss": "https://auth.job7189.local/realms/job7189",
+  "sub": "user123",
+  "email": "recruiter@company.com",
+  "realm_access": {
+    "roles": ["recruiter", "manager"]
+  }
+}
+\end{minted}
+\caption{Cấu trúc Payload của JWT — PE sử dụng \texttt{roles} làm đầu vào cho mô hình ABAC}
+\label{lst:jwt_payload}
+\end{listing}
+
+\subsubsection*{Cấu trúc SPIFFE ID}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+spiffe://job7189.local/ns/job7189-apps/sa/payment-service
+  │             │              │                │
+  scheme   trust domain    namespace      serviceaccount
+\end{minted}
+\caption{Cấu trúc SPIFFE ID — định danh ứng dụng gắn chặt vào Namespace và ServiceAccount}
+\label{lst:spiffe_id}
+\end{listing}
+
+
+\subsection{Lớp 2: Đánh giá Tư thế và Tình báo Đe dọa (Posture \& Threat Intel Layer)}
+
+Theo NIST SP 800-207, chỉ xác thực định danh là chưa đủ. Lớp thứ hai cung cấp \textit{dữ liệu ngữ cảnh liên tục} cho PE (Chương 1, Mục 1.2.2):
+
+\begin{itemize}
+    \item \textbf{Đánh giá Workload Posture:} Tích hợp các công cụ CDM (Continuous Diagnostics and Mitigation) như Trivy, Kube-bench. PE tự động từ chối luồng giao tiếp nếu container đang chạy Image chứa lỗ hổng CVE nghiêm trọng (CVSS > 7.0), bất kể SVID có hợp lệ.
+    
+    \item \textbf{Đánh giá thiết bị End-User:} MDM (Mobile Device Management) báo cáo tình trạng thiết bị (mã hóa ổ cứng, bản vá OS, jailbreak) để PE ra quyết định có điều kiện (Chương 1, Mục 1.2.3 — phản ứng động).
+    
+    \item \textbf{Threat Intelligence:} Nguồn cấp IoC (Indicators of Compromise) bên ngoài — IP đen, chữ ký mã độc, chứng chỉ đã thỏa hiệp — được truyền trực tiếp vào PE và PEP để cập nhật rule \textit{Deny} theo thời gian thực.
+\end{itemize}
+
+
+\subsection{Lớp 3: Thực thi Chính sách đa tầng (Multi-layer Enforcement Layer)}
+
+Để đảm bảo ``phòng thủ chiều sâu'' (Defense in Depth), lớp thực thi được thiết kế thành \textbf{ba rào cản PEP độc lập}, ánh xạ trực tiếp từ mô hình NIST (Chương 1, Mục 1.2.2):
+
+\begin{itemize}
+    \item \textbf{PEP Tầng Biên (Edge Enforcement):} API Gateway (Kong) kiểm tra chữ ký JWT tại tầng North-South. Request không có JWT hợp lệ bị từ chối ngay tại cổng, trước khi đạt đến bất kỳ backend service nào.
+    
+    \item \textbf{PEP Tầng Nhân (Kernel-level Enforcement):} Cilium eBPF hoạt động trực tiếp tại kernel, đánh chặn gói tin ngay tại Network Stack. eBPF thực thi policy L3/L4 (IP, Port) và L7 (HTTP method, path) \textbf{không cần Sidecar}, giải quyết bài toán ``Thuế Sidecar'' (Mục 2.2.3). So sánh kiến trúc eBPF với iptables truyền thống được minh họa trong Hình~\ref{fig:ebpf_hostrouting}.
+    
+    \item \textbf{PEP Tầng Runtime:} Tetragon eBPF giám sát system calls bên trong container. Nếu tiến trình thực hiện hành vi bất thường (truy cập \texttt{/etc/passwd}, gọi \texttt{/bin/sh}, mở kết nối outbound lạ), PEP này ngắt tiến trình ngay lập tức bằng SIGKILL — \textit{trước khi} kernel thực thi syscall.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/ebpf_hostrouting (date).png}
+    \caption{Cơ chế host-routing eBPF của Cilium so với iptables truyền thống — loại bỏ context switch lên userspace}
+    \label{fig:ebpf_hostrouting}
+\end{figure}
+
+\subsubsection*{Policy as Code: Ví dụ thực thi chính sách bằng OPA/Rego}
+
+Để hiện thực hóa nguyên tắc ``Allow-Explicit'', chính sách được viết dưới dạng mã (Policy as Code). Ví dụ: chỉ cho phép \texttt{POST /transfer} nếu thỏa mãn đồng thời 4 điều kiện — workload identity đúng, user role phù hợp, action chính xác, và workload không có lỗ hổng:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+package authz.payments
+
+default allow = false
+
+allow {
+    # 1. Kiểm tra Workload Identity (SVID)
+    input.workload_id == "spiffe://job7189.local/ns/finance/sa/payment-service"
+    # 2. Kiểm tra Action và Resource
+    input.request.method == "POST"
+    input.request.path == "/transfer"
+    # 3. Kiểm tra User Identity (JWT)
+    "manager" in jwt_claims.roles
+    # 4. Kiểm tra Workload Posture
+    input.workload_posture.vulnerabilities.critical == 0
+}
+\end{minted}
+\caption{Chính sách OPA/Rego — quyết định truy cập dựa trên 4 thuộc tính ABAC}
+\label{lst:opa_policy}
+\end{listing}
+
+
+\subsection{Lớp 4: Quản trị Bí mật Động (Dynamic Secret Layer)}
+
+Khung kiến trúc loại bỏ hoàn toàn bí mật tĩnh (Static Secrets) trong file \texttt{.env} hay K8s Secrets. Thay vào đó:
+
+\begin{itemize}
+    \item \textbf{JIT Credentials (Cấp quyền tức thời):} HashiCorp Vault đóng vai trò PA (Chương 1, Mục 1.2.2). Thay vì lưu mật khẩu database cố định, dịch vụ sử dụng Workload Identity (ServiceAccount) để yêu cầu Vault sinh tài khoản MySQL tạm thời với TTL cực ngắn (ví dụ: 1 giờ).
+    
+    \item \textbf{Tự động xoay vòng (Auto-rotation):} Mọi chứng chỉ và khóa mật mã được thay đổi liên tục. Khi lease hết hạn, Vault tự động revoke credential cũ ({\texttt{DROP USER}}) và cấp credential mới — giảm giá trị của thông tin bị đánh cắp xuống mức tối thiểu \cite{vault_docs}.
+    
+    \item \textbf{tmpfs (Memory-only storage):} Credential được ghi lên \texttt{emptyDir} với \texttt{medium: Memory}, không bao giờ chạm ổ đĩa — tránh bị đọc lại sau khi Pod bị xóa.
+\end{itemize}
+
+
+\subsection{Lớp 5: Quan sát và Phân tích hành vi (Observability \& Analytics Layer)}
+
+Trong ZTA, Continuous Monitoring (Tenet 7) không phải là hậu kiểm mà là \textbf{đầu vào trực tiếp} cho PE để ra quyết định theo thời gian thực:
+
+\begin{itemize}
+    \item \textbf{Centralized Logging (EFK Stack):} Tổng hợp Logs từ API Gateway, eBPF, Runtime vào Elasticsearch. Filebeat thu thập log từ các namespace bảo mật trọng điểm và gắn metadata Kubernetes (pod name, namespace, node) \cite{elk_docs}.
+    
+    \item \textbf{Metrics \& Alerting (Prometheus + Grafana):} Thu thập metrics từ Cilium Hubble (dropped packets, forwarded packets), node-exporter (CPU, RAM) và application endpoints. Grafana dashboard hiển thị Security Metrics theo thời gian thực \cite{cilium_docs}.
+    
+    \item \textbf{Vòng lặp phản hồi (Feedback Loop):} Hệ thống UEBA theo dõi hành vi Subject. Nếu phát hiện anomaly (ví dụ: service gửi 100 request /admin trong 1 giây), nó gửi tín hiệu tới PE để giảm Trust Score và yêu cầu PEP ngắt kết nối ngay lập tức — không cần sự can thiệp của con người.
+\end{itemize}
+
+
+\subsection{Sơ đồ luồng dữ liệu tổng thể}
+
+Quy trình xử lý một yêu cầu truy cập qua 5 lớp ZTA:
+
 \begin{enumerate}
-    \item \textbf{Bảo vệ Invariants:} Đảm bảo mọi quy tắc nghiệp vụ luôn đúng sau giao dịch.
-    \item \textbf{Thiết kế nhỏ (Small Aggregates):} Tránh "God Aggregate" (Cụm thực thể lớn quá mức) gây vấn đề hiệu năng và tranh chấp khóa (locking).
-    \item \textbf{Tham chiếu bằng ID:} Các cụm thực thể không chứa tham chiếu trực tiếp đến nhau, chỉ giữ ID để tạo ranh giới vật lý cứng.
-    \item \textbf{Tính nhất quán cuối cùng:} Cập nhật các cụm thực thể liên quan bất đồng bộ qua Domain Events.
+    \item \textbf{Xác thực biên \& Đánh giá Thiết bị:} Người dùng gửi request kèm JWT. Kong Gateway xác thực chữ ký, MDM báo cáo tư thế thiết bị.
+    \item \textbf{Định danh \& Kiểm tra Workload:} Request vào mạng nội bộ. PEP eBPF đánh chặn, yêu cầu xác thực SVID. Đồng thời, hệ thống quét lỗ hổng (Trivy) báo cáo trạng thái Container Image.
+    \item \textbf{Truy vấn chính sách:} PE (OPA) đối soát: JWT + SVID + Threat Intel + Workload Posture → Allow/Deny.
+    \item \textbf{Cấp bí mật động:} Dịch vụ đích gửi ServiceAccount tới Vault → nhận JIT database credential → truy xuất dữ liệu.
+    \item \textbf{Giám sát Runtime:} Runtime PEP (Tetragon) liên tục giám sát hành vi tiến trình. Dữ liệu đẩy về EFK/Prometheus để cập nhật Trust Score.
 \end{enumerate}
 
-\subsubsection{Dịch vụ miền và dịch vụ ứng dụng - Domain Service vs Application Service}
-Domain Service vs Application Service}
-DDD giúp tránh \textit{Anemic Domain Model} (Mô hình miền thiếu máu - thực thể chỉ có dữ liệu, không có hành vi) bằng cách phân định:
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\textwidth]{images/proposed_architecture_flow.png}
+    \caption{Sơ đồ luồng dữ liệu xử lý yêu cầu truy cập qua 5 lớp Zero Trust đề xuất}
+    \label{fig:proposed_architecture}
+\end{figure}
+
+
+\subsection{Đối sánh khung đề xuất với NIST SP 800-207}
+
+\begin{table}[H]
+\centering
+\caption{Đối sánh khung kiến trúc 5 lớp đề xuất với tiêu chuẩn NIST SP 800-207}
+\label{tab:nist_comparison}
+\begin{tabularx}{\textwidth}{|p{3.5cm}|p{4.5cm}|c|p{2.5cm}|}
+\hline
+\textbf{Thành phần NIST} & \textbf{Khung đề xuất} & \textbf{Trạng thái} & \textbf{Tham chiếu} \\
+\hline
+Policy Engine (PE) & OPA Rego + Keycloak & Đáp ứng & Lớp 3 \\
+\hline
+Policy Enforcement Point & Kong + Cilium eBPF + Tetragon & Đáp ứng & Lớp 3 \\
+\hline
+Subject Identity & JWT (OIDC) + SPIFFE SVID & Đáp ứng & Lớp 1 \\
+\hline
+Resource Identity & SPIFFE URI + K8s Labels & Đáp ứng & Lớp 1 \\
+\hline
+Device/Workload Assessment & Trivy, Kube-bench, MDM & Bổ sung & Lớp 2 \\
+\hline
+Threat Intelligence & External Feeds → OPA/Cilium & Bổ sung & Lớp 2 \\
+\hline
+Session Management & Vault (JIT / TTL / Rotation) & Đáp ứng & Lớp 4 \\
+\hline
+Data Collection & EFK + Prometheus + Grafana & Đáp ứng & Lớp 5 \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+%==============================================================================
+% 2.4  MÔ HÌNH CHÍNH SÁCH (POLICY MODEL)
+%==============================================================================
+\section{Mô hình Chính sách cho Microservices}
+
+Mô hình chính sách là thành phần cốt lõi của PE, chuyển hóa các mục tiêu bảo mật cấp cao thành luật thực thi (Enforcement Rules) cụ thể.
+
+\subsection{Tiếp cận ABAC (Attribute-Based Access Control)}
+
+Thay vì RBAC tĩnh, đồ án đề xuất mô hình \textbf{ABAC} để đạt độ chi tiết (granularity) cần thiết cho ZTA. Quyết định truy cập được tính toán dựa trên bốn nhóm thuộc tính:
+
 \begin{itemize}
-    \item \textbf{Domain Service:} Chứa logic nghiệp vụ không thuộc về một Entity cụ thể, nằm trong lớp Core.
-    \item \textbf{Application Service:} Điều phối luồng công việc (Facade), không chứa logic nghiệp vụ, nằm ở lớp vỏ ứng dụng.
+    \item \textbf{Subject Attributes:} Claims trong JWT (\texttt{email\_verified}, \texttt{department}) + ServiceAccount (\texttt{SPIFFE ID}).
+    \item \textbf{Resource Attributes:} Endpoint (URL), Namespace, Labels trên tài nguyên.
+    \item \textbf{Action Attributes:} HTTP method (\texttt{GET}, \texttt{POST}, \texttt{DELETE}), gRPC procedure.
+    \item \textbf{Environmental Attributes:} Thời gian (giờ làm việc), vị trí (IP/VPC), Trust Score của thiết bị.
 \end{itemize}
 
-\subsection{Kiến trúc hệ thống - Vỏ bọc bảo vệ Domain}
-\subsubsection{Hexagonal Architecture (Ports and Adapters)}
-Đây là kiến trúc trung tâm cho DDD Microservices, đảm bảo logic nghiệp vụ không phụ thuộc kỹ thuật:
+\begin{leftbar}
+\textbf{Công thức quyết định:}
+\[ Decision = f(\text{Subject}, \text{Resource}, \text{Action}, \text{Environment}) \]
+\end{leftbar}
+
+
+\subsection{Nguyên tắc Deny-All và Allow-Explicit}
+
+Đây là bước hiện thực hóa Tenet 3 (Đặc quyền tối thiểu):
+
 \begin{itemize}
-    \item \textbf{Core (Hexagon):} Chứa Domain Entities, Value Objects và Domain Services.
-    \item \textbf{Ports:} Các Interface định nghĩa cách giao tiếp (Inbound/Outbound).
-    \item \textbf{Adapters:} Triển khai cụ thể (REST Controller, Kafka Consumer, SQL Repository).
+    \item \textbf{Deny-All:} Mọi luồng giao tiếp giữa Microservices mặc định bị chặn hoàn toàn ngay khi khởi tạo.
+    \item \textbf{Allow-Explicit:} Chỉ những kết nối được khai báo rõ ràng trong policy mới được phép. Nếu service bị tấn công, kẻ địch không thể thực hiện trinh sát (Reconnaissance) vì các kết nối không khai báo trước bị PEP hủy bỏ (Drop) ngay lập tức \cite{nist800207}.
 \end{itemize}
 
-\subsection{Giao tiếp và Tính nhất quán dữ liệu phân tán}
-\subsubsection{Transactional Outbox Pattern - Giải quyết "Dual-Write"}
-Khi một dịch vụ vừa phải ghi Database vừa phải gửi sự kiện lên Kafka, nguy cơ mất đồng bộ là rất cao. Giải pháp Outbox thực hiện:
+
+\subsection{Vòng đời Chính sách (Policy Lifecycle)}
+
+Chính sách không phải thực thể tĩnh mà trải qua vòng đời khép kín:
+
 \begin{enumerate}
-    \item Ghi Event vào bảng \textit{Outbox} trong cùng một Transaction với dữ liệu nghiệp vụ.
-    \item Sử dụng \textbf{Log-based CDC} (Change Data Capture) như Debezium để đọc Transaction Log và đẩy lên Message Broker.
+    \item \textbf{Định nghĩa (Definition):} Viết dưới dạng Policy as Code (Rego, CiliumNetworkPolicy YAML). Quản lý phiên bản qua Git để đảm bảo truy vết và rollback.
+    
+    \item \textbf{Phân phối (Distribution):} PA phân phối luật xuống các PEP (API Gateway, eBPF agent) trên toàn cụm thông qua Kubernetes Control Plane.
+    
+    \item \textbf{Thực thi (Enforcement):} PEP chặn request và đối chiếu với tập luật tại chỗ → Allow/Deny theo thời gian thực.
+    
+    \item \textbf{Kiểm soát và Điều chỉnh (Audit \& Feedback):} Mọi quyết định (cả Allow lẫn Deny) đều được ghi log. Nếu Observability Layer phát hiện chuỗi lệnh Deny bất thường từ một service, hệ thống tự động giảm Trust Score xuống 0 và thu hồi mọi quyền đang có.
 \end{enumerate}
 
-\subsection{Case Study: Phân tích Online Boutique với DDD}
-Hệ thống demo của Google Cloud gồm 11 microservices minh họa việc áp dụng DDD:
+
+%==============================================================================
+% 2.5  QUY TRÌNH TRIỂN KHAI KIẾN TRÚC ZERO TRUST
+%==============================================================================
+\section{Quy trình triển khai kiến trúc Zero Trust}
+
+NIST SP 800-207 (Mục 7 — \textit{``Migrating to a Zero Trust Architecture''}) nhấn mạnh rằng chuyển đổi sang Zero Trust là một \textbf{lộ trình dài hạn, tuần tự và lặp lại}, không phải là một sự kiện triển khai đơn lẻ. Việc ``bật công tắc'' ZTA cho toàn bộ hệ thống cùng một lúc sẽ gây gián đoạn nghiêm trọng và phản tác dụng \cite{nist800207}. Dựa trên khuyến nghị NIST và các thực tiễn triển khai tốt nhất (Best Practices), đồ án đề xuất quy trình triển khai 4 giai đoạn dưới đây.
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{5cm}
+            \textit{[HÌNH: Sơ đồ lộ trình triển khai ZTA 4 giai đoạn — Chuẩn bị → Thí điểm → Mở rộng → Cải tiến liên tục, với các milestone và checkpoint giữa mỗi giai đoạn]}
+            \vspace{5cm}
+        \end{minipage}
+    }
+    \caption{Lộ trình triển khai kiến trúc Zero Trust theo 4 giai đoạn}
+    \label{fig:zta_deployment_roadmap}
+\end{figure}
+
+
+\subsection{Giai đoạn 1: Chuẩn bị và Lập kế hoạch}
+
+Giai đoạn đầu tiên đóng vai trò nền tảng quyết định thành bại của toàn bộ quá trình chuyển đổi. Mục tiêu là xây dựng một bức tranh toàn cảnh (Full Visibility) về hệ thống hiện tại trước khi thay đổi bất cứ điều gì.
+
+\subsubsection*{Bước 1.1: Kiểm kê và Phân loại tài sản (Asset Inventory)}
+
+Kiểm kê tất cả các tài sản kỹ thuật số cần được bảo vệ, bao gồm:
 \begin{itemize}
-    \item \textbf{Core Domain (40\%):} \textit{Product Catalog}, \textit{Cart}, \textit{Checkout}. Đây là các dịch vụ tạo lợi thế cạnh tranh.
-    \item \textbf{Supporting Domain (40\%):} \textit{Frontend}, \textit{Payment}, \textit{Shipping}.
-    \item \textbf{Generic Domain (20\%):} \textit{Email Service}, \textit{Currency Conversion}.
+    \item \textbf{Tài nguyên dữ liệu:} Toàn bộ cơ sở dữ liệu, kho lưu trữ tệp tin, hệ thống message queue (Kafka, RabbitMQ), bộ nhớ đệm (Redis).
+    \item \textbf{Tài nguyên tính toán:} Các dịch vụ ứng dụng (Microservices, Monolith), hạ tầng nền tảng (Kubernetes cluster, VM), công cụ nội bộ (CI/CD pipelines, monitoring).
+    \item \textbf{Chủ thể truy cập:} Người dùng cuối (End-Users), quản trị viên hệ thống (SysAdmins), tài khoản dịch vụ (ServiceAccounts), thiết bị IoT.
 \end{itemize}
-Mối quan hệ giữa các dịch vụ được điều phối qua \textit{Saga Orchestration} (tại Checkout Service) và đồng bộ qua Kafka, đảm bảo tính nhất quán cuối cùng cho hệ thống.
+Mỗi tài sản phải được gán một \textbf{mức độ nhạy cảm} (Sensitivity Level) — ví dụ: Cơ sở dữ liệu lương = Nghiêm trọng, trang chủ công khai = Thấp — để xác định mức ưu tiên bảo vệ.
 
-\subsection{Kết luận}
-Thiết kế hướng miền cung cấp khung tư duy hệ thống để xây dựng kiến trúc Microservices bền vững. Việc tôn trọng ranh giới vật lý, bảo vệ tính nhất quán thông qua Aggregate và giao tiếp bất đồng bộ qua Domain Events là chìa khóa để vận hành hệ thống phân tán hiệu quả.
+\subsubsection*{Bước 1.2: Lập bản đồ luồng giao dịch (Transaction Flow Mapping)}
 
-
-% !TEX encoding = UTF-8
-\section{Các mẫu thiết kế giao tiếp và tích hợp}
-Trong kiến trúc Microservice, việc giao tiếp giữa các dịch vụ không còn là lời gọi hàm trong cùng bộ nhớ (in-process calls) mà trở thành các lời gọi qua mạng (network calls). Điều này đòi hỏi các mẫu thiết kế phải đảm bảo tính tin cậy, hiệu năng và khả năng mở rộng.
-
-\subsection{Giao tiếp đồng bộ (Synchronous Communication)}
-Giao tiếp đồng bộ yêu cầu dịch vụ gửi (Client) phải chờ đợi phản hồi từ dịch vụ nhận (Server) trước khi tiếp tục thực hiện các tiến trình tiếp theo.
-
-\paragraph{REST API (Representational State Transfer):}
-Đây là giao thức phổ biến nhất dựa trên HTTP. REST sử dụng các phương thức chuẩn (GET, POST, PUT, DELETE) và định dạng JSON để trao đổi dữ liệu.
+Vẽ sơ đồ chi tiết mọi luồng dữ liệu trong hệ thống:
 \begin{itemize}
-    \item \textbf{Ưu điểm:} Đơn giản, dễ kiểm thử, được hỗ trợ bởi mọi ngôn ngữ lập trình và tương thích tốt với các hệ thống bên ngoài.
-    \item \textbf{Nhược điểm:} Tạo ra sự phụ thuộc về thời gian (Temporal Coupling). Nếu chuỗi gọi dịch vụ (Service Chain) quá dài, độ trễ sẽ tích tụ và nếu một dịch vụ ở giữa bị lỗi, toàn bộ yêu cầu sẽ thất bại.
-\end{itemize}
-
-\subsection{Giao tiếp bất đồng bộ và Kiến trúc hướng sự kiện}
-Để giải quyết vấn đề phụ thuộc chặt của giao tiếp đồng bộ, giao tiếp bất đồng bộ cho phép dịch vụ gửi thông điệp và tiếp tục công việc của mình mà không cần chờ phản hồi ngay lập tức.
-
-\subsubsection{Cơ chế Message Queuing}
-Sử dụng một Message Broker (như Kafka hoặc RabbitMQ) làm trung gian. Dịch vụ gửi (Producer) đẩy thông điệp vào hàng đợi (Queue), dịch vụ nhận (Consumer) sẽ lấy thông điệp ra xử lý khi có tài nguyên rảnh. Cơ chế này giúp "là phẳng" các đỉnh tải (load leveling) và đảm bảo thông điệp không bị mất nếu dịch vụ nhận tạm thời ngoại tuyến.
-
-\subsubsection{Kiến trúc hướng sự kiện (Event-Driven Architecture - EDA)}
-Trong mô hình này, các dịch vụ giao tiếp thông qua việc phát và nhận các sự kiện (Events). 
-\begin{itemize}
-    \item \textbf{Domain Event:} Đại diện cho một sự kiện nghiệp vụ đã xảy ra (ví dụ: \textit{JobPublished}, \textit{CandidateApplied}).
-    \item \textbf{Loose Coupling:} Dịch vụ phát sự kiện không cần biết ai sẽ nhận sự kiện đó. Điều này cho phép dễ dàng thêm các dịch vụ mới (như dịch vụ gửi thông báo, dịch vụ thống kê) vào hệ thống mà không cần sửa đổi mã nguồn của dịch vụ gốc.
-\end{itemize}
-
-\subsection{Thiết kế API Gateway và Backend for Frontend (BFF)}
-Khi hệ thống có hàng chục Microservice, việc để Client (Web/Mobile) gọi trực tiếp đến từng dịch vụ là một sai lầm về bảo mật và hiệu năng.
-
-\subsubsection{API Gateway}
-API Gateway đóng vai trò là cửa ngõ duy nhất (Single Entry Point) cho tất cả các yêu cầu từ bên ngoài. Các trách nhiệm chính bao gồm:
-\begin{itemize}
-    \item \textbf{Routing:} Điều hướng yêu cầu đến đúng dịch vụ đích.
-    \item \textbf{Authentication \& Authorization:} Kiểm tra quyền truy cập tập trung (thường tích hợp với Keycloak).
-    \item \textbf{Rate Limiting:} Giới hạn số lượng yêu cầu để chống tấn công DoS.
-    \item \textbf{Offloading:} Xử lý các tác vụ chung như nén dữ liệu, SSL Termination.
+    \item \textbf{Luồng North-South:} Client → API Gateway → Backend Services. Xác định rõ những route nào công khai, những route nào yêu cầu xác thực.
+    \item \textbf{Luồng East-West:} Service A → Service B nội bộ. Liệt kê chính xác: dịch vụ nào gọi dịch vụ nào, qua port nào, sử dụng HTTP method gì, truy cập path nào. Đây chính là đầu vào để thiết kế \textbf{Ma trận truy cập} (Access Matrix) ở giai đoạn sau.
+    \item \textbf{Luồng Data-out:} Dịch vụ nào kết nối ra ngoài Internet (gọi API bên thứ ba, gửi email, webhook). Đây là luồng cần \textit{Egress Filtering} nghiêm ngặt nhất.
 \end{itemize}
 
-\subsubsection{Backend for Frontend (BFF)}
-Thay vì sử dụng một API Gateway chung cho mọi thiết bị, mẫu BFF đề xuất xây dựng các API trung gian riêng biệt cho từng loại Client (Web App, Mobile iOS, Mobile Android). 
+\subsubsection*{Bước 1.3: Đánh giá hiện trạng bảo mật (Security Posture Baseline)}
+
+Đánh giá hệ thống hiện tại theo các tiêu chí Zero Trust để xác định ``khoảng cách'' (Gap) cần thu hẹp:
 \begin{itemize}
-    \item \textbf{Lý do:} Mobile Client thường có băng thông thấp và màn hình nhỏ, cần ít dữ liệu hơn Web Client. BFF giúp tổng hợp dữ liệu (Data Aggregation) từ nhiều dịch vụ thành một phản hồi duy nhất, giảm số lượng request từ thiết bị cầm tay.
+    \item Hệ thống có sử dụng xác thực tập trung (SSO/OIDC) chưa, hay mỗi service tự xác thực riêng?
+    \item Bí mật (Secrets) được quản lý như thế nào? Hardcode trong file \texttt{.env}, lưu trong ConfigMap, hay sử dụng Secret Manager?
+    \item Network Policy có được thiết lập chưa? Hệ thống đang ở trạng thái ``Flat Network'' hay đã có microsegmentation?
+    \item Hệ thống logging/monitoring đã bao phủ đến đâu? Có khả năng truy vết (traceability) sự kiện bảo mật theo thời gian thực không?
 \end{itemize}
 
-\subsubsection{Nguyên tắc thiết kế và Phiên bản hóa API}
-Để đảm bảo tính ổn định khi hệ thống tiến hóa, thiết kế API cần tuân thủ:
+\subsubsection*{Bước 1.4: Xây dựng kế hoạch triển khai và lựa chọn công nghệ}
+
+Dựa trên kết quả kiểm kê và đánh giá gap, lập kế hoạch triển khai bao gồm:
 \begin{itemize}
-    \item \textbf{Tính tương thích ngược:} Tránh thực hiện các thay đổi làm hỏng ứng dụng đang chạy của Client (Breaking changes).
-    \item \textbf{Phiên bản hóa (Versioning):} Sử dụng phiên bản trong URL (ví dụ: \texttt{/api/v1/...}) hoặc trong Header. Điều này cho phép chạy song song nhiều phiên bản API, giúp Client có thời gian chuyển đổi dần sang phiên bản mới \cite[tr. 147]{newman2021}.
+    \item Lựa chọn hướng tiếp cận ZTA phù hợp (Chương 1, Mục 1.2.4): Enhanced Identity Governance, Micro-segmentation, hay kết hợp.
+    \item Ánh xạ các thành phần logic NIST (PE, PA, PEP) sang công cụ cụ thể — tham chiếu Bảng~\ref{tab:nist_comparison} (Mục 2.3.7).
+    \item Xác định phạm vi thí điểm (Pilot Scope): chọn một nhóm service hoặc một namespace có rủi ro cao nhưng blast radius thấp (nếu thất bại, ảnh hưởng giới hạn).
+    \item Xây dựng timeline với các \textbf{checkpoint} rõ ràng giữa mỗi giai đoạn.
 \end{itemize}
 
-\begin{table}[htbp]
+
+\subsection{Giai đoạn 2: Triển khai thí điểm (Pilot Deployment)}
+
+Giai đoạn thí điểm áp dụng kiến trúc ZTA cho một \textbf{phạm vi nhỏ, có kiểm soát} để kiểm chứng thiết kế trước khi mở rộng. Mục tiêu là phát hiện sớm các vấn đề về tương thích, hiệu năng và vận hành mà không gây gián đoạn nghiệp vụ.
+
+\subsubsection*{Bước 2.1: Thiết lập gốc tin cậy (Root of Trust)}
+
+Trước mọi thành phần khác, gốc tin cậy phải được thiết lập vì tất cả các thành phần sau đều phụ thuộc vào nó:
+\begin{enumerate}
+    \item \textbf{Identity Provider (IdP):} Triển khai hệ thống xác thực tập trung (Keycloak, Okta, Microsoft Entra ID). Cấu hình realm, client, role mapping, và OIDC flow (Authorization Code, Client Credentials).
+    \item \textbf{Secret Manager:} Triển khai HashiCorp Vault (hoặc AWS Secrets Manager). Cấu hình Dynamic Secret Engine cho database, Kubernetes Auth Method cho workload authentication, và policy RBAC cho từng service.
+    \item \textbf{Workload Identity:} Cấu hình Kubernetes ServiceAccount cho mỗi microservice. Nếu sử dụng SPIFFE/SPIRE, triển khai SPIRE Server trước và đăng ký các entry cho từng workload.
+\end{enumerate}
+
+\subsubsection*{Bước 2.2: Áp dụng chính sách Default Deny cho phạm vi thí điểm}
+
+Bắt đầu với nguyên tắc cốt lõi nhất của ZTA — \textit{Mặc định từ chối (Default Deny)}:
+\begin{enumerate}
+    \item Áp dụng \texttt{CiliumNetworkPolicy} hoặc \texttt{NetworkPolicy} với \texttt{ingress: []} và \texttt{egress: []} cho namespace thí điểm — chặn 100\% traffic.
+    \item Lần lượt mở các allow-rules \textbf{theo thứ tự ưu tiên}: DNS (port 53) → Vault (port 8200) → Database (port 3306) → Gateway Ingress (port 80).
+    \item Sử dụng \textbf{Hubble CLI} hoặc công cụ tương đương để quan sát traffic và xác nhận rằng chỉ các luồng được khai báo mới đi qua.
+\end{enumerate}
+
+\subsubsection*{Bước 2.3: Triển khai PEP biên (Edge PEP)}
+
+Cấu hình API Gateway (Kong, Istio Ingress) làm PEP cho luồng North-South:
+\begin{itemize}
+    \item Gắn JWT plugin trên các protected routes — bắt buộc xác thực token.
+    \item Cấu hình CORS, rate limiting, và logging chi tiết.
+    \item Xác minh bằng cách gửi request không có JWT → phải nhận 401.
+\end{itemize}
+
+\subsubsection*{Bước 2.4: Triển khai Dynamic Secrets cho phạm vi thí điểm}
+
+Thay thế static credentials bằng dynamic credentials cho service thí điểm:
+\begin{itemize}
+    \item Cấu hình Vault Database Engine cho database tương ứng.
+    \item Triển khai Vault Agent Injector, cấu hình annotations trên Deployment.
+    \item Xác minh bằng cách kiểm tra file \texttt{/vault/secrets/.env.db} trong Pod — phải thấy username ngẫu nhiên và lease ID.
+\end{itemize}
+
+\subsubsection*{Bước 2.5: Đánh giá kết quả thí điểm}
+
+Trước khi mở rộng, hội đồng kỹ thuật phải đánh giá các tiêu chí:
+\begin{itemize}
+    \item \textbf{Tính đúng đắn:} Service thí điểm hoạt động bình thường (200 OK) với microsegmentation bật? Credential rotation có gây downtime?
+    \item \textbf{Hiệu năng:} Latency tăng bao nhiêu phần trăm so với trước khi áp dụng? Có nằm trong ngưỡng chấp nhận được (<5ms tăng thêm)?
+    \item \textbf{Vận hành:} Đội vận hành đã hiểu quy trình debug khi traffic bị chặn? Log và metrics có đủ để truy vết nguyên nhân?
+\end{itemize}
+
+
+\subsection{Giai đoạn 3: Mở rộng (Expansion)}
+
+Sau khi thí điểm thành công, mở rộng ZTA ra toàn bộ hệ thống theo chiến lược \textbf{từng lớp, từng namespace}:
+
+\subsubsection*{Bước 3.1: Mở rộng theo chiều ngang — Namespace by Namespace}
+
+\begin{enumerate}
+    \item Áp dụng Default Deny cho namespace tiếp theo (ví dụ: \texttt{data} sau khi đã hoàn thành \texttt{job7189-apps}).
+    \item Tạo allow-rules cho các luồng East-West mới dựa trên Ma trận truy cập.
+    \item Triển khai Vault dynamic credentials cho toàn bộ 7 services.
+    \item Hubble observe để xác nhận mọi luồng hợp lệ vẫn hoạt động.
+\end{enumerate}
+
+\subsubsection*{Bước 3.2: Mở rộng theo chiều sâu — Nâng cấp từ L3/L4 lên L7}
+
+Sau khi microsegmentation L3/L4 ổn định:
+\begin{enumerate}
+    \item Bổ sung L7 HTTP Policy cho các luồng East-West quan trọng — kiểm soát cả HTTP method và path.
+    \item Cấu hình ServiceAccount-based policy cho cặp service nhạy cảm (ví dụ: \texttt{identity-service} → MySQL).
+    \item Xem xét bật mTLS sidecarless (Cilium mesh-auth) hoặc WireGuard encryption cho traffic giữa các node.
+\end{enumerate}
+
+\subsubsection*{Bước 3.3: Triển khai Observability Layer toàn diện}
+
+Song song với việc mở rộng policy:
+\begin{itemize}
+    \item Triển khai EFK Stack cho centralized logging — thu thập log từ mọi namespace bảo mật.
+    \item Triển khai Prometheus + Grafana cho Security Metrics — tạo dashboard giám sát Cilium drops, Vault leases, Pod health.
+    \item Cấu hình Alertmanager cho tự động cảnh báo khi phát hiện anomaly.
+\end{itemize}
+
+
+\subsection{Giai đoạn 4: Vận hành và Cải tiến liên tục}
+
+Zero Trust không phải là trạng thái ``đạt được một lần rồi xong'', mà là một \textbf{vòng lặp cải tiến liên tục} (Continuous Improvement Loop). Giai đoạn này đảm bảo hệ thống duy trì và nâng cao tư thế bảo mật theo thời gian.
+
+\subsubsection*{Bước 4.1: Giám sát vận hành hàng ngày}
+
+\begin{itemize}
+    \item Theo dõi dashboard Grafana: tỷ lệ Dropped/Forwarded packets, Vault lease count, Pod restart rate.
+    \item Review log Kibana: các sự kiện đăng nhập thất bại, JWT hết hạn, API 403/401 bất thường.
+    \item Hubble UI: trực quan hóa network flow, phát hiện sớm các kết nối không mong muốn.
+\end{itemize}
+
+\subsubsection*{Bước 4.2: Rà soát và cập nhật chính sách định kỳ (Policy Review)}
+
+\begin{itemize}
+    \item \textbf{Hàng tuần:} Review Cilium policy drops — nếu có service liên tục bị chặn, cần điều tra xem đó là tấn công hay policy sai.
+    \item \textbf{Hàng tháng:} Rà soát Ma trận truy cập — khi thêm service mới hoặc thay đổi luồng nghiệp vụ, cập nhật CiliumNetworkPolicy tương ứng.
+    \item \textbf{Hàng quý:} Audit toàn diện Vault policies, Keycloak roles, Kong routes — loại bỏ quyền thừa (stale permissions).
+\end{itemize}
+
+\subsubsection*{Bước 4.3: Kiểm tra xâm nhập (Penetration Testing) và Diễn tập sự cố}
+
+\begin{itemize}
+    \item Thực hiện kiểm tra xâm nhập nội bộ: tạo Pod ``attacker'' trong namespace \texttt{default} và kiểm tra xem có thể vượt qua microsegmentation không.
+    \item Mô phỏng kịch bản credential leak: thu hồi toàn bộ Vault leases và kiểm tra xem hệ thống tự phục hồi trong bao lâu.
+    \item Diễn tập ứng phó sự cố (Incident Response drill): phát hiện, cô lập và phục hồi khi một service bị chiếm quyền.
+\end{itemize}
+
+\subsubsection*{Bước 4.4: Cập nhật công nghệ và nâng cấp phiên bản}
+
+\begin{itemize}
+    \item Theo dõi CVE (Common Vulnerabilities and Exposures) cho các thành phần ZTA: Cilium, Vault, Keycloak, Kong.
+    \item Nâng cấp phiên bản Cilium/Tetragon khi có tính năng bảo mật mới (ví dụ: cải thiện mTLS performance, bổ sung TracingPolicy matchers).
+    \item Đánh giá lại kiến trúc khi có thay đổi lớn: thêm module mới, chuyển cloud provider, thay đổi quy mô.
+\end{itemize}
+
+\vspace{0.5cm}
+
+\begin{table}[H]
 \centering
-\caption{So sánh giao tiếp Đồng bộ và Bất đồng bộ}
-\label{tab:sync_async_comparison}
-\begin{tabularx}{\textwidth}{|l|X|X|}
+\caption{Tóm tắt 4 giai đoạn triển khai ZTA — Mục tiêu, Đầu ra và Tiêu chí hoàn thành}
+\label{tab:deployment_phases}
+\begin{tabularx}{\textwidth}{|c|p{2.5cm}|X|X|}
 \hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Tiêu chí} & \textbf{Đồng bộ (REST)} & \textbf{Bất đồng bộ (Events)} \\ \hline
-\textbf{Độ trễ} & Thấp (trong điều kiện bình thường). & Cao hơn (do độ trễ của Broker). \\ \hline
-\textbf{Tính sẵn sàng} & Phụ thuộc vào dịch vụ nhận. & Cao, dịch vụ gửi vẫn chạy nếu dịch vụ nhận lỗi. \\ \hline
-\textbf{Độ phức tạp} & Thấp, dễ phát triển và debug. & Cao, khó theo dõi luồng dữ liệu (tracing). \\ \hline
-\textbf{Sự phụ thuộc} & Phụ thuộc chặt về thời gian. & Liên kết lỏng (Loosely coupled). \\ \hline
+\textbf{\#} & \textbf{Giai đoạn} & \textbf{Đầu ra chính} & \textbf{Tiêu chí hoàn thành} \\
+\hline
+1 & Chuẩn bị \& Lập kế hoạch & Danh mục tài sản, Bản đồ luồng, Security Baseline, Kế hoạch triển khai & Mọi tài sản đã được phân loại mức nhạy cảm; Gap analysis hoàn tất \\
+\hline
+2 & Triển khai thí điểm & IdP, Vault, Default Deny + Allow-rules cho 1 namespace, API Gateway JWT & Service thí điểm hoạt động bình thường với ZTA; Latency tăng <5ms \\
+\hline
+3 & Mở rộng & Microsegmentation toàn bộ namespace, L7 policy, Dynamic secrets 7 services, EFK+Prometheus & 100\% services sử dụng dynamic credentials; Default Deny áp dụng mọi namespace \\
+\hline
+4 & Cải tiến liên tục & Dashboard giám sát, Policy review cycle, Pen-test reports & Pen-test không vượt được microsegmentation; Mean Time to Detect < 5 phút \\
+\hline
 \end{tabularx}
 \end{table}
 
-\section{Quản lý dữ liệu và tính nhất quán}
-Trong Microservice, mỗi dịch vụ sở hữu một cơ sở dữ liệu riêng (\textit{Database per Service}). Điều này ngăn cản việc sử dụng các truy vấn \texttt{JOIN} giữa các bảng của các dịch vụ khác nhau và các giao dịch ACID đa dịch vụ.
 
-\subsection{Tính nhất quán cuối cùng}
-Hệ thống Microservice ưu tiên tính sẵn sàng (Availability) và khả năng chịu lỗi (Partition Tolerance) theo định lý CAP. Thay vì đảm bảo dữ liệu cập nhật ngay lập tức ở mọi nơi, hệ thống đảm bảo rằng sau một khoảng thời gian, tất cả các dịch vụ sẽ đạt được trạng thái thống nhất thông qua việc truyền thông điệp.
-
-Các mẫu thiết kế dưới đây được tổng hợp chi tiết trên Microservices.io \cite{microservices_io}.
-
-\subsection{Mẫu CQRS (Command Query Responsibility Segregation)}
-CQRS tách biệt hoàn toàn đường dẫn xử lý lệnh Ghi (Command) và lệnh Đọc (Query):
-\begin{itemize}
-    \item \textbf{Command Side:} Tối ưu hóa cho việc kiểm tra quy tắc nghiệp vụ và ghi dữ liệu (thường là RDBMS).
-    \item \textbf{Query Side:} Tối ưu hóa cho việc tìm kiếm và hiển thị. Dữ liệu ở đây thường được "phẳng hóa" (Denormalized) và lưu trong các công cụ như Elasticsearch để đạt tốc độ truy vấn cực nhanh.
-\end{itemize}
-
-\subsection{Mẫu Saga (Quản lý giao dịch phân tán)}
-Saga là một chuỗi các giao dịch cục bộ. Mỗi giao dịch cập nhật cơ sở dữ liệu bên trong một dịch vụ và phát ra một sự kiện để kích hoạt bước tiếp theo. Nếu một bước thất bại, Saga sẽ kích hoạt các \textit{Compensating Transactions} (Giao dịch bù) để hoàn tác các bước trước đó, đảm bảo tính toàn vẹn của dữ liệu nghiệp vụ \cite{newman2021}.
-
-\subsection{Mẫu Event Sourcing}
-Thay vì chỉ lưu trạng thái hiện tại (ví dụ: \textit{Số dư = 100\$}), Event Sourcing lưu trữ toàn bộ lịch sử các sự kiện đã dẫn đến trạng thái đó (\textit{Nạp 50\$, Nạp 70\$, Rút 20\$}). Điều này cung cấp khả năng kiểm toán (Audit Trail) tuyệt vời và cho phép tái tạo trạng thái hệ thống tại bất kỳ thời điểm nào trong quá khứ.
-
-
-
-
-
-% !TEX encoding = UTF-8
-\section{Hạ tầng và Vận hành}
-Mặc dù Microservices mang lại nhiều lợi ích về mặt phát triển và mở rộng, nhưng trên thực tế kiến trúc này cũng làm tăng đáng kể độ phức tạp trong vận hành hệ thống. Để một hệ thống gồm nhiều dịch vụ nhỏ hoạt động trơn tru, cần có một hạ tầng tự động hóa cao và khả năng giám sát toàn diện \cite[tr. 79]{nadareishvili2016}.
-
-\subsection{Cơ chế Service Discovery (Khám phá dịch vụ)}
-Trong môi trường container hóa (như Docker hay Kubernetes), các instance của dịch vụ thường có tính chất tạm thời (ephemeral) – chúng có thể được khởi tạo, dừng lại hoặc thay đổi địa chỉ IP bất cứ lúc nào. Do đó, việc cấu hình cứng địa chỉ IP là không khả thi.
-
-\paragraph{Cơ chế hoạt động:}
-Service Discovery sử dụng một kho lưu trữ trung tâm gọi là \textit{Service Registry} (ví dụ: Consul, Eureka hoặc K8s DNS). 
-\begin{itemize}
-    \item \textbf{Registration:} Khi một dịch vụ khởi động, nó tự đăng ký thông tin (tên dịch vụ, địa chỉ IP, cổng) với Registry.
-    \item \textbf{Discovery:} Khi dịch vụ A muốn gọi dịch vụ B, nó sẽ gửi truy vấn đến Registry để lấy danh sách các IP đang hoạt động của dịch vụ B.
-    \item \textbf{Health Check:} Registry định kỳ kiểm tra tình trạng của các dịch vụ. Nếu một instance bị lỗi, Registry sẽ gỡ tên nó khỏi danh sách để tránh gửi yêu cầu đến một "dịch vụ chết".
-\end{itemize}
-
-\subsection{Cơ chế Load Balancing (Cân bằng tải)}
-Load Balancing đảm bảo lưu lượng truy cập được phân phối đều cho các instance của dịch vụ, ngăn chặn tình trạng một instance bị quá tải trong khi các instance khác rảnh rỗi.
-
-\begin{itemize}
-    \item \textbf{Server-side Load Balancing:} Một bộ cân bằng tải tập trung (như Nginx, HAProxy) nhận yêu cầu và điều phối đến các dịch vụ bên dưới.
-    \item \textbf{Client-side Load Balancing:} Dịch vụ gửi yêu cầu sẽ tự quyết định instance nào sẽ nhận yêu cầu dựa trên danh sách lấy từ Service Registry. Điều này giúp giảm tải cho bộ cân bằng tải tập trung và loại bỏ điểm chết duy nhất (Single Point of Failure).
-\end{itemize}
-
-\subsection{Giám sát tập trung và Observability (Khả năng quan sát)}
-Với hàng chục dịch vụ chạy riêng lẻ, việc đăng nhập vào từng server để kiểm tra log là không thể. Hệ thống Microservice hiện đại yêu cầu ba trụ cột của Observability \cite{newman2021}:
-
-\subsubsection{Centralized Logging (Log tập trung)}
-Toàn bộ nhật ký hoạt động (Logs) từ tất cả các Microservice, API Gateway và Database được thu thập về một kho lưu trữ tập trung (thường sử dụng ELK Stack: Elasticsearch - Logstash - Kibana). Điều này cho phép quản trị viên tìm kiếm và phân tích lỗi trên toàn hệ thống từ một giao diện duy nhất.
-
-\subsubsection{Distributed Tracing (Theo vết phân tán)}
-Khi một yêu cầu từ người dùng đi qua chuỗi nhiều dịch vụ, việc xác định dịch vụ nào gây ra lỗi hoặc chậm trễ là rất khó khăn. 
-\begin{itemize}
-    \item \textbf{Correlation ID:} Mỗi yêu cầu được gán một mã định danh duy nhất ngay tại API Gateway. Mã này được truyền đi xuyên suốt qua các lời gọi liên dịch vụ.
-    \item \textbf{Công cụ:} Các hệ thống như Jaeger hoặc Zipkin giúp trực quan hóa vết đi của yêu cầu dưới dạng biểu đồ thời gian (Timeline), giúp nhanh chóng phát hiện các nút thắt cổ chai (bottlenecks).
-\end{itemize}
-
-\subsubsection{Metrics và Health Monitoring}
-Theo dõi các thông số định lượng như: tỷ lệ lỗi (Error Rate), thời gian phản hồi (Latency), và mức độ sử dụng tài nguyên (CPU, RAM). Các công cụ như Prometheus kết hợp với Grafana giúp cảnh báo chủ động (Proactive Alerting) trước khi sự cố nghiêm trọng xảy ra.
-
-\subsection{Quy trình triển khai và văn hóa DevOps}
-Microservice yêu cầu một quy trình triển khai liên tục (CI/CD) tự động hóa hoàn toàn. Mỗi thay đổi mã nguồn phải đi qua các bước kiểm thử tự động (Unit Test, Integration Test) trước khi được đóng gói thành Image và triển khai lên môi trường sản xuất mà không cần sự can thiệp thủ công \cite[tr. 257]{newman2021}.
-
-\paragraph{Thiết kế cho sự thất bại (Design for Failure):}
-Trong hệ thống phân tán, lỗi là điều không thể tránh khỏi. Các kỹ sư phải thiết kế hệ thống sao cho khi một thành phần thất bại, toàn bộ ứng dụng không bị sụp đổ (Graceful Degradation). Ví dụ: Nếu dịch vụ gợi ý việc làm bị lỗi, hệ thống vẫn phải cho phép người dùng xem tin tuyển dụng và ứng tuyển bình thường.
-
-\section{\texorpdfstring{\nobreakspace}{ }Ánh xạ nguyên lý NIST SP 800-207 vào kiến trúc job7189}
-\subsection{Bảy nguyên lý và thành phần tương ứng}
-Theo NIST SP 800-207, ZTA không định nghĩa một công nghệ cụ thể mà là một tập nguyên lý cần được hiện thực hóa bằng các thành phần phù hợp \cite{rose2020zero}. Trong hệ thống job7189, các nguyên lý này được ánh xạ vào các lớp hạ tầng và dịch vụ trọng yếu như Cilium (mạng), Keycloak (định danh), Vault (quản lý bí mật), và Kong (gateway).
-
-\begin{table}[htbp]
-\centering
-\caption{Ánh xạ 7 nguyên lý NIST SP 800-207 vào stack job7189}
-\label{tab:nist_to_job7189}
-\begin{tabularx}{\textwidth}{|p{4.0cm}|X|}
-\hline
-\rowcolor[HTML]{EFEFEF}
-\textbf{Nguyên lý NIST 800-207} & \textbf{Ánh xạ vào job7189} \\ \hline
-Mọi nguồn dữ liệu và dịch vụ điện toán đều là tài nguyên & Từng Microservice, API, database và object storage được định danh là tài nguyên độc lập; kiểm soát truy cập được đặt ở Kong và chính sách mạng nội bộ (Cilium) \cite{cilium_docs,kong_docs}. \\ \hline
-Mọi giao tiếp phải được bảo mật bất kể vị trí mạng & Lưu lượng \textit{East-West} được mã hóa bằng mTLS sidecarless qua Cilium; \textit{North-South} được kiểm soát tại Kong và Ingress \cite{cilium_docs}. \\ \hline
-Quyền truy cập cấp theo từng phiên & Keycloak cấp JWT theo thời gian sống hữu hạn; Vault cấp thông tin đăng nhập MySQL động theo lease thời gian ngắn, giảm đặc quyền thường trực \cite{keycloak_docs,vault_docs}. \\ \hline
-Quyết định truy cập dựa trên chính sách động & Cilium L7 policy kết hợp danh tính service, phương thức HTTP và đường dẫn; Vault policy ràng buộc theo ServiceAccount và namespace \cite{cilium_docs,vault_docs}. \\ \hline
-Giám sát tính toàn vẹn của mọi tài sản & Hubble/ELK thu thập luồng mạng và nhật ký hệ thống; cảnh báo dựa trên bất thường hành vi truy cập \cite{cilium_docs,elk_docs}. \\ \hline
-Xác thực và ủy quyền thực thi nghiêm ngặt trước truy cập & Kong kiểm tra JWT trước khi định tuyến; mTLS xác thực hai chiều giữa các service \cite{kong_docs,cilium_docs}. \\ \hline
-Thu thập tối đa telemetry và logs & Hubble, Filebeat và Kibana cung cấp quan sát tập trung, phục vụ điều chỉnh chính sách theo thời gian thực \cite{cilium_docs,elk_docs}. \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsection{Vai trò Policy Engine, Policy Administrator và PEP}
-Mô hình ZTA của NIST nhấn mạnh ba thành phần điều phối: \textit{Policy Engine (PE)}, \textit{Policy Administrator (PA)} và \textit{Policy Enforcement Point (PEP)} \cite{rose2020zero}. Trong triển khai job7189:
-\begin{itemize}
-    \item \textbf{PE:} Keycloak và Vault đóng vai trò cung cấp quyết định xác thực/ủy quyền dựa trên danh tính và chính sách bí mật động.
-    \item \textbf{PA:} Các chính sách được phân phối qua Kubernetes manifests và Helmfile, bảo đảm cấu hình nhất quán trên toàn cụm.
-    \item \textbf{PEP:} Cilium thực thi chính sách ở tầng mạng, Kong thực thi chính sách ở tầng API (North-South).
-\end{itemize}
-Sự phối hợp này đảm bảo nguyên lý \textit{Never Trust, Always Verify} được thực thi nhất quán ở cả tầng mạng và tầng ứng dụng.
-
-\section{Kết luận chương 2}
-Chương 2 đã trình bày chi tiết về phương pháp luận và các mẫu thiết kế cốt lõi của kiến trúc Microservice. Từ việc phân rã dịch vụ dựa trên Domain-Driven Design, thiết lập cơ chế giao tiếp hướng sự kiện đến việc xây dựng hạ tầng vận hành tự động. Đây là nền tảng lý thuyết quan trọng để tiến hành xây dựng và triển khai thực nghiệm hệ thống Tuyển dụng trực tuyến trong chương tiếp theo.
-
-
-
-
+\begin{leftbar}
+\textbf{Cầu nối sang Chương 3:} Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng JOB7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 node — theo đúng lộ trình 4 giai đoạn đã đề xuất.
+\end{leftbar}

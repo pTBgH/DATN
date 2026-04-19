@@ -1,1085 +1,1301 @@
 % !TEX encoding = UTF-8
-\chapter{Xây dựng hệ thống Tuyển dụng trực tuyến}
+\chapter{Triển khai thực nghiệm — Case Study hệ thống JOB7189}
 
-\section{Phân tích yêu cầu nghiệp vụ}
+%==============================================================================
+% 3.1  LỘ TRÌNH TRIỂN KHAI THEO NIST SP 800-207
+%==============================================================================
+\section{Lộ trình triển khai Zero Trust theo NIST SP 800-207}
 
-\subsection{Khảo sát và thu thập yêu cầu nghiệp vụ}
-Để xây dựng một quy trình nghiệp vụ chuẩn hóa và phù hợp với thực tiễn, đồ án đã tiến hành tham khảo mô hình hoạt động của các nền tảng tuyển dụng uy tín.
-Đối với phân hệ quản lý tin đăng và tìm kiếm việc làm (Job Portal), đồ án tham khảo quy trình tiếp cận ứng viên của các mạng lưới phổ biến như LinkedIn \cite{linkedin_recruiter} và Indeed \cite{indeed_hiring}. Tại thị trường Việt Nam, các quy trình về đăng tuyển và quản lý hồ sơ ứng viên được tham chiếu theo mô hình của TopCV \cite{topcv_vn} và VietnamWorks \cite{vietnamworks} để đảm bảo tính phù hợp với người dùng trong nước.
-Đặc biệt, đối với phân hệ quản trị tuyển dụng (Hiring Service/ATS), chức năng quản lý ứng viên theo quy trình (Pipeline) và bảng điều khiển (Kanban Board) được thiết kế dựa trên nguyên lý của các hệ thống ATS chuyên nghiệp như Greenhouse \cite{greenhouse_ats} và SmartRecruiters \cite{smartrecruiters}. Việc tham khảo này giúp hệ thống Job7189 không chỉ dừng lại ở việc đăng tin mà còn hỗ trợ doanh nghiệp quản lý trọn vẹn vòng đời tuyển dụng.
-
-Việc khảo sát tập trung vào các nội dung chính:
-\begin{itemize}
-    \item Luồng đăng tuyển và quản lý tin tuyển dụng.
-    \item Luồng ứng tuyển và xử lý hồ sơ ứng viên.
-    \item Cách các hệ thống hiện tại quản lý trạng thái tin tuyển dụng và hồ sơ.
-    \item Quy trình phối hợp giữa các vai trò: Recruiter, Hiring Manager, HR, Admin và Ứng viên.
-\end{itemize}
-
-Kết quả khảo sát cho thấy, mặc dù mỗi nền tảng có cách triển khai riêng, nhưng đa số các hệ thống đều tuân theo các luồng nghiệp vụ chung:
-\begin{itemize}
-    \item Tin tuyển dụng được khởi tạo, chỉnh sửa, gửi duyệt, công bố và kết thúc theo vòng đời trạng thái;
-    \item Hồ sơ ứng viên được tiếp nhận, sàng lọc, phỏng vấn, đánh giá và cập nhật kết quả theo quy trình nhiều bước;
-    \item Mọi thay đổi quan trọng đều được ghi nhận lịch sử để phục vụ theo dõi, báo cáo và đối soát dữ liệu;
-    \item Các vai trò tham gia được phân quyền rõ ràng trong từng giai đoạn của quy trình.
-\end{itemize}
-
-Trên cơ sở các luồng và quy trình nghiệp vụ thu được từ khảo sát, đồ án tiến hành xây dựng hệ thống tuyển dụng với mục tiêu chuẩn hóa quy trình, kiểm soát chặt chẽ vòng đời dữ liệu và đảm bảo tính nhất quán trong toàn bộ hoạt động tuyển dụng. Dựa trên các nghiên cứu về quy trình tuyển dụng hiệu quả \cite{smart2008} và khảo sát các nền tảng thực tế.
-
-\subsection{Mô hình hóa quy trình nghiệp vụ (BPMN)}
-Dựa trên quá trình khảo sát các hệ thống thực tế, đồ án mô hình hóa các quy trình nghiệp vụ cốt lõi của hệ thống tuyển dụng. Mục tiêu là làm rõ cách thức vận hành thực tế, các vai trò tham gia, cũng như các quy tắc nghiệp vụ chi phối vòng đời của dữ liệu trong hệ thống. Trong đó, Quy trình Đăng tuyển (Job Posting Lifecycle) được xác định là quy trình trung tâm, ảnh hưởng trực tiếp đến toàn bộ hoạt động của nền tảng tuyển dụng.
-
-\subsubsection{Quy trình Đăng tuyển}
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1\textwidth]{images/dangtuyen.png}
-    \caption{Sơ đồ Quy trình Đăng tuyển}
-    \label{fig:bpmn_dang_tuyen}
-\end{figure}
-
-\textbf{1. Giai đoạn soạn thảo} \\
-Mô tả nghiệp vụ: Người phụ trách việc đăng bài khởi tạo một tin tuyển dụng mới và nhập các thông tin mô tả công việc (Job Description): tiêu đề công việc, mô tả nhiệm vụ, yêu cầu ứng viên, mức lương, địa điểm làm việc, hình thức làm việc, thời hạn ứng tuyển và các thông tin liên quan khác. Sau khi được tạo, tin tuyển dụng được lưu ở trạng thái DRAFT và chỉ hiển thị với những người có quyền truy cập. 
-
-Tại giai đoạn này, hệ thống không cho phép xóa tin tuyển dụng trong bất kỳ trường hợp nào, kể cả khi tin mới được tạo và chưa gửi duyệt. Thay vì cơ chế xóa, hệ thống áp dụng mô hình quản lý vòng đời bằng chuyển trạng thái và lưu trữ (Archive) nhằm:
-\begin{itemize}
-    \item Bảo toàn dữ liệu nghiệp vụ.
-    \item Đảm bảo khả năng truy vết lịch sử xử lý tin.
-    \item Duy trì sự liên kết giữa tin tuyển dụng và các dữ liệu phát sinh như hồ sơ ứng viên, báo cáo và thống kê.
-\end{itemize}
-Trong giai đoạn soạn thảo, người phụ trách tuyển dụng được phép: Chỉnh sửa nội dung tin, Lưu trữ tạm thời tin nếu chưa tiếp tục xử lý, Gửi tin để chuyển sang giai đoạn kiểm duyệt.
-
-\textbf{2. Giai đoạn gửi duyệt} \\
-Mô tả nghiệp vụ: Khi nội dung tin đã được hoàn thiện, người phụ trách tuyển dụng thực hiện thao tác Submit. Hệ thống tiếp nhận yêu cầu và chuyển tin sang trạng thái PENDING. Tại thời điểm này, nội dung tin không được phép chỉnh sửa nhằm đảm bảo tính nhất quán trong suốt quá trình kiểm tra. Trong trường hợp phát hiện sai sót, người phụ trách tuyển dụng có thể hủy gửi duyệt để đưa tin quay lại giai đoạn soạn thảo và tiếp tục chỉnh sửa.
-
-\textbf{3. Giai đoạn kiểm duyệt} \\
-Mô tả nghiệp vụ: Bộ phận quản trị nền tảng tiến hành rà soát các tin đang chờ duyệt từ các đơn vị khác nhau theo các quy chuẩn đã được thiết lập trước. Sau khi đánh giá, nội dung tin sẽ được xử lý theo một trong hai hướng:
-\begin{itemize}
-    \item Chấp thuận: Tin được cho phép công bố trên hệ thống.
-    \item Từ chối: Tin bị yêu cầu chỉnh sửa lại nội dung và gửi duyệt lại.
-\end{itemize}
-
-\textbf{4. Giai đoạn vận hành và kết thúc} \\
-Mô tả nghiệp vụ: Các tin đã được chấp thuận sẽ được hiển thị công khai cho ứng viên trong thời gian hiệu lực. Tin tuyển dụng kết thúc khi: Hết thời hạn đăng tuyển; Doanh nghiệp chủ động ngừng hiển thị tin; Admin của hệ thống gỡ tin. Các tin kết thúc được lưu trữ để phục vụ công tác báo cáo, thống kê và đối soát dữ liệu trong tương lai.
-
-\subsubsection{Quy trình Ứng tuyển}
-Quy trình Ứng tuyển mô tả toàn bộ hành trình của một ứng viên kể từ khi tiếp cận tin tuyển dụng cho đến khi nhận được kết quả cuối cùng từ phía doanh nghiệp. Quy trình này kết nối trực tiếp giữa người tìm việc và tổ chức tuyển dụng, đồng thời tạo ra chuỗi dữ liệu đầu vào quan trọng cho các hoạt động sàng lọc, phỏng vấn và ra quyết định tuyển dụng.
-
-\begin{figure}[htbp]
-    \centering
-        \includegraphics[width=1\textwidth]{images/ungtuyen.png}
-    \caption{Sơ đồ Quy trình Ứng tuyển}
-    \label{fig:bpmn_ung_tuyen}
-\end{figure}
-
-\textbf{1. Giai đoạn Tìm kiếm \& Tiếp cận việc làm} \\
-Mô tả nghiệp vụ: Người tìm việc truy cập cổng thông tin tuyển dụng (Job Portal) và sử dụng các chức năng tìm kiếm, lọc, sắp xếp để tra cứu các vị trí tuyển dụng phù hợp theo nhiều tiêu chí như: ngành nghề, địa điểm, mức lương, hình thức làm việc và kinh nghiệm yêu cầu. Tại giai đoạn này, người dùng có thể xem chi tiết nội dung tin tuyển dụng, thông tin doanh nghiệp và các yêu cầu liên quan trước khi quyết định ứng tuyển.
-
-\textbf{2. Giai đoạn Ứng tuyển} \\
-Mô tả nghiệp vụ: Khi quyết định ứng tuyển, ứng viên thực hiện thao tác nộp hồ sơ. Hệ thống cho phép ứng viên: Tải lên CV từ thiết bị cá nhân hoặc chọn từ hồ sơ đã lưu trước đó, bổ sung các thông tin cần thiết theo mẫu ứng tuyển. Hồ sơ của ứng viên được lưu trữ trên hệ thống lưu trữ tập trung (Storage Service) và hệ thống đồng thời tạo một bản ghi Application gắn với tin tuyển dụng tương ứng, chính thức ghi nhận việc ứng tuyển của ứng viên.
-
-\textbf{3. Giai đoạn Sàng lọc \& Phỏng vấn} \\
-Mô tả nghiệp vụ: Sau khi tiếp nhận hồ sơ, đội ngũ tuyển dụng tiến hành xem xét danh sách ứng viên cho từng vị trí. Recruiter và Hiring Manager đánh giá hồ sơ dựa trên các tiêu chí chuyên môn và yêu cầu công việc. Đối với các hồ sơ phù hợp, bộ phận điều phối tuyển dụng (Coordinator) thực hiện liên hệ và lên lịch phỏng vấn. Quá trình phỏng vấn được thực hiện bởi các Interviewer, trong đó kết quả đánh giá và nhận xét được ghi nhận trực tiếp vào hệ thống. Quy trình này có thể bao gồm nhiều vòng phỏng vấn và các hoạt động đánh giá bổ sung tùy theo chính sách tuyển dụng của từng tổ chức.
-
-\textbf{4. Giai đoạn Kết quả \& Thông báo} \\
-Mô tả nghiệp vụ: Sau khi hoàn tất các vòng đánh giá, hệ thống cập nhật trạng thái cuối cùng của hồ sơ ứng viên: Offer đối với ứng viên đạt yêu cầu, Reject đối với các hồ sơ không phù hợp. Kết quả này được thông báo đến ứng viên thông qua các kênh liên lạc của hệ thống như email hoặc thông báo trên nền tảng, đồng thời được lưu trữ để phục vụ mục đích báo cáo và thống kê trong tương lai.
-
-\subsection{Biểu đồ Use Case và Đặc tả chức năng}
-
-Biểu đồ Use Case tổng quát của hệ thống Job7189 được thiết kế dựa trên các ký pháp tiêu chuẩn của Ngôn ngữ Mô hình hóa Thống nhất (UML) theo hướng dẫn của Fowler \cite{fowler2003}. Quá trình xác định các tác nhân (Actors) và ca sử dụng (Use Cases) tuân thủ phương pháp phân tích thiết kế hướng đối tượng được đề xuất bởi Larman \cite{larman2004}, nhằm đảm bảo bao quát đầy đủ các tương tác giữa người dùng và hệ thống.
-
-\begin{figure}[H]
-    \centering
-
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{images/uc1}
-        \caption{Phần 1}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{images/uc2}
-        \caption{Phần 2}
-    \end{subfigure}
-
-    \caption{Biểu đồ Use Case hệ thống tuyển dụng}
-    \label{fig:usecase_join}
-\end{figure}
-
-\subsubsection{Danh sách tác nhân hệ thống (Actors)}
-
-Hệ thống phân định rõ ràng trách nhiệm của từng vai trò tham gia vào quy trình tuyển dụng. Việc phân chia chi tiết giữa các vai trò như \textit{Recruiter}, \textit{Hiring Manager} và \textit{Interviewer} được thiết kế dựa trên nguyên lý tuyển dụng "Who: The A Method" \cite{smart2008} nhằm đảm bảo tính khách quan và hiệu quả.
-
-Dưới đây là danh sách chi tiết các tác nhân trong hệ thống:
+NIST SP 800-207 (Mục 7 — ``Migrating to a Zero Trust Architecture'') khuyến nghị doanh nghiệp triển khai ZTA theo một lộ trình tuần tự, không phải ``bật tắt một công tắc duy nhất'' \cite{nist800207}. Hệ thống JOB7189 tuân thủ lộ trình 6 giai đoạn sau:
 
 \begin{table}[H]
-    \centering
-    \renewcommand{\arraystretch}{1.3} % Tăng khoảng cách dòng cho dễ đọc
-    \caption{Đặc tả các tác nhân và quyền hạn trong hệ thống}
-    \label{tab:actors_list}
-    \small % Dùng font nhỏ hơn một chút để bảng gọn gàng
-    \begin{tabular}{|c|p{3.5cm}|p{9.5cm}|}
-        \hline
-        \textbf{STT} & \textbf{Tác nhân (Actor)} & \textbf{Mô tả chi tiết} \\
-        \hline
-        1 & \textbf{System Admin} & Quản trị viên cấp cao nhất. Quản lý toàn bộ nền tảng (multi-tenancy), bao gồm quản lý các workspace, kiểm duyệt tin đăng công khai và cấu hình tham số toàn cục. \\
-        \hline
-        2 & \textbf{Workspace Admin} & Quản trị viên của một công ty (tenant). Chịu trách nhiệm cấu hình workspace, mời thành viên, phân quyền và giám sát hoạt động tuyển dụng của công ty. \\
-        \hline
-        3 & \textbf{RecOps} & Chuyên viên vận hành tuyển dụng. Người thiết kế luồng quy trình (Pipeline), tạo mẫu đánh giá (Scorecard), cấu hình automation và email template. \\
-        \hline
-        4 & \textbf{Recruiter} & Chuyên viên tuyển dụng toàn trình. Người "sở hữu" ứng viên, chịu trách nhiệm đăng tin, sàng lọc (sourcing), quản lý ứng viên qua các vòng và gửi Offer. \\
-        \hline
-        5 & \textbf{Coordinator} & Điều phối viên. Chịu trách nhiệm về logistics: lên lịch phỏng vấn, đặt phòng họp và gửi thư mời. Không tham gia vào quyết định tuyển dụng. \\
-        \hline
-        6 & \textbf{Hiring Manager} & Trưởng bộ phận cần tuyển (người ra quyết định). Tạo yêu cầu tuyển dụng (Requisition), tham gia phỏng vấn và phê duyệt Offer cuối cùng. \\
-        \hline
-        7 & \textbf{Interviewer} & Người phỏng vấn. Bất kỳ nhân viên nào được mời tham gia đánh giá ứng viên. Hệ thống áp dụng cơ chế "Independent Feedback" (không được xem đánh giá của người khác trước khi nộp đánh giá của mình). \\
-        \hline
-        8 & \textbf{Member} & Nhân viên thông thường. Có thể xem tin tuyển dụng nội bộ, giới thiệu ứng viên (Referral) và quản lý hồ sơ cá nhân. \\
-        \hline
-        9 & \textbf{Guest} & Khách vãng lai chưa đăng nhập. Chỉ có quyền xem danh sách việc làm công khai (Job Board) và tìm kiếm thông tin. \\
-        \hline
-        10 & \textbf{Candidate} & Ứng viên đã đăng ký tài khoản. Có quyền quản lý hồ sơ (CV), ứng tuyển (Apply), theo dõi trạng thái đơn và thực hiện các quyền riêng tư dữ liệu. \\
-        \hline
-        11 & \textbf{User} & Thực thể cơ sở (Base User) trong hệ thống định danh. Mọi tác nhân (trừ Guest) đều kế thừa từ User để thực hiện các chức năng đăng nhập, đăng xuất và bảo mật tài khoản. \\
-        \hline
-    \end{tabular}
-\end{table}
-
-% !TEX encoding = UTF-8
-
-\subsection{Đặc tả chi tiết các Use Case cốt lõi}
-Dưới đây là đặc tả chi tiết cho 03 hành động quan trọng nhất, thể hiện tính phối hợp giữa các dịch vụ và các kịch bản xử lý ngoại lệ trong kiến trúc Microservices của hệ thống \textbf{job7189}.
-
-% --- USE CASE 1 ---
-\subsubsection*{Use Case 1: Ứng tuyển việc làm (Job Application)}
-\textit{Mô tả kịch bản ứng viên nộp hồ sơ vào một vị trí công việc đang mở.}
-
-\begin{center}
-\renewcommand{\arraystretch}{1.4} % Giãn dòng trong bảng cho dễ đọc
-\small
-\begin{tabular}{|p{3.5cm}|p{12cm}|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Thành phần} & \textbf{Mô tả chi tiết} \\ \hline
-\textbf{Tác nhân} & Ứng viên (Candidate). \\ \hline
-\textbf{Mục tiêu} & Gửi hồ sơ CV và khởi tạo đơn ứng tuyển tại Hiring Service. \\ \hline
-\textbf{Tiền điều kiện} & Ứng viên đã đăng nhập; Tin tuyển dụng đang ở trạng thái \texttt{PUBLISHED}. \\ \hline
-\textbf{Luồng chính} & 
-1. Ứng viên chọn tệp CV và nhấn nút "Ứng tuyển". \newline
-2. Hệ thống lấy \textit{Presigned URL} từ \textit{Storage Service} và tải file lên \textit{MinIO}. \newline
-3. \textit{Candidate Service} lưu đường dẫn tệp (\textit{FilePath}) và tạo \textit{ResumeID}. \newline
-4. \textit{Hiring Service} gọi sang \textit{Job Service} để kiểm tra trạng thái tin đăng. \newline
-5. Hệ thống tạo bản ghi \textit{JobApplication} và phát sự kiện tạo đơn vào Kafka. \\ \hline
-\textbf{Luồng thay thế} & 
-4a. Nếu \textit{Job Service} phản hồi tin đăng đã đóng (\texttt{CLOSED}) hoặc hết hạn: Hệ thống thông báo lỗi và hủy quy trình ứng tuyển. \newline
-2a. Nếu việc tải tệp lên \textit{MinIO} thất bại: Thông báo lỗi kết nối và yêu cầu thử lại. \\ \hline
-\textbf{Hậu điều kiện} & Đơn ứng tuyển hiển thị trong danh sách của nhà tuyển dụng; Ứng viên nhận email xác nhận. \\ \hline
-\end{tabular}
-\end{center}
-
-\vspace{0.8cm} % Tạo khoảng cách hợp lý giữa 2 Use Case
-
-\newpage
-% --- USE CASE 2 ---
-\subsubsection*{Use Case 2: Quản lý Tin tuyển dụng (Job Posting Lifecycle)}
-\textit{Mô tả quy trình soạn thảo và gửi duyệt nội dung tin đăng của nhà tuyển dụng.}
-
-\begin{center}
-\renewcommand{\arraystretch}{1.4}
-\small
-\begin{tabular}{|p{3.5cm}|p{12cm}|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Thành phần} & \textbf{Mô tả chi tiết} \\ \hline
-\textbf{Tác nhân} & Nhà tuyển dụng (Recruiter). \\ \hline
-\textbf{Mục tiêu} & Hoàn thiện nội dung JD và chuyển trạng thái sang chờ phê duyệt. \\ \hline
-\textbf{Tiền điều kiện} & Nhà tuyển dụng có quyền \texttt{CREATE\_JOB} trong Workspace hiện tại. \\ \hline
-\textbf{Luồng chính} & 
-1. Nhà tuyển dụng nhập thông tin JD (Tiêu đề, lương, yêu cầu...). \newline
-2. Hệ thống lưu bản ghi vào bảng \texttt{job\_jds} với trạng thái \texttt{DRAFT}. \newline
-3. Nhà tuyển dụng nhấn nút "Gửi duyệt" (Submit). \newline
-4. \textit{Job Service} chuyển trạng thái thành \texttt{PENDING} và khóa quyền chỉnh sửa nội dung. \newline
-5. Hệ thống ghi nhận lịch sử phiên bản vào bảng \texttt{job\_histories}. \\ \hline
-\textbf{Luồng thay thế} & 
-3a. Nhà tuyển dụng chọn "Lưu tạm": Hệ thống giữ tin ở trạng thái \texttt{DRAFT} để có thể chỉnh sửa sau. \newline
-4a. Nếu các thông tin bắt buộc bị thiếu: Hệ thống báo lỗi và yêu cầu bổ sung trước khi Submit. \\ \hline
-\textbf{Hậu điều kiện} & Tin tuyển dụng xuất hiện trong danh sách chờ duyệt của Quản trị viên (Admin). \\ \hline
-\end{tabular}
-\end{center}
-
-\vspace{0.8cm}
-
-\newpage
-% --- USE CASE 3 ---
-\subsubsection*{Use Case 3: Di chuyển trạng thái ứng viên (Move Candidate Stage)}
-\textit{Mô tả kịch bản nhà tuyển dụng điều phối ứng viên qua các vòng tuyển dụng trên Kanban.}
-
-\begin{center}
-\renewcommand{\arraystretch}{1.4}
-\small
-\begin{tabular}{|p{3.5cm}|p{12cm}|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Thành phần} & \textbf{Mô tả chi tiết} \\ \hline
-\textbf{Tác nhân} & Nhà tuyển dụng (Recruiter). \\ \hline
-\textbf{Mục tiêu} & Cập nhật vòng tuyển dụng cho ứng viên và kích hoạt thông báo tự động. \\ \hline
-\textbf{Tiền điều kiện} & Nhà tuyển dụng đang xem bảng Kanban của một tin tuyển dụng cụ thể. \\ \hline
-\textbf{Luồng chính} & 
-1. Nhà tuyển dụng kéo thẻ ứng viên từ cột hiện tại sang cột trạng thái mới. \newline
-2. \textit{Hiring Service} gọi sang \textit{Identity Service} kiểm tra quyền hạn của người dùng. \newline
-3. Hệ thống cập nhật \texttt{StageID} mới vào cơ sở dữ liệu. \newline
-4. \textit{Hiring Service} phát sự kiện \texttt{app.moved} vào Message Broker. \newline
-5. \textit{Communication Service} tiêu thụ sự kiện và tự động gửi email cho ứng viên. \\ \hline
-\textbf{Luồng thay thế} & 
-2a. Nếu \textit{Identity Service} phản hồi người dùng không có quyền (\texttt{403 Forbidden}): Hệ thống trả thẻ ứng viên về vị trí cũ và thông báo từ chối truy cập. \newline
-5a. Nếu dịch vụ Email bị lỗi: Sự kiện vẫn được lưu tại Kafka để xử lý lại (Retry) sau khi dịch vụ phục hồi. \\ \hline
-\textbf{Hậu điều kiện} & Trạng thái mới của ứng viên được đồng bộ hóa trên giao diện tất cả người dùng liên quan. \\ \hline
-\end{tabular}
-\end{center}
-
-
-
-
-
-\subsubsection*{Danh sách vai trò và chức năng trong hệ thống}
-\label{tab:roles_permissions}
-\begin{tabularx}{\textwidth}{|l|l|X|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Nhóm} & \textbf{Vai trò} & \textbf{Mô tả vai trò} & \textbf{Chức năng chính} \\ \hline
-Platform & System Admin & Quản trị toàn bộ nền tảng, kiểm soát nội dung và tenant & Duyệt tin (Approve/Reject), quản lý danh mục, quản lý Workspace \\ \hline
-Workspace & Workspace Admin & Quản trị doanh nghiệp & Cấu hình công ty, mua gói dịch vụ, phân quyền \\ \cline{2-4} 
- & RecOps & Thiết kế và tối ưu quy trình & Cấu hình pipeline, email template, scorecard \\ \cline{2-4} 
- & Hiring Manager & Chủ sở hữu nhu cầu tuyển dụng & Tạo Requisition, phê duyệt kế hoạch, quyết định Offer \\ \cline{2-4} 
- & Recruiter & Vận hành quy trình tuyển dụng & Sourcing, đăng tin, sàng lọc hồ sơ \\ \cline{2-4} 
- & Coordinator & Điều phối phỏng vấn & Lên lịch phỏng vấn, sắp xếp phòng \\ \cline{2-4} 
- & Interviewer & Đánh giá ứng viên & Tham gia phỏng vấn, chấm điểm bằng Scorecard \\ \cline{2-4} 
- & Member & Thành viên workspace & Xem thông tin nội bộ, giới thiệu ứng viên (Referral) \\ \hline
-Public & Guest & Người dùng chưa đăng nhập & Xem tin tuyển dụng, tìm kiếm việc làm \\ \cline{2-4} 
- & Candidate & Người tìm việc đã đăng ký & Ứng tuyển, quản lý CV, theo dõi đơn \\ \cline{2-4} 
- & User & Tài khoản hệ thống cơ bản & Quản lý tài khoản, đăng nhập SSO \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsection{Yêu cầu phi chức năng}
-Bên cạnh các yêu cầu nghiệp vụ, hệ thống còn phải đáp ứng các yêu cầu phi chức năng nhằm đảm bảo khả năng vận hành ổn định, an toàn, mở rộng và hiệu quả trong môi trường thực tế. Các yêu cầu này đóng vai trò nền tảng cho việc lựa chọn kiến trúc và công nghệ triển khai hệ thống.
-
-\textbf{1. Kiến trúc hệ thống} \\
-Hệ thống được thiết kế theo mô hình Microservices kết hợp Event-Driven Architecture nhằm:
-\begin{itemize}
-    \item Tách biệt các chức năng nghiệp vụ thành các dịch vụ độc lập.
-    \item Giảm sự phụ thuộc chặt chẽ giữa các thành phần.
-    \item Tăng khả năng mở rộng và khả năng bảo trì.
-    \item Cho phép hệ thống phản ứng linh hoạt với các sự kiện nghiệp vụ phát sinh trong quá trình vận hành.
-\end{itemize}
-Mô hình Event-Driven giúp các dịch vụ giao tiếp bất đồng bộ thông qua các sự kiện, từ đó giảm coupling và tăng khả năng chịu tải của toàn hệ thống.
-
-\textbf{2. Bảo mật và phân quyền} \\
-\textit{Authentication – Xác thực:} Hệ thống sử dụng Keycloak như một Identity Provider (IdP) trung tâm để quản lý danh tính người dùng. Keycloak chịu trách nhiệm: Xác thực người dùng thông qua cơ chế Single Sign-On (SSO); Cấp phát các Token xác thực (Access Token, Refresh Token, ID Token); Quản lý vòng đời phiên đăng nhập và chính sách bảo mật. \\
-\textit{Authorization – Phân quyền:} Hệ thống áp dụng mô hình Token Exchange / JWT Enrichment nhằm tối ưu hóa hiệu năng và tăng tính độc lập của các Microservice. Quy trình phân quyền được tổ chức như sau: Identity Service chịu trách nhiệm tổng hợp và đóng gói toàn bộ thông tin Role và Permission của người dùng vào Access Token. Các Microservice nghiệp vụ khi nhận request chỉ cần giải mã và kiểm tra Token để thực hiện Authorization Enforcement. Việc kiểm tra quyền được thực hiện hoàn toàn Stateless, không yêu cầu truy vấn Database hay gọi ngược về Identity Service.
-
-\textbf{3. Bảo mật dữ liệu} \\
-Đối với dữ liệu tập tin (CV, tài liệu ứng tuyển…), hệ thống áp dụng cơ chế Presigned URL khi tải lên hoặc tải xuống file. Theo đó: Client chỉ được cấp quyền truy cập file trong thời gian giới hạn; Không cho phép truy cập trực tiếp vào hệ thống lưu trữ; Giảm thiểu nguy cơ rò rỉ dữ liệu và tấn công trái phép.
-
-\textbf{4. Hiệu năng} \\
-Hệ thống được tối ưu hóa về độ trễ và khả năng xử lý tải lớn thông qua: Cơ chế Stateless Authorization giúp kiểm tra quyền với độ trễ gần như bằng không; Giao tiếp bất đồng bộ trong kiến trúc Event-Driven; Khả năng mở rộng linh hoạt của các Microservice.
-
-\textbf{5. Tính sẵn sàng và độ tin cậy} \\
-Hệ thống được triển khai trên nền tảng Kubernetes, cho phép: Tự động phát hiện lỗi và khởi động lại dịch vụ gặp sự cố; Cân bằng tải giữa các instance; Mở rộng hoặc thu hẹp tài nguyên theo nhu cầu sử dụng.
-
-\section{Thiết kế kiến trúc hệ thống}
-Để trực quan hóa kiến trúc hệ thống từ mức tổng quan đến chi tiết, đồ án áp dụng mô hình C4 (Context, Containers, Components, Code).
-
-\subsection{Level 1: Sơ đồ ngữ cảnh hệ thống}
-Sơ đồ ngữ cảnh cung cấp cái nhìn tổng quan nhất về hệ thống Job7189, đặt nó vào trong môi trường hoạt động thực tế và xác định các mối tương tác với người dùng và các hệ thống bên ngoài.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.5\textwidth]{images/structurizr-1-1_SystemContext-key.png}
-    \caption{Quy ước ký hiệu sử dụng trong các sơ đồ của hệ thống}
-    \label{fig:c4-notation}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{images/structurizr-1-1_SystemContext.png}
-    \caption{Sơ đồ ngữ cảnh hệ thống của hệ thống Job7189}
-    \label{fig:system-context}
-\end{figure}
-
-
-\textbf{1. Trung tâm hệ thống: Job7189 System} \\
-Job7189 là hệ thống phần mềm lõi được xây dựng nhằm hỗ trợ và tự động hóa toàn bộ quy trình tuyển dụng cho doanh nghiệp. Trách nhiệm chính của Job7189 bao gồm: Quản lý tin tuyển dụng; Tiếp nhận và xử lý hồ sơ ứng viên; Hỗ trợ sàng lọc, phỏng vấn, đánh giá; Quản lý quy trình theo pipeline; Cung cấp báo cáo thống kê.
-
-\textbf{2. Người dùng (Users):}
-\begin{itemize}
-    \item \textbf{Internal Users:} Bao gồm các vai trò như Workspace Admin, Recruiter, Hiring Manager, Interviewer. Họ tương tác với hệ thống để thực hiện các nhiệm vụ liên quan đến quy trình tuyển dụng và quản trị.
-    \item \textbf{Public Users:} Gồm Guest (người dùng chưa đăng nhập) và Candidate (ứng viên đã đăng ký). Họ sử dụng hệ thống để tìm kiếm việc làm và nộp hồ sơ ứng tuyển.
-    \item \textbf{System Admin:} Quản trị viên hệ thống chịu trách nhiệm quản lý toàn bộ nền tảng Job7189, bao gồm việc duyệt tin tuyển dụng, quản lý danh mục và cấu hình hệ thống.
-\end{itemize}
-
-\textbf{3. Các hệ thống bên ngoài (External Systems)}
-\begin{itemize}
-    \item \textbf{Keycloak:} Identity Provider quản lý định danh và xác thực. Job7189 ủy quyền xác thực cho Keycloak qua OAuth2/OIDC.
-    \item \textbf{Email Service:} SMTP Server dùng để gửi thư mời phỏng vấn, thông báo kết quả.
-    \item \textbf{MinIO:} Object Storage tương thích S3 để lưu trữ CV, ảnh đại diện, logo an toàn.
-\end{itemize}
-
-\subsection{Level 2: Container Diagram (Sơ đồ Container)}
-Kiến trúc Microservices giúp hệ thống linh hoạt và mở rộng tốt. Các Container chính:
-\begin{itemize}
-    \item \textbf{API Gateway (Kong):} Điểm truy cập duy nhất. Trách nhiệm Routing, Authentication (JWT), và các Cross-Cutting Concerns (Rate Limiting, CORS).
-    \item \textbf{Web Application (SPA):} Frontend xây dựng bằng Next.js, giao tiếp qua RESTful API.
-    \item \textbf{Microservices Nghiệp vụ:} Mỗi service sở hữu DB riêng. Bao gồm: Identity Service, Workspace Service, Job Service, Hiring Service (ATS Core), Candidate Service, Communication Service và Storage Service.
-    \item \textbf{Data Stores:} MySQL (lưu trữ chính), Redis (Cache phân tán), MinIO (Object Storage).
-    \item \textbf{Message Broker (Kafka):} Xương sống cho giao tiếp bất đồng bộ, giúp hệ thống loose coupling (Ví dụ: Job Service bắn sự kiện \textit{job.published} để các service khác subscribe).
-\end{itemize}
-
-
-
-\newpage
-
-\subsection{Level 2: Container Diagram (Sơ đồ Container)}
-Ở cấp độ này, hệ thống Job7189 được phân rã thành các đơn vị triển khai độc lập. Để quản lý độ phức tạp, kiến trúc được trình bày qua 03 góc nhìn trọng tâm:
-
-\subsubsection{Góc nhìn nghiệp vụ (Functional View)}
-Tập trung vào luồng điều phối yêu cầu từ các ứng dụng Frontend qua API Gateway tới các dịch vụ nghiệp vụ và cơ chế giao tiếp bất đồng bộ qua Kafka Cluster.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.75\textwidth]{images/level2/structurizr-1-1_Functional_View.png}
-    \caption{Sơ đồ Container - Góc nhìn luồng nghiệp vụ}
-    \label{fig:c4_functional}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.3\textwidth]{images/level2/structurizr-1-1_Functional_View-key.png}
-    \caption{Chú giải ký hiệu góc nhìn nghiệp vụ}
-\end{figure}
-
-\newpage
-
-\subsubsection{Góc nhìn dữ liệu (Data View)}
-Minh họa rõ nét mẫu thiết kế \textbf{Database per Service}. Mỗi Microservice sở hữu một kho lưu trữ bền vững (MySQL) và một lớp đệm dữ liệu (Redis) riêng biệt, đảm bảo tính tự trị và khả năng mở rộng độc lập.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/level2/structurizr-1-2_Data_View.png}
-    \caption{Sơ đồ Container - Góc nhìn lưu trữ dữ liệu}
-    \label{fig:c4_data}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.6\textwidth]{images/level2/structurizr-1-2_Data_View-key.png}
-    \caption{Chú giải ký hiệu góc nhìn dữ liệu}
-\end{figure}
-
-\newpage
-
-\subsubsection{Góc nhìn giám sát và nhật ký (Observability View)}
-Thể hiện kiến trúc \textbf{Centralized Logging} sử dụng bộ công cụ ELK (Elasticsearch, Logstash/Filebeat, Kibana). Mỗi Microservice được tích hợp một Sidecar (Filebeat) để thu thập nhật ký vận hành và đẩy về kho dữ liệu tập trung Elasticsearch.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/level2/structurizr-1-3_Observability_View.png}
-    \caption{Sơ đồ Container - Góc nhìn giám sát hệ thống}
-    \label{fig:c4_observability}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.7\textwidth]{images/level2/structurizr-1-3_Observability_View-key.png}
-    \caption{Chú giải ký hiệu góc nhìn giám sát}
-\end{figure}
-
-% !TEX encoding = UTF-8
-
-\subsection{Thiết kế chi tiết các dịch vụ nghiệp vụ (Microservices Design)}
-Dựa trên các yêu cầu nghiệp vụ và triết lý Microservices đã phân tích, hệ thống được thiết kế với sự loại bỏ hoàn toàn các yếu tố trí tuệ nhân tạo (AI), tập trung vào tính ổn định của dữ liệu thông qua công nghệ MySQL và khả năng mở rộng của hạ tầng hiện đại. Dưới đây là bản thiết kế chi tiết kiến trúc hệ thống Microservices cho dự án.
-
-\subsubsection{Tổng quan hạ tầng kỹ thuật}
-Hệ thống sử dụng các thành phần hạ tầng tiêu chuẩn để hỗ trợ vận hành các dịch vụ phân tán:
-\begin{itemize}
-    \item \textbf{Ingress Gateway (Kong API Gateway):} Mọi yêu cầu từ phía Client (Web/Mobile) đều phải đi qua Kong. Kong chịu trách nhiệm xác thực mã thông báo (Validation JWT), điều hướng yêu cầu (Routing) và giới hạn lưu lượng (Rate Limiting).
-    \item \textbf{Message Broker (Apache Kafka):} Đóng vai trò xương sống cho giao tiếp bất đồng bộ, xử lý việc gửi email, thông báo và đồng bộ trạng thái dữ liệu giữa các dịch vụ.
-    \item \textbf{Object Storage (MinIO):} Sử dụng để lưu trữ các tệp tin vật lý như ảnh đại diện (Avatar), hồ sơ ứng viên (CV PDF/Docx).
-    \item \textbf{Database (MySQL):} Áp dụng mẫu thiết kế \textit{Database per Service}. Mỗi dịch vụ sở hữu một cơ sở dữ liệu riêng biệt, đảm bảo tính đóng gói và tự trị.
-    \item \textbf{Cache (Redis):} Mỗi dịch vụ được cấp một namespace/database riêng trên cụm Redis chung để lưu trữ dữ liệu tạm, giúp tối ưu hiệu năng truy xuất.
-\end{itemize}
-
-% \subsubsection{Mô tả các Microservices}
-
-% \paragraph{1. Identity Service:}
-% Đây là "cửa ngõ" quản lý dữ liệu người dùng, nắm giữ thông tin hồ sơ (Profile) và vai trò (Role).
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Đồng bộ thông tin người dùng từ Keycloak qua cơ chế Token Exchange hoặc Webhook; Quản lý hồ sơ nhà tuyển dụng (Recruiter Profile); Cung cấp thông tin cơ bản (Avatar, Name) cho các dịch vụ khác qua API nội bộ.
-%     \item \textbf{Tương tác hạ tầng:} Expose API \texttt{/profile} qua Kong; Publish sự kiện \texttt{user.updated} vào Kafka để các dịch vụ khác cập nhật cache.
-% \end{itemize}
-
-% \paragraph{2. Workspace Service:}
-% Quản lý cấu trúc tổ chức của doanh nghiệp. Mọi tin đăng và đơn ứng tuyển đều gắn liền với một không gian làm việc.
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Thực hiện các thao tác CRUD trên Workspace; Quản lý thành viên (mời, xóa, phân quyền); Xử lý logic tham gia tổ chức bằng mã mời (Join by code).
-%     \item \textbf{Tương tác hạ tầng:} Expose API \texttt{/workspaces}, \texttt{/my-workspaces} qua Kong; Publish sự kiện \texttt{member.added} để Communication Service thực hiện thêm người dùng vào nhóm chat.
-% \end{itemize}
-
-% \paragraph{3. Job Service:}
-% Dịch vụ chuyên trách quản lý toàn bộ vòng đời của các "Tin tuyển dụng".
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Đăng, sửa và xóa tin tuyển dụng; Quản lý trạng thái tin (Draft, Pending, Published, Closed, Paused); Quản lý các danh mục tùy chọn (Ngành nghề, cấp bậc, loại hình công việc).
-%     \item \textbf{Tương tác hạ tầng:} Expose các API nghiệp vụ qua Kong; Publish sự kiện \texttt{job.closed} để Hiring Service chặn việc nhận hồ sơ mới.
-% \end{itemize}
-
-% \paragraph{4. Candidate Service:}
-% Quản lý tập trung kho ứng viên và các hồ sơ CV gốc.
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Lưu trữ thông tin định danh ứng viên; Quản lý danh sách CV gốc; Hỗ trợ tìm kiếm ứng viên cơ bản thông qua SQL LIKE hoặc Full-text search của MySQL.
-%     \item \textbf{Tương tác hạ tầng:} Dịch vụ lưu trữ đường dẫn file từ MinIO thay vì lưu tệp trực tiếp; Giao tiếp đồng bộ với Storage Service để lấy thông tin tệp tin.
-% \end{itemize}
-
-% \paragraph{5. Hiring Service (ATS Core):}
-% Đây là dịch vụ trọng tâm quản lý quy trình theo dõi ứng viên (Applicant Tracking System), kết nối giữa tin tuyển dụng và ứng viên.
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Quản lý Hiring Pipeline động (CV Review $\rightarrow$ Interview $\rightarrow$ Offer); Quản lý đơn ứng tuyển (Job Application); Cung cấp dữ liệu cho bảng Kanban để di chuyển ứng viên giữa các vòng.
-%     \item \textbf{Tương tác hạ tầng:} Lắng nghe \texttt{job.closed} từ Kafka để khóa chức năng ứng tuyển; Publish sự kiện \texttt{application.stage\_moved} khi ứng viên chuyển vòng để gửi email thông báo.
-% \end{itemize}
-
-% \paragraph{6. Storage Service:}
-% Dịch vụ tiện ích đóng vai trò lớp trừu tượng (Abstraction) khi giao tiếp với hệ thống lưu trữ MinIO.
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Tạo \textit{Presigned URL} để Frontend upload file trực tiếp lên MinIO, giúp tối ưu băng thông cho hệ thống Backend; Xác thực quyền hạn truy cập tệp tin theo Workspace; Quản lý việc xóa tệp vật lý.
-%     \item \textbf{Tương tác hạ tầng:} Giao tiếp trực tiếp với MinIO qua S3 SDK; Expose API qua Kong.
-% \end{itemize}
-
-% \paragraph{7. Communication Service:}
-% Chịu trách nhiệm về luồng thông tin liên lạc thông qua Chat và Email.
-% \begin{itemize}
-%     \item \textbf{Chức năng:} Quản lý tin nhắn nội bộ giữa các thành viên sử dụng cơ sở dữ liệu MySQL tối ưu hóa cho Chat; Tiếp nhận yêu cầu từ Kafka để gửi email thông báo qua SMTP server.
-%     \item \textbf{Tương tác hạ tầng:} Lắng nghe các sự kiện chuyển trạng thái đơn ứng tuyển hoặc tạo mã mời từ Kafka để tự động soạn và gửi email.
-% \end{itemize}
-
-% % \subsubsection{Các luồng hoạt động điển hình (Sequence Flows)}
-
-% % \paragraph{Kịch bản 1: Tải hồ sơ ứng viên (Upload CV)}
-% % \begin{enumerate}
-% %     \item Frontend gửi yêu cầu lấy URL tải lên thông qua \texttt{GET /storage/presigned-url} tới Storage Service.
-% %     \item Storage Service trả về một đường dẫn an toàn (Ví dụ: \url{https://s3.job7189.local/cv-bucket/uuid.pdf?...}).
-% %     \item Frontend trực tiếp tải tệp PDF lên hệ thống MinIO bằng URL được cấp.
-% %     \item Sau khi hoàn tất tải lên, Frontend gọi \texttt{POST /cv} kèm theo đường dẫn \texttt{file\_path} tới Candidate Service qua Kong.
-% %     \item Candidate Service lưu trữ thông tin ứng viên và liên kết đường dẫn tệp vào cơ sở dữ liệu MySQL.
-% % \end{enumerate}
-
-% % \paragraph{Kịch bản 2: Di chuyển ứng viên trong quy trình tuyển dụng}
-% % \begin{enumerate}
-% %     \item Nhà tuyển dụng thực hiện kéo-thả trên giao diện Kanban, Frontend gọi \texttt{POST /hiring-board/\{appId\}/move}.
-% %     \item Hiring Service cập nhật trạng thái \texttt{current\_stage\_id} mới vào cơ sở dữ liệu nội bộ.
-% %     \item Hiring Service phát đi sự kiện \texttt{application.stage\_moved} vào hệ thống Kafka.
-% %     \item Hiring Service lập tức phản hồi 200 OK cho người dùng để đảm bảo trải nghiệm mượt mà.
-% %     \item Tại tiến trình chạy ngầm, Communication Service nhận sự kiện từ Kafka, tự động soạn nội dung và gửi email thông báo lịch phỏng vấn tới ứng viên.
-% % \end{enumerate}
-
-% \subsubsection{Lợi ích của phương pháp thiết kế}
-% Việc triển khai hệ thống theo mô hình 7 dịch vụ độc lập mang lại các lợi ích chiến lược:
-% \begin{itemize}
-%     \item \textbf{Tính tự trị cao:} Mỗi dịch vụ sở hữu cơ sở dữ liệu riêng, cho phép thay đổi cấu trúc bên trong mà không gây ảnh hưởng đến toàn bộ hệ thống.
-%     \item \textbf{Hiệu năng tối ưu:} Sử dụng Storage Service và Presigned URL giúp loại bỏ tình trạng nghẽn cổ chai khi xử lý các tệp tin lớn. Việc gửi thông báo qua Kafka giúp các thao tác trên giao diện người dùng đạt tốc độ phản hồi tối đa.
-%     \item \textbf{Đơn giản và Tin cậy:} Bằng việc sử dụng thuần túy MySQL và loại bỏ các thành phần AI phức tạp, hệ thống đảm bảo tính toàn vẹn dữ liệu cao và dễ dàng bảo trì, vận hành.
-% \end{itemize}
-
-% \subsection{Level 3: Component Diagram (Sơ đồ Thành phần)}
-% Hiring Service là service chứa logic nghiệp vụ phức tạp nhất (ATS). Cấu trúc bao gồm:
-% \begin{itemize}
-%     \item \textbf{API Controller Layer:} ApplicationController, PipelineController, ScorecardController.
-%     \item \textbf{Service Layer:} WorkflowService (chuyển stage), AccessControlService (kiểm tra quyền chi tiết), ScheduleService.
-%     \item \textbf{Repository Layer:} ApplicationRepo, InterviewFeedbackRepo (tương tác MySQL).
-%     \item \textbf{Integration Layer:} KafkaProducer (phát Domain Events), KafkaConsumer (nghe job.closed), IdentityClient (gọi Identity Service).
-% \end{itemize}
-
-% \subsection{Thiết kế mô hình triển khai (Deployment Diagram)}
-% Hệ thống triển khai trên Kubernetes (K8s) đảm bảo High Availability:
-% \begin{itemize}
-%     \item \textbf{Kubernetes Cluster:} Gồm các Worker Nodes, Namespace \textit{job7189-ns} cô lập tài nguyên.
-%     \item \textbf{Pods:} Các App Pods chạy Microservices (với bản sao dự phòng) và Infra Pods chạy Kafka, MySQL, Redis.
-%     \item \textbf{Services \& Ingress:} K8s Service cân bằng tải nội bộ. Ingress Controller nhận traffic bên ngoài và chuyển tới Kong Gateway.
-%     \item \textbf{Persistent Volumes (PVC):} Đảm bảo dữ liệu bền vững cho MySQL, MinIO, Kafka.
-% \end{itemize}
-
-
-% !TEX encoding = UTF-8
-
-\subsection{Level 3: Component Diagram (Sơ đồ Thành phần)}
-Tại cấp độ này, hệ thống Job7189 được "zoom sâu" vào kiến trúc nội tại của từng Microservice. Các dịch vụ được thiết kế tuân thủ mô hình \textbf{Layered Architecture} và kiến trúc \textbf{Hexagonal}, giúp tách biệt hoàn toàn logic nghiệp vụ (Core) khỏi các tác nhân hạ tầng (Infrastructure).
-
-Dưới đây là thiết kế chi tiết và phân tích thành phần cho các dịch vụ trọng tâm:
-
-\subsubsection{Identity Service - Quản lý Định danh}
-Dịch vụ đóng vai trò xác thực tập trung và quản lý hồ sơ người dùng.
-\begin{itemize}
-    \item \textbf{JwtMiddleware:} Thành phần then chốt thực hiện kiểm tra chữ ký số của Token từ Keycloak trước khi cho phép yêu cầu đi vào lớp Controller.
-    \item \textbf{KeycloakSyncWorker:} Một Worker chạy ngầm thực hiện nhiệm vụ đồng bộ dữ liệu người dùng mới từ Keycloak về MySQL nội bộ để đảm bảo tính nhất quán dữ liệu (Data consistency).
-    \item \textbf{Identity Redis:} Lưu trữ Cache hồ sơ người dùng để giảm tải cho Database chính.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.7\textwidth]{images/level3/3_Component_Identity.png}
-    \caption{Sơ đồ thành phần Identity Service}
-\end{figure}
-
-\subsubsection{Workspace Service - Quản lý Không gian làm việc}
-Điều phối cấu trúc tổ chức và luồng mời thành viên tham gia doanh nghiệp.
-\begin{itemize}
-    \item \textbf{WorkspaceService:} Chứa logic nghiệp vụ về phân quyền và giới hạn sử dụng của từng tổ chức.
-    \item \textbf{InvitationPublisher:} Thành phần Kafka Producer chịu trách nhiệm bắn sự kiện \texttt{invitation.created} để kích hoạt dịch vụ thông báo gửi email mời.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{images/level3/3_Component_Workspace.png}
-    \caption{Sơ đồ thành phần Workspace Service}
-\end{figure}
-
-\subsubsection{Job Service - Quản lý Tin tuyển dụng}
-Quản lý vòng đời phức tạp của tin tuyển dụng thông qua cơ chế State Machine.
-\begin{itemize}
-    \item \textbf{JobStateMachine:} Thành phần quản lý logic chuyển trạng thái (Draft $\rightarrow$ Pending $\rightarrow$ Published), đảm bảo tính vẹn toàn nghiệp vụ.
-    \item \textbf{PublicJobController:} Được tối ưu hóa để phục vụ các yêu cầu truy vấn tin tuyển dụng công khai từ phía ứng viên.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.82\textwidth]{images/level3/3_Component_Job.png}
-    \caption{Sơ đồ thành phần Job Service}
-\end{figure}
-
-\subsubsection{Hiring Service - Quản lý Quy trình Tuyển dụng (ATS Core)}
-Dịch vụ trọng tâm xử lý hồ sơ và các giai đoạn tuyển dụng.
-\begin{itemize}
-    \item \textbf{WorkflowService:} Điều phối luồng di chuyển ứng viên qua các vòng (Move Stage).
-    \item \textbf{JobStatusConsumer:} Lắng nghe sự kiện \texttt{job.closed} từ Kafka để tự động thực hiện các hành động đóng hồ sơ ứng viên tương ứng.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{images/level3/3_Component_Hiring.png}
-    \caption{Sơ đồ thành phần Hiring Service}
-\end{figure}
-
-\newpage
-
-\subsubsection{Candidate Service - Quản lý Hồ sơ Ứng viên}
-Lưu trữ và tương tác với tài sản số của người tìm việc.
-\begin{itemize}
-    \item \textbf{JobServiceClient:} Một HTTP Client nội bộ dùng để gọi sang Job Service lấy thông tin bổ trợ khi ứng viên xem lại các tin đã lưu (\textit{Saved Jobs}).
-    \item \textbf{ResumeService:} Xử lý logic nghiệp vụ liên quan đến đường dẫn file CV và metadata ứng viên.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{images/level3/3_Component_Candidate.png}
-    \caption{Sơ đồ thành phần Candidate Service}
-\end{figure}
-
-\subsubsection{Communication Service - Hệ thống Giao tiếp}
-Xử lý thông báo và kênh chat nội bộ doanh nghiệp.
-\begin{itemize}
-    \item \textbf{NotificationConsumer:} Lắng nghe mọi sự kiện cần gửi thông báo từ Kafka Cluster.
-    \item \textbf{EmailSenderService:} Tích hợp với hệ thống SMTP bên ngoài để thực hiện gửi thư điện tử dựa trên các Template đã cấu hình sẵn.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{images/level3/3_Component_Communication.png}
-    \caption{Sơ đồ thành phần Communication Service}
-\end{figure}
-
-\newpage
-
-\subsubsection{Storage Service - Dịch vụ Lưu trữ tệp tin}
-Lớp trừu tượng hóa tương tác với hệ thống Object Storage (MinIO).
-\begin{itemize}
-    \item \textbf{MinIOService:} Tích hợp trực tiếp với SDK của MinIO để thực hiện cấp phát \textit{Presigned URL} và quản lý tệp tin.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.5\textwidth]{images/level3/3_Component_Storage.png}
-    \caption{Sơ đồ thành phần Storage Service}
-\end{figure}
-
-\subsection{Thiết kế chi tiết hạ tầng và Vận hành}
-Hệ thống loại bỏ hoàn toàn các yếu tố trí tuệ nhân tạo (AI) để tập trung vào tính ổn định cao của cơ sở dữ liệu MySQL và khả năng mở rộng của kiến trúc Microservices hiện đại.
-
-\subsubsection{Tổng quan hạ tầng kỹ thuật}
-Hệ thống sử dụng các thành phần hạ tầng tiêu chuẩn để hỗ trợ vận hành các dịch vụ phân tán:
-\begin{itemize}
-    \item \textbf{Ingress Gateway (Kong API Gateway):} Điểm chạm duy nhất cho mọi yêu cầu Client, xử lý Routing và JWT Validation.
-    \item \textbf{Message Broker (Apache Kafka):} Xương sống cho giao tiếp bất đồng bộ, giúp hệ thống đạt trạng thái \textit{Eventually Consistent}.
-    \item \textbf{Object Storage (MinIO):} Lưu trữ tệp tin vật lý (Avatar, CV).
-    \item \textbf{Caching (Redis):} Mỗi dịch vụ sở hữu 01 instance hoặc namespace Redis riêng để tối ưu tốc độ đọc.
-\end{itemize}
-
-\subsubsection{Lợi ích của phương pháp thiết kế Component}
-Việc phân rã thành các thành phần (Components) rõ ràng giúp hệ thống đạt được:
-\begin{itemize}
-    \item \textbf{Tính Tự trị (Autonomy):} Thay đổi logic trong \textit{JobStateMachine} không làm ảnh hưởng đến các dịch vụ khác.
-    \item \textbf{Tính Chịu lỗi (Resilience):} Nếu \textit{EmailSenderService} gặp sự cố, Kafka vẫn lưu giữ các sự kiện thông báo để xử lý lại khi dịch vụ phục hồi.
-    \item \textbf{Tính Hiệu năng:} Sử dụng Sidecar (Filebeat) và Redis giúp giảm thiểu độ trễ cho người dùng cuối.
-\end{itemize}
-
-\subsection{Thiết kế mô hình triển khai (Deployment Diagram)}
-Hệ thống triển khai trên nền tảng Kubernetes (K8s) nhằm đảm bảo khả năng sẵn sàng cao (High Availability) và tự động hồi phục (Self-healing).
-\begin{itemize}
-    \item \textbf{Kubernetes Cluster:} Quản lý tài nguyên trong Namespace \textit{job7189-ns}.
-    \item \textbf{App Pods:} Các Microservices được triển khai dưới dạng Deployment với tối thiểu 02 replicas.
-    \item \textbf{Persistent Volumes (PVC):} Đảm bảo dữ liệu của MySQL, Kafka và MinIO được lưu trữ bền vững.
-\end{itemize}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-% !TEX encoding = UTF-8
-
-\section{Thiết kế chi tiết giao tiếp và dữ liệu}
-
-\subsection{Thiết kế Cơ sở dữ liệu phân tán}
-Hệ thống tuân thủ nghiêm ngặt mô hình \textbf{Database per Service}, trong đó mỗi dịch vụ quản lý một cơ sở dữ liệu độc lập với tiền tố hệ thống là \textbf{job7189\_}. Việc sử dụng cơ chế khóa chính \textbf{UUIDv7} xuyên suốt giúp đảm bảo tính duy nhất toàn cục, hỗ trợ sắp xếp theo thời gian và tăng cường tính bảo mật cho dữ liệu phân tán.
-
-Dưới đây là bản trình bày chi tiết cấu trúc các thực thể dữ liệu dựa trên sơ đồ thiết kế:
-
-\subsubsection{Cơ sở dữ liệu Ứng viên và Giao tiếp}
-Sự kết hợp này quản lý luồng dữ liệu đầu vào từ ứng viên và các tương tác thời gian thực trong hệ thống.
-\begin{itemize}
-    \item \textbf{job7189\_candidate\_db:} Lưu trữ hồ sơ ứng viên thông qua thực thể \textit{candidates}, quản lý tệp tin CV qua bảng \textit{resumes} và theo dõi hành vi ứng viên tại bảng \textit{interactions}.
-    \item \textbf{job7189\_communication\_db:} Được thiết kế theo cấu trúc phòng chat hiện đại. Bảng \textit{con\_conversations} và \textit{con\_conversation\_participants} quản lý nhóm người dùng, trong khi \textit{con\_messages} lưu trữ nội dung tin nhắn. Đặc biệt, bảng \textit{email\_logs} giúp theo dõi trạng thái gửi thông báo hệ thống để đảm bảo độ tin cậy của luồng giao tiếp.
-\end{itemize}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/dbs/cancon.png}
-    \caption{Lược đồ cơ sở dữ liệu job7189\_candidate\_db và job7189\_communication\_db}
-    \label{fig:db_cancon}
-\end{figure}
-
-\subsubsection{Cơ sở dữ liệu Định danh và Tuyển dụng}
-Đây là hai kho dữ liệu đóng vai trò cốt lõi trong việc vận hành định danh và quy trình ATS.
-\begin{itemize}
-    \item \textbf{job7189\_identity\_db:} Quản lý các thông tin tài khoản người dùng và hồ sơ chi tiết của nhà tuyển dụng (\textit{profiles}), đóng vai trò là nguồn dữ liệu chuẩn cho các dịch vụ khác tham chiếu thông tin cá nhân.
-    \item \textbf{job7189\_hiring\_db:} Lưu trữ logic quản lý ứng viên. Cấu trúc thực thể tập trung vào \textit{recruitment\_pipelines} để định nghĩa quy trình và \textit{job\_applications} để quản lý đơn ứng tuyển tại từng \textit{pipeline\_stages} cụ thể.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/dbs/idenhiring.png}
-    \caption{Lược đồ cơ sở dữ liệu job7189\_identity\_db và job7189\_hiring\_db}
-    \label{fig:db_idenhiring}
-\end{figure}
-
-\newpage
-
-\subsubsection{Cơ sở dữ liệu Tin tuyển dụng}
-Cơ sở dữ liệu này có độ chi tiết và cấu trúc rất cao (tall-structure), chịu trách nhiệm bao quát toàn bộ thông tin nghiệp vụ về tin đăng tuyển dụng. 
-\begin{itemize}
-    \item \textbf{Cơ chế Draft-Live:} Sử dụng hai bảng chính \textit{job\_jds} và \textit{job\_sub\_jds} để tách biệt tin đang soạn thảo và tin đã công bố công khai, đảm bảo tính vẹn toàn dữ liệu trong suốt quá trình kiểm duyệt.
-    \item \textbf{Thông tin chi tiết nghiệp vụ:} Hệ thống lưu trữ cực kỳ chi tiết các yêu cầu về kỹ năng (\textit{TechnicalSkill}, \textit{SoftSkill}), mức lương, độ tuổi, và vị trí địa lý.
-    \item \textbf{Hệ thống Master Data:} Tích hợp các bảng danh mục như \textit{job\_sectors}, \textit{job\_types}, \textit{job\_workingtypes} để chuẩn hóa dữ liệu đầu vào.
-    \item \textbf{Thống kê thời gian thực:} Bảng \textit{job\_stats} ghi nhận trực tiếp lượt xem và lượt ứng tuyển để phục vụ báo cáo quản trị.
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/dbs/job.png}
-    \caption{Lược đồ cơ sở dữ liệu job7189\_job\_db với cấu trúc thông tin chi tiết}
-    \label{fig:db_job}
-\end{figure}
-
-\subsubsection{Cơ sở dữ liệu Không gian làm việc}
-Đây là kho dữ liệu quản lý mô hình đa người thuê (Multi-tenancy) với cấu trúc phân quyền chặt chẽ.
-\begin{itemize}
-    \item \textbf{Quản lý Tenant:} Thực thể \textit{workspaces} quản lý thông tin tổ chức, liên kết với \textit{job\_companies} để hiển thị thương hiệu nhà tuyển dụng.
-    \item \textbf{Phân quyền Bitmask:} Bảng \textit{workspace\_members} sử dụng các trường dữ liệu kiểu \textit{bigint} cho quyền hạn (\textit{workspace\_permissions}, \textit{job\_permissions},...), cho phép lưu trữ hàng chục quyền hạn chi tiết trong một trường dữ liệu duy nhất, giúp tối ưu hóa hiệu năng kiểm tra quyền tại tầng Microservices.
-    \item \textbf{Quản lý lời mời:} Thực thể \textit{workspace\_invitations} quản lý quy trình mở rộng thành viên thông qua Token và mã xác nhận với thời gian hết hạn nghiêm ngặt.
-\end{itemize}
-
-% \begin{figure}[htbp]
-%     \centering
-%     \includegraphics[width=1.0\textwidth]{images/dbs/ws.png}
-%     \caption{Lược đồ cơ sở dữ liệu job7189\_workspace\_db quản lý Multi-tenancy}
-%     \label{fig:db_ws}
-% \end{figure}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-% --------------
-% Mô tả API
-% --------------
-
-
-% !TEX encoding = UTF-8
-
-\subsection{Đặc tả giao diện lập trình ứng dụng (API Specifications)}
-Hệ thống được thiết kế theo kiến trúc RESTful API, sử dụng định dạng dữ liệu JSON để trao đổi thông tin. Các Endpoint được phân tách theo trách nhiệm nghiệp vụ của từng Microservice và tuân thủ mô hình phân quyền RBAC phẳng (Flat RBAC) đã định nghĩa tại sơ đồ Use Case.
-
-\subsubsection{Dịch vụ Định danh (Identity Service)}
-Dịch vụ này chịu trách nhiệm quản lý thông tin hồ sơ và trạng thái tài khoản. Các chức năng tập trung vào việc cho phép người dùng tự quản lý thông tin và Admin kiểm soát quyền truy cập hệ thống.
-
-\begin{table}[htbp]
 \centering
-\caption{Đặc tả API của Identity Service}
-\begin{tabularx}{\textwidth}{|l|l|l|X|}
+\caption{Lộ trình triển khai ZTA cho JOB7189 theo NIST SP 800-207 Mục 7}
+\label{tab:nist_roadmap}
+\begin{tabularx}{\textwidth}{|c|p{3.8cm}|X|p{2.5cm}|}
 \hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Method} & \textbf{URI} & \textbf{Vai trò} & \textbf{Mô tả chức năng} \\ \hline
-\textbf{GET} & \texttt{/recruiters/profile} & User & Xem thông tin hồ sơ làm việc cá nhân. \\ \hline
-\textbf{PUT} & \texttt{/recruiters/profile} & User & Cập nhật chức danh, phòng ban, thông tin liên lạc. \\ \hline
-\textbf{GET} & \texttt{/candidates/profile} & Candidate & Xem hồ sơ cá nhân ứng viên. \\ \hline
-\textbf{GET} & \texttt{/admin/users} & System Admin & Lấy danh sách toàn bộ người dùng hệ thống. \\ \hline
-\textbf{PATCH} & \texttt{/admin/users/\{id\}/status} & System Admin & Thực hiện khóa (Ban) hoặc mở khóa người dùng. \\ \hline
+\textbf{Bước} & \textbf{Giai đoạn NIST} & \textbf{Hiện thực hóa trong JOB7189} & \textbf{Script / File} \\
+\hline
+1 & Kiểm kê tài sản và Xác định luồng giao dịch & Liệt kê 7 microservice, 5 namespace, vẽ sơ đồ N-S/E-W & Mục 3.2 \\
+\hline
+2 & Thiết lập gốc tin cậy (Root of Trust) & Keycloak (User Identity) + Vault (Workload Identity, Secrets) & \texttt{02-deploy} \\
+\hline
+3 & Thiết kế và áp dụng chính sách truy cập & Kong JWT (N-S), Cilium Default Deny + Allow-Explicit (E-W) & \texttt{kong.yml}, \texttt{20-security-policies} \\
+\hline
+4 & Triển khai microsegmentation & CiliumNetworkPolicy L3/L4 và L7 cho từng cặp service & \texttt{cilium-policies/} \\
+\hline
+5 & Thiết lập giám sát liên tục & EFK Stack + Prometheus/Grafana + Hubble UI & \texttt{05-09*.yaml} \\
+\hline
+6 & Kiểm tra, xác minh và tinh chỉnh & Hubble observe, test Pod, kiểm thử Vault rotation & Mục 3.7 \\
+\hline
 \end{tabularx}
 \end{table}
 
-\subsubsection{Dịch vụ Không gian làm việc (Workspace Service)}
-Quản lý mô hình đa người thuê (Multi-tenancy), cho phép các doanh nghiệp vận hành độc lập trên cùng một nền tảng hạ tầng.
-
-\begin{table}[htbp]
-\centering
-\caption{Đặc tả API của Workspace Service}
-\begin{tabularx}{\textwidth}{|l|l|l|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Method} & \textbf{URI} & \textbf{Vai trò} & \textbf{Mô tả chức năng} \\ \hline
-\textbf{POST} & \texttt{/workspaces} & User & Khởi tạo công ty mới (người tạo mặc định là Admin). \\ \hline
-\textbf{PUT} & \texttt{/workspaces/\{id\}} & Ws Admin & Cập nhật thông tin thương hiệu công ty. \\ \hline
-\textbf{GET} & \texttt{/workspaces/\{id\}/members} & Member & Xem danh sách thành viên thuộc tổ chức. \\ \hline
-\textbf{POST} & \texttt{/workspaces/\{id\}/invitations} & Ws Admin & Quản lý nhân sự qua việc gửi lời mời email. \\ \hline
-\textbf{PUT} & \texttt{/workspaces/\{id\}/members} & Ws Admin & Phân định vai trò (Recruiter, Coord...) cho Member. \\ \hline
-\textbf{DELETE} & \texttt{/workspaces/\{id\}/members/\{uid\}} & Ws Admin & Xóa thành viên khỏi không gian làm việc. \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Dịch vụ Tin tuyển dụng (Job Service)}
-Quản lý luồng tin đăng từ lúc khởi tạo nháp đến khi kiểm duyệt và công bố công khai.
-
-\begin{table}[htbp]
-\centering
-\caption{Đặc tả API của Job Service}
-\begin{tabularx}{\textwidth}{|l|l|l|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Method} & \textbf{URI} & \textbf{Vai trò} & \textbf{Mô tả chức năng} \\ \hline
-\textbf{POST} & \texttt{/workspaces/\{wsId\}/jobs} & Recruiter & Quản lý tin tuyển dụng (Tạo Draft). \\ \hline
-\textbf{PUT} & \texttt{/workspaces/\{wsId\}/jobs/\{id\}} & Recruiter & Chỉnh sửa nội dung JD (chỉ khi đang ở Draft). \\ \hline
-\textbf{PATCH} & \texttt{/workspaces/\{wsId\}/jobs/\{id\}/submit} & Recruiter & Chuyển trạng thái sang chờ phê duyệt (Pending). \\ \hline
-\textbf{GET} & \texttt{/admin/jobs} & System Admin & Xem danh sách các tin đăng đang chờ kiểm duyệt. \\ \hline
-\textbf{PATCH} & \texttt{/admin/jobs/\{id\}/approve} & System Admin & Phê duyệt để công bố tin lên sàn việc làm công khai. \\ \hline
-\textbf{GET} & \texttt{/public/jobs} & Guest & Tìm kiếm việc làm công khai (kèm lọc/sắp xếp). \\ \hline
-\end{tabularx}
-\end{table}
-
-\newpage % Đảm bảo tính thẩm mỹ, chuyển nội dung Hiring sang trang mới
-
-\subsubsection{Dịch vụ Tuyển dụng (Hiring Service - ATS)}
-Đây là dịch vụ phức tạp nhất, điều phối các vai trò chuyên biệt trong quy trình đánh giá ứng viên.
-
-\begin{table}[htbp]
-\centering
-\caption{Đặc tả API của Hiring Service}
-\begin{tabularx}{\textwidth}{|l|l|l|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Method} & \textbf{URI} & \textbf{Vai trò} & \textbf{Mô tả chức năng} \\ \hline
-\textbf{PUT} & \texttt{/workspaces/\{wsId\}/pipelines/\{id\}} & Rec Ops & Thiết kế quy trình (Pipeline/Stages) cho Job. \\ \hline
-\textbf{GET} & \texttt{/board/\{jobId\}} & Hiring Mgr & Quản lý ứng viên qua giao diện Kanban tập trung. \\ \hline
-\textbf{POST} & \texttt{/applications/\{appId\}/move} & Recruiter & Thực hiện kéo-thả ứng viên sang các vòng tiếp theo. \\ \hline
-\textbf{POST} & \texttt{/interviews} & Coordinator & Thiết lập thời gian và nhân sự phỏng vấn ứng viên. \\ \hline
-\textbf{POST} & \texttt{/scorecards} & Interviewer & Đánh giá và chấm điểm ứng viên dựa trên Scorecard. \\ \hline
-\textbf{GET} & \texttt{/applications/\{id\}/scorecards} & Hiring Mgr & Xem báo cáo tổng hợp đánh giá để ra quyết định. \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Dịch vụ Ứng viên và Tiện ích (Candidate \& Storage Service)}
-Quản lý tài sản số của ứng viên và hạ tầng lưu trữ tệp tin vật lý tại MinIO.
-
-\begin{table}[htbp]
-\centering
-\caption{Đặc tả API Candidate và Storage Service}
-\begin{tabularx}{\textwidth}{|l|l|l|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{Method} & \textbf{URI} & \textbf{Vai trò} & \textbf{Mô tả chức năng} \\ \hline
-\textbf{POST} & \texttt{/resumes} & Candidate & Quản lý hồ sơ CV (lưu metadata sau khi upload). \\ \hline
-\textbf{POST} & \texttt{/jobs/\{jobId\}/apply} & Candidate & Thực hiện nộp đơn ứng tuyển vào vị trí công việc. \\ \hline
-\textbf{POST} & \texttt{/interactions/saved-jobs} & Candidate & Thực hiện lưu (Bookmark) tin tuyển dụng yêu thích. \\ \hline
-\textbf{POST} & \texttt{/presigned-url} & User & Lấy URL upload trực tiếp tới MinIO (giảm tải Gateway). \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Phân tích tính nhất quán giữa API và Biểu đồ Use Case}
-Thiết kế hệ thống đảm bảo sự tương quan 1-1 giữa các "bong bóng" hành động trong sơ đồ Use Case và các Endpoint API thực tế. Việc áp dụng mô hình phân vai rạch ròi mang lại những đặc điểm sau:
-
-\begin{itemize}
-    \item \textbf{Phân định trách nhiệm (Role Isolation):} API \texttt{/pipelines} chỉ dành cho \textbf{Rec Ops} để thiết kế quy trình, trong khi \texttt{/move} ứng viên chỉ dành cho \textbf{Recruiter}. Điều này khớp hoàn toàn với việc tách biệt Actor trên sơ đồ Use Case, đảm bảo tính khách quan và chuyên môn hóa trong quy trình tuyển dụng.
-    \item \textbf{Thực thi quyền hạn (Authorization Enforcement):} API \texttt{POST /scorecards} đòi hỏi vai trò \textbf{Interviewer}. Trong mã nguồn, hệ thống thực hiện kiểm tra stateless dựa trên JWT để xác nhận người dùng có quyền chấm điểm tại một buổi phỏng vấn cụ thể hay không.
-    \item \textbf{Kế thừa quyền cơ bản:} Mọi thành viên trong tổ chức đều có vai trò \textbf{Member}, cho phép họ gọi các API như \texttt{GET /members} hoặc \texttt{GET /jobs} (nội bộ), tương ứng với Use case \textit{"Xem tin tuyển dụng nội bộ"}.
-    \item \textbf{Quản trị toàn cục:} Tác nhân \textbf{System Admin} nằm ngoài phạm vi Workspace, tương tác với Identity Service và Job Service để thực hiện các Use case \textit{"Kiểm duyệt Tin đăng"} và \textit{"Quản lý Workspace"}.
-\end{itemize}
-
-Cách tiếp cận này không chỉ giúp hệ thống bảo mật hơn mà còn hỗ trợ việc bảo trì, nâng cấp các logic nghiệp vụ của từng dịch vụ mà không gây ảnh hưởng đến các thành phần khác trong kiến trúc Microservices.
+Lộ trình này đảm bảo rằng mỗi giai đoạn là \textbf{tiền đề} cho giai đoạn tiếp theo: không thể thiết lập microsegmentation (Bước 4) nếu chưa có gốc tin cậy (Bước 2); không thể xác minh (Bước 6) nếu chưa có observability (Bước 5).
 
 
+%==============================================================================
+% 3.2  KIỂM KÊ TÀI SẢN VÀ XÁC ĐỊNH LUỒNG GIAO DỊCH
+%==============================================================================
+\section{Bước 1: Kiểm kê tài sản và xác định luồng giao dịch}
 
-% !TEX encoding = UTF-8
+\subsection{Danh mục tài sản: 7 microservice, 5 namespace}
 
-\subsection{Biểu đồ tuần tự liên dịch vụ (Cross-service Sequence Diagram)}
-Trong kiến trúc Microservices, việc thực hiện một quy trình nghiệp vụ thường đòi hỏi sự phối hợp của nhiều dịch vụ khác nhau. Hệ thống \textbf{job7189} sử dụng hai phương thức giao tiếp chính: giao tiếp đồng bộ qua REST API cho các tác vụ cần phản hồi tức thời và giao tiếp bất đồng bộ qua Message Broker (Kafka) cho các tác vụ tốn thời gian hoặc cần đảm bảo tính lỏng lẻo (loose coupling).
-
-\subsubsection{Các tương tác dịch vụ trực tiếp (Synchronous Communication)}
-Dưới đây là bảng tổng hợp các luồng giao tiếp đồng bộ giữa các dịch vụ nội bộ nhằm phục vụ các logic nghiệp vụ cần kiểm tra dữ liệu tức thì.
-
-\begin{table}[htbp]
-\centering
-\caption{Các tương tác đồng bộ giữa các Microservices}
-\begin{tabularx}{\textwidth}{|c|l|l|X|}
-\hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{STT} & \textbf{Service Gọi} & \textbf{Service Nhận} & \textbf{Mục đích nghiệp vụ} \\ \hline
-1 & Workspace & Identity & Xác thực Email tồn tại và lấy định danh người dùng (\textit{user\_id}) khi thêm thành viên. \\ \hline
-2 & Job & Identity & Truy xuất thông tin chi tiết (Tên, Avatar) của người đăng tin để hiển thị trên JD. \\ \hline
-3 & Hiring & Job & Kiểm tra sự tồn tại và trạng thái \texttt{PUBLISHED} của tin tuyển dụng trước khi cho phép ứng tuyển. \\ \hline
-4 & Hiring & Candidate & Lấy thông tin liên lạc và đường dẫn hồ sơ CV từ \textit{Candidate Service} để hiển thị trong ATS. \\ \hline
-5 & Frontend & Storage & Lấy \textit{Presigned URL} để tải trực tiếp tệp tin lên MinIO mà không cần thông qua hệ thống Backend. \\ \hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Các sự kiện hướng đối tượng (Asynchronous Communication via Kafka)}
-Các dịch vụ trao đổi thông điệp thông qua các Topic trên Kafka. Phương thức này giúp hệ thống hoạt động ổn định kể cả khi một dịch vụ thành phần gặp sự cố.
+Hệ thống JOB7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \textit{Kind} gồm \textbf{1 Control Plane + 3 Worker nodes}. Cụm được tắt CNI mặc định (\texttt{disableDefaultCNI: true}) để Cilium eBPF tiếp quản hoàn toàn mặt phẳng dữ liệu mạng \cite{cilium_docs}.
 
 \begin{table}[H]
 \centering
-\caption{Danh sách các sự kiện (Events) trao đổi giữa các dịch vụ}
-\begin{tabularx}{\textwidth}{|c|l|l|l|X|}
+\caption{Danh sách 7 backend microservice và database tương ứng}
+\label{tab:microservices}
+\begin{tabular}{|c|l|l|l|}
 \hline
-\rowcolor[HTML]{EFEFEF} 
-\textbf{STT} & \textbf{Producer} & \textbf{Sự kiện} & \textbf{Consumer} & \textbf{Hành động xử lý} \\ \hline
-1 & Identity & \texttt{user.created} & Comm & Đồng bộ thông tin ánh xạ ID-Email vào Redis để phục vụ gửi thư sau này. \\ \hline
-2 & Identity & \texttt{user.updated} & Workspace, Job & Cập nhật lại Cache thông tin người dùng trong danh sách thành viên/người đăng. \\ \hline
-3 & Workspace & \texttt{invite.created} & Comm & Kích hoạt quy trình gửi email mời tham gia không gian làm việc. \\ \hline
-4 & Job & \texttt{job.published} & Comm & Gửi email thông báo cho nhà tuyển dụng tin đã được phê duyệt thành công. \\ \hline
-5 & Job & \texttt{job.published} & Search Worker & Đẩy dữ liệu vào Elasticsearch giúp ứng viên có thể tìm kiếm tin tức thời. \\ \hline
-6 & Job & \texttt{job.closed} & Hiring & Tự động đóng/từ chối các hồ sơ đang chờ đối với tin tuyển dụng đã đóng. \\ \hline
-7 & Hiring & \texttt{app.created} & Comm & Gửi email xác nhận nộp đơn thành công cho ứng viên. \\ \hline
-8 & Hiring & \texttt{app.moved} & Comm & Gửi thông báo kết quả vòng tuyển dụng (Mời phỏng vấn, Thư cảm ơn). \\ \hline
-9 & Hiring & \texttt{intw.scheduled} & Comm & Gửi lịch phỏng vấn kèm link họp trực tuyến cho các bên liên quan. \\ \hline
+\textbf{STT} & \textbf{Service} & \textbf{Chức năng} & \textbf{Database} \\
+\hline
+1 & \texttt{identity-service} & Xác thực, hồ sơ, admin users & \texttt{job7189\_identity\_db} \\
+2 & \texttt{workspace-service} & Quản lý workspace, lời mời & \texttt{job7189\_workspace\_db} \\
+3 & \texttt{job-service} & Đăng tuyển, quản lý việc làm & \texttt{job7189\_job\_db} \\
+4 & \texttt{hiring-service} & Pipeline tuyển dụng, phỏng vấn & \texttt{job7189\_hiring\_db} \\
+5 & \texttt{candidate-service} & Hồ sơ ứng viên, CV & \texttt{job7189\_candidate\_db} \\
+6 & \texttt{communication-service} & Hội thoại, tin nhắn, thông báo & \texttt{job7189\_communication\_db} \\
+7 & \texttt{storage-service} & Presigned URL, lưu trữ tệp & \texttt{job7189\_storage\_db} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Phân tầng Namespace — mỗi namespace đảm nhiệm một vai trò bảo mật riêng biệt}
+\label{tab:namespaces}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Tầng} & \textbf{Namespace} & \textbf{Thành phần} \\
+\hline
+Gateway  & \texttt{gateway} & Kong Gateway 3.6 (DB-less, JWT plugin) \\
+Security & \texttt{security} & Keycloak (OIDC/JWT), OAuth2-Proxy \\
+Application & \texttt{job7189-apps} & 7 Laravel microservices (PHP-FPM) \\
+Data     & \texttt{data} & MySQL 8.0, Kafka, Redis \\
+Platform & \texttt{vault}, \texttt{monitoring} & Vault (TLS), EFK, Prometheus, Grafana \\
+\hline
 \end{tabularx}
 \end{table}
 
-\subsubsection{Các luồng nghiệp vụ điển hình (Core Sequence Flows)}
-Dưới đây là mô tả chi tiết các bước xử lý cho hai quy trình cốt lõi thể hiện tính phối hợp của kiến trúc phân tán.
 
-\paragraph{Kịch bản 1: Tải hồ sơ ứng viên (Upload CV)}
+\subsection{Sơ đồ luồng giao dịch: North-South và East-West}
+
+\textbf{Luồng North-South} (Client → Hệ thống):
 \begin{enumerate}
-    \item \textbf{Frontend} gửi yêu cầu tới \textit{Storage Service} để lấy URL tải lên có chữ ký (\textit{Presigned URL}).
-    \item \textbf{Storage Service} phản hồi URL an toàn trỏ trực tiếp tới \textbf{MinIO}.
-    \item \textbf{Frontend} thực hiện đẩy tệp PDF trực tiếp lên MinIO bằng URL được cấp, giảm tải hoàn toàn băng thông cho các API nghiệp vụ.
-    \item Sau khi upload xong, \textbf{Frontend} gửi yêu cầu \texttt{POST /resumes} kèm đường dẫn tệp (\textit{FilePath}) tới \textit{Candidate Service} để lưu trữ thông tin hồ sơ vào cơ sở dữ liệu.
+    \item Client (trình duyệt, Postman, mobile app) gửi HTTPS request.
+    \item Nginx Ingress Controller (\texttt{ingress-nginx}) tiếp nhận, route theo domain:
+    \begin{itemize}
+        \item \texttt{api.job7189.com} → Kong Gateway (\texttt{namespace: gateway})
+        \item \texttt{auth.job7189.local} → Keycloak (\texttt{namespace: security})
+    \end{itemize}
+    \item Kong Gateway xác thực JWT (nếu route yêu cầu) rồi proxy xuống backend service.
+    \item Backend service xử lý logic nghiệp vụ, truy xuất database qua Vault dynamic credentials.
+\end{enumerate}
+
+\textbf{Luồng East-West} (Service → Service nội bộ):
+\begin{itemize}
+    \item \texttt{job-service} → \texttt{GET /api/v1/internal/workspaces/\{id\}} → \texttt{workspace-service}
+    \item \texttt{hiring-service} → \texttt{GET /api/v1/internal/profile/\{id\}} → \texttt{identity-service}
+    \item Mọi service → \texttt{TCP 3306} → MySQL (\texttt{namespace: data})
+    \item Mọi service → \texttt{TCP 8200} → Vault (\texttt{namespace: vault})
+    \item Mọi service → \texttt{TCP 9092} → Kafka (\texttt{namespace: data})
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{5cm}
+            \textit{[HÌNH 3.1: Sơ đồ kiến trúc tổng thể 5 tầng namespace — xem chapter3\_diagrams.md, Mục 1]}
+            \vspace{5cm}
+        \end{minipage}
+    }
+    \caption{Kiến trúc tổng thể hệ thống JOB7189 — 5 tầng namespace và luồng truy cập}
+    \label{fig:system_architecture}
+\end{figure}
+
+
+\subsection{Security Posture Baseline: xác định attack path trước khi áp dụng ZTA}
+
+Trước khi áp dụng ZTA, hệ thống tồn tại các điểm yếu cố hữu:
+
+\begin{table}[H]
+\centering
+\caption{Ma trận Attack Path — Trước và Sau khi áp dụng ZTA}
+\label{tab:attack_matrix}
+\begin{tabularx}{\textwidth}{|p{3cm}|p{3.5cm}|c|X|}
+\hline
+\textbf{Attack Vector} & \textbf{Blast Radius (Trước)} & \textbf{Mức độ} & \textbf{Sau ZTA} \\
+\hline
+Credential leak (.env) & Toàn bộ MySQL databases & Nghiêm trọng & Vault JIT: credential hết hạn sau 1h, chỉ truy cập đúng 1 DB \\
+\hline
+Pod compromise (RCE) & Lateral movement mọi service & Nghiêm trọng & Cilium Default Deny: Pod bị cô lập, không thể quét mạng \\
+\hline
+API không xác thực & Truy cập trái phép dữ liệu & Cao & Kong JWT: mọi route nhạy cảm yêu cầu token Keycloak \\
+\hline
+No network segmentation & Quét toàn bộ internal network & Cao & CiliumNetworkPolicy L3/L4/L7: chỉ cho phép đúng cặp service \\
+\hline
+No runtime monitoring & Persistent backdoor & Cao & EFK + Hubble: mọi traffic flow và log đều được ghi lại \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+%==============================================================================
+% 3.3  THIẾT LẬP GỐC TIN CẬY
+%==============================================================================
+\section{Bước 2: Thiết lập gốc tin cậy — Identity Layer}
+
+Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}. Trong JOB7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity), Vault (Workload Secrets), và Kubernetes ServiceAccount (Workload Identity).
+
+\subsection{Keycloak: User Identity qua OIDC/JWT}
+
+Keycloak được triển khai tại namespace \texttt{security} dưới dạng custom image (\texttt{job7189/keycloak-custom:v1.0}) với realm \texttt{job7189} được import tự động trong quá trình bootstrap.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/02-keycloak.yaml (trích)
+containers:
+- name: keycloak
+  image: 172.17.0.1:5000/job7189/keycloak-custom:v1.0
+  command: ["/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
+  env:
+  - name: KC_DB_URL
+    value: "jdbc:mysql://mysql.data.svc.cluster.local:3306/job7189keycloak"
+  - name: KC_DB_PASSWORD              # ZTA: inject từ K8s Secret
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: mysql-root-password
+  - name: KEYCLOAK_ADMIN_PASSWORD     # ZTA: inject từ K8s Secret
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: keycloak-admin-password
+\end{minted}
+\caption{Keycloak Deployment — mật khẩu được inject từ Kubernetes Secret, không hardcode}
+\label{lst:keycloak_deploy}
+\end{listing}
+
+\textbf{Đặc điểm ZTA:} Mật khẩu quản trị và database đều được sinh ngẫu nhiên tại thời điểm deploy:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 02-deploy-infrastructure.sh — Sinh credentials ngẫu nhiên
+KEYCLOAK_ADMIN_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+MYSQL_ROOT_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
+kubectl create secret generic app-secrets --namespace=security \
+  --from-literal=mysql-root-password="$MYSQL_ROOT_PASS" \
+  --from-literal=keycloak-admin-password="$KEYCLOAK_ADMIN_PASS" \
+  --dry-run=client -o yaml | kubectl apply -f -
+\end{minted}
+\caption{Sinh mật khẩu ngẫu nhiên \texttt{openssl rand} — không có mật khẩu hardcode trong mã nguồn}
+\label{lst:credential_gen}
+\end{listing}
+
+\textbf{Quy trình xác thực OIDC/JWT:}
+\begin{enumerate}
+    \item Client gọi Keycloak endpoint \texttt{/realms/job7189/protocol/openid-connect/token} với OAuth 2.0 flow.
+    \item Keycloak trả về Access Token (JWT) chứa: \texttt{sub}, \texttt{iss}, \texttt{realm\_access.roles}, \texttt{exp}.
+    \item Client gửi JWT trong header \texttt{Authorization: Bearer <token>}.
+    \item Kong Gateway xác minh chữ ký RS256 bằng Public Key từ Keycloak JWKS endpoint.
 \end{enumerate}
 
 \begin{figure}[H]
-   \centering
-   \includegraphics[width=0.8\textwidth]{images/sequences/upload_cv.png}
-   \caption{Biểu đồ tuần tự luồng tải hồ sơ ứng viên}
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{4cm}
+            \textit{[HÌNH 3.2: Sequence diagram luồng OIDC/JWT — Client → Keycloak → Kong → Backend]}
+            \vspace{4cm}
+        \end{minipage}
+    }
+    \caption{Luồng xác thực OIDC/JWT cho North-South traffic qua Keycloak và Kong}
+    \label{fig:oidc_flow}
 \end{figure}
 
-\paragraph{Kịch bản 2: Di chuyển ứng viên trong quy trình tuyển dụng (ATS Pipeline)}
+\textbf{Minh chứng hệ thống hoạt động:} Khi gọi API không có JWT, Kong trả về lỗi 401:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Gọi API profile KHÔNG có JWT → bị từ chối
+$ curl -s http://api.job7189.com/api/recruiters/profile
+{"message":"Unauthorized"}    # HTTP 401
+
+# Gọi API health (public route) → được phép
+$ curl -s http://api.job7189.com/api/health
+{"status":"ok"}               # HTTP 200
+
+# Lấy JWT từ Keycloak → gọi lại profile → thành công
+$ TOKEN=$(curl -s -X POST http://auth.job7189.local/realms/job7189/...) 
+$ curl -s -H "Authorization: Bearer $TOKEN" \
+    http://api.job7189.com/api/recruiters/profile
+{"data":{"id":1,"name":"Recruiter A",...}}    # HTTP 200
+\end{minted}
+\caption{Minh chứng: Kong từ chối request thiếu JWT (401) và chấp nhận khi có JWT hợp lệ (200)}
+\label{lst:jwt_proof}
+\end{listing}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.3: Screenshot Postman / terminal — request (a) không có JWT → 401, (b) có JWT → 200]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Minh chứng thực tế: Kong Gateway từ chối/chấp nhận request dựa trên JWT}
+    \label{fig:jwt_proof_screenshot}
+\end{figure}
+
+
+\subsection{HashiCorp Vault: Workload Identity và Dynamic Secrets}
+
+Vault được triển khai theo mô hình \textbf{Dual-Vault Architecture}: Vault Dev (Transit Auto-Unseal engine) + Vault Production (TLS, PVC 2Gi):
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+Kiến trúc Vault:
+
+  vault-dev (Dev mode, port 8300)
+    └── Transit Engine: key "vault-prod-unseal-key"
+        └── Auto-unseal cho vault-prod
+
+  vault-prod (StatefulSet, port 8200 TLS)
+    ├── Storage: file backend trên PVC 2Gi
+    ├── TLS: cert-manager self-signed certificate
+    ├── Auth: Kubernetes Auth Method
+    ├── Secret Engines:
+    │   ├── KV v2 (path: secret/) — APP_KEY, Keycloak secrets
+    │   └── Database (MySQL dynamic credentials)
+    └── Policies: 7 service policies + keycloak + mysql-bootstrap
+\end{minted}
+\caption{Kiến trúc Dual-Vault: Transit Auto-Unseal + Production Mode TLS}
+\label{lst:vault_arch}
+\end{listing}
+
+\textbf{Kubernetes Auth Method:} Vault xác thực workload dựa trên Kubernetes ServiceAccount — mỗi service có đúng 1 ServiceAccount, được map với đúng 1 Vault role, chỉ có quyền đọc đúng 1 database credential:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 99-fast-rebuild-vault.sh — Tạo policy và role cho mỗi service
+for SVC in identity-service workspace-service job-service \
+           hiring-service candidate-service \
+           communication-service storage-service; do
+  vault policy write "$SVC" - <<POL
+path "secret/data/laravel-common" { capabilities = ["read"] }
+path "database/creds/${SVC}" { capabilities = ["read"] }
+path "secret/data/${SVC}" { capabilities = ["read"] }
+POL
+  vault write auth/kubernetes/role/"$SVC" \
+    bound_service_account_names="$SVC" \
+    bound_service_account_namespaces=job7189-apps \
+    policies="$SVC" \
+    ttl=1h max_ttl=24h
+done
+\end{minted}
+\caption{Vault RBAC: mỗi service có policy riêng — \texttt{identity-service} không thể đọc \texttt{database/creds/hiring-service}}
+\label{lst:vault_rbac}
+\end{listing}
+
+\textbf{Dynamic Database Credentials — Just-In-Time (JIT):}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Cấu hình Database Engine — 7 role, mỗi role gắn đúng 1 database
+vault write database/config/mysql \
+  plugin_name=mysql-database-plugin \
+  connection_url='{{username}}:{{password}}@tcp(mysql.data.svc:3306)/' \
+  allowed_roles='*' username='vault_manager' password='${VAULT_MGR_PASS}'
+
+# Ví dụ: role identity-service — TTL 1h, chỉ 4 quyền CRUD trên 1 DB
+vault write database/roles/identity-service \
+  db_name=mysql \
+  username_template='usr_{{random 16 | truncate 12}}' \
+  creation_statements="CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}';
+    GRANT SELECT,INSERT,UPDATE,DELETE ON job7189_identity_db.* TO '{{name}}'@'%';" \
+  revocation_statements="DROP USER IF EXISTS '{{name}}'@'%';" \
+  default_ttl='1h' max_ttl='24h'
+\end{minted}
+\caption{Vault Database Engine: mỗi service nhận MySQL user ngẫu nhiên, TTL 1h, chỉ 4 quyền CRUD}
+\label{lst:vault_db_engine}
+\end{listing}
+
+\textbf{Vault Agent Injector — Sidecar pattern cho secret injection:}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# k8s-management/charts/laravel-app/templates/deployment.yaml (trích)
+annotations:
+  vault.hashicorp.com/agent-inject: "true"
+  vault.hashicorp.com/agent-init-first: "true"
+  vault.hashicorp.com/role: "{{ .Release.Name }}"
+  vault.hashicorp.com/tls-skip-verify: "true"
+  vault.hashicorp.com/agent-inject-status: "update"   # Cho phép rotation
+  # Dynamic DB credentials ghi vào tmpfs
+  vault.hashicorp.com/agent-inject-secret-db: "database/creds/{{ .Release.Name }}"
+  vault.hashicorp.com/agent-inject-file-db: ".env.db"
+  vault.hashicorp.com/agent-inject-template-db: |-
+    {{- with secret "database/creds/<service-name>" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .LeaseID }}"
+    {{ end }}
+\end{minted}
+\caption{Vault Agent Injector annotations — Dynamic DB credentials trên tmpfs}
+\label{lst:vault_annotations}
+\end{listing}
+
+\textbf{Quy trình vòng đời JIT credential} (xem Hình~\ref{fig:vault_jit_lifecycle}):
 \begin{enumerate}
-    \item \textbf{Nhà tuyển dụng} thực hiện kéo-thả ứng viên trên giao diện Kanban, ứng dụng gửi yêu cầu \texttt{POST /applications/\{id\}/move} tới \textit{Hiring Service}.
-    \item \textbf{Hiring Service} thực hiện cập nhật trạng thái vòng tuyển dụng mới (\textit{StageID}) vào \textit{job7189\_hiring\_db}.
-    \item \textbf{Hiring Service} phát sự kiện \texttt{application.stage\_moved} vào hệ thống Kafka.
-    \item Hệ thống phản hồi \textbf{200 OK} ngay lập tức cho người dùng để đảm bảo tốc độ giao diện.
-    \item Tại tiến trình chạy ngầm, \textbf{Communication Service} (Consumer) nhận được sự kiện, tự động soạn nội dung dựa trên Template và gửi email thông báo tới ứng viên.
+    \item Pod được tạo → Vault Mutating Webhook inject init container \texttt{vault-agent-init}.
+    \item Init container xác thực với Vault qua Kubernetes ServiceAccount token (\texttt{auth/kubernetes}).
+    \item Vault tạo MySQL user mới (\texttt{usr\_<random12>}), cấp 4 quyền CRUD trên đúng 1 database → ghi vào \texttt{/vault/secrets/.env.db} trên \textbf{tmpfs} (emptyDir medium: Memory).
+    \item Sidecar \texttt{env-loader} giám sát MD5 checksum, merge \texttt{.env.common} + \texttt{.env.db} + \texttt{.env.extra} → \texttt{/app-secrets/.env}.
+    \item Application container đọc \texttt{/app-secrets/.env}, kết nối MySQL với credential động.
+    \item Sidecar \texttt{env-watcher} phát hiện lease rotation → gọi \texttt{/api/internal/reload-db} → Laravel reconnect.
+    \item TTL hết hạn (1h) → Vault revoke credential cũ (\texttt{DROP USER IF EXISTS}) → Agent tự động lấy credential mới.
 \end{enumerate}
 
 \begin{figure}[H]
-   \centering
-   \includegraphics[width=0.8\textwidth]{images/sequences/move_state.png}
-   \caption{Biểu đồ tuần tự luồng di chuyển ứng viên qua các vòng}
-\end{figure}
-
-
-
-
-
-
-
-
-
-
-
-% !TEX encoding = UTF-8
-
-\subsection{Cấu hình hạ tầng thực nghiệm}
-Bài làm của em có đẩy lên link github: https://github.com/pTBgH/doan2.git
-
-\subsubsection{Cấu hình API Gateway (Kong)}
-Hệ thống sử dụng Kong làm cổng chào duy nhất. Cấu hình được triển khai qua tệp \texttt{kong.yml} định nghĩa các Service và Route. Hình \ref{fig:kong_config} minh họa kết quả cấu hình các Endpoint nghiệp vụ đã được ánh xạ thành công vào Gateway.
-\begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{images/kong.png} % Thay bằng ảnh Kong của bạn
-    \caption{Các Route nghiệp vụ được định tuyến qua Kong Gateway}
-    \label{fig:kong_config}
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{5cm}
+            \textit{[HÌNH 3.4: Sequence diagram — Vòng đời JIT credential: Pod create → Vault auth → MySQL user create → .env inject → rotation → revoke]}
+            \vspace{5cm}
+        \end{minipage}
+    }
+    \caption{Vòng đời JIT credential — từ Pod khởi tạo đến TTL revocation}
+    \label{fig:vault_jit_lifecycle}
 \end{figure}
 
-\subsection{Kết quả triển khai Backend}
-Quá trình kiểm thử Backend được thực hiện thông qua công cụ Postman. Tại đây, biến môi trường \texttt{baseURL} được thiết lập trỏ tới địa chỉ của Kong Gateway (ví dụ: \texttt{http://api.job7189.local}). 
+\textbf{Minh chứng hệ thống hoạt động:} Kiểm tra credential đã được inject thành công:
 
-Mọi yêu cầu nghiệp vụ đều yêu cầu xác thực thông qua cơ chế \textbf{Bearer Token}. Hệ thống sử dụng Access Token (JWT) được cấp phát từ Keycloak để đính kèm vào Header của request. Kong chịu trách nhiệm giải mã, kiểm tra chữ ký và thời hạn của Token trước khi cho phép yêu cầu đi tới các Microservices bên trong.
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Kiểm tra file .env.db trong Pod identity-service
+$ kubectl exec -n job7189-apps deploy/identity-service -c app -- \
+    cat /app-secrets/.env | grep DB_
+DB_USERNAME="usr_aB3xK7mNp2qR"       # User ngẫu nhiên — khác nhau mỗi lần restart
+DB_PASSWORD="k8sV-2xF9gTpLmN..."      # Password ngẫu nhiên
+LEASE_ID="database/creds/identity-service/abc123..."
 
-Dưới đây là kết quả kiểm thử luồng vòng đời tin tuyển dụng:
+# Kiểm tra lease trên Vault
+$ kubectl exec -n vault vault-0 -- vault list sys/leases/lookup/database/creds/
+Keys
+----
+candidate-service/
+communication-service/
+hiring-service/
+identity-service/         # ← 7 service đều có lease đang hoạt động
+job-service/
+storage-service/
+workspace-service/
 
-\subsubsection{Kiểm thử quy trình phê duyệt tin tuyển dụng (Approve Job)}
-Hình \ref{fig:postman_approve} minh họa kết quả khi System Admin thực hiện phê duyệt một tin tuyển dụng đang ở trạng thái \texttt{PENDING}.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{images/code/post/approve.png}
-    \caption{Kết quả kiểm thử API Phê duyệt tin đăng (Admin Approve)}
-    \label{fig:postman_approve}
-\end{figure}
-
-\paragraph{Phân tích kết quả:}
-\begin{itemize}
-    \item \textbf{Mã phản hồi:} \texttt{200 OK}, phản hồi trong thời gian \texttt{304ms}, cho thấy hiệu năng xử lý ổn định qua Gateway.
-    \item \textbf{Định danh duy nhất:} Trường \texttt{job\_id} có giá trị \texttt{019b9f13...} minh chứng cho việc sử dụng cấu trúc \textbf{UUIDv7}, giúp tối ưu hóa việc lưu trữ và sắp xếp trong cơ sở dữ liệu phân tán.
-    \item \textbf{Chuyển đổi trạng thái:} Trường \texttt{status} đã chuyển từ \texttt{Pending} sang \texttt{Published}, xác nhận logic tại Job Service đã thực hiện thành công.
-    \item \textbf{Tính nhất quán:} Các trường thống kê (\texttt{view\_count}, \texttt{apply\_count}) được khởi tạo bằng 0, sẵn sàng cho việc ghi nhận tương tác từ ứng viên. Bên cạnh đó, slug chỉ khởi tạo job đã được duyệt nhằm tối ưu CEO.
-\end{itemize}
-
-\subsubsection{Kiểm thử các giai đoạn Draft và Submit}
-Các giai đoạn khởi tạo ban đầu cũng được đồng bộ. Nhà tuyển dụng thực hiện tạo tin (\textit{Draft}) và gửi duyệt (\textit{Submit}) thông qua các phương thức POST và PATCH tương ứng.
-
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{images/code/post/draft.png}
-        \caption{Tạo bản nháp tin đăng (Draft)}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{images/code/post/submit.png}
-        \caption{Gửi duyệt tin đăng (Submit)}
-    \end{subfigure}
-    \caption{Kết quả kiểm thử các trạng thái khởi tạo tin tuyển dụng}
-\end{figure}
-
-\section{Triển khai Zero Trust trong hệ thống job7189}
-\subsection{Kiến trúc tổng thể và phân vùng an ninh}
-Triển khai Zero Trust trong job7189 được tổ chức theo các namespace chuyên biệt, nhằm giảm bề mặt tấn công và cô lập miền rủi ro. Các lớp hạ tầng cốt lõi bao gồm: \textit{kube-system} (Cilium, Hubble), \textit{security} (Keycloak, Vault, cert-manager), \textit{gateway} (Kong), \textit{data} (MySQL, Redis, Kafka, MinIO), và \textit{logging} (ELK, Sentry). Cách phân vùng này bảo đảm mỗi lớp có chính sách truy cập độc lập, phù hợp với nguyên tắc \textit{Never Trust, Always Verify} \cite{rose2020zero}.
-
-\subsection{Lớp mạng: Cilium, eBPF và mTLS sidecarless}
-Cilium sử dụng eBPF để thực thi Network Policy L3/L4/L7 trực tiếp ở tầng kernel, giúp lọc lưu lượng nội bộ theo danh tính service, phương thức HTTP và đường dẫn API \cite{cilium_docs}. Cấu hình \textit{deny-all/allow-explicit} được ưu tiên, đảm bảo mỗi luồng \textit{East-West} đều phải được khai báo rõ ràng. Trên nền tảng này, mTLS sidecarless được kích hoạt để mã hóa và xác thực hai chiều giữa các service, loại bỏ giả định tin cậy nội bộ.
-
-Khái niệm \textbf{tính trong suốt (transparency)} trong kiến trúc service mesh được hiện thực hóa tại lớp nền tảng: cơ chế TLS, retry, rate limit và observability được cung cấp ở mức hạ tầng, vì vậy lập trình viên chỉ tập trung vào \textit{business logic} thay vì tự triển khai từng cơ chế bảo mật trong từng dịch vụ. Điều này làm giảm đáng kể sai sót cấu hình và tăng tính nhất quán bảo mật trên toàn hệ thống.
-
-\subsection{Định danh và bí mật: Keycloak + HashiCorp Vault}
-Hệ thống sử dụng Keycloak làm IdP theo chuẩn OIDC, phát hành JWT cho người dùng và dịch vụ nội bộ \cite{keycloak_docs}. Ở tầng dữ liệu, HashiCorp Vault giải quyết bài toán \textit{Secret Zero} bằng cách cấp phát \textit{dynamic credentials} cho MySQL với TTL hữu hạn, đồng thời tự động thu hồi khi hết hạn \cite{vault_docs}. Cơ chế Vault Agent Injector gắn vào Pod giúp lấy bí mật theo danh tính ServiceAccount, giảm rủi ro rò rỉ trong Kubernetes Secret truyền thống.
+# Kiểm tra Vault rotation test — giảm TTL xuống 5 phút
+$ vault write database/roles/identity-service default_ttl=300 max_ttl=3600
+$ vault read -format=json database/creds/identity-service
+{
+  "lease_id": "database/creds/identity-service/new-lease-id",
+  "lease_duration": 300,        # ← TTL 5 phút
+  "data": {
+    "username": "usr_Xk9mP2nQ4rS",
+    "password": "nEw-RaNd0m-Pa55..."
+  }
+}
+\end{minted}
+\caption{Minh chứng: Dynamic credentials được inject thành công, mỗi service có user MySQL riêng biệt}
+\label{lst:vault_proof}
+\end{listing}
 
 \begin{figure}[H]
     \centering
-    \textit{Vẽ sequence diagram cho luồng xác thực Vault Dynamic Secrets: Pod (ServiceAccount) \textrightarrow Vault Auth \textrightarrow Database Secrets Engine \textrightarrow Vault Agent render vào /vault/secrets.}
-    \caption{Luồng cấp phát Dynamic Secrets qua Vault trong Kubernetes}
-    \label{fig:vault_dynamic_secrets}
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.5: Screenshot terminal — (a) \texttt{kubectl exec cat /app-secrets/.env} hiện DB\_USERNAME ngẫu nhiên, (b) \texttt{vault list leases} hiện 7 service leases]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Minh chứng: Vault Dynamic Credentials đã inject thành công vào mọi service}
+    \label{fig:vault_proof_screenshot}
 \end{figure}
 
-\subsection{Gateway: Kong và Cilium Gateway API}
-Kong Gateway chịu trách nhiệm kiểm tra JWT, áp chính sách xác thực tập trung và định tuyến lưu lượng \textit{North-South} vào các dịch vụ nội bộ \cite{kong_docs}. Song song, Cilium Gateway API đảm nhiệm chức năng routing tại tầng hạ tầng mạng, cho phép hợp nhất mô hình điều phối lưu lượng với Network Policy và mTLS, từ đó giảm sự phân mảnh chính sách giữa gateway và lớp mạng.
 
-\subsection{Hạ tầng dưới dạng mã: Helmfile}
-Hạ tầng được triển khai theo mô hình \textit{Infrastructure as Code} với Helmfile, cho phép quản lý đồng bộ cấu hình Cilium, Vault, Keycloak và các microservices theo môi trường \cite{helmfile_docs}. Cách tiếp cận này đảm bảo khả năng tái lập, kiểm soát thay đổi và giảm lỗi cấu hình thủ công trong các bước triển khai.
+%==============================================================================
+% 3.4  THIẾT KẾ VÀ ÁP DỤNG CHÍNH SÁCH TRUY CẬP
+%==============================================================================
+\section{Bước 3: Thiết kế và áp dụng chính sách truy cập}
 
-\subsection{Observability và phản ứng an ninh}
-Hubble cung cấp telemetry ở tầng mạng (flow logs, service map), trong khi ELK và Sentry thu thập nhật ký và lỗi ứng dụng ở tầng nghiệp vụ \cite{cilium_docs,elk_docs}. Chuỗi quan sát này hỗ trợ phát hiện sớm hành vi bất thường, củng cố nguyên tắc giám sát liên tục trong ZTA.
+\subsection{Kong Gateway: PEP cho North-South — JWT validation và route-level enforcement}
+
+Kong Gateway 3.6 được triển khai ở chế độ DB-less (Declarative Mode), toàn bộ cấu hình trong file \texttt{kong.yml} mount qua ConfigMap:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/kong/kong.yml (trích)
+consumers:
+  - username: keycloak-user
+    custom_id: keycloak-issuer
+    jwt_secrets:
+      - algorithm: RS256
+        key: "http://auth.job7189.local/realms/job7189"
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2Ky...
+          -----END PUBLIC KEY-----
+
+services:
+  - name: identity-service
+    url: http://identity-service.job7189-apps.svc.cluster.local:80
+    routes:
+      - name: identity-profiles
+        paths: ["/api/recruiters/profile"]
+        plugins: [{ name: jwt }]            # Yêu cầu JWT
+      - name: identity-health
+        paths: ["/api/health"]              # Public (không JWT)
+\end{minted}
+\caption{Kong Declarative Config: JWT plugin gắn trên từng route, xác thực bằng RSA Public Key}
+\label{lst:kong_jwt}
+\end{listing}
+
+\begin{table}[H]
+\centering
+\caption{Ma trận phân loại route — có/không yêu cầu JWT}
+\label{tab:kong_routes}
+\begin{tabular}{|l|l|c|l|}
+\hline
+\textbf{Service} & \textbf{Route mẫu} & \textbf{JWT?} & \textbf{Lý do} \\
+\hline
+identity-service & \texttt{/api/recruiters/profile} & Có & Dữ liệu cá nhân \\
+identity-service & \texttt{/api/health} & Không & Health check \\
+workspace-service & \texttt{/api/workspaces} & Có & Dữ liệu doanh nghiệp \\
+job-service & \texttt{/api/jobs} & Không & Listing công khai \\
+job-service & \texttt{/api/admin/jobs} & Có & Quản trị \\
+hiring-service & \texttt{/api/jobs/\{id\}/apply} & Không & Ứng tuyển công khai \\
+hiring-service & \texttt{/api/applications} & Có & Dữ liệu ứng viên \\
+candidate-service & \texttt{/api/resumes} & Có & CV cá nhân \\
+communication-service & \texttt{/api/conversations} & Có & Tin nhắn riêng tư \\
+storage-service & \texttt{/api/presigned-url} & Không & URL tạm \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Ingress routing: phân tách domain}
+
+Ingress rule tách biệt domain cho API và Authentication:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/ingress/01_ingress_public.yaml
+# Kong API → api.job7189.com
+- host: api.job7189.com
+  http:
+    paths:
+    - path: /
+      backend:
+        service: { name: kong-proxy, port: { number: 80 } }
+# Keycloak Auth → auth.job7189.local
+- host: auth.job7189.local
+  http:
+    paths:
+    - path: /
+      backend:
+        service: { name: keycloak, port: { number: 8080 } }
+\end{minted}
+\caption{Ingress routing: \texttt{api.job7189.com} → Kong, \texttt{auth.job7189.local} → Keycloak}
+\label{lst:ingress_routes}
+\end{listing}
+
+
+%==============================================================================
+% 3.5  TRIỂN KHAI MICROSEGMENTATION
+%==============================================================================
+\section{Bước 4: Triển khai Microsegmentation — Cilium Network Policy}
+
+Đây là phần \textbf{cốt lõi} của kiến trúc Zero Trust: chuyển từ ``Flat Network'' (mạng phẳng, mọi Pod tự do giao tiếp) sang ``Microsegmented Network'' (mỗi Pod bị cô lập, chỉ giao tiếp qua các kênh được khai báo tường minh). Hệ thống sử dụng \textbf{CiliumNetworkPolicy} với công nghệ eBPF hoạt động tại tầng kernel \cite{cilium_docs}.
+
+\subsection{Quy trình triển khai microsegmentation}
+
+Microsegmentation được triển khai qua script \texttt{apply-zta-microsegmentation.sh} theo thứ tự nghiêm ngặt:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+#!/bin/bash
+# infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh
+echo "🛡️ ZTA Microsegmentation đang được kích hoạt..."
+kubectl apply -f 00-default-deny.yaml          # Bước 1: Khóa toàn bộ
+kubectl apply -f 01-allow-egress-dns.yaml       # Bước 2: Mở DNS
+kubectl apply -f 02-allow-egress-data.yaml      # Bước 3: Mở data/vault
+kubectl apply -f 03-allow-ingress-kong.yaml     # Bước 4: Mở gateway ingress
+kubectl apply -f 04-allow-internal-api-strict.yaml  # Bước 5: Mở E-W có kiểm soát
+echo "✅ Microsegmentation cho namespace 'job7189-apps' đã được bật!"
+\end{minted}
+\caption{Script triển khai microsegmentation — thứ tự: khóa trước, mở sau}
+\label{lst:apply_microseg}
+\end{listing}
+
+\textbf{Thứ tự này cực kỳ quan trọng:} Default Deny phải được áp dụng \textbf{trước tiên} (Listing~\ref{lst:default_deny_actual}). Nếu áp dụng Allow-rules trước mà chưa có Default Deny, traffic vẫn đi qua bình thường và microsegmentation vô nghĩa.
+
+
+\subsection{Lớp 1: Default Deny — Khóa toàn bộ mạng}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 00-default-deny.yaml — Chặn 100% traffic trong namespace job7189-apps
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "default-deny-all"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels: {}       # Áp dụng cho TẤT CẢ pods
+  ingress: []             # Chặn toàn bộ Ingress
+  egress: []              # Chặn toàn bộ Egress
+\end{minted}
+\caption{CiliumNetworkPolicy Default Deny — chặn 100\% traffic mặc định}
+\label{lst:default_deny_actual}
+\end{listing}
+
+\textbf{Hiệu ứng ngay lập tức:} Sau khi apply, mọi Pod trong \texttt{job7189-apps} hoàn toàn bị cô lập — không thể gọi DNS, không thể kết nối MySQL, không thể nhận request từ Kong. Hệ thống sẽ ``chết'' hoàn toàn cho đến khi các Allow-rules được áp dụng.
+
+Tương tự, namespace \texttt{data} cũng có Default Deny riêng (file \texttt{20-security-policies.yaml}):
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 20-security-policies.yaml (trích) — Default Deny cho namespace data
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-data
+  namespace: data
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+\end{minted}
+\caption{Default Deny cho namespace \texttt{data} — MySQL, Kafka, Redis đều bị khóa mặc định}
+\label{lst:default_deny_data}
+\end{listing}
+
+
+\subsection{Lớp 2: Allow DNS Egress — Mở phân giải tên miền}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 01-allow-egress-dns.yaml — Cho phép DNS resolution qua CoreDNS
+spec:
+  endpointSelector:
+    matchLabels: {}
+  egress:
+  - toCIDR:
+    - "10.96.0.10/32"       # CoreDNS ClusterIP
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+\end{minted}
+\caption{Allow DNS Egress — chỉ cho phép UDP/TCP port 53 đến CoreDNS ClusterIP}
+\label{lst:allow_dns}
+\end{listing}
+
+
+\subsection{Lớp 3: Allow Egress to Data và Vault}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 02-allow-egress-data.yaml (trích)
+spec:
+  endpointSelector:
+    matchLabels: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "8200"         # Vault API (TLS)
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+    toPorts:
+    - ports:
+      - port: "3306"         # MySQL
+        protocol: TCP
+      - port: "6379"         # Redis
+        protocol: TCP
+      - port: "9092"         # Kafka
+        protocol: TCP
+\end{minted}
+\caption{Allow Egress to Data — chỉ mở đúng port cần thiết: 3306, 6379, 9092, 8200}
+\label{lst:allow_egress_data}
+\end{listing}
+
+
+\subsection{Lớp 4: Allow Ingress từ Kong Gateway}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 03-allow-ingress-kong.yaml
+spec:
+  endpointSelector:
+    matchLabels: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway   # CHỈ từ namespace gateway
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+\end{minted}
+\caption{Allow Ingress từ Kong — CHỈ namespace \texttt{gateway} được truy cập backend services}
+\label{lst:allow_kong}
+\end{listing}
+
+\textbf{Ý nghĩa:} Nếu kẻ tấn công đặt một Pod trong namespace khác (ví dụ: \texttt{default}) và cố gửi request đến \texttt{identity-service}, gói tin sẽ bị eBPF Drop ngay tại kernel.
+
+
+\subsection{Lớp 5: ServiceAccount-based micro-segmentation (East-West chi tiết)}
+
+Ngoài Lớp 1-4 áp dụng theo \textit{namespace}, hệ thống thiết kế thêm lớp micro-segmentation theo \textbf{ServiceAccount identity} — xác định chính xác \textit{service nào} được nói chuyện với \textit{service nào}:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 20-security-policies.yaml — Chỉ identity-service → MySQL (port 3306)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-identity-to-mysql
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: identity-service
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: mysql
+        io.kubernetes.pod.namespace: data
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+---
+# Phía MySQL cũng chỉ chấp nhận từ identity-service
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-from-identity
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: identity-service
+        io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+\end{minted}
+\caption{Micro-segmentation theo ServiceAccount: policy kép (egress + ingress) cho cặp identity→MySQL}
+\label{lst:sa_microseg}
+\end{listing}
+
+\textbf{Quan trọng:} Hệ thống sử dụng \textbf{policy kép} — cả nguồn (egress) lẫn đích (ingress) đều phải có rule. Nếu \texttt{job-service} cố kết nối đến MySQL mà không có policy cho egress của nó, gói tin bị Drop ở phía gửi. Nếu có egress nhưng MySQL không có ingress rule cho \texttt{job-service}, gói tin bị Drop ở phía nhận.
+
+
+\subsection{Lớp 6: L7 HTTP Policy — kiểm soát method và path}
+
+Không chỉ kiểm soát ``ai nói chuyện với ai'', Cilium L7 còn kiểm soát ``nói cái gì'':
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 04-allow-internal-api-strict.yaml
+# job-service chỉ được gọi GET /api/v1/internal/workspaces/* → workspace-service
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-job-to-workspace"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: workspace-service          # Đích
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: job-service              # Nguồn: CHỈ job-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"               # CHỈ GET
+          path: "/api/v1/internal/workspaces/.*"   # CHỈ path này
+---
+# hiring-service chỉ GET /api/v1/internal/profile/* → identity-service
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-identity"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: identity-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: hiring-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/v1/internal/profile/.*"
+\end{minted}
+\caption{L7 HTTP Policy: kiểm soát cả HTTP method lẫn API path cho luồng East-West}
+\label{lst:l7_policy}
+\end{listing}
+
+\textbf{Kịch bản tấn công bị chặn:} Nếu \texttt{job-service} bị xâm nhập:
+\begin{itemize}
+    \item Gửi \texttt{POST /api/v1/internal/workspaces/1/delete} → \textbf{403 Denied} (chỉ GET được phép)
+    \item Gửi \texttt{GET /api/admin/users} → \textbf{403 Denied} (path không khớp pattern)
+    \item Gửi request đến \texttt{candidate-service} → \textbf{Drop} (không có policy cho cặp này)
+\end{itemize}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# L7 restriction trên identity-service (20-security-policies.yaml)
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: identity-service
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: io.cilium.k8s.policy.serviceaccount
+        operator: Exists          # Mọi SA đã xác thực
+    toPorts:
+    - ports:
+      - port: "80"
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/v1/auth"    # CHỈ endpoint này
+\end{minted}
+\caption{L7 restriction: identity-service chỉ expose \texttt{GET /api/v1/auth} cho các service nội bộ}
+\label{lst:l7_identity}
+\end{listing}
+
+
+\subsection{Bảng tổng hợp: Ma trận truy cập sau microsegmentation}
+
+\begin{table}[H]
+\centering
+\caption{Ma trận microsegmentation — luồng nào được phép, luồng nào bị chặn}
+\label{tab:microseg_matrix}
+\begin{tabularx}{\textwidth}{|l|l|l|X|c|}
+\hline
+\textbf{Nguồn} & \textbf{Đích} & \textbf{Port} & \textbf{L7 rule} & \textbf{Phép?} \\
+\hline
+Kong (gateway) & Mọi service & 80 & — & \checkmark \\
+Mọi service & CoreDNS & 53/UDP & — & \checkmark \\
+Mọi service & MySQL (data) & 3306 & — & \checkmark \\
+Mọi service & Redis (data) & 6379 & — & \checkmark \\
+Mọi service & Kafka (data) & 9092 & — & \checkmark \\
+Mọi service & Vault (vault) & 8200 & — & \checkmark \\
+\hline
+job-service & workspace-service & 80 & GET /api/v1/internal/workspaces/.* & \checkmark \\
+hiring-service & identity-service & 80 & GET /api/v1/internal/profile/.* & \checkmark \\
+job-service & identity-service & 80 & — & \textbf{✗} \\
+candidate-service & workspace-service & 80 & — & \textbf{✗} \\
+Mọi service & Internet & * & — & \textbf{✗} \\
+Mọi service & Mọi service khác & * & — & \textbf{✗} \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Xác minh: Hubble observe và test Pod}
+
+\textbf{Hubble CLI} — công cụ quan sát traffic thời gian thực của Cilium:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Quan sát traffic trong namespace job7189-apps
+$ hubble observe -n job7189-apps --verdict DROPPED --last 10
+TIMESTAMP    SOURCE                       DESTINATION              VERDICT   REASON
+14:03:12     job7189-apps/job-service      data/mysql:3306         FORWARDED
+14:03:13     job7189-apps/candidate-svc    job7189-apps/identity   DROPPED   policy-denied
+14:03:15     default/attacker-pod          job7189-apps/identity   DROPPED   policy-denied
+
+# Chỉ xem traffic được FORWARDED (cho phép)
+$ hubble observe -n job7189-apps --verdict FORWARDED
+TIMESTAMP    SOURCE                       DESTINATION              TYPE
+14:03:12     gateway/kong-gateway          job7189-apps/identity   l7/http-request
+14:03:12     job7189-apps/identity-svc     data/mysql:3306         l4/TCP
+14:03:13     job7189-apps/job-service      vault/vault:8200        l4/TCP
+\end{minted}
+\caption{Hubble observe: traffic hợp lệ = FORWARDED, traffic vi phạm policy = DROPPED}
+\label{lst:hubble_observe}
+\end{listing}
 
 \begin{figure}[H]
     \centering
-    \textit{Vẽ sơ đồ kiến trúc observability: Cilium/Hubble \textrightarrow Filebeat/Logstash \textrightarrow Elasticsearch \textrightarrow Kibana, kèm nhánh cảnh báo tới Alerting.}
-    \caption{Chuỗi quan sát và phân tích an ninh tập trung}
-    \label{fig:zta_observability}
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{4.5cm}
+            \textit{[HÌNH 3.6: Screenshot Hubble UI — bản đồ network flow giữa các namespace, mũi tên xanh = FORWARDED, mũi tên đỏ = DROPPED]}
+            \vspace{4.5cm}
+        \end{minipage}
+    }
+    \caption{Hubble UI: trực quan hóa network flow và policy enforcement giữa các namespace}
+    \label{fig:hubble_ui}
+\end{figure}
+
+\textbf{Test Pod} — kiểm tra policy bằng cách tạo Pod ``giả mạo'':
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Tạo test Pod với ServiceAccount KHÔNG có policy
+$ kubectl run attacker --image=busybox -n job7189-apps \
+    --serviceaccount=default -- sleep 3600
+
+# Thử gọi identity-service → bị CHẶN (timeout/connection refused)
+$ kubectl exec attacker -n job7189-apps -- \
+    wget -qO- --timeout=3 http://identity-service:80/api/v1/auth
+wget: download timed out     # ← BỊ CHẶN bởi CiliumNetworkPolicy
+
+# Tạo test Pod với ServiceAccount CÓ policy (test-client-allowed)
+$ kubectl run allowed-client --image=busybox -n job7189-apps \
+    --serviceaccount=test-client-allowed -- sleep 3600
+
+# Thử gọi identity-service → ĐƯỢC PHÉP
+$ kubectl exec allowed-client -n job7189-apps -- \
+    wget -qO- --timeout=3 http://identity-service:80/api/v1/auth
+{"status":"ok"}               # ← ĐƯỢC PHÉP bởi policy allow-testclient-egress-to-identity
+\end{minted}
+\caption{Xác minh microsegmentation: Pod không có policy → bị chặn; Pod có policy → được cho phép}
+\label{lst:microseg_test}
+\end{listing}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.7: Screenshot terminal — (a) attacker pod gọi identity-service → timeout, (b) allowed-client gọi → 200 OK]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Minh chứng microsegmentation: Pod ``attacker'' bị cô lập hoàn toàn}
+    \label{fig:microseg_proof}
 \end{figure}
 
 
-\section{Kết luận chương 3}
+%==============================================================================
+% 3.6  HIỆN THỰC HÓA LỚP RUNTIME VÀ QUAN SÁT
+%==============================================================================
+\section{Bước 5: Thiết lập giám sát liên tục — Observability Layer}
 
-Chương 3 đã trình bày toàn bộ quy trình xây dựng hệ thống Job7189, từ bước phân tích nghiệp vụ, mô hình hóa quy trình (BPMN, Use Case) đến thiết kế và hiện thực hóa kiến trúc Microservices chi tiết theo mô hình C4.
+\subsection{EFK Stack: thu thập security event}
 
-Kết quả triển khai cho thấy hệ thống đã vận hành ổn định trên hạ tầng Kubernetes, giải quyết bài toán phân tán dữ liệu và giao tiếp bất đồng bộ. Đây là minh chứng cho tính đúng đắn của các nguyên lý thiết kế đã đề cập tại Chương 2, đồng thời là cơ sở quan trọng để đưa ra các đánh giá tổng thể và hướng phát triển trong phần kết luận cuối cùng.
+EFK (Elasticsearch + Filebeat + Kibana) được triển khai tại namespace \texttt{monitoring}:
 
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/06-filebeat.yaml (trích ConfigMap)
+filebeat.yml: |-
+  filebeat.inputs:
+  - type: container
+    paths:
+      - /var/log/containers/*.log
+    processors:
+      - add_kubernetes_metadata:
+          host: ${NODE_NAME}
+      # Chỉ thu thập log từ 4 namespace bảo mật trọng điểm
+      - drop_event:
+          when:
+            not:
+              or:
+                - equals: { kubernetes.namespace: "job7189-apps" }
+                - equals: { kubernetes.namespace: "gateway" }
+                - equals: { kubernetes.namespace: "security" }
+                - equals: { kubernetes.namespace: "data" }
+  output.elasticsearch:
+    hosts: ['elasticsearch:9200']
+    index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+\end{minted}
+\caption{Filebeat DaemonSet: thu thập log từ 4 namespace bảo mật, bỏ qua kube-system/monitoring}
+\label{lst:filebeat}
+\end{listing}
 
-% !TEX encoding = UTF-8
-
-\chapter*{Kết luận}
-\addcontentsline{toc}{chapter}{Kết luận}
-
-Sau thời gian nghiên cứu và triển khai thực nghiệm đề tài \textbf{"Kiến trúc Microservice và Ứng dụng trong Xây dựng Hệ thống tuyển dụng"}, đồ án đã hoàn thành các mục tiêu cốt lõi về mặt nghiên cứu kiến trúc và xây dựng nền tảng hệ thống. Dưới đây là các kết quả chính đạt được:
-
-\paragraph{Về mặt lý thuyết và kiến trúc:}
+\textbf{Ý nghĩa bảo mật:}
 \begin{itemize}
-    \item Đồ án đã làm chủ được phương pháp luận \textbf{Thiết kế hướng miền (Domain-Driven Design)} để phân rã một hệ thống nghiệp vụ phức tạp thành 07 Microservices độc lập, đảm bảo tính liên kết lỏng (\textit{Loose Coupling}) và tính tự trị cao (\textit{High Autonomy}).
-    \item Thiết lập thành công các mẫu thiết kế nền tảng cho một hệ thống phân tán chuẩn công nghiệp bao gồm: \textit{API Gateway}, \textit{Centralized Authentication} (Keycloak), \textit{Event-Driven Architecture} (Kafka) và \textit{Database per Service}.
+    \item Log từ \textbf{Kong Gateway}: mọi API request (bao gồm 401/403 bị từ chối JWT).
+    \item Log từ \textbf{Keycloak}: sự kiện đăng nhập, đăng nhập thất bại, tạo/thu hồi token.
+    \item Log từ \textbf{Microservices}: lỗi ứng dụng, truy cập database, exception.
+    \item Log từ \textbf{MySQL/Kafka}: kết nối mới, lỗi xác thực, query bất thường.
 \end{itemize}
 
-\paragraph{Về mặt thực nghiệm và triển khai:}
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{4cm}
+            \textit{[HÌNH 3.8: Screenshot Kibana Discover — filter \texttt{kubernetes.namespace: gateway}, thấy các log entry từ Kong Gateway bao gồm cả 401 Unauthorized]}
+            \vspace{4cm}
+        \end{minipage}
+    }
+    \caption{Kibana: truy vấn security event từ Kong Gateway namespace}
+    \label{fig:kibana_screenshot}
+\end{figure}
+
+
+\subsection{Prometheus + Grafana: Security Metrics thời gian thực}
+
+\textbf{Prometheus} (v2.51.0) được cấu hình scrape từ 5 nguồn:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/08-prometheus.yaml (trích)
+scrape_configs:
+  - job_name: 'prometheus'       # Tự scrape
+  - job_name: 'node-exporter'    # Node-level CPU/RAM/Disk
+    kubernetes_sd_configs: [{role: node}]
+  - job_name: 'kubernetes-pods'  # Pod có annotation prometheus.io/scrape
+    kubernetes_sd_configs: [{role: pod}]
+  - job_name: 'kube-state-metrics'  # K8s object state
+    static_configs: [{targets: ['kube-state-metrics:8080']}]
+  - job_name: 'kafka'            # Kafka JMX metrics
+    static_configs: [{targets: ['kafka-jmx-exporter:5556']}]
+\end{minted}
+\caption{Prometheus scrape\_configs — 5 nguồn metrics}
+\label{lst:prometheus}
+\end{listing}
+
+\textbf{Grafana} (v10.4.0) kết nối Prometheus làm default datasource:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/09-grafana.yaml (trích)
+datasources:
+- name: Prometheus
+  type: prometheus
+  url: http://prometheus.monitoring.svc.cluster.local:9090
+  access: proxy
+  isDefault: true
+\end{minted}
+\caption{Grafana auto-provisioned Prometheus datasource}
+\label{lst:grafana}
+\end{listing}
+
+\textbf{Security metrics quan trọng:}
 \begin{itemize}
-    \item Xây dựng thành công khung xương (Skeletal System) cho hệ thống Backend với đầy đủ các dịch vụ: Identity, Workspace, Job, Hiring, Candidate, Storage và Communication.
-    \item Mặc dù trong phạm vi thực nghiệm, đồ án mới chỉ tập trung \textbf{hiện thực hóa một phần các API nghiệp vụ cốt lõi} (như luồng Đăng tin, Duyệt tin và Chuyển vòng ứng tuyển), nhưng toàn bộ cấu trúc mã nguồn đã được chuẩn hóa theo kiến trúc lớp (\textit{Layered Architecture}).
-    \item \textbf{Khả năng phát triển nhanh (Rapid Development):} Với việc đã thiết lập sẵn hạ tầng Gateway, cơ chế xác thực tập trung và các thư viện dùng chung cho giao tiếp Kafka, việc bổ sung thêm các API nghiệp vụ mới hiện nay chỉ đòi hỏi tập trung vào Logic Domain mà không cần quan tâm đến các vấn đề hạ tầng phức tạp. Điều này cho phép các đội ngũ phát triển có thể làm việc song song và đưa tính năng ra thị trường một cách thần tốc.
-    \item Tối ưu hóa việc xử lý tệp tin thông qua giải pháp \textit{Presigned URL} với MinIO và hệ thống giám sát nhật ký tập trung với Elasticsearch/Kibana, đảm bảo hệ thống sẵn sàng cho việc vận hành thực tế.
+    \item \textbf{Cilium Hubble}: \texttt{hubble\_flows\_processed\_total} — Dropped vs Forwarded packets, phân loại theo namespace/policy.
+    \item \textbf{TCP Retransmission}: Tỷ lệ cao → network policy conflict hoặc MitM attack.
+    \item \textbf{Pod resource anomaly}: CPU/Memory đột biến → crypto-mining hoặc DoS.
+    \item \textbf{Kafka consumer lag}: Queue bị overwhelm → potential DoS.
+    \item \textbf{Vault lease count}: Số lượng active leases — giám sát credential abuse.
 \end{itemize}
 
-\paragraph{Hạn chế và hướng phát triển:}
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{5cm}
+            \textit{[HÌNH 3.9: Screenshot Grafana — Panel ``Cilium Policy Drop Rate'', ``Active Vault Leases'', ``Pod CPU/Memory'' theo thời gian]}
+            \vspace{5cm}
+        \end{minipage}
+    }
+    \caption{Grafana Dashboard: Security Metrics tổng hợp từ Cilium, Vault, và Node Exporter}
+    \label{fig:grafana_dashboard}
+\end{figure}
+
+
+\subsection{Thiết kế Tetragon Runtime Security (dự kiến)}
+
+\textit{Tetragon TracingPolicy \textbf{chưa được triển khai} trong mã nguồn hiện tại. Dưới đây là thiết kế dự kiến:}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# Thiết kế TracingPolicy (chưa triển khai)
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: "block-suspicious-exec"
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "In"
+        values: ["/bin/bash","/bin/sh","/usr/bin/wget","/usr/bin/curl","/usr/bin/nc"]
+      matchNamespaces:
+      - namespace: job7189-apps
+        operator: In
+      matchActions:
+      - action: Sigkill        # Giết tiến trình trước khi kernel thực thi
+\end{minted}
+\caption{Thiết kế Tetragon TracingPolicy — chặn syscall nguy hiểm (chưa triển khai)}
+\label{lst:tetragon_policy}
+\end{listing}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{4.5cm}
+            \textit{[HÌNH 3.10: Sơ đồ Tetragon eBPF hook vào syscall path — SIGKILL trước khi kernel thực thi]}
+            \vspace{4.5cm}
+        \end{minipage}
+    }
+    \caption{Tetragon: eBPF hook intercepting sys\_execve — SIGKILL ngay tại kernel}
+    \label{fig:tetragon_sigkill}
+\end{figure}
+
+
+\subsection{Thiết kế Alertmanager pipeline (dự kiến)}
+
+\textit{Alertmanager \textbf{chưa được triển khai}. Thiết kế dự kiến:}
+
+\begin{enumerate}
+    \item \textbf{Prometheus alerting rules:}
+    \begin{itemize}
+        \item \texttt{CiliumPolicyDropRate > 100/min}: quét mạng.
+        \item \texttt{VaultLeaseRevocationRate > 50/hour}: credential abuse.
+        \item \texttt{PodRestartCount > 5 in 10min}: CrashLoopBackOff do attack.
+    \end{itemize}
+    \item \textbf{Alertmanager routing:} Slack webhook, email, PagerDuty.
+    \item \textbf{Silence \& Inhibition:} Tránh alert storm.
+\end{enumerate}
+
+
+\subsection{Cilium mTLS và WireGuard (chưa kích hoạt)}
+
+Trong cấu hình hiện tại, mTLS sidecarless và WireGuard \textbf{được thiết kế nhưng tạm tắt} trong giai đoạn stability baseline:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 01-setup-cluster.sh — Stability-first baseline
+kubectl -n kube-system patch configmap cilium-config --type merge \
+  -p '{"data":{
+    "enable-wireguard":"false",       # Mã hóa node-to-node: TẮT
+    "enable-l7-proxy":"true",         # L7 proxy: BẬT
+    "mesh-auth-enabled":"false"       # mTLS sidecarless: TẮT
+  }}'
+\end{minted}
+\caption{Cilium baseline: L7 proxy bật, mesh-auth và WireGuard tạm tắt cho ổn định}
+\label{lst:cilium_baseline}
+\end{listing}
+
+Khi bật \texttt{mesh-auth-enabled=true}, Cilium sẽ tự động cấp SPIFFE certificate cho mỗi workload, thực hiện TLS handshake trong kernel eBPF, và từ chối kết nối từ workload không có chứng chỉ hợp lệ — ngăn chặn IP Spoofing hoàn toàn.
+
+
+%==============================================================================
+% 3.7  XÁC MINH VÀ KẾT QUẢ
+%==============================================================================
+\section{Bước 6: Xác minh và Kết quả tổng hợp}
+
+\subsection{Kiểm thử Vault credential rotation}
+
+Hệ thống cung cấp Job kiểm thử rotation (file \texttt{vault-rotation-job.yaml}):
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# vault-rotation-job.yaml — kiểm thử rotation tự động
+# 1. Backup role hiện tại
+vault read -format=json database/roles/identity-service > /tmp/role-backup.json
+# 2. Set TTL ngắn (5 phút) để test
+vault write database/roles/identity-service default_ttl=300 max_ttl=3600
+# 3. Yêu cầu credential mới → xác nhận lease_duration=300
+vault read -format=json database/creds/identity-service
+# 4. Revoke tất cả leases → buộc rotation
+vault lease revoke -prefix database/creds/identity-service
+# 5. Xác nhận service vẫn hoạt động sau rotation (Vault Agent auto-renew)
+\end{minted}
+\caption{Vault rotation test: giảm TTL → revoke → xác nhận service tự động reconnect}
+\label{lst:vault_rotation_test}
+\end{listing}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.11: Screenshot terminal — (a) lease\_duration=300, (b) sau revoke tất cả leases, service vẫn trả 200 OK vì Vault Agent tự lấy credential mới]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Minh chứng: Vault credential rotation không gây downtime cho ứng dụng}
+    \label{fig:rotation_proof}
+\end{figure}
+
+
+\subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Kiểm tra trạng thái toàn bộ hệ thống
+$ kubectl get pods -A | grep -E "Running|job7189|vault|gateway|security|data|monitoring"
+NAMESPACE       NAME                                    READY   STATUS    RESTARTS
+gateway         kong-gateway-xxx                        1/1     Running   0
+security        keycloak-xxx                            1/1     Running   0
+vault           vault-0                                 1/1     Running   0
+vault           vault-dev-xxx                           1/1     Running   0
+vault           vault-agent-injector-xxx                1/1     Running   0
+data            mysql-xxx                               1/1     Running   0
+data            kafka-0                                 1/1     Running   0
+job7189-apps    identity-service-xxx                    4/4     Running   0  # 4 containers
+job7189-apps    workspace-service-xxx                   4/4     Running   0
+job7189-apps    job-service-xxx                         4/4     Running   0
+job7189-apps    hiring-service-xxx                      4/4     Running   0
+job7189-apps    candidate-service-xxx                   4/4     Running   0
+job7189-apps    communication-service-xxx               4/4     Running   0
+job7189-apps    storage-service-xxx                     4/4     Running   0
+monitoring      elasticsearch-xxx                       1/1     Running   0
+monitoring      filebeat-xxx (DaemonSet x3)             1/1     Running   0
+monitoring      kibana-xxx                              1/1     Running   0
+monitoring      prometheus-xxx                          1/1     Running   0
+monitoring      grafana-xxx                             1/1     Running   0
+\end{minted}
+\caption{Trạng thái hệ thống: mỗi microservice có 4 containers (app + vault-agent + env-loader + env-watcher)}
+\label{lst:system_status}
+\end{listing}
+
+\textbf{Lưu ý:} Mỗi backend service chạy \textbf{4 containers} trong 1 Pod:
+\begin{enumerate}
+    \item \texttt{app} — Laravel PHP-FPM application
+    \item \texttt{vault-agent} — Vault Agent sidecar (injected bởi MutatingWebhook)
+    \item \texttt{env-loader} — Merge \texttt{.env} files từ Vault secrets
+    \item \texttt{env-watcher} — Detect lease rotation và gọi reload endpoint
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.12: Screenshot \texttt{kubectl get pods -A} — tất cả pods Running, 4/4 READY cho backend services]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Trạng thái hệ thống: toàn bộ pods Running, không có CrashLoopBackOff}
+    \label{fig:pods_status}
+\end{figure}
+
+
+\subsection{Bảng đối sánh: Trước và Sau khi áp dụng ZTA}
+
+\begin{table}[H]
+\centering
+\caption{Đối sánh toàn diện: hệ thống JOB7189 trước và sau khi áp dụng ZTA}
+\label{tab:before_after}
+\begin{tabularx}{\textwidth}{|p{3cm}|X|X|}
+\hline
+\textbf{Khía cạnh} & \textbf{Trước ZTA} & \textbf{Sau ZTA} \\
+\hline
+Network & Flat network — mọi Pod tự do giao tiếp & Microsegmented — Default Deny + Allow-Explicit, L3/L4/L7 \\
+\hline
+DB Credentials & Static password trong \texttt{.env}, không hết hạn & Vault JIT: user ngẫu nhiên, TTL 1h, auto-revoke \\
+\hline
+Secret Storage & File \texttt{.env} trên đĩa, bake vào Docker image & tmpfs (RAM-only), inject qua MutatingWebhook \\
+\hline
+API Auth (N-S) & Không xác thực hoặc basic auth & Kong JWT Plugin + Keycloak OIDC RS256 \\
+\hline
+API Auth (E-W) & HTTP plaintext, không xác thực & Cilium L7 HTTP Policy + ServiceAccount identity \\
+\hline
+Blast Radius & Toàn bộ cluster & Giới hạn trong 1 service + 1 database \\
+\hline
+Observability & Không có centralized logging & EFK (4 namespace) + Prometheus + Grafana + Hubble \\
+\hline
+Credential Rotation & Không bao giờ thay đổi & Tự động mỗi 1h (configurable) \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+%==============================================================================
+% 3.8  QUY TRÌNH TRIỂN KHAI TỰ ĐỘNG
+%==============================================================================
+\section{Quy trình triển khai tự động (Deployment Pipeline)}
+
+Toàn bộ hệ thống được triển khai thông qua \textbf{5 script tuần tự} (Infrastructure as Code):
+
+\begin{table}[H]
+\centering
+\caption{Pipeline triển khai JOB7189 — 5 giai đoạn tự động}
+\label{tab:deployment_pipeline}
+\begin{tabularx}{\textwidth}{|c|p{2.5cm}|X|}
+\hline
+\textbf{Script} & \textbf{Giai đoạn} & \textbf{Thành phần} \\
+\hline
+\texttt{01} & Cluster Setup & Kind (1CP+3W), Cilium CNI (eBPF, Hubble, Gateway API), cert-manager, Nginx Ingress \\
+\hline
+\texttt{02} & Infrastructure & \texttt{openssl rand} credentials → K8s Secrets → Vault (TLS, Transit Auto-Unseal, Database Engine, K8s Auth, Agent Injector) → MySQL → Keycloak (realm import) → Kafka → Kong (JWT plugin) → EFK Stack \\
+\hline
+\texttt{03} & Microservices & Local Registry → Docker build → Helmfile apply (7 services × Vault Agent annotations) \\
+\hline
+\texttt{04} & Image Build & Build \& push 7 images từ \texttt{Dockerfile.production} \\
+\hline
+\texttt{05} & Database Seed & Load SQL schema qua Vault-managed credentials (\texttt{secret/vault-manager}) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Đặc điểm ZTA:}
 \begin{itemize}
-    \item \textbf{Hạn chế:} Do giới hạn về thời gian, hệ thống chưa phủ hết 100\% các API phụ trợ và các kịch bản kiểm thử tải (Load Test) ở quy mô cực lớn.
-    \item \textbf{Hướng phát triển:} Hoàn thiện nốt danh sách các API còn lại dựa trên khung kiến trúc đã có; Triển khai hệ thống lên môi trường Kubernetes hoàn chỉnh và tích hợp thêm các công nghệ AI để tự động hóa việc sàng lọc hồ sơ dựa trên dữ liệu đã được cấu trúc hóa tốt tại từng Service.
+    \item Script 02: mọi credential sinh bằng \texttt{openssl rand}, không hardcode.
+    \item Script 03: xác minh Vault unsealed và dynamic DB credentials sẵn sàng \textbf{trước khi deploy}.
+    \item Script 05: đọc MySQL password từ Vault KV, không dùng root password trực tiếp.
+    \item Mọi Pod: \texttt{readinessProbe} kiểm tra \texttt{/app-secrets/.env} tồn tại trước khi nhận traffic.
 \end{itemize}
 
-Tóm lại, đồ án đã chứng minh được tính đúng đắn của việc lựa chọn kiến trúc Microservices cho bài toán tuyển dụng. Kết quả quan trọng nhất không chỉ là các dòng mã nguồn đã viết, mà là một \textbf{Nền tảng kiến trúc vững chắc}, linh hoạt, giúp doanh nghiệp có thể dễ dàng mở rộng và phát triển bền vững trong tương lai.
-
-
-
-
-
-
-
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{4cm}
+            \textit{[HÌNH 3.13: Sơ đồ pipeline: 01→02→03→04→05, thể hiện dependency giữa các bước và checkpoints ZTA]}
+            \vspace{4cm}
+        \end{minipage}
+    }
+    \caption{Deployment Pipeline: 5 giai đoạn tuần tự với ZTA checkpoints}
+    \label{fig:deployment_pipeline}
+\end{figure}

@@ -44,6 +44,17 @@ declare -a LARAVEL_SERVICES=(
   "storage-service"
 )
 
+declare -a REQUIRED_VAULT_KV_PATHS=(
+  "secret/laravel-common"
+  "secret/identity-service"
+  "secret/workspace-service"
+  "secret/job-service"
+  "secret/hiring-service"
+  "secret/candidate-service"
+  "secret/communication-service"
+  "secret/storage-service"
+)
+
 print_failed_pod_diagnostics() {
   local pod_name=$1
 
@@ -231,41 +242,84 @@ vault_dynamic_db_ready() {
       echo "   ✗ Missing Vault DB role: ${svc}"
       return 1
     fi
+
+    # Probe credential issuance to detect backend DB auth problems early
+    # (for example: MySQL 1045 on vault_manager).
+    if ! kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault read -format=json database/creds/${svc} >/dev/null 2>&1"; then
+      echo "   ✗ Vault failed to issue dynamic DB creds for role: ${svc}"
+      echo "     This usually means database/config/mysql credentials are invalid or MySQL grants deny access"
+      echo "     from the pod network (often 1045 Access denied for vault_manager)."
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+vault_k8s_auth_ready() {
+  local root_token=$1
+
+  if [ -z "$root_token" ]; then
+    return 1
+  fi
+
+  local svc
+  for svc in "${LARAVEL_SERVICES[@]}"; do
+    if ! kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault read -format=json auth/kubernetes/role/${svc} >/dev/null 2>&1"; then
+      echo "   ✗ Missing Vault K8s auth role: ${svc}"
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+vault_kv_paths_ready() {
+  local root_token=$1
+
+  if [ -z "$root_token" ]; then
+    return 1
+  fi
+
+  local kv_path
+  for kv_path in "${REQUIRED_VAULT_KV_PATHS[@]}"; do
+    if ! kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${root_token}' vault kv get -format=json ${kv_path} >/dev/null 2>&1"; then
+      echo "   ✗ Missing Vault KV v2 secret: ${kv_path}"
+      echo "     API path form is ${kv_path/secret\//secret/data/}"
+      return 1
+    fi
   done
 
   return 0
 }
 
 ensure_vault_dynamic_db_ready() {
-  local repair_script="infras/k8s-yaml/vault-scripts/99-fast-rebuild-vault.sh"
-  local attempt
+  echo "   Vault dynamic DB readiness check..."
 
-  for attempt in 1 2; do
-    echo "   Vault dynamic DB readiness check (attempt ${attempt}/2)..."
+  if ! wait_for_vault_unsealed 300; then
+    return 1
+  fi
 
-    if wait_for_vault_unsealed 300; then
-      local root_token
-      root_token=$(get_vault_root_token || true)
+  local root_token
+  root_token=$(get_vault_root_token || true)
 
-      if vault_dynamic_db_ready "$root_token"; then
-        echo "   ✓ Vault dynamic credentials backend is ready"
-        return 0
-      fi
-    fi
+  if ! vault_dynamic_db_ready "$root_token"; then
+    echo "   ✗ Missing Vault database engine or service roles"
+    return 1
+  fi
 
-    if [ "$attempt" -lt 2 ]; then
-      if [ ! -f "$repair_script" ]; then
-        echo "❌ ERROR: Vault repair script not found: $repair_script"
-        return 1
-      fi
+  if ! vault_k8s_auth_ready "$root_token"; then
+    echo "   ✗ Missing Vault Kubernetes auth roles"
+    return 1
+  fi
 
-      echo "   ⚠️  Vault dynamic DB config is missing. Running repair pipeline..."
-      bash "$repair_script"
-    fi
-  done
+  if ! vault_kv_paths_ready "$root_token"; then
+    echo "   ✗ Missing required Vault KV v2 secret paths"
+    return 1
+  fi
 
-  echo "❌ ERROR: Vault dynamic credentials backend is not ready after repair"
-  return 1
+  echo "   ✓ Vault dynamic credentials and KV v2 paths are ready"
+  return 0
 }
 
 wait_for_laravel_deployments_ready() {
@@ -674,11 +728,17 @@ echo "   Running helmfile apply to deploy Laravel microservices (job7189-apps)..
 echo "   (This may take 2-5 minutes as pods initialize)"
 echo ""
 
-if helmfile --selector namespace=job7189-apps apply 2>&1 | tee /tmp/helmfile-output.log; then
+# Run helmfile and save full output, but show a filtered view to reduce noise
+helmfile --selector namespace=job7189-apps apply 2>&1 | tee /tmp/helmfile-output.log
+HELMFILE_EXIT=${PIPESTATUS[0]}
+
+# Show filtered output to the user (suppress resource diff "has been added" blocks)
+cat /tmp/helmfile-output.log | grep -v -E '(^Comparing release=|has been added:|^\+ )' || true
+
+if [ "$HELMFILE_EXIT" -eq 0 ]; then
   echo ""
   echo "   ✓ Helmfile apply completed"
 else
-  HELMFILE_EXIT=$?
   echo ""
   echo "   ⚠️  Helmfile encountered issues (exit code: $HELMFILE_EXIT)"
   echo "   Helm releases may still be deploying..."

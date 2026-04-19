@@ -100,8 +100,7 @@ spec:
         hostnames:
         - "auth.job7189.local"
       # initContainer chờ Keycloak sẵn sàng trước khi oauth2-proxy start
-      # Dùng internal Kubernetes DNS (keycloak.security.svc.cluster.local) thay vì
-      # auth.job7189.local để tránh phụ thuộc vào hostAliases IP có thể bị stale
+      # Dùng external hostname (auth.job7189.local) - sẽ resolve qua hostAliases
       initContainers:
       - name: wait-for-keycloak
         image: busybox:1.36
@@ -112,7 +111,7 @@ spec:
           MAX_TRIES=60
           TRY=0
           echo "Waiting for Keycloak..."
-          until wget -qO- http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+          until wget -qO- http://auth.job7189.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
             TRY=$((TRY+1))
             if [ "$TRY" -ge "$MAX_TRIES" ]; then
               echo "ERROR: Keycloak endpoint not reachable after $((MAX_TRIES*5))s" >&2

@@ -11,6 +11,16 @@ CMD_TIMEOUT_SHORT="${CMD_TIMEOUT_SHORT:-20}"
 CMD_TIMEOUT_MEDIUM="${CMD_TIMEOUT_MEDIUM:-60}"
 CMD_TIMEOUT_LONG="${CMD_TIMEOUT_LONG:-180}"
 
+LARAVEL_SERVICES=(
+  identity-service
+  workspace-service
+  job-service
+  hiring-service
+  candidate-service
+  communication-service
+  storage-service
+)
+
 run_with_timeout() {
   local timeout_seconds=$1
   shift
@@ -131,6 +141,12 @@ vault kv put secret/keycloak db-password='${MYSQL_ROOT_PASS}' admin-password='${
 vault kv put secret/mysql root-password='${MYSQL_ROOT_PASS}'
 vault kv put secret/vault-manager username='vault_manager' password='${VAULT_MGR_PASS}'
 
+# Seed KV v2 paths required by vault-agent templates before microservices deploy.
+vault kv put secret/laravel-common app_env='production' app_debug='false' log_channel='stack' cache_store='file' queue_connection='sync'
+for SVC in identity-service workspace-service job-service hiring-service candidate-service communication-service storage-service; do
+  vault kv get secret/$SVC >/dev/null 2>&1 || vault kv put secret/$SVC service_name="$SVC" placeholder='set-real-values'
+done
+
 # QUAN TRỌNG: verify_connection=false để không kẹt khi MySQL chưa sống
 vault write database/config/mysql plugin_name=mysql-database-plugin verify_connection=false connection_url='{{username}}:{{password}}@tcp(mysql.data.svc.cluster.local:3306)/' allowed_roles='*' username='vault_manager' password='${VAULT_MGR_PASS}'
 
@@ -148,6 +164,20 @@ vault policy write mysql-bootstrap - <<POL
 path "secret/data/mysql" { capabilities = ["read"] }
 POL
 vault write auth/kubernetes/role/mysql bound_service_account_names=mysql bound_service_account_namespaces=data policies=mysql-bootstrap ttl=1h max_ttl=24h
+
+for SVC in identity-service workspace-service job-service hiring-service candidate-service communication-service storage-service; do
+  vault policy write "\$SVC" - <<POL
+path "secret/data/laravel-common" { capabilities = ["read"] }
+path "database/creds/\${SVC}" { capabilities = ["read"] }
+path "secret/data/\${SVC}" { capabilities = ["read"] }
+POL
+  vault write auth/kubernetes/role/"\$SVC" \
+    bound_service_account_names="\$SVC" \
+    bound_service_account_namespaces=job7189-apps \
+    policies="\$SVC" \
+    ttl=1h \
+    max_ttl=24h
+done
 EOF
 echo "    ✔ Bơm Data hoàn tất!"
 

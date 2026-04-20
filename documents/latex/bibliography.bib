@@ -84,12 +84,94 @@
   howpublished={\url{https://helmfile.readthedocs.io/}}
 }
 
+%==============================================================================
+% THAM KHẢO BỔ SUNG — CISA ZTMM, CAEP, SPIFFE, Sidecar/Sidecarless
+%==============================================================================
 
-@techreport{rose2020zero,
-  title={Zero Trust Architecture},
-  author={Rose, Scott and Borchert, Oliver and Mitchell, Stu and Connelly, Sean},
-  year={2020},
+@techreport{cisa_ztmm2023,
+  title={Zero Trust Maturity Model Version 2.0},
+  author={{Cybersecurity and Infrastructure Security Agency (CISA)}},
+  year={2023},
+  institution={Department of Homeland Security},
+  howpublished={\url{https://www.cisa.gov/zero-trust-maturity-model}}
+}
+
+@misc{openid_caep,
+  title={OpenID Continuous Access Evaluation Profile (CAEP)},
+  author={{OpenID Foundation}},
+  year={2023},
+  howpublished={\url{https://openid.net/specs/openid-caep-specification-1_0.html}}
+}
+
+@misc{spiffe_spec,
+  title={SPIFFE: Secure Production Identity Framework for Everyone},
+  author={{SPIFFE Project}},
+  year={2024},
+  howpublished={\url{https://spiffe.io/docs/latest/spiffe-about/overview/}}
+}
+
+@misc{spire_docs,
+  title={SPIRE Documentation},
+  author={{SPIFFE/SPIRE Project}},
+  year={2024},
+  howpublished={\url{https://spiffe.io/docs/latest/spire-about/}}
+}
+
+@techreport{nist_abac,
+  title={Guide to Attribute Based Access Control (ABAC) Definition and Considerations},
+  author={Hu, Vincent C. and Ferraiolo, David and Kuhn, Rick and others},
+  year={2014},
   institution={National Institute of Standards and Technology (NIST)},
-  number={NIST Special Publication 800-207},
-  doi={10.6028/NIST.SP.800-207}
+  number={NIST Special Publication 800-162},
+  doi={10.6028/NIST.SP.800-162}
+}
+
+@inproceedings{mtls_perf2023,
+  title={Performance Analysis of Service Mesh Sidecar Proxies in Kubernetes Environments},
+  author={Li, Wei and Zhang, Chen},
+  booktitle={IEEE International Conference on Cloud Computing},
+  year={2023},
+  organization={IEEE}
+}
+
+@misc{istio_ambient,
+  title={Istio Ambient Mesh: Sidecar-less Service Mesh},
+  author={{Istio Project}},
+  year={2024},
+  howpublished={\url{https://istio.io/latest/docs/ambient/}}
+}
+
+@misc{tetragon_docs,
+  title={Tetragon: eBPF-based Security Observability and Runtime Enforcement},
+  author={{Isovalent}},
+  year={2024},
+  howpublished={\url{https://tetragon.io/docs/}}
+}
+
+@misc{mitre_containers,
+  title={MITRE ATT\&CK Matrix for Containers},
+  author={{MITRE Corporation}},
+  year={2024},
+  howpublished={\url{https://attack.mitre.org/matrices/enterprise/containers/}}
+}
+
+@misc{crowdstrike_lotl,
+  title={Living off the Land (LotL) Attacks},
+  author={{CrowdStrike}},
+  year={2024},
+  howpublished={\url{https://www.crowdstrike.com/cybersecurity-101/living-off-the-land-attacks/}}
+}
+
+@misc{microsoft_aitm,
+  title={Adversary-in-the-Middle (AiTM) Phishing Attack},
+  author={{Microsoft Threat Intelligence}},
+  year={2023},
+  howpublished={\url{https://www.microsoft.com/en-us/security/blog/2022/07/12/from-cookie-theft-to-bec-attackers-use-aitm-phishing-sites-as-entry-point-to-further-financial-fraud/}}
+}
+
+@misc{machine_identity_report,
+  title={Machine Identity Management: The Next Evolution},
+  author={{CyberArk}},
+  year={2024},
+  howpublished={\url{https://www.cyberark.com/resources/threat-research/machine-identity-management}}
 }

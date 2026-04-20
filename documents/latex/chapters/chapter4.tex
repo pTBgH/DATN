@@ -1,0 +1,85 @@
+% !TEX encoding = UTF-8
+\chapter{Thử nghiệm và Đánh giá}
+
+\section{Mục tiêu chương}
+
+Chương này trình bày kế hoạch thử nghiệm và khung đánh giá cho giai đoạn tiếp theo của đồ án, nhằm kiểm chứng mức độ hiệu quả của kiến trúc Zero Trust đã triển khai trên hệ thống JOB7189. Trọng tâm là chứng minh mối liên hệ giữa từng cơ chế kiểm soát và các nguyên lý (tenets) trong NIST SP 800-207 \cite{nist800207}.
+
+\section{Kịch bản thử nghiệm}
+
+Mỗi kịch bản được thiết kế để xác thực một nhóm nguyên lý cụ thể của NIST SP 800-207.
+
+\subsection{Kịch bản 1: Lateral Movement}
+
+\textbf{Mục tiêu:} Pod bị chiếm quyền cố gắng truy cập dịch vụ ngoài chính sách cho phép.
+
+\textbf{Ý nghĩa kiểm chứng:}
+\begin{itemize}
+    \item Least Privilege (đặc quyền tối thiểu).
+    \item Micro-segmentation với nguyên tắc Deny-All, Allow-Explicit.
+\end{itemize}
+
+\subsection{Kịch bản 2: API Abuse}
+
+\textbf{Mục tiêu:} Gọi sai endpoint hoặc sai HTTP method và bị Cilium L7 policy chặn.
+
+\textbf{Ý nghĩa kiểm chứng:}
+\begin{itemize}
+    \item Per-request Access Decision (quyết định truy cập theo từng yêu cầu).
+\end{itemize}
+
+\subsection{Kịch bản 3: Runtime Anomaly}
+
+\textbf{Mục tiêu:} Phát sinh hành vi bất thường trong Pod (ví dụ thực thi lệnh hệ thống trái phép).
+
+\textbf{Ý nghĩa kiểm chứng:}
+\begin{itemize}
+    \item Continuous Monitoring (giám sát liên tục).
+\end{itemize}
+
+\textit{Lưu ý:} Kịch bản này sẽ được hoàn thiện khi lớp Runtime Enforcement (Tetragon) được triển khai đầy đủ (bổ sung sau).
+
+\subsection{Kịch bản 4: Credential Reuse}
+
+\textbf{Mục tiêu:} Vault credential hết hạn TTL, bị thu hồi, và kiểm tra khả năng chống tái sử dụng thông tin xác thực cũ.
+
+\textbf{Ý nghĩa kiểm chứng:}
+\begin{itemize}
+    \item Dynamic Trust Evaluation (đánh giá tin cậy động theo thời gian).
+\end{itemize}
+
+\section{Phân tích kết quả}
+
+Khung phân tích kết quả dự kiến gồm ba lớp:
+\begin{itemize}
+    \item \textbf{Định lượng giảm attack surface:} so sánh số attack path khả thi trước và sau khi áp dụng ZTA.
+    \item \textbf{Đánh giá blast radius:} đo số dịch vụ mà một Pod bị compromise có thể reach trước và sau policy.
+    \item \textbf{Đối chiếu Traceability Matrix:} ánh xạ theo chuỗi \textit{threat $\rightarrow$ control $\rightarrow$ result} để chứng minh tính giải thích được của từng kết quả thử nghiệm.
+\end{itemize}
+
+\section{Đánh giá hiệu năng}
+
+Nội dung đánh giá hiệu năng tập trung vào các chỉ số trọng yếu:
+\begin{itemize}
+    \item \textbf{Latency P99:} so sánh trước/sau khi áp dụng Network Policy và mTLS.
+    \item \textbf{Resource overhead:} mức tiêu thụ tài nguyên của Cilium, Tetragon, Vault Agent.
+    \item \textbf{Trade-off bảo mật - hiệu năng:} phân tích mức tăng độ trễ và tài nguyên đổi lấy mức giảm rủi ro bảo mật.
+\end{itemize}
+
+\section{Đánh giá mức độ tuân thủ NIST SP 800-207}
+
+Khung tuân thủ sẽ được tổng hợp theo ba nội dung:
+\begin{itemize}
+    \item \textbf{Bảng đối chiếu 7 Tenets:} ánh xạ từng nguyên lý của NIST SP 800-207 với các cơ chế đã triển khai trong hệ thống.
+    \item \textbf{Known Limitations:} ghi nhận minh bạch các giới hạn hiện tại như Kafka plaintext, shared physical DB, HMAC shared key.
+    \item \textbf{Kết luận xác thực học thuật:} đánh giá mức độ mà khung lý thuyết ở Chương 2 được kiểm chứng qua case study JOB7189.
+\end{itemize}
+
+\section{Thảo luận}
+
+Phần thảo luận tập trung vào ba hướng:
+\begin{itemize}
+    \item \textbf{Tính tổng quát của khung đề xuất:} khả năng áp dụng cho các hệ Microservices ngoài JOB7189.
+    \item \textbf{Khả năng mở rộng trong production:} điều kiện để chuyển từ PoC sang vận hành thực tế.
+    \item \textbf{Hướng phát triển tiếp theo:} SPIFFE per-workload certificate, Kafka SASL/SSL, physical DB separation.
+\end{itemize}

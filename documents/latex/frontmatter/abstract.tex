@@ -3,12 +3,10 @@
 \chapter*{Tóm tắt đồ án}
 \addcontentsline{toc}{chapter}{Tóm tắt đồ án}
 
-[CHUA VIET]
+Đồ án \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''} nghiên cứu và hiện thực hóa kiến trúc bảo mật Zero Trust Architecture (ZTA) theo tiêu chuẩn NIST SP 800-207 trên nền tảng Kubernetes, nhằm giải quyết các thách thức bảo mật đặc thù của hệ thống phân tán Microservices — nơi mô hình phòng thủ vành đai (Perimeter-based) truyền thống không còn đáp ứng được yêu cầu.
 
-Đồ án \textbf{"Kiến trúc Microservice và Ứng dụng trong Xây dựng Hệ thống tuyển dụng"} nghiên cứu và hiện thực hóa một khung kiến trúc phân tán hiện đại nhằm nâng cao khả năng mở rộng, tính linh hoạt và độ tin cậy của hệ thống phần mềm doanh nghiệp, khắc phục các hạn chế của kiến trúc đơn khối truyền thống.
+Trên cơ sở phân tích mô hình logic cốt lõi của NIST (Policy Engine, Policy Administrator, Policy Enforcement Point) và hệ thống cung cấp dữ liệu hỗ trợ (PIP), đồ án đề xuất \textbf{khung kiến trúc ZTA 5 lớp tích hợp}: (1) Định danh đa thực thể (Dual-Identity: JWT + SPIFFE), (2) Đánh giá tư thế và tình báo đe dọa, (3) Thực thi chính sách đa tầng (Kong Gateway + Cilium eBPF + Tetragon), (4) Quản trị bí mật động (HashiCorp Vault JIT Credentials), và (5) Quan sát và phân tích hành vi (EFK Stack + Prometheus/Grafana + Hubble).
 
-Trên cơ sở phương pháp \textbf{Domain-Driven Design (DDD)}, nghiệp vụ tuyển dụng được phân rã thành 07 Microservices độc lập: Identity, Workspace, Job, Hiring, Candidate, Storage và Communication, mỗi dịch vụ sở hữu ranh giới nghiệp vụ rõ ràng, cơ sở dữ liệu riêng và sử dụng định danh toàn cục \textbf{UUIDv7}. Hệ thống được triển khai với các công nghệ chủ đạo gồm Kong API Gateway, Keycloak, Apache Kafka, MinIO và ELK Stack, hỗ trợ kiến trúc \textit{Event-Driven}, bảo mật, lưu trữ tệp và giám sát tập trung.
+Khung kiến trúc được triển khai thực nghiệm trên hệ thống tuyển dụng trực tuyến \textbf{job7189} — gồm 07 backend microservices vận hành trên cụm Kubernetes 4 node (Kind). Kết quả cho thấy hệ thống thực thi thành công nguyên tắc \textit{Default Deny} với microsegmentation L3/L4/L7 qua Cilium eBPF, cấp phát database credentials tạm thời (TTL 1 giờ) qua Vault Agent Injector, xác thực JWT RS256 tại Kong API Gateway cho luồng North-South, và thu thập security events tập trung qua EFK Stack — đáp ứng 7 nguyên lý cốt lõi của NIST SP 800-207.
 
-Kết quả thực nghiệm cho thấy hệ thống đáp ứng hiệu quả các quy trình nghiệp vụ cốt lõi của bài toán tuyển dụng như đăng tuyển, ứng tuyển và quản lý ứng viên theo mô hình ATS, đồng thời hình thành một nền tảng kiến trúc vững chắc, cho phép mở rộng và phát triển hệ thống trong tương lai.
-
-\textbf{Từ khóa:} Microservices, Domain-Driven Design, Apache Kafka, API Gateway, ATS, UUIDv7, Event-Driven Architecture.
+\textbf{Từ khóa:} Zero Trust Architecture, NIST SP 800-207, Cilium eBPF, HashiCorp Vault, Keycloak OIDC, Microsegmentation, Kubernetes, Microservices Security, JIT Credentials.

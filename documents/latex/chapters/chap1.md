@@ -62,7 +62,7 @@ Theo ấn bản đặc biệt **NIST SP 800-207**, Zero Trust không phải là 
 
 > **Ví dụ cụ thể:**
 > 
-> - **ZT:** Giám đốc CNTT quyết định áp dụng triết lý "không tin tưởng bất cứ ai". \* **ZTA:** Đội ngũ kỹ thuật thiết kế sơ đồ lắp đặt các cổng ZTNA, cấu hình các chính sách xác thực đa yếu tố (MFA) và vi phân đoạn (Micro-segmentation) cho cơ sở dữ liệu. \* **Zero Trust Enterprise:** Công ty vận hành ổn định trên nền tảng Cloud, nhân viên làm việc tại quán cafe vẫn truy cập dữ liệu an toàn mà không cần VPN truyền thống, và mọi nỗ lực xâm nhập đều bị PEP chặn đứng ngay lập tức.
+> - **ZT:** Giám đốc CNTT quyết định áp dụng triết lý "không tin tưởng bất cứ ai". \* **ZTA:** Đội ngũ kỹ thuật thiết kế sơ đồ lắp đặt các cổng ZTNA, cấu hình các chính sách xác thực đa yếu tố (MFA) và phân đoạn vi mô (Micro-segmentation) cho cơ sở dữ liệu. \* **Zero Trust Enterprise:** Công ty vận hành ổn định trên nền tảng Cloud, nhân viên làm việc tại quán cafe vẫn truy cập dữ liệu an toàn mà không cần VPN truyền thống, và mọi nỗ lực xâm nhập đều bị PEP chặn đứng ngay lập tức.
 
 * * *
 

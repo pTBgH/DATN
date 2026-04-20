@@ -1,0 +1,55 @@
+@startuml
+title HÌNH 3.4: Vòng đời JIT credential (Vault)
+caption Label: fig:vault_jit_lifecycle
+
+' Tùy chỉnh để chiều ngang hẹp lại
+skinparam MaxMessageSize 150
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+box "Kubernetes Cluster" #AliceBlue
+    participant "Mutating\nWebhook" as K8s
+    participant "vault-agent\n(Init/Sidecar)" as Agent
+    participant "tmpfs\n(Shared Vol)" as Tmpfs
+    participant "env-loader\nwatcher" as Loader
+    participant "App\nContainer" as App
+end box
+
+box "Security & Storage" #GhostWhite
+    participant "HashiCorp\nVault" as Vault
+    database "MySQL\nDatabase" as MySQL
+end box
+
+== 1. Khởi tạo & Định danh ==
+K8s -> Agent : 1. Pod Created\nInject vault-agent
+|||
+Agent -> Vault : 2. Auth via\nK8s SA Token
+|||
+
+== 2. Cấp phát Quyền hạn (JIT) ==
+Vault -> MySQL : 3. CREATE USER 'usr_random'\nGRANT SELECT, INSERT,\nUPDATE, DELETE
+|||
+Vault -> Agent : 4. Send Creds:\n{user, pass, lease_id,\nduration=3600}
+|||
+
+== 3. Chuyển giao Secrets ==
+Agent -> Tmpfs : 5. Write to\n/vault/secrets/.env.db
+|||
+Loader -> Tmpfs : 6. Merge .env files\n-> /app-secrets/.env
+|||
+App -> Loader : 7. Read .env &\nConnect MySQL
+|||
+
+== 4. Tái cấp phát & Cập nhật (Loop) ==
+loop Khi TTL hết hạn (Expires)
+    Agent -> Vault : 8. Renew/Re-fetch\ncredentials
+    |||
+    Vault -> MySQL : 9. DROP 'old_user'\nCREATE 'new_user'
+    |||
+    Agent -> Tmpfs : Update .env.db
+    |||
+    Loader -> App : 10. Detect change\nCall /reload-db
+    |||
+    App -> MySQL : Re-connect with\nNew Credentials
+end
+@enduml

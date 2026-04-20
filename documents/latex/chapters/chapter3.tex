@@ -275,14 +275,7 @@ kubectl create secret generic app-secrets --namespace=security \\
 
 \begin{figure}[H]
     \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{4cm}
-            \textit{[HÌNH 3.2: Sequence diagram luồng OIDC/JWT -- Client → Keycloak → Kong → Backend]}
-            \vspace{4cm}
-        \end{minipage}
-    }
+    \includegraphics[width=1\textwidth]{images/oidc_flow.png}
     \caption{Luồng xác thực OIDC/JWT cho North-South traffic qua Keycloak và Kong}
     \label{fig:oidc_flow}
 \end{figure}
@@ -435,14 +428,7 @@ annotations:
 
 \begin{figure}[H]
     \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{5cm}
-            \textit{[HÌNH 3.4: Sequence diagram -- Vòng đời JIT credential: Pod create → Vault auth → MySQL user create → .env inject → rotation → revoke]}
-            \vspace{5cm}
-        \end{minipage}
-    }
+    \includegraphics[width=1\textwidth]{images/vault_jit_lifecycle.png}
     \caption{Vòng đời JIT credential -- từ Pod khởi tạo đến TTL revocation}
     \label{fig:vault_jit_lifecycle}
 \end{figure}
@@ -488,7 +474,7 @@ $ vault read -format=json database/creds/identity-service
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/vault-proof.png}
+    \includegraphics[width=0.85\textwidth]{images/vault_proof.png}
     \caption{Minh chứng: Vault Database Engine và Dynamic Credentials cho các Indentity Service (các service khác tương tự)}
     \label{fig:vault_proof_screenshot}
 \end{figure}
@@ -744,8 +730,7 @@ spec:
 
 Ngoài Lớp 1-4 áp dụng theo \textit{namespace}, hệ thống thiết kế thêm lớp micro-segmentation theo \textbf{ServiceAccount identity} -- xác định chính xác \textit{service nào} được nói chuyện với \textit{service nào}:
 
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{yaml}
+\begin{minted}[fontsize=\footnotesize, breaklines]{yaml}
 # 20-security-policies.yaml -- Chỉ identity-service → MySQL (port 3306)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -786,9 +771,9 @@ spec:
       - port: "3306"
         protocol: TCP
 \end{minted}
-\caption{Micro-segmentation theo ServiceAccount: policy kép (egress + ingress) cho cặp identity→MySQL}
+
+\captionof{listing}{Micro-segmentation theo ServiceAccount: policy kép (egress + ingress) cho cặp identity→MySQL}
 \label{lst:sa_microseg}
-\end{listing}
 
 \textbf{Quan trọng:} Hệ thống sử dụng \textbf{policy kép} -- cả nguồn (egress) lẫn đích (ingress) đều phải có rule. Nếu \texttt{job-service} cố kết nối đến MySQL mà không có policy cho egress của nó, gói tin bị Drop ở phía gửi. Nếu có egress nhưng MySQL không có ingress rule cho \texttt{job-service}, gói tin bị Drop ở phía nhận.
 
@@ -797,7 +782,7 @@ spec:
 
 Không chỉ kiểm soát ``ai nói chuyện với ai'', Cilium L7 còn kiểm soát ``nói cái gì'':
 
-\begin{listing}[H]
+\begin{listing}[htbp]
 \begin{minted}[fontsize=\footnotesize]{yaml}
 # 04-allow-internal-api-strict.yaml
 # job-service chỉ được gọi GET /api/v1/internal/workspaces/* → workspace-service
@@ -1223,7 +1208,7 @@ vault lease revoke -prefix database/creds/identity-service
 \end{figure}
 
 
-\subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống}
+\subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống (chỉnh sửa sau)}
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -1317,14 +1302,26 @@ Việc áp dụng công nghệ CNCF mã nguồn mở đã giúp hệ thống job
 
 Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 
-\begin{longtable}[H]
-\centering
+\begin{longtable}{|p{2.5cm}|p{8cm}|p{4.5cm}|}
 \caption{Đánh giá mức độ trưởng thành job7189 theo CISA ZTMM 2.0}
-\label{tab:cisa_ztmm_assessment}
-\begin{tabularx}{\textwidth}{|p{2.5cm}|X|p{4.5cm}|}
+\label{tab:cisa_ztmm_assessment} \\
+
 \hline
 \textbf{Trụ cột CISA} & \textbf{Triển khai trong job7189} & \textbf{Cấp độ Trưởng thành} \\
 \hline
+\endfirsthead
+
+\hline
+\textbf{Trụ cột CISA} & \textbf{Triển khai trong job7189} & \textbf{Cấp độ Trưởng thành} \\
+\hline
+\endhead
+
+\hline
+\endfoot
+
+\hline
+\endlastfoot
+
 \textbf{Identity} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
 \hline
 \textbf{Devices} & Quét lỗ hổng Container Image qua Trivy. Baseline Kube-bench (kế hoạch). Chưa triển khai EDR/MDM cho thiết bị End-User. & \textbf{Initial:} Do giới hạn PoC, hệ thống chủ yếu kiểm tra Workload Posture. Chưa tích hợp quản lý thiết bị End-User (Laptop, Mobile). \\
@@ -1335,7 +1332,6 @@ Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 \hline
 \textbf{Data} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
 \hline
-\end{tabularx}
 \end{longtable}
 
 \textbf{Năng lực xuyên suốt (Cross-cutting Capabilities):}

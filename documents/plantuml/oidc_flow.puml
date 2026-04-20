@@ -1,0 +1,32 @@
+@startuml
+autonumber
+actor Client
+participant "Keycloak\n(IdP)" as Keycloak
+participant "Kong Gateway\n(OIDC Plugin)" as Kong
+participant "Backend Service\n(Microservice)" as Backend
+
+Client -> Keycloak: POST /token (username + password)
+activate Keycloak
+Keycloak --> Client: Access Token (JWT RS256)
+deactivate Keycloak
+
+alt Request CÓ chứa JWT hợp lệ
+    Client -> Kong: GET /api/... + Auth: Bearer <JWT>
+    activate Kong
+    Kong -> Keycloak: Fetch JWKS (if not cached)
+    Keycloak --> Kong: JWKS public keys
+    Kong -> Kong: Verify JWT signature & expiration
+    Kong -> Backend: Proxy request + X-Forwarded-For
+    activate Backend
+    Backend --> Kong: Response 200 OK
+    deactivate Backend
+    Kong --> Client: Response 200 OK
+    deactivate Kong
+else Request KHÔNG CÓ hoặc sai JWT
+    Client -> Kong: GET /api/... (No token/Invalid token)
+    activate Kong
+    Kong -> Kong: Validate Token (Failed)
+    Kong --> Client: 401 Unauthorized
+    deactivate Kong
+end
+@enduml

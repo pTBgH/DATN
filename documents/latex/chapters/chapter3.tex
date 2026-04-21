@@ -304,13 +304,8 @@ $ curl -s -H "Authorization: Bearer $TOKEN" \
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\textwidth]{images/internal_signin.png}
-    \vspace{0.5cm} % khoảng cách giữa 2 hình
     \includegraphics[width=1\textwidth]{images/internal_signin_2.png}
-
-    \caption{Minh chứng thực tế: Giao diện đăng nhập Keycloak (SSO) xác thực người dùng và cấp token. 
-    Hình trên: Keycloak nội bộ (realm \texttt{7189\_internal}) dành cho SysAdmin. 
-    Hình dưới: Keycloak cho end-user (realm \texttt{job7189}).}
+    \caption{Keycloak nội bộ (realm \texttt{7189\_internal}) dành cho người quản trị hệ thống}
     \label{fig:jwt_proof_screenshot}
 \end{figure}
 
@@ -474,7 +469,7 @@ $ vault read -format=json database/creds/identity-service
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/vault_proof.png}
+    \includegraphics[width=1\textwidth]{images/vault_proof.png}
     \caption{Minh chứng: Vault Database Engine và Dynamic Credentials cho các Indentity Service (các service khác tương tự)}
     \label{fig:vault_proof_screenshot}
 \end{figure}

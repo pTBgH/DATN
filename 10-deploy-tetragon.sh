@@ -5,13 +5,51 @@
 # PURPOSE: Deploy Tetragon eBPF runtime enforcement (PEP Runtime layer)
 #          and apply TracingPolicy to block suspicious syscalls in job7189-apps.
 # RUN AFTER: Script 08 (Security Hardening)
-# RESOURCE: ~128Mi per node (DaemonSet), total ~512Mi for 4 nodes
+# RESOURCE: ~192Mi per worker node (DaemonSet), total ~576Mi for 3 workers
+# NOTE: By default this script does NOT schedule Tetragon on the control-plane
+#       node — set TETRAGON_INCLUDE_CONTROL_PLANE=1 to override.
 # ROLLBACK: helm uninstall tetragon -n kube-system
+#
+# Pre-flight strategy (RAM-first, not timeout-first):
+#   - Per-node memory availability check: aborts if any target node lacks RAM
+#   - Auto-runs scripts/free-ram-for-tetragon.sh if host avail RAM < 800Mi
+#   - Caps Tetragon resource limit at 192Mi/pod (generous headroom for kprobe bursts)
 # ==========================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ==================== TUNABLES ====================
+# Resource ceiling for Tetragon — 192Mi gives generous headroom over the
+# 128Mi minimum so kprobe bursts (e.g. forking pods) don't trigger OOM.
+TETRAGON_MEM_REQ="${TETRAGON_MEM_REQ:-96Mi}"
+TETRAGON_MEM_LIM="${TETRAGON_MEM_LIM:-192Mi}"
+TETRAGON_CPU_REQ="${TETRAGON_CPU_REQ:-50m}"
+TETRAGON_CPU_LIM="${TETRAGON_CPU_LIM:-250m}"
+TETRAGON_OPERATOR_MEM_LIM="${TETRAGON_OPERATOR_MEM_LIM:-64Mi}"
+
+# By default skip control-plane node — workloads run on workers, monitoring
+# kube-system is not the priority. Set to 1 to also run on control-plane.
+TETRAGON_INCLUDE_CONTROL_PLANE="${TETRAGON_INCLUDE_CONTROL_PLANE:-0}"
+
+# Per-node free memory required to schedule a Tetragon pod = limit + 25% buffer.
+# (192Mi limit * 1.25 ≈ 240Mi). A node with less than this is rejected.
+TETRAGON_PER_NODE_HEADROOM_MI="${TETRAGON_PER_NODE_HEADROOM_MI:-240}"
+
+# Pin chart version for reproducibility.
+TETRAGON_CHART_VERSION="${TETRAGON_CHART_VERSION:-1.2.0}"
+
+# RAM target for pre-flight on the host. If host avail < target, free-ram
+# script runs. 800Mi gives buffer for 3 × 192Mi (=576Mi) plus operator + churn.
+TETRAGON_RAM_TARGET_MI="${TETRAGON_RAM_TARGET_MI:-800}"
+
+# Timeouts kept at sensible defaults — not the variable that needs tuning.
+HELM_TIMEOUT="${HELM_TIMEOUT:-120s}"
+DS_ROLLOUT_TIMEOUT="${DS_ROLLOUT_TIMEOUT:-90s}"
+CRD_WAIT_TIMEOUT="${CRD_WAIT_TIMEOUT:-90s}"
+POLICY_APPLY_RETRIES="${POLICY_APPLY_RETRIES:-12}"
+POLICY_APPLY_BACKOFF="${POLICY_APPLY_BACKOFF:-5}"
 
 echo ""
 echo "============================================================"
@@ -19,24 +57,101 @@ echo "🛡️ SCRIPT 10: TETRAGON RUNTIME SECURITY"
 echo "============================================================"
 echo ""
 
-# ========================
-# Step 1: Check available RAM
-# ========================
-echo "━━━ Step 1: Checking available memory ━━━"
-AVAIL_MI=$(free -m | awk '/^Mem:/ {print $7}')
-echo "   Available RAM: ${AVAIL_MI}Mi"
+avail_mi() { free -m | awk '/^Mem:/ {print $7}'; }
 
-if [ "$AVAIL_MI" -lt 400 ]; then
-  echo "   ⚠️  WARNING: Less than 400Mi available. Tetragon needs ~512Mi."
-  echo "   Consider running: scripts/toggle-internal-ui.sh down"
-  echo "   to free RAM from phpMyAdmin, Kafbat, Kibana, Grafana UIs."
-  read -p "   Continue anyway? [y/N]: " CONFIRM
-  if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
-    echo "   Aborted."
-    exit 0
+# ========================
+# Step 1: RAM-first pre-flight
+# ========================
+echo "━━━ Step 1: Pre-flight (RAM-first) ━━━"
+echo "   Available RAM: $(avail_mi)Mi (target ${TETRAGON_RAM_TARGET_MI}Mi)"
+
+if [ "$(avail_mi)" -lt "$TETRAGON_RAM_TARGET_MI" ]; then
+  FREE_SCRIPT="${SCRIPT_DIR}/scripts/free-ram-for-tetragon.sh"
+  if [ -x "$FREE_SCRIPT" ]; then
+    echo "   Below target → running free-ram-for-tetragon.sh"
+    FREE_RAM_TARGET_MI="$TETRAGON_RAM_TARGET_MI" "$FREE_SCRIPT" || true
+  else
+    echo "   ⚠ free-ram-for-tetragon.sh not executable — skipping auto-cleanup"
+    echo "     Suggest: bash scripts/toggle-internal-ui.sh off"
+    read -p "   Continue with current RAM? [y/N]: " CONFIRM
+    [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && { echo "   Aborted."; exit 0; }
   fi
 fi
+
+# Cluster reachable?
+if ! kubectl cluster-info --request-timeout=5s >/dev/null 2>&1; then
+  echo "❌ Cluster API not reachable — aborting"
+  exit 1
+fi
+
+# Determine target nodes (skip control-plane unless explicitly enabled)
+if [ "$TETRAGON_INCLUDE_CONTROL_PLANE" = "1" ]; then
+  TARGET_NODES=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+  echo "   Target nodes: ALL (control-plane + workers)"
+else
+  TARGET_NODES=$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[*].metadata.name}')
+  echo "   Target nodes: workers only (set TETRAGON_INCLUDE_CONTROL_PLANE=1 to also include CP)"
+fi
+NODE_COUNT=$(echo "$TARGET_NODES" | wc -w)
+echo "   Will deploy ${NODE_COUNT} Tetragon pod(s)"
 echo ""
+
+# Per-node memory pre-check — abort if any target node has < headroom free.
+# This is the test that prevents "DaemonSet stuck at 2/3 Ready forever".
+echo "   Per-node memory headroom check (need ≥${TETRAGON_PER_NODE_HEADROOM_MI}Mi free):"
+NODE_FAILED=0
+for node in $TARGET_NODES; do
+  # Allocatable memory in Mi
+  ALLOC=$(kubectl get node "$node" -o jsonpath='{.status.allocatable.memory}' 2>/dev/null)
+  ALLOC_MI=$(python3 -c "
+import re,sys
+v='''$ALLOC'''
+m=re.match(r'(\d+)([KMGTP]?i?)',v)
+if not m: print(0); sys.exit()
+n=int(m.group(1)); u=m.group(2)
+fact={'Ki':1/1024,'Mi':1,'Gi':1024,'Ti':1024*1024}.get(u,1/1024/1024)
+print(int(n*fact))
+" 2>/dev/null || echo 0)
+  # Sum of memory requests already scheduled on the node (in Mi).
+  REQ_MI=$(kubectl get pods --all-namespaces --field-selector spec.nodeName="$node" \
+    -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.resources.requests.memory}{"\n"}{end}{end}' 2>/dev/null \
+    | python3 -c "
+import re,sys
+total=0
+for line in sys.stdin:
+    v=line.strip()
+    if not v: continue
+    m=re.match(r'(\d+)([KMGTP]?i?)?',v)
+    if not m: continue
+    n=int(m.group(1)); u=m.group(2) or 'Mi'
+    fact={'Ki':1/1024,'Mi':1,'Gi':1024,'Ti':1024*1024,'':1/1024/1024}.get(u,1)
+    total+=n*fact
+print(int(total))
+" 2>/dev/null || echo 0)
+  FREE_MI=$((ALLOC_MI - REQ_MI))
+  if [ "$FREE_MI" -lt "$TETRAGON_PER_NODE_HEADROOM_MI" ]; then
+    printf "     ✗ %-40s alloc=%4dMi  used=%4dMi  free=%4dMi  (need ≥%dMi)\n" \
+      "$node" "$ALLOC_MI" "$REQ_MI" "$FREE_MI" "$TETRAGON_PER_NODE_HEADROOM_MI"
+    NODE_FAILED=$((NODE_FAILED + 1))
+  else
+    printf "     ✓ %-40s alloc=%4dMi  used=%4dMi  free=%4dMi\n" \
+      "$node" "$ALLOC_MI" "$REQ_MI" "$FREE_MI"
+  fi
+done
+echo ""
+
+if [ "$NODE_FAILED" -gt 0 ]; then
+  echo "❌ ${NODE_FAILED} node(s) lack ≥${TETRAGON_PER_NODE_HEADROOM_MI}Mi free for Tetragon."
+  echo "   Without this, the DaemonSet will get stuck at $((NODE_COUNT - NODE_FAILED))/${NODE_COUNT} Ready forever."
+  echo ""
+  echo "   Options:"
+  echo "     1) bash scripts/free-ram-for-tetragon.sh        (toggle UI off, scale vault-dev)"
+  echo "     2) FREE_RAM_AGGRESSIVE=1 bash scripts/free-ram-for-tetragon.sh"
+  echo "     3) Reduce some pod's memory request, e.g.:"
+  echo "          kubectl -n monitoring patch ds filebeat ... requests.memory=64Mi"
+  echo "     4) Override TETRAGON_PER_NODE_HEADROOM_MI=120 (risky — pod may OOM)"
+  exit 1
+fi
 
 # ========================
 # Step 2: Install Tetragon via Helm
@@ -46,40 +161,121 @@ echo "━━━ Step 2: Installing Tetragon ━━━"
 helm repo add cilium https://helm.cilium.io 2>/dev/null || true
 helm repo update cilium 2>/dev/null || true
 
+HELM_SET_FLAGS=(
+  --set "tetragon.resources.requests.memory=${TETRAGON_MEM_REQ}"
+  --set "tetragon.resources.limits.memory=${TETRAGON_MEM_LIM}"
+  --set "tetragon.resources.requests.cpu=${TETRAGON_CPU_REQ}"
+  --set "tetragon.resources.limits.cpu=${TETRAGON_CPU_LIM}"
+  --set "tetragonOperator.resources.requests.memory=32Mi"
+  --set "tetragonOperator.resources.limits.memory=${TETRAGON_OPERATOR_MEM_LIM}"
+  --set "export.stdout.enabled=true"
+  --set "export.stdout.resources.requests.memory=16Mi"
+  --set "export.stdout.resources.limits.memory=32Mi"
+)
+
+# By default DROP the control-plane toleration so Tetragon won't schedule there.
+# This saves ~128Mi total RAM and avoids racing the API server / etcd.
+if [ "$TETRAGON_INCLUDE_CONTROL_PLANE" != "1" ]; then
+  HELM_SET_FLAGS+=(
+    --set 'tetragon.tolerations[0].key=node-role.kubernetes.io/control-plane'
+    --set 'tetragon.tolerations[0].operator=Exists'
+    --set 'tetragon.tolerations[0].effect=NoSchedule'
+    --set 'tetragon.tolerations[0].value='
+  )
+  # Override default toleration list (which has Exists with no key = tolerate all)
+  HELM_SET_FLAGS+=( --set 'tetragon.nodeSelector.kubernetes\.io/os=linux' )
+  # Use affinity to actively exclude control-plane label
+  HELM_SET_FLAGS+=(
+    --set-string 'tetragon.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=node-role.kubernetes.io/control-plane'
+    --set-string 'tetragon.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=DoesNotExist'
+  )
+fi
+
 if helm status tetragon -n kube-system >/dev/null 2>&1; then
   echo "   ℹ️  Tetragon already installed, upgrading..."
   helm upgrade tetragon cilium/tetragon -n kube-system \
-    --set tetragon.resources.requests.memory=64Mi \
-    --set tetragon.resources.limits.memory=128Mi \
-    --set tetragon.resources.requests.cpu=50m \
-    --set tetragon.resources.limits.cpu=200m \
-    --wait --timeout=120s
+    --version "$TETRAGON_CHART_VERSION" \
+    "${HELM_SET_FLAGS[@]}" \
+    --wait --timeout="$HELM_TIMEOUT"
 else
-  echo "   Installing Tetragon..."
+  echo "   Installing Tetragon (chart ${TETRAGON_CHART_VERSION})..."
   helm install tetragon cilium/tetragon -n kube-system \
-    --set tetragon.resources.requests.memory=64Mi \
-    --set tetragon.resources.limits.memory=128Mi \
-    --set tetragon.resources.requests.cpu=50m \
-    --set tetragon.resources.limits.cpu=200m \
-    --wait --timeout=120s
+    --version "$TETRAGON_CHART_VERSION" \
+    "${HELM_SET_FLAGS[@]}" \
+    --wait --timeout="$HELM_TIMEOUT"
 fi
 
-echo "   Waiting for Tetragon pods..."
-kubectl rollout status daemonset/tetragon -n kube-system --timeout=90s 2>/dev/null || true
-
-TETRAGON_READY=$(kubectl get ds tetragon -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
-echo "   ✅ Tetragon DaemonSet: ${TETRAGON_READY} nodes ready"
+# ========================
+# Step 3: Wait for CRD Established
+# ========================
+# This is a CORRECTNESS fix, not a timeout one — Helm's --wait does not block
+# until CustomResourceDefinitions reach Established=True, and kubectl caches
+# API discovery for ~30s, so a TracingPolicy apply right after helm install
+# can race with "no matches for kind".
 echo ""
+echo "━━━ Step 3: Waiting for TracingPolicy CRD (Established=True) ━━━"
+
+CRDS_NEEDED=( tracingpolicies.cilium.io tracingpoliciesnamespaced.cilium.io )
+
+for crd in "${CRDS_NEEDED[@]}"; do
+  if ! kubectl wait --for=condition=Established "crd/${crd}" --timeout="${CRD_WAIT_TIMEOUT}" 2>/dev/null; then
+    # Maybe CRD object itself does not exist yet (Helm just applied it)
+    if ! kubectl get crd "${crd}" >/dev/null 2>&1; then
+      echo "   ❌ CRD ${crd} not registered. Did helm install actually run?"
+      exit 1
+    fi
+    echo "   ❌ CRD ${crd} not Established"
+    kubectl describe "crd/${crd}" | tail -20
+    exit 1
+  fi
+  echo "   ✓ ${crd} Established"
+done
+
+# Force kubectl to refresh its API discovery cache so the next apply sees the CRD.
+rm -rf "${HOME}/.kube/cache/discovery" 2>/dev/null || true
+kubectl api-resources --api-group=cilium.io >/dev/null 2>&1 || true
 
 # ========================
-# Step 3: Apply TracingPolicy — Block suspicious exec in job7189-apps
+# Step 4: Wait for at least one Tetragon pod to be Ready
 # ========================
-echo "━━━ Step 3: Applying TracingPolicy ━━━"
+echo ""
+echo "━━━ Step 4: Waiting for Tetragon DaemonSet ━━━"
+
+if ! kubectl rollout status daemonset/tetragon -n kube-system --timeout="${DS_ROLLOUT_TIMEOUT}"; then
+  echo "   ⚠ Full DaemonSet not Ready — likely a node lacks RAM. Listing state:"
+  kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon -o wide || true
+  kubectl describe ds tetragon -n kube-system | tail -40 || true
+  echo "   Continuing if at least one node is Ready (single-node policies still work)"
+fi
+
+TETRAGON_DESIRED=$(kubectl get ds tetragon -n kube-system -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "0")
+TETRAGON_READY=$(kubectl get ds tetragon -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+echo "   Tetragon: ${TETRAGON_READY}/${TETRAGON_DESIRED} nodes Ready"
+
+# Sanity: desiredNumberScheduled should match the pre-flight expected count.
+if [ "$TETRAGON_DESIRED" != "$NODE_COUNT" ]; then
+  echo "   ⚠ Expected ${NODE_COUNT} Tetragon pods but DaemonSet schedules ${TETRAGON_DESIRED}."
+  echo "     Toleration/affinity override may not have applied — investigate before policies."
+fi
+
+if [ "$TETRAGON_READY" = "0" ]; then
+  echo "   ❌ No Tetragon pod Ready — refusing to apply policies"
+  echo "      Pre-flight passed memory checks, so the failure is likely:"
+  echo "        - Image pull error: kubectl describe pods -n kube-system -l app.kubernetes.io/name=tetragon"
+  echo "        - eBPF kernel feature missing: check kernel version (need ≥5.4)"
+  echo "        - SELinux/AppArmor blocking: check pod events"
+  exit 1
+fi
+
+# ========================
+# Step 5: Render TracingPolicies
+# ========================
+echo ""
+echo "━━━ Step 5: Rendering TracingPolicies ━━━"
 
 POLICY_DIR="${SCRIPT_DIR}/infras/k8s-yaml/tetragon-policies"
 mkdir -p "$POLICY_DIR"
 
-# TracingPolicy: block shell/curl/wget/nc in job7189-apps namespace
 cat > "${POLICY_DIR}/block-suspicious-exec.yaml" <<'POLICY'
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
@@ -111,7 +307,6 @@ spec:
       - action: Sigkill
 POLICY
 
-# TracingPolicy: monitor sensitive file access
 cat > "${POLICY_DIR}/monitor-sensitive-files.yaml" <<'POLICY'
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
@@ -140,42 +335,72 @@ spec:
       - action: Post
 POLICY
 
-echo "   Applying TracingPolicies..."
-kubectl apply -f "${POLICY_DIR}/block-suspicious-exec.yaml" 2>/dev/null && \
-  echo "   ✅ block-suspicious-exec applied" || \
-  echo "   ⚠️  block-suspicious-exec failed (CRD may not be ready yet)"
-
-kubectl apply -f "${POLICY_DIR}/monitor-sensitive-files.yaml" 2>/dev/null && \
-  echo "   ✅ monitor-sensitive-files applied" || \
-  echo "   ⚠️  monitor-sensitive-files failed"
-
+# ========================
+# Step 6: Apply policies with retry on transient errors
+# ========================
 echo ""
+echo "━━━ Step 6: Applying TracingPolicies ━━━"
+
+apply_with_retry() {
+  local file="$1"
+  local name; name=$(basename "$file" .yaml)
+  local attempt=1 err
+  while [ "$attempt" -le "$POLICY_APPLY_RETRIES" ]; do
+    if err=$(kubectl apply -f "$file" 2>&1); then
+      echo "   ✅ ${name} applied (attempt ${attempt})"
+      return 0
+    fi
+    if echo "$err" | grep -qE 'no matches for kind|the server could not find the requested resource|connection refused|context deadline'; then
+      echo "   ... ${name} attempt ${attempt}/${POLICY_APPLY_RETRIES}: discovery cache stale, retrying"
+      sleep "$POLICY_APPLY_BACKOFF"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    echo "   ❌ ${name} non-transient error:"
+    echo "$err" | sed 's/^/      /'
+    return 1
+  done
+  echo "   ❌ ${name} failed after ${POLICY_APPLY_RETRIES} retries"
+  return 1
+}
+
+POLICY_FAILED=0
+apply_with_retry "${POLICY_DIR}/block-suspicious-exec.yaml"   || POLICY_FAILED=$((POLICY_FAILED+1))
+apply_with_retry "${POLICY_DIR}/monitor-sensitive-files.yaml" || POLICY_FAILED=$((POLICY_FAILED+1))
 
 # ========================
-# Step 4: Verify
+# Step 7: Verify
 # ========================
-echo "━━━ Step 4: Verification ━━━"
+echo ""
+echo "━━━ Step 7: Verification ━━━"
 
 POLICY_COUNT=$(kubectl get tracingpolicies --no-headers 2>/dev/null | wc -l || echo "0")
 echo "   TracingPolicies: ${POLICY_COUNT}"
-kubectl get tracingpolicies 2>/dev/null || echo "   (CRD not available yet)"
+kubectl get tracingpolicies 2>/dev/null || true
+
+if [ "$POLICY_FAILED" -gt 0 ]; then
+  echo "❌ ${POLICY_FAILED} policy(ies) failed to apply"
+  exit 1
+fi
 
 echo ""
 echo "============================================================"
 echo "✅ TETRAGON RUNTIME SECURITY DEPLOYED"
 echo "============================================================"
-echo ""
-echo "   DaemonSet: ${TETRAGON_READY} nodes"
+echo "   DaemonSet: ${TETRAGON_READY}/${TETRAGON_DESIRED} nodes"
 echo "   Policies:  ${POLICY_COUNT} TracingPolicy(ies)"
+echo "   RAM avail: $(avail_mi)Mi"
 echo ""
-echo "   📋 Test: Try running shell in a job7189-apps pod:"
+echo "   Test exec block:"
 echo "     kubectl exec -n job7189-apps deploy/identity-service -c app -- /bin/sh"
-echo "     → Should be killed by Tetragon (SIGKILL)"
 echo ""
-echo "   📋 View events:"
-echo "     kubectl logs -n kube-system ds/tetragon -c export-stdout --tail=20"
+echo "   Stream events:"
+echo "     kubectl logs -n kube-system ds/tetragon -c export-stdout --tail=20 -f"
 echo ""
-echo "   🔄 Rollback:"
+echo "   Restore Kibana/Grafana when done analysing:"
+echo "     bash scripts/toggle-internal-ui.sh on"
+echo ""
+echo "   Rollback:"
 echo "     helm uninstall tetragon -n kube-system"
 echo "     kubectl delete -f ${POLICY_DIR}/"
 echo ""

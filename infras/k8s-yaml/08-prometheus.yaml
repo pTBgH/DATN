@@ -144,7 +144,7 @@ spec:
         args:
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
-          - "--storage.tsdb.retention.time=15d"   # giữ data 15 ngày
+          - "--storage.tsdb.retention.time=3d"    # PoC: giữ 3 ngày thay vì 15
           - "--web.enable-lifecycle"               # cho phép reload config qua API
         ports:
         - containerPort: 9090
@@ -155,11 +155,11 @@ spec:
           mountPath: /prometheus
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "256Mi"
+            cpu: "125m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "512Mi"
+            cpu: "300m"
       volumes:
       - name: config
         configMap:

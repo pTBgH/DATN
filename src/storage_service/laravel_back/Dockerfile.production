@@ -9,45 +9,31 @@ ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/do
 
 # Install php extensions
 RUN chmod +x /usr/local/bin/install-php-extensions && sync && \
-    install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached pdo
+    install-php-extensions mbstring pdo_mysql zip exif pcntl gd memcached
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpng-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
-    locales \
-    zip \
-    jpegoptim optipng pngquant gifsicle \
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
     unzip \
     git \
     curl \
-    lua-zlib-dev \
-    libmemcached-dev \
-    libzip-dev \
-    libonig-dev \
-    pkg-config \
-    libssl-dev \
-    zlib1g-dev \
-    nginx
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Redis extension
+# Install Redis extension and ensure OpCache is enabled
 RUN pecl install redis \
-    && docker-php-ext-enable redis
-
-# Install supervisor
-RUN apt-get install -y supervisor
+    && docker-php-ext-enable redis opcache
 
 RUN echo "[www]" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
     echo "catch_workers_output = yes" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
-    echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+    echo "decorate_workers_output = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
+    echo "pm = ondemand" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
+    echo "pm.max_children = 6" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
+    echo "pm.process_idle_timeout = 10s" >> /usr/local/etc/php-fpm.d/zz-docker.conf && \
+    echo "pm.max_requests = 300" >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
 # Install composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Add user for laravel application
 RUN groupadd -g 1000 www
@@ -77,7 +63,7 @@ RUN chmod +x /etc/docker/run.sh
 # RUN touch /var/log/php/errors.log && chmod 777 /var/log/php/errors.log
 
 # Deployment steps
-RUN composer install --optimize-autoloader --no-dev
+RUN composer install --optimize-autoloader --classmap-authoritative --no-dev --no-interaction --prefer-dist
 # RUN chmod +x /var/www/docker/run.sh
 
 # Set permission.

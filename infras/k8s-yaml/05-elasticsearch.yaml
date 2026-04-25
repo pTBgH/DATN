@@ -44,16 +44,16 @@ spec:
         - containerPort: 9200
         resources:
           limits:
-            memory: 1Gi # Giới hạn 1GB RAM để không sập máy
+            memory: 768Mi # Giảm từ 1Gi cho PoC — tiết kiệm RAM
           requests:
-            memory: 512Mi
+            memory: 384Mi
         env:
         # QUAN TRỌNG: Chế độ 1 node, không cần tìm đồng đội
         - name: discovery.type
           value: "single-node"
         
         - name: ES_JAVA_OPTS
-          value: "-Xms512m -Xmx512m"
+          value: "-Xms384m -Xmx384m"
         - name: xpack.security.enabled
           value: "false" # Tắt login user/pass cho nhẹ
         volumeMounts:

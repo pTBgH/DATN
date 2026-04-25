@@ -30,6 +30,8 @@ spec:
           image: {{ .Values.redis.image }}
           ports:
             - containerPort: {{ .Values.redis.port }}
+          resources:
+{{ toYaml .Values.redis.resources | indent 12 }}
 ---
 # --- Redis Service ---
 apiVersion: v1

@@ -1,0 +1,25 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: monitor-sensitive-files
+spec:
+  kprobes:
+  - call: "sys_openat"
+    syscall: true
+    args:
+    - index: 1
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 1
+        operator: "Prefix"
+        values:
+        - "/etc/shadow"
+        - "/etc/passwd"
+        - "/proc/self/environ"
+        - "/var/run/secrets/kubernetes.io"
+      matchNamespaces:
+      - namespace: job7189-apps
+        operator: In
+      matchActions:
+      - action: Post

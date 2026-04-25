@@ -9,7 +9,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: kong
+        k8s:io.kubernetes.pod.namespace: gateway
     toPorts:
     - ports:
       - port: "80"

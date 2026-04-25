@@ -200,6 +200,31 @@ if [ -n "$POD" ]; then
 fi
 
 # ========================
+# Step 5d: Post-check Hubble components
+# ========================
+echo "🔍 [5d] Checking Hubble relay and UI..."
+if kubectl -n kube-system get deploy hubble-relay >/dev/null 2>&1; then
+  if kubectl -n kube-system rollout status deploy/hubble-relay --timeout=120s 2>/dev/null; then
+    echo "    ✓ Hubble Relay is Ready"
+  else
+    echo "    ⚠ Hubble Relay not ready (non-blocking)"
+  fi
+else
+  echo "    ⚠ Hubble Relay deployment not found"
+fi
+
+if kubectl -n kube-system get deploy hubble-ui >/dev/null 2>&1; then
+  if kubectl -n kube-system rollout status deploy/hubble-ui --timeout=120s 2>/dev/null; then
+    echo "    ✓ Hubble UI is Ready"
+  else
+    echo "    ⚠ Hubble UI not ready (non-blocking)"
+  fi
+else
+  echo "    ⚠ Hubble UI deployment not found"
+fi
+log_time "5d. Hubble post-check"
+
+# ========================
 # Step 6: Create Namespaces
 # ========================
 echo "? [6/8] Creating namespaces..."

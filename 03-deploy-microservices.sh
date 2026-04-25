@@ -1,6 +1,7 @@
 #!/bin/bash
 # Part 3: Deploy Ingress Routes & Microservices
 # This script: Deploys Ingress configurations and all microservices via Helmfile
+export FORCE_REBUILD_IMAGES=1
 set -euo pipefail
 
 # ==================== TIMING FUNCTIONS ====================
@@ -635,11 +636,14 @@ for full_image in "${REQUIRED_IMAGES[@]}"; do
   
   # Push to in-cluster registry
   echo "   ▶ Pushing to registry..."
-  if docker push "$chart_image" 2>&1 | grep -E "(Pushed|pushed|digest|Digest)" || true; then
+  push_output=""
+  if push_output=$(docker push "$chart_image" 2>&1); then
+    echo "$push_output" | grep -E "(Pushed|pushed|digest|Digest)" || true
     echo "   ✓ Push successful: $chart_image"
     PUSH_COUNT=$((PUSH_COUNT + 1))
   else
-    echo "   ⚠️  Push may have failed (registry network issue?)"
+    echo "$push_output" | tail -20 || true
+    echo "   ⚠️  Push failed: $chart_image"
     FAILED_PUSHES+=("$full_image")
   fi
 done
@@ -764,6 +768,22 @@ fi
 log_time "1c. Laravel readiness gate"
 
 cd - > /dev/null
+
+# ========================
+# 1d. Verify Microsegmentation Policies
+# ========================
+echo ""
+echo "🛡️ Step 1d: Verifying ZTA Microsegmentation enforcement..."
+POLICY_COUNT=$(kubectl get ciliumnetworkpolicies -n job7189-apps --no-headers 2>/dev/null | wc -l || echo "0")
+if [ "$POLICY_COUNT" -gt 0 ]; then
+  echo "   ✓ Found $POLICY_COUNT CiliumNetworkPolicy(ies) in job7189-apps"
+  kubectl get ciliumnetworkpolicies -n job7189-apps 2>/dev/null || true
+else
+  echo "   ⚠ No CiliumNetworkPolicy found in job7189-apps"
+  echo "   Run script 02 with ZTA_ENABLE_POLICIES=1 or manually apply:"
+  echo "   bash infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh"
+fi
+log_time "1d. Microseg verification"
 
 # ========================
 # 2. Final Status Check

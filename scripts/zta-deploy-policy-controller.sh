@@ -68,10 +68,19 @@ apply_policies_with_key() {
     exit 1
   fi
 
+  # NOTE: kubectl jsonpath cannot handle keys with dots (e.g. 'cosign-public-key.pem')
+  # because '.' is interpreted as path separator. Use go-template's `index` instead,
+  # which supports arbitrary string keys.
   PUB_KEY_PEM=$(kubectl get cm -n "$COSIGN_CM_NS" "$COSIGN_CM_NAME" \
-    -o jsonpath="{.data.$COSIGN_CM_KEY}" 2>/dev/null)
-  if [ -z "$PUB_KEY_PEM" ]; then
-    red "ERROR: ConfigMap $COSIGN_CM_NS/$COSIGN_CM_NAME has empty data.$COSIGN_CM_KEY"
+    -o go-template="{{index .data \"$COSIGN_CM_KEY\"}}" 2>/dev/null)
+  if [ -z "$PUB_KEY_PEM" ] || [ "$PUB_KEY_PEM" = "<no value>" ]; then
+    red "ERROR: ConfigMap $COSIGN_CM_NS/$COSIGN_CM_NAME has empty data.\"$COSIGN_CM_KEY\""
+    red "  Available keys:"
+    kubectl get cm -n "$COSIGN_CM_NS" "$COSIGN_CM_NAME" -o jsonpath='{.data}' | tr ',' '\n' | sed 's/^/    /'
+    exit 1
+  fi
+  if ! echo "$PUB_KEY_PEM" | grep -q "BEGIN PUBLIC KEY"; then
+    red "ERROR: $COSIGN_CM_NS/$COSIGN_CM_NAME data.\"$COSIGN_CM_KEY\" doesn't look like a PEM public key"
     exit 1
   fi
 

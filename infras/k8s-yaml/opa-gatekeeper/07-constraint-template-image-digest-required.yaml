@@ -1,0 +1,70 @@
+# PR #16 — Image Provenance & Supply-Chain Trust
+# ConstraintTemplate: K8sImageDigestRequired
+#
+# Reject/audit Pods (and Pod controllers) whose container/initContainer images
+# are referenced by mutable tag (e.g. nginx:1.27, identity-service:latest).
+# All images MUST use immutable digest reference (image@sha256:abcdef...).
+#
+# Why: tag references are mutable — a malicious pull can swap content under
+# a known tag. Digest references pin exactly one content blob, blocking
+# "left-of-supply-chain" tampering once images are vetted.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8simagedigestrequired
+  annotations:
+    description: >
+      Require all Pod images (containers + initContainers) to be referenced
+      by sha256 digest, not by mutable tag. Aligns with NIST SP 800-204D
+      Software Supply Chain Security and CISA ZTMM Applications Optimal.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sImageDigestRequired
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            exemptImages:
+              description: List of image patterns exempt from digest enforcement.
+              type: array
+              items:
+                type: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package k8simagedigestrequired
+
+      # Helper: collect every image referenced in the object.
+      images[image] {
+        image := input.review.object.spec.containers[_].image
+      }
+      images[image] {
+        image := input.review.object.spec.initContainers[_].image
+      }
+      images[image] {
+        image := input.review.object.spec.template.spec.containers[_].image
+      }
+      images[image] {
+        image := input.review.object.spec.template.spec.initContainers[_].image
+      }
+
+      # Image is exempt if it matches any pattern in parameters.exemptImages.
+      exempt(image) {
+        pattern := input.parameters.exemptImages[_]
+        glob.match(pattern, [], image)
+      }
+
+      # Violation: image lacks @sha256:... and is not exempt.
+      violation[{"msg": msg}] {
+        image := images[_]
+        not exempt(image)
+        not contains(image, "@sha256:")
+        msg := sprintf(
+          "image %q must be referenced by sha256 digest (e.g. %s@sha256:...). " +
+          "Pin to immutable digest to prevent supply-chain tampering. " +
+          "Add to exemptImages parameter if external dependency cannot be pinned.",
+          [image, split(image, ":")[0]],
+        )
+      }

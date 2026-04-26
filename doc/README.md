@@ -58,6 +58,7 @@ Cap nhat: 2026-04-26 (19 files)
 | Rebuild from scratch (zta-rebuild.sh) | `23` |
 | Adaptive Security Loop (Gatekeeper + Tetragon) | `24` |
 | PDP Controller (continuous label compliance) | `25` |
+| Image Provenance & Cosign supply-chain trust | `26` |
 | SPIRE Workload Attestation (Devices Advanced) | `27` |
 
 ## Archive

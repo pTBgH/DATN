@@ -76,6 +76,13 @@ spec:
           value: "60"
         - name: LOG_LEVEL
           value: "INFO"
+        # Downward API: pass pod name to use as kopf identity (avoids
+        # getpass.getuser() failing on python:3.11-slim where UID 1000
+        # is not in /etc/passwd).
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         ports:
         - name: metrics
           containerPort: 9100

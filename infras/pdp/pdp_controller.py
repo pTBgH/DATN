@@ -203,4 +203,8 @@ def on_startup(settings: kopf.OperatorSettings, **_kwargs):
 # Entrypoint — invoked via `python /app/pdp_controller.py`
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    kopf.run(clusterwide=True, standalone=True)
+    # Pass explicit identity to avoid getpass.getuser() — python:3.11-slim
+    # has no entry in /etc/passwd for UID 1000 (runAsUser in deployment),
+    # which causes KeyError: 'getpwuid(): uid not found: 1000'.
+    pod_identity = os.environ.get("POD_NAME", "zta-pdp")
+    kopf.run(clusterwide=True, standalone=True, identity=pod_identity)

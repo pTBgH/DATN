@@ -6,7 +6,7 @@
 # Outputs alerts to:
 #   - stdout (kubectl logs ds/falco)
 #   - HTTP → falcosidekick service (port 2801)
-#   - falcosidekick → elasticsearch.data:9200 index falco-events-*
+#   - falcosidekick → elasticsearch.monitoring:9200 index falco-events-*
 #
 # Usage:
 #   bash scripts/zta-deploy-falco.sh                # install
@@ -43,7 +43,7 @@ blue " ZTA Step 2.3.12 — Falco runtime detection + Falcosidekick"
 blue "   namespace:        $NAMESPACE"
 blue "   helm release:     $RELEASE"
 blue "   driver:           modern_ebpf (CO-RE)"
-blue "   sink:             elasticsearch.data:9200 (falco-events-*)"
+blue "   sink:             elasticsearch.monitoring:9200 (falco-events-*)"
 blue "============================================================"
 
 # ---------------------------------------------------------------
@@ -74,8 +74,8 @@ else
 fi
 
 yellow "[pre-flight] Checking Elasticsearch availability..."
-if kubectl -n data get svc elasticsearch >/dev/null 2>&1; then
-  green "    ✓ elasticsearch.data:9200 reachable target found"
+if kubectl -n monitoring get svc elasticsearch >/dev/null 2>&1; then
+  green "    ✓ elasticsearch.monitoring:9200 reachable target found"
 else
   yellow "    ⚠ elasticsearch service missing — falcosidekick will retry"
 fi
@@ -146,7 +146,7 @@ echo "  # Watch sidekick:"
 echo "  kubectl -n $NAMESPACE logs deploy/falco-falcosidekick --tail=10"
 echo
 echo "Query ES alerts:"
-echo "  kubectl -n data exec deploy/elasticsearch -- \\"
+echo "  kubectl -n monitoring exec es-0 -- \\"
 echo "    curl -s http://localhost:9200/_cat/indices/falco-events-*"
 echo
 echo "Run 09-verify-zta.sh — Test 4m checks Falco health + custom rules."

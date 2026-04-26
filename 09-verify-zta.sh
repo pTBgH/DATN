@@ -927,14 +927,33 @@ if kubectl -n "$FALCO_NS" get ds falco >/dev/null 2>&1; then
       "kubectl -n $FALCO_NS exec ds/falco -c falco -- ls /etc/falco/rules.d/"
   fi
 
-  # 5. Falcosidekick connected to Elasticsearch (logs reference ES URL or POSTs)
-  SK_LOG=$(kubectl -n "$FALCO_NS" logs deploy/falco-falcosidekick --tail=80 2>/dev/null \
-    | grep -E "(elasticsearch|Elasticsearch)" | tail -1)
-  if [ -n "$SK_LOG" ]; then
-    result PASS "falcosidekick configured for Elasticsearch (sink active)"
+  # 5. Falcosidekick → Elasticsearch (check ES index falco-events-* exists)
+  ES_POD=$(kubectl -n monitoring get pod -l app=elasticsearch \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -z "$ES_POD" ]; then
+    ES_POD=$(kubectl -n monitoring get pod \
+      -o jsonpath='{range .items[?(@.metadata.name=="es-0")]}{.metadata.name}{end}' 2>/dev/null)
+  fi
+  if [ -n "$ES_POD" ]; then
+    FALCO_INDEX=$(kubectl -n monitoring exec "$ES_POD" -- \
+      curl -s --max-time 5 'http://localhost:9200/_cat/indices/falco-events-*?h=index,docs.count' 2>/dev/null | head -1)
+    if [ -n "$FALCO_INDEX" ]; then
+      result PASS "Elasticsearch falco-events-* index present ($FALCO_INDEX)"
+    else
+      # Fallback: check sidekick logs reference ES (config loaded but no docs yet)
+      SK_LOG=$(kubectl -n "$FALCO_NS" logs deploy/falco-falcosidekick --tail=80 2>/dev/null \
+        | grep -iE "elastic" | tail -1)
+      if [ -n "$SK_LOG" ]; then
+        result WARN "falcosidekick configured for ES but no alerts shipped yet" \
+          "Trigger test alert: kubectl run alert-test --image=alpine --rm -it -- cat /etc/shadow"
+      else
+        result WARN "No falco-events index + no sidekick→ES log line — sidekick may still be starting" \
+          "kubectl -n $FALCO_NS logs deploy/falco-falcosidekick --tail=20"
+      fi
+    fi
   else
-    result WARN "No falcosidekick→ES log line yet — alerts may not have flowed" \
-      "kubectl -n $FALCO_NS logs deploy/falco-falcosidekick --tail=20"
+    result WARN "Elasticsearch pod not found in monitoring ns — cannot verify sink" \
+      "kubectl -n monitoring get pod -l app=elasticsearch"
   fi
 else
   result WARN "Falco runtime detection not deployed" \

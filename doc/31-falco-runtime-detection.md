@@ -37,7 +37,7 @@ PR #12 deploy Tetragon — kernel-level eBPF observation tool, focus tracking sy
                     │ HTTP POST /falco-events-YYYY.MM.DD/_doc
                     ▼
    ┌────────────────────────────────────────────┐
-   │ Elasticsearch (data ns) — index            │
+   │ Elasticsearch (monitoring ns) — index            │
    │   falco-events-*                           │
    │ Kibana dashboards (manual setup):          │
    │ - Top rules triggered (24h)                │
@@ -83,7 +83,7 @@ PR #12 deploy Tetragon — kernel-level eBPF observation tool, focus tracking sy
 ## 4. Triển khai
 
 ```bash
-# Prerequisite: PR #21 deployed (ES at elasticsearch.data:9200)
+# Prerequisite: PR #21 deployed (ES at elasticsearch.monitoring:9200)
 bash scripts/zta-deploy-falco.sh
 
 # Verify driver loaded
@@ -101,7 +101,7 @@ kubectl run alert-test --image=alpine --restart=Never --rm -it -- cat /etc/shado
 kubectl -n falco logs deploy/falco-falcosidekick --tail=5
 
 # Query ES alerts
-kubectl -n data exec deploy/elasticsearch -- \
+kubectl -n monitoring exec es-0 -- \
   curl -s "http://localhost:9200/falco-events-*/_search?pretty&q=rule:ZTA*&size=5"
 
 # Test 4m

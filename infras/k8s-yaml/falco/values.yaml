@@ -12,7 +12,7 @@
 #   falcosidekick: 25-100m CPU / 64-128 Mi RAM (single Deployment, not DS)
 #   Total:         ~800-1024 Mi RAM
 #
-# Sink: Falcosidekick → Elasticsearch (data ns) index falco-events-*
+# Sink: Falcosidekick → Elasticsearch (monitoring ns) index falco-events-*
 #
 # Stacked on PR #21 (Hubble flow → ES) so audit trail and runtime
 # detection both land in the same Kibana cluster.
@@ -149,7 +149,7 @@ falcosidekick:
   config:
     debug: false
     elasticsearch:
-      hostport: "http://elasticsearch.data.svc.cluster.local:9200"
+      hostport: "http://elasticsearch.monitoring.svc.cluster.local:9200"
       index: "falco-events"
       suffix: "daily"
       type: "_doc"

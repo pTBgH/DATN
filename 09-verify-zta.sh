@@ -750,12 +750,13 @@ DEVICES_TIER="Initial  (no MDM/EDR)"
 if kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
   DEVICES_TIER="Advanced (SPIRE workload SVIDs, auto-rotated)"
 fi
-APPS_TIER="Advanced (Kong JWT + ZTA pipeline)"
-if kubectl get constrainttemplate k8simagedigestrequired >/dev/null 2>&1; then
-  APPS_TIER="Advanced+(Kong JWT + ZTA pipeline + image-digest/cosign trust)"
-fi
+# Highest tier wins; check most-advanced first to avoid override-order bugs.
 if kubectl get clusterimagepolicy zta-job7189-apps-signed >/dev/null 2>&1; then
-  APPS_TIER="Optimal  (Advanced+ + sigstore real Cosign verify at admission)"
+  APPS_TIER="Optimal  (PR #19: sigstore real Cosign verify at admission)"
+elif kubectl get constrainttemplate k8simagedigestrequired >/dev/null 2>&1; then
+  APPS_TIER="Advanced+(PR #16: Kong JWT + image-digest/cosign annotation trust)"
+else
+  APPS_TIER="Advanced (Kong JWT + ZTA pipeline)"
 fi
 echo "   Identity:      $IDENTITY_TIER"
 echo "   Devices:       $DEVICES_TIER"

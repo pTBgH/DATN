@@ -5,10 +5,10 @@ metadata:
   namespace: job7189-apps
 spec:
   endpointSelector: {}
-  # Cilium 1.14+: enableDefaultDeny → VALID=True (so với pattern cũ `ingress: []`)
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  # Cilium <1.14 dùng pattern empty list. CRD báo VALID=False (quirk) nhưng
+  # default-deny VẪN enforce (verified bằng wget timeout test trên ptbsrv).
+  ingress: []
+  egress: []
 
 ---
 apiVersion: cilium.io/v2
@@ -18,9 +18,8 @@ metadata:
   namespace: data
 spec:
   endpointSelector: {}
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  ingress: []
+  egress: []
 
 ---
 # NOTE: This policy set uses ServiceAccount identity labels because

@@ -19,9 +19,9 @@ metadata:
   namespace: security
 spec:
   endpointSelector: {}
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  # Cilium <1.14 dùng pattern empty list (VALID=False quirk; default-deny vẫn enforce).
+  ingress: []
+  egress: []
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2

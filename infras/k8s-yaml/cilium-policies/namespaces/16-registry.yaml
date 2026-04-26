@@ -12,9 +12,9 @@ metadata:
   namespace: registry
 spec:
   endpointSelector: {}
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  # Cilium <1.14 dùng pattern empty list (VALID=False quirk; default-deny vẫn enforce).
+  ingress: []
+  egress: []
 ---
 # 2) Allow DNS egress để registry resolve được service / external blob store
 apiVersion: cilium.io/v2

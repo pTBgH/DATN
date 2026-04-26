@@ -55,6 +55,12 @@ apply_one() {
   if [[ ! -f "$path" ]]; then
     echo "  SKIP (file not found): $path"; return
   fi
+  # Skip nếu namespace chưa được tạo trên cluster (graceful)
+  if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
+    echo "  SKIP (namespace '$ns' không tồn tại trên cluster)."
+    echo "       Nếu cần dùng, deploy nguồn ns trước (vd: 'kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml' cho ns=registry)."
+    return 0
+  fi
   case "$MODE" in
     dry-run)
       echo "==> [DRY-RUN] kubectl apply --dry-run=server -f $file (ns=$ns)"

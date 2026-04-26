@@ -48,6 +48,13 @@ bash apply-zta-namespace-policies.sh --all --apply
 7. data            (T1 — đã có default-deny từ trước, file này chỉ refactor)
 ```
 
+> Nếu namespace không tồn tại trên cluster (vd `registry` chưa deploy), script
+> sẽ **graceful SKIP** với thông báo, KHÔNG fail. Muốn dùng registry, deploy
+> nguồn ns trước:
+> ```bash
+> kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml
+> ```
+
 Sau mỗi namespace, **chạy lại** `scripts/zta-observability-baseline.sh` và so
 sánh DROPPED count để biết policy có quá chặt không.
 

@@ -530,6 +530,87 @@ else
 fi
 
 # ========================
+# Test 4i: SPIRE Workload Attestation (PR #17 — doc/27-spire-workload-attestation.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🪪  Test 4i: SPIRE Workload Attestation (Devices Advanced)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+SPIRE_NS="${SPIRE_NS:-spire}"
+if kubectl get ns "$SPIRE_NS" >/dev/null 2>&1; then
+  # 1. spire-server StatefulSet Ready
+  SS_READY=$(kubectl -n "$SPIRE_NS" get statefulset spire-server \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  SS_DESIRED=$(kubectl -n "$SPIRE_NS" get statefulset spire-server \
+    -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+  SS_READY=${SS_READY:-0}
+  if [ "$SS_READY" = "$SS_DESIRED" ] && [ "$SS_READY" -ge 1 ]; then
+    result PASS "spire-server StatefulSet Ready ($SS_READY/$SS_DESIRED)"
+  else
+    result FAIL "spire-server StatefulSet not Ready ($SS_READY/$SS_DESIRED)" \
+      "kubectl -n $SPIRE_NS describe pod -l app.kubernetes.io/name=spire-server"
+  fi
+
+  # 2. spire-agent DaemonSet covers all schedulable nodes
+  AGENT_DESIRED=$(kubectl -n "$SPIRE_NS" get daemonset spire-agent \
+    -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+  AGENT_READY=$(kubectl -n "$SPIRE_NS" get daemonset spire-agent \
+    -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+  AGENT_READY=${AGENT_READY:-0}; AGENT_DESIRED=${AGENT_DESIRED:-0}
+  if [ "$AGENT_READY" = "$AGENT_DESIRED" ] && [ "$AGENT_DESIRED" -ge 1 ]; then
+    result PASS "spire-agent DaemonSet covers all nodes ($AGENT_READY/$AGENT_DESIRED)"
+  else
+    result FAIL "spire-agent DaemonSet incomplete ($AGENT_READY/$AGENT_DESIRED)" \
+      "kubectl -n $SPIRE_NS describe ds spire-agent"
+  fi
+
+  # 3. ClusterSPIFFEID rules registered
+  CSID_COUNT=$(kubectl get clusterspiffeid 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
+  CSID_COUNT=${CSID_COUNT:-0}
+  if [ "$CSID_COUNT" -ge 1 ]; then
+    result PASS "ClusterSPIFFEID rules registered ($CSID_COUNT total)"
+  else
+    result WARN "No ClusterSPIFFEID found" "kubectl apply -f infras/k8s-yaml/spire/cluster-spiffe-ids.yaml"
+  fi
+
+  # 4. SPIRE entries — at least 1 SVID issued (workload attested)
+  ENTRY_COUNT=$(kubectl -n "$SPIRE_NS" exec statefulset/spire-server -c spire-server -- \
+    /opt/spire/bin/spire-server entry count -socketPath /tmp/spire-server/private/api.sock 2>/dev/null \
+    | grep -oE '[0-9]+' | head -1 || echo 0)
+  ENTRY_COUNT=${ENTRY_COUNT:-0}
+  if [ "$ENTRY_COUNT" -ge 1 ]; then
+    result PASS "SPIRE entries issued ($ENTRY_COUNT SVIDs registered for ZTA workloads)"
+  else
+    result WARN "No SPIRE entries yet" \
+      "Wait 60s after deploy for controller-manager to register pods. Verify via: kubectl -n $SPIRE_NS exec statefulset/spire-server -- /opt/spire/bin/spire-server entry show"
+  fi
+
+  # 5. Trust domain matches (helm-charts-hardened uses cm name 'spire-server')
+  TD=$(kubectl -n "$SPIRE_NS" get cm -l app.kubernetes.io/name=server \
+    -o jsonpath='{.items[*].data.server\.conf}' 2>/dev/null \
+    | grep -oE 'trust_domain *= *"[^"]+"' | head -1 \
+    | grep -oE '"[^"]+"' | tr -d '"' || echo "")
+  if [ -z "$TD" ]; then
+    # Fallback: query the running spire-server pod directly
+    TD=$(kubectl -n "$SPIRE_NS" exec statefulset/spire-server -c spire-server -- \
+      sh -c 'grep -E "trust_domain" /run/spire/config/server.conf 2>/dev/null | head -1' 2>/dev/null \
+      | grep -oE '"[^"]+"' | tr -d '"' || echo "")
+  fi
+  if [ "$TD" = "zta.job7189" ]; then
+    result PASS "SPIRE trustDomain = 'zta.job7189' (matches doc/27)"
+  elif [ -n "$TD" ]; then
+    result WARN "SPIRE trustDomain mismatch: '$TD' (expected zta.job7189)" \
+      "Update infras/k8s-yaml/spire/values.yaml + helm upgrade"
+  else
+    result WARN "Could not auto-detect SPIRE trustDomain" \
+      "kubectl -n $SPIRE_NS get cm -l app.kubernetes.io/name=server -o yaml | grep trust_domain"
+  fi
+else
+  result WARN "SPIRE not deployed" "Run scripts/zta-deploy-spire.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""
@@ -582,10 +663,26 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 CISA ZTMM 2.0 Quick Assessment"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "   Identity:      Advanced (Keycloak + Vault SA mapping)"
-echo "   Devices:       Initial  (no MDM/EDR)"
+# Dynamically reflect maturity gained by recent PRs:
+#   PR #15 (PDP)            → Identity: Advanced → Optimal
+#   PR #17 (SPIRE)          → Devices:  Initial  → Advanced
+#   PR #16 (image-trust)    → Applications: Advanced → Advanced+ (image hygiene + provenance)
+IDENTITY_TIER="Advanced (Keycloak + Vault SA mapping)"
+if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
+  IDENTITY_TIER="Optimal  (Advanced + PDP continuous label compliance)"
+fi
+DEVICES_TIER="Initial  (no MDM/EDR)"
+if kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
+  DEVICES_TIER="Advanced (SPIRE workload SVIDs, auto-rotated)"
+fi
+APPS_TIER="Advanced (Kong JWT + ZTA pipeline)"
+if kubectl get constrainttemplate k8simagedigestrequired >/dev/null 2>&1; then
+  APPS_TIER="Advanced+(Kong JWT + ZTA pipeline + image-digest/cosign trust)"
+fi
+echo "   Identity:      $IDENTITY_TIER"
+echo "   Devices:       $DEVICES_TIER"
 echo "   Networks:      $([ "$MESH_AUTH" = "true" ] && echo "Advanced+" || echo "Advanced ") (Cilium microseg$([ "$MESH_AUTH" = "true" ] && echo " + mTLS")$([ "$WIREGUARD" = "true" ] && echo " + WireGuard"))"
-echo "   Applications:  Advanced (Kong JWT + ZTA pipeline)"
+echo "   Applications:  $APPS_TIER"
 echo "   Data:          Advanced (Vault JIT + tmpfs + auto-rotate)"
 echo ""
 

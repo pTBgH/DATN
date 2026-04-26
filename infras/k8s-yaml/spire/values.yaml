@@ -1,0 +1,143 @@
+# PR #17 — SPIRE Workload Attestation
+# Helm values for spiffe/spire chart (helm-charts-hardened)
+# Repo: https://spiffe.github.io/helm-charts-hardened/
+#
+# Tuned for a small Kind cluster (4 nodes, ~11Gi total RAM):
+#   spire-server          : 200m / 256Mi  (singleton)
+#   spire-agent (DS)      : 100m / 128Mi  × N nodes
+#   spire-controller-mgr  : 100m / 128Mi
+# Total budget at 4 nodes: ~ 1m CPU / ~ 900Mi RAM.
+
+global:
+  openshift: false
+  spire:
+    # Recommendations turn on SPIKE secrets-mgmt + production hardening; for
+    # the thesis Kind cluster we keep components minimal — only the core
+    # spire-server / spire-agent / spire-controller-manager / spiffe-csi-driver.
+    recommendations:
+      enabled: false
+    # Helm chart splits components into 2 namespaces by default:
+    #   spire-system   — agent, csi-driver, oidc, controller-manager
+    #   spire-server   — server StatefulSet
+    # We collapse both into a single `spire` namespace (already created by
+    # zta-deploy-spire.sh) for simpler RBAC + CNP scoping.
+    namespaces:
+      create: false
+      system:
+        name: spire
+        create: false
+      server:
+        name: spire
+        create: false
+    clusterName: kind-job7189
+    trustDomain: zta.job7189
+    caSubject:
+      country: VN
+      organization: ZTA-job7189
+      commonName: zta.job7189
+
+# ---------------------------------------------------------------------------
+# spire-server: issuer of SVIDs. StatefulSet with PVC for trust-bundle persist.
+# ---------------------------------------------------------------------------
+spire-server:
+  fullnameOverride: spire-server
+  nameOverride: spire-server
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+
+  # Use Kind's default storage class; small footprint enough for trust bundle.
+  persistence:
+    type: pvc
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+  # Bundle endpoint: ClusterIP only (no Ingress for now — federation = future PR).
+  service:
+    type: ClusterIP
+
+  # Database: SQLite on PVC (good enough for thesis; HA-prod = postgres).
+  dataStore:
+    sql:
+      databaseType: sqlite3
+
+# ---------------------------------------------------------------------------
+# spire-agent: DaemonSet on every node — proxies workload attestation.
+# ---------------------------------------------------------------------------
+spire-agent:
+  fullnameOverride: spire-agent
+  nameOverride: spire-agent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+
+  # Tolerate control-plane node so agent runs on all 4 Kind nodes.
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+
+  # Workload API socket exposed via hostPath (default).
+  socketPath: /run/spire/agent-sockets/spire-agent.sock
+
+# ---------------------------------------------------------------------------
+# spire-controller-manager: Bridges K8s SA → SPIFFE ID via CRD.
+# ---------------------------------------------------------------------------
+spiffe-csi-driver:
+  fullnameOverride: spiffe-csi-driver
+  nameOverride: spiffe-csi-driver
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# ---------------------------------------------------------------------------
+# ClusterSPIFFEID samples (created via separate manifest, not helm).
+# ---------------------------------------------------------------------------
+spire-controller-manager:
+  fullnameOverride: spire-controller-manager
+  nameOverride: spire-controller-manager
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+
+# ---------------------------------------------------------------------------
+# spire-oidc-discovery-provider: not needed yet (used for federation).
+# ---------------------------------------------------------------------------
+spiffe-oidc-discovery-provider:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Tornjak frontend / SPIKE secrets manager: not needed for thesis demo.
+# These are off by default but explicitly disabling here so future helm
+# upgrade --reuse-values doesn't accidentally pull them in.
+# ---------------------------------------------------------------------------
+tornjak-frontend:
+  enabled: false
+spike-keeper:
+  enabled: false
+spike-nexus:
+  enabled: false
+spike-pilot:
+  enabled: false

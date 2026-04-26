@@ -1,7 +1,9 @@
+# Namespace-scoped — only fires for pods in job7189-apps.
 apiVersion: cilium.io/v1alpha1
-kind: TracingPolicy
+kind: TracingPolicyNamespaced
 metadata:
   name: monitor-sensitive-files
+  namespace: job7189-apps
 spec:
   kprobes:
   - call: "sys_openat"
@@ -18,8 +20,5 @@ spec:
         - "/etc/passwd"
         - "/proc/self/environ"
         - "/var/run/secrets/kubernetes.io"
-      matchNamespaces:
-      - namespace: job7189-apps
-        operator: In
       matchActions:
       - action: Post

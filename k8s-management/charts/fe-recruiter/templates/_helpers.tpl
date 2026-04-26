@@ -38,6 +38,21 @@ helm.sh/chart: {{ include "fe-recruiter.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{ include "fe-recruiter.ztaLabels" . }}
+{{- end }}
+
+{{/*
+ZTA workload labels (PR #9 — doc/19-label-schema.md)
+*/}}
+{{- define "fe-recruiter.ztaLabels" -}}
+{{- with .Values.zta }}
+zta.job7189/role: {{ .role | default "ui" | quote }}
+zta.job7189/tier: {{ .tier | default "T3" | quote }}
+zta.job7189/env: {{ .env | default "prod" | quote }}
+zta.job7189/data-classification: {{ .dataClassification | default "public" | quote }}
+zta.job7189/exposure: {{ .exposure | default "internal" | quote }}
+zta.job7189/team: {{ .team | default "frontend" | quote }}
+{{- end }}
 {{- end }}
 
 {{/*

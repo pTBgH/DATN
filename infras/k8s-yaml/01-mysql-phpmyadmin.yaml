@@ -46,6 +46,13 @@ kind: Deployment
 metadata:
   name: mysql
   namespace: data
+  labels:
+    zta.job7189/role: db
+    zta.job7189/tier: T1
+    zta.job7189/env: prod
+    zta.job7189/data-classification: confidential
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: data
 spec:
   selector:
     matchLabels:
@@ -54,6 +61,12 @@ spec:
     metadata:
       labels:
         app: mysql
+        zta.job7189/role: db
+        zta.job7189/tier: T1
+        zta.job7189/env: prod
+        zta.job7189/data-classification: confidential
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: data
     spec:
       serviceAccountName: mysql
       initContainers:
@@ -207,6 +220,13 @@ kind: Deployment
 metadata:
   name: phpmyadmin
   namespace: management
+  labels:
+    zta.job7189/role: ui
+    zta.job7189/tier: T3
+    zta.job7189/env: prod
+    zta.job7189/data-classification: internal
+    zta.job7189/exposure: internal
+    zta.job7189/team: platform
 spec:
   selector:
     matchLabels:
@@ -215,6 +235,12 @@ spec:
     metadata:
       labels:
         app: phpmyadmin
+        zta.job7189/role: ui
+        zta.job7189/tier: T3
+        zta.job7189/env: prod
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: internal
+        zta.job7189/team: platform
     spec:
       serviceAccountName: phpmyadmin
       containers:

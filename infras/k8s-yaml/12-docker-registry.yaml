@@ -29,6 +29,12 @@ metadata:
   namespace: registry
   labels:
     app: docker-registry
+    zta.job7189/role: db
+    zta.job7189/tier: T3
+    zta.job7189/env: prod
+    zta.job7189/data-classification: none
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: platform
 spec:
   replicas: 1
   selector:
@@ -38,6 +44,12 @@ spec:
     metadata:
       labels:
         app: docker-registry
+        zta.job7189/role: db
+        zta.job7189/tier: T3
+        zta.job7189/env: prod
+        zta.job7189/data-classification: none
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: platform
     spec:
       serviceAccountName: docker-registry
       containers:

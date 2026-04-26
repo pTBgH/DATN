@@ -14,6 +14,12 @@ metadata:
   name: {{ .Release.Name }}-redis
   labels:
     app: {{ .Release.Name }}-redis
+    zta.job7189/role: "cache"
+    zta.job7189/tier: {{ .Values.zta.tier | default "T2" | quote }}
+    zta.job7189/env: {{ .Values.zta.env | default "prod" | quote }}
+    zta.job7189/data-classification: {{ .Values.zta.dataClassification | default "internal" | quote }}
+    zta.job7189/exposure: "cluster-only"
+    zta.job7189/team: {{ .Values.zta.team | default "backend" | quote }}
 spec:
   replicas: 1
   selector:
@@ -23,6 +29,12 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}-redis
+        zta.job7189/role: "cache"
+        zta.job7189/tier: {{ .Values.zta.tier | default "T2" | quote }}
+        zta.job7189/env: {{ .Values.zta.env | default "prod" | quote }}
+        zta.job7189/data-classification: {{ .Values.zta.dataClassification | default "internal" | quote }}
+        zta.job7189/exposure: "cluster-only"
+        zta.job7189/team: {{ .Values.zta.team | default "backend" | quote }}
     spec:
       serviceAccountName: {{ .Release.Name }}-redis
       containers:

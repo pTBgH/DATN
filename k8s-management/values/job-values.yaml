@@ -36,3 +36,12 @@ vault:
   extraSecret: false
 
 
+
+# ZTA workload labels (PR #9 — doc/19-label-schema.md)
+zta:
+  role: api
+  tier: T2
+  env: prod
+  dataClassification: internal
+  exposure: internal
+  team: backend

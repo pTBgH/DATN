@@ -4,6 +4,14 @@ metadata:
   name: {{ .Release.Name }}
   labels:
     app: {{ .Release.Name }}
+    {{- with .Values.zta }}
+    zta.job7189/role: {{ .role | default "api" | quote }}
+    zta.job7189/tier: {{ .tier | default "T2" | quote }}
+    zta.job7189/env: {{ .env | default "prod" | quote }}
+    zta.job7189/data-classification: {{ .dataClassification | default "internal" | quote }}
+    zta.job7189/exposure: {{ .exposure | default "internal" | quote }}
+    zta.job7189/team: {{ .team | default "backend" | quote }}
+    {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -13,6 +21,14 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}
+        {{- with .Values.zta }}
+        zta.job7189/role: {{ .role | default "api" | quote }}
+        zta.job7189/tier: {{ .tier | default "T2" | quote }}
+        zta.job7189/env: {{ .env | default "prod" | quote }}
+        zta.job7189/data-classification: {{ .dataClassification | default "internal" | quote }}
+        zta.job7189/exposure: {{ .exposure | default "internal" | quote }}
+        zta.job7189/team: {{ .team | default "backend" | quote }}
+        {{- end }}
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/agent-init-first: "true"

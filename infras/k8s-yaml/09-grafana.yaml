@@ -62,6 +62,13 @@ kind: Deployment
 metadata:
   name: grafana
   namespace: monitoring
+  labels:
+    zta.job7189/role: ui
+    zta.job7189/tier: T2
+    zta.job7189/env: prod
+    zta.job7189/data-classification: internal
+    zta.job7189/exposure: internal
+    zta.job7189/team: platform
 spec:
   replicas: 1
   selector:
@@ -71,6 +78,12 @@ spec:
     metadata:
       labels:
         app: grafana
+        zta.job7189/role: ui
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: internal
+        zta.job7189/team: platform
     spec:
       serviceAccountName: grafana
       containers:

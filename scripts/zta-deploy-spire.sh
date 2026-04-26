@@ -115,13 +115,35 @@ helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
   -n "$NAMESPACE" \
   --wait --timeout=120s
 
+# Recover from a previous failed install: chart leaves orphan ConfigMaps when
+# install fails (e.g. namespace mismatch), which then break helm upgrade with
+# "release: failed" status. Uninstall stale release before re-install.
+if helm list -n "$NAMESPACE" --all 2>/dev/null | awk 'NR>1 {print $1, $8}' | grep -E '^spire (failed|pending-install|uninstalling)$' >/dev/null; then
+  yellow "    detected stale failed 'spire' release — cleaning up before re-install"
+  helm uninstall spire -n "$NAMESPACE" 2>/dev/null || true
+  # Remove orphan ConfigMaps left by failed install
+  kubectl -n "$NAMESPACE" delete cm -l app.kubernetes.io/managed-by=Helm --ignore-not-found 2>/dev/null || true
+  sleep 3
+fi
+
 blue "[3/5] Installing spire (server + agent + controller-manager)..."
 helm upgrade --install spire "$SPIRE_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout=300s || {
-  red "  ✗ helm install/upgrade failed"
+  --wait --timeout=480s || {
+  red "  ✗ helm install/upgrade failed — common causes:"
+  red "      1. namespaces 'spire-system'/'spire-server' not found"
+  red "         → ensure values.yaml sets global.spire.namespaces.{system,server}.name=$NAMESPACE"
+  red "      2. PVC not bound (missing default StorageClass)"
+  red "         → kubectl get sc; expect rancher.io/local-path on Kind"
+  red "      3. Image pull rate-limited"
+  red "         → kubectl -n $NAMESPACE describe pod | grep -i 'image'"
+  echo
   kubectl -n "$NAMESPACE" get pod
+  echo
+  yellow "  Recover with:"
+  yellow "    bash scripts/zta-deploy-spire.sh --uninstall"
+  yellow "    bash scripts/zta-deploy-spire.sh"
   exit 1
 }
 

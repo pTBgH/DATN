@@ -11,12 +11,24 @@
 global:
   openshift: false
   spire:
+    # Recommendations turn on SPIKE secrets-mgmt + production hardening; for
+    # the thesis Kind cluster we keep components minimal — only the core
+    # spire-server / spire-agent / spire-controller-manager / spiffe-csi-driver.
     recommendations:
-      enabled: true
+      enabled: false
+    # Helm chart splits components into 2 namespaces by default:
+    #   spire-system   — agent, csi-driver, oidc, controller-manager
+    #   spire-server   — server StatefulSet
+    # We collapse both into a single `spire` namespace (already created by
+    # zta-deploy-spire.sh) for simpler RBAC + CNP scoping.
     namespaces:
-      # We pre-create `security` ourselves; let SPIRE chart skip namespace
-      # mgmt to avoid label collisions with default-deny CNP.
       create: false
+      system:
+        name: spire
+        create: false
+      server:
+        name: spire
+        create: false
     clusterName: kind-job7189
     trustDomain: zta.job7189
     caSubject:
@@ -114,4 +126,18 @@ spire-controller-manager:
 # spire-oidc-discovery-provider: not needed yet (used for federation).
 # ---------------------------------------------------------------------------
 spiffe-oidc-discovery-provider:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Tornjak frontend / SPIKE secrets manager: not needed for thesis demo.
+# These are off by default but explicitly disabling here so future helm
+# upgrade --reuse-values doesn't accidentally pull them in.
+# ---------------------------------------------------------------------------
+tornjak-frontend:
+  enabled: false
+spike-keeper:
+  enabled: false
+spike-nexus:
+  enabled: false
+spike-pilot:
   enabled: false

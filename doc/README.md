@@ -52,7 +52,12 @@ Cap nhat: 2026-04-26 (19 files)
 | PIP, Data Sources, NIST Figure 2 | `16` |
 | Hubble baseline, DAAS prep | `17` |
 | DAAS classification, tier, microperimeter | `18` |
+| Label schema 6 ZTA criteria | `19` |
+| 5W1H policy matrix + L7 enforcement | `20` |
 | Audit findings F-1/F-2/F-4 + Vault rotation | `22` |
+| Rebuild from scratch (zta-rebuild.sh) | `23` |
+| Adaptive Security Loop (Gatekeeper + Tetragon) | `24` |
+| PDP Controller (continuous label compliance) | `25` |
 
 ## Archive
 

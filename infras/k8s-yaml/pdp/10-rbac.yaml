@@ -1,0 +1,55 @@
+# =============================================================================
+# PDP Controller RBAC — list/watch/patch pods in 7 ZTA namespaces.
+# Step 2.3.6 — Adaptive Loop Closure
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zta-pdp
+  namespace: security
+  labels:
+    cilium.zta/tier: T1
+    cilium.zta/source: zta-pdp
+    cilium.zta/destination: kube-apiserver
+    cilium.zta/role: control-plane
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: zta-pdp
+rules:
+# Watch pods + patch annotations across all ZTA namespaces
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "patch"]
+# kopf framework needs events + leases
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Read namespaces (validate ZTA scope)
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+# kopf framework needs to list CRDs at startup to discover installed
+# custom resources (even though we only watch Pods).
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zta-pdp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: zta-pdp
+subjects:
+- kind: ServiceAccount
+  name: zta-pdp
+  namespace: security

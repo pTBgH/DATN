@@ -1,0 +1,131 @@
+---
+# PR #20 — SPIRE Workload Integration demo workload.
+#
+# A minimal pod that consumes the SPIFFE Workload API socket via the
+# csi.spiffe.io ephemeral CSI driver (provided by PR #17). It runs
+# `spire-agent api fetch x509 -timeout 5s -socketPath ...` in a loop and
+# logs the issued SVID. The pod proves end-to-end SPIRE attestation:
+#   spire-controller-manager  →  spire-server (issue entry)  →  spire-agent
+#   (workload-attest pod)     →  Workload API socket (CSI mount)
+#   →  spire-agent CLI (this pod) prints SVID PEM.
+#
+# Lift CISA ZTMM Devices: Advanced (issuance) → toward Optimal (consumption).
+#
+# Resource budget: ~10m CPU / 32Mi RAM (single tiny container).
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-demo-workload
+  namespace: security
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-demo-workload
+  namespace: security
+  labels:
+    app: spire-demo-workload
+    cilium.zta/role: spire-demo
+    cilium.zta/tier: t2
+    cilium.zta/exposure: internal
+    cilium.zta/data-class: public
+    cilium.zta/lifecycle: prod
+    cilium.zta/identity: workload
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-demo-workload
+  template:
+    metadata:
+      labels:
+        app: spire-demo-workload
+        cilium.zta/role: spire-demo
+        cilium.zta/tier: t2
+        cilium.zta/exposure: internal
+        cilium.zta/data-class: public
+        cilium.zta/lifecycle: prod
+        cilium.zta/identity: workload
+    spec:
+      serviceAccountName: spire-demo-workload
+      automountServiceAccountToken: false
+      containers:
+      - name: spire-agent-fetcher
+        image: ghcr.io/spiffe/spire-agent:1.9.0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          echo "spire-demo-workload starting; trustDomain=zta.job7189"
+          echo "Waiting for SPIFFE Workload API socket /spiffe-workload-api/spire-agent.sock ..."
+          for i in $(seq 1 30); do
+            if [ -S /spiffe-workload-api/spire-agent.sock ]; then break; fi
+            sleep 2
+          done
+          if [ ! -S /spiffe-workload-api/spire-agent.sock ]; then
+            echo "ERROR: socket not present after 60s; check spire-agent DS health"
+            exit 1
+          fi
+          echo "Workload API socket ready, fetching SVID ..."
+          while true; do
+            ts=$(date -u +%FT%TZ)
+            if /opt/spire/bin/spire-agent api fetch x509 \
+                 -socketPath /spiffe-workload-api/spire-agent.sock \
+                 -timeout 5s 2>&1 | grep -q "SPIFFE ID"; then
+              SPIFFE_ID=$(/opt/spire/bin/spire-agent api fetch x509 \
+                 -socketPath /spiffe-workload-api/spire-agent.sock \
+                 -timeout 5s 2>/dev/null | awk '/SPIFFE ID/ {print $3; exit}')
+              echo "[$ts] svid_acquired spiffe_id=$SPIFFE_ID"
+            else
+              echo "[$ts] svid_fetch_pending workload_attestation_in_progress"
+            fi
+            sleep 30
+          done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 24Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts:
+        - name: spiffe-workload-api
+          mountPath: /spiffe-workload-api
+          readOnly: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+      volumes:
+      # Ephemeral CSI volume provided by spiffe-csi-driver (PR #17).
+      # Each pod gets its own private socket bind-mounted from the host,
+      # which spire-agent uses for workload attestation (UID, labels, SA).
+      - name: spiffe-workload-api
+        csi:
+          driver: csi.spiffe.io
+          readOnly: true
+
+---
+# ClusterSPIFFEID rule for the demo workload — gives it SVID
+#   spiffe://zta.job7189/ns/security/sa/spire-demo-workload
+# already covered by zta-default-workload-identity (PR #17), but we add an
+# explicit rule for clarity + so the controller-manager registers the entry
+# even before generic Cilium ZTA labels propagate.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: zta-spire-demo-workload
+spec:
+  spiffeIDTemplate: "spiffe://zta.job7189/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  podSelector:
+    matchLabels:
+      app: spire-demo-workload
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: security

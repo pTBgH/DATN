@@ -686,6 +686,79 @@ else
 fi
 
 # ========================
+# Test 4k: SPIRE Workload Integration (PR #20 — doc/29-spire-workload-integration.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔗 Test 4k: SPIRE Workload Integration (consume SVID via Workload API)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+DEMO_NS="${SPIRE_DEMO_NS:-security}"
+DEMO_NAME="${SPIRE_DEMO_NAME:-spire-demo-workload}"
+if kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" >/dev/null 2>&1; then
+  # 1. Demo deployment Ready
+  DEMO_READY=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  DEMO_DESIRED=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+  DEMO_READY=${DEMO_READY:-0}
+  if [ "$DEMO_READY" = "$DEMO_DESIRED" ] && [ "$DEMO_READY" -ge 1 ]; then
+    result PASS "$DEMO_NAME deployment Ready ($DEMO_READY/$DEMO_DESIRED)"
+  else
+    result FAIL "$DEMO_NAME not Ready ($DEMO_READY/$DEMO_DESIRED)" \
+      "kubectl -n $DEMO_NS describe pod -l app=$DEMO_NAME"
+  fi
+
+  # 2. CSI volume mount referencing csi.spiffe.io present in pod spec
+  CSI_VOL=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.spec.template.spec.volumes[?(@.csi.driver=="csi.spiffe.io")].name}' 2>/dev/null)
+  if [ -n "$CSI_VOL" ]; then
+    result PASS "Pod consumes csi.spiffe.io ephemeral volume ($CSI_VOL)"
+  else
+    result FAIL "Pod does not mount csi.spiffe.io volume" \
+      "kubectl -n $DEMO_NS get deploy $DEMO_NAME -o yaml | grep -A2 volumes"
+  fi
+
+  # 3. ClusterSPIFFEID rule for demo workload registered
+  if kubectl get clusterspiffeid zta-spire-demo-workload >/dev/null 2>&1; then
+    result PASS "ClusterSPIFFEID 'zta-spire-demo-workload' registered"
+  else
+    result WARN "ClusterSPIFFEID 'zta-spire-demo-workload' missing" \
+      "kubectl apply -f infras/k8s-yaml/spire/spire-demo-workload.yaml"
+  fi
+
+  # 4. Pod logs contain svid_acquired line (workload actually fetched SVID).
+  SVID_LOG=$(kubectl -n "$DEMO_NS" logs deploy/"$DEMO_NAME" --tail=60 2>/dev/null \
+    | grep -E '(svid_acquired|svid_fetch_pending)' | tail -1)
+  if echo "$SVID_LOG" | grep -q "svid_acquired"; then
+    SPIFFE_ID=$(echo "$SVID_LOG" | sed -n 's/.*spiffe_id=\(spiffe:[^ ]*\).*/\1/p')
+    result PASS "Demo workload fetched SVID via Workload API (id=${SPIFFE_ID:-unknown})"
+  elif echo "$SVID_LOG" | grep -q "svid_fetch_pending"; then
+    result WARN "Demo workload still attesting (controller-manager registering entry)" \
+      "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=10"
+  else
+    result WARN "No SVID-acquired log line yet — wait 30s + re-run" \
+      "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=10"
+  fi
+
+  # 5. SPIRE entry exists for the demo workload's SPIFFE ID
+  ENTRIES=$(kubectl -n spire exec statefulset/spire-server -c spire-server -- \
+    /opt/spire/bin/spire-server entry show \
+    -socketPath /tmp/spire-server/private/api.sock 2>/dev/null \
+    | grep -c "sa/$DEMO_NAME" || echo 0)
+  ENTRIES=${ENTRIES:-0}
+  if [ "$ENTRIES" -ge 1 ]; then
+    result PASS "SPIRE entry registered for $DEMO_NAME ($ENTRIES entries)"
+  else
+    result WARN "No SPIRE entry yet for sa/$DEMO_NAME — wait for controller-manager" \
+      "kubectl -n spire logs deploy/spire-spire-controller-manager --tail=20"
+  fi
+else
+  result WARN "SPIRE workload integration demo not deployed" \
+    "Run scripts/zta-spire-onboard-demo.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""
@@ -746,9 +819,13 @@ IDENTITY_TIER="Advanced (Keycloak + Vault SA mapping)"
 if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
   IDENTITY_TIER="Optimal  (Advanced + PDP continuous label compliance)"
 fi
-DEVICES_TIER="Initial  (no MDM/EDR)"
-if kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
-  DEVICES_TIER="Advanced (SPIRE workload SVIDs, auto-rotated)"
+# Highest Devices tier wins.
+if kubectl -n security get deploy spire-demo-workload >/dev/null 2>&1; then
+  DEVICES_TIER="Optimal  (PR #20: SPIRE SVID consumed by workload via CSI Workload API)"
+elif kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
+  DEVICES_TIER="Advanced (PR #17: SPIRE workload SVIDs issued, auto-rotated)"
+else
+  DEVICES_TIER="Initial  (no MDM/EDR)"
 fi
 # Highest tier wins; check most-advanced first to avoid override-order bugs.
 if kubectl get clusterimagepolicy zta-job7189-apps-signed >/dev/null 2>&1; then

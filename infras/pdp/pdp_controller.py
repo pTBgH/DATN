@@ -185,8 +185,11 @@ def reconcile_loop(api: client.CoreV1Api) -> None:
 # Bootstrap
 # ---------------------------------------------------------------------------
 @kopf.on.startup()
-def on_startup(**_kwargs):
+def on_startup(settings: kopf.OperatorSettings, **_kwargs):
     log.info(f'startup":"namespaces":"{",".join(ZTA_NAMESPACES)}","prom":"{PROMETHEUS_PORT}"')
+    # Disable kopf's posting of events (we use stdout audit log instead)
+    settings.posting.enabled = False
+    # Bind Prometheus metrics endpoint
     start_http_server(PROMETHEUS_PORT)
     try:
         config.load_incluster_config()
@@ -194,3 +197,10 @@ def on_startup(**_kwargs):
         config.load_kube_config()
     api = client.CoreV1Api()
     threading.Thread(target=reconcile_loop, args=(api,), daemon=True).start()
+
+
+# ---------------------------------------------------------------------------
+# Entrypoint — invoked via `python /app/pdp_controller.py`
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    kopf.run(clusterwide=True, standalone=True)

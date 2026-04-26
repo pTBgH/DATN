@@ -56,10 +56,16 @@ spec:
         args:
         - |
           set -eu
-          echo "[init] Installing kopf + kubernetes + prometheus_client..."
-          pip install --no-cache-dir --target=/tmp/pylibs -r /app/requirements.txt
-          echo "[init] Starting PDP controller..."
           export PYTHONPATH=/tmp/pylibs
+          # Skip pip install if cached from previous container restart
+          # (emptyDir persists across restarts within same pod).
+          if [ ! -d /tmp/pylibs/kopf ]; then
+            echo "[init] Installing kopf + kubernetes + prometheus_client to /tmp/pylibs..."
+            pip install --no-cache-dir --target=/tmp/pylibs -r /app/requirements.txt
+          else
+            echo "[init] Found cached libs in /tmp/pylibs (container restart)"
+          fi
+          echo "[init] Starting PDP controller (kopf clusterwide standalone)..."
           exec python /app/pdp_controller.py
         env:
         - name: ZTA_NAMESPACES

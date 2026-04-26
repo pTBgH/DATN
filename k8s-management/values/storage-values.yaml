@@ -70,3 +70,12 @@ vault:
   # # Bắt buộc để dùng MinIO thay vì AWS thật
   # AWS_USE_PATH_STYLE_ENDPOINT: "true"
   
+
+# ZTA workload labels (PR #9 — doc/19-label-schema.md)
+zta:
+  role: api
+  tier: T2
+  env: prod
+  dataClassification: internal
+  exposure: internal
+  team: backend

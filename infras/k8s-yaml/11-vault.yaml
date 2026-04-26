@@ -27,6 +27,13 @@ kind: Deployment
 metadata:
   name: vault-dev
   namespace: vault
+  labels:
+    zta.job7189/role: secret-store
+    zta.job7189/tier: T1
+    zta.job7189/env: dev
+    zta.job7189/data-classification: internal
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: security
 spec:
   replicas: 1
   selector:
@@ -36,6 +43,12 @@ spec:
     metadata:
       labels:
         app: vault-dev
+        zta.job7189/role: secret-store
+        zta.job7189/tier: T1
+        zta.job7189/env: dev
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: security
     spec:
       serviceAccountName: vault-dev
       containers:
@@ -160,6 +173,13 @@ kind: StatefulSet
 metadata:
   name: vault
   namespace: vault
+  labels:
+    zta.job7189/role: secret-store
+    zta.job7189/tier: T1
+    zta.job7189/env: prod
+    zta.job7189/data-classification: confidential
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: security
 spec:
   serviceName: vault
   replicas: 1
@@ -170,6 +190,12 @@ spec:
     metadata:
       labels:
         app: vault
+        zta.job7189/role: secret-store
+        zta.job7189/tier: T1
+        zta.job7189/env: prod
+        zta.job7189/data-classification: confidential
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: security
     spec:
       serviceAccountName: vault
       # Chờ vault-dev sẵn sàng trước khi vault-prod start

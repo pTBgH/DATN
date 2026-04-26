@@ -47,3 +47,12 @@ env:
     value: job7189
   - name: NEXT_PUBLIC_KEYCLOAK_CLIENT_ID
     value: fe-recruiter
+
+# ZTA workload labels (PR #9 — doc/19-label-schema.md)
+zta:
+  role: ui
+  tier: T3
+  env: prod
+  dataClassification: public
+  exposure: internal
+  team: frontend

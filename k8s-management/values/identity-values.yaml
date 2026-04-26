@@ -43,3 +43,12 @@ vault:
     LARAVEL_INTERNAL_API_SECRET="{{ .Data.data.LARAVEL_INTERNAL_API_SECRET }}"
     {{ end }}
 
+
+# ZTA workload labels (PR #9 — doc/19-label-schema.md)
+zta:
+  role: api
+  tier: T1
+  env: prod
+  dataClassification: confidential
+  exposure: internal
+  team: backend

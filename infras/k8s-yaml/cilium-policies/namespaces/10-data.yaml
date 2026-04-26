@@ -125,6 +125,48 @@ spec:
       - port: "9093"
         protocol: TCP
 ---
+# 4c) Intra-namespace traffic trong job7189-apps:
+#     Mỗi microservice có Redis riêng (vd: hiring-service-redis), gọi nội bộ
+#     qua port 6379. Cho phép intra-ns traffic trên các port service phổ biến
+#     (Redis 6379, Octane 9000, HTTP 80). PR #10 sẽ refine theo từng workload
+#     (5W1H matrix), còn ở PR #8 cho phép broad intra-ns để default-deny không
+#     break các microservice cùng tin cậy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apps-intra-ns-services
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "6379"   # Redis
+        protocol: TCP
+      - port: "9000"   # Laravel Octane
+        protocol: TCP
+      - port: "80"     # HTTP
+        protocol: TCP
+      - port: "8080"   # HTTP alt
+        protocol: TCP
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "6379"
+        protocol: TCP
+      - port: "9000"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+---
 # 5) Kafka ingress: từ kafbat (admin UI)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

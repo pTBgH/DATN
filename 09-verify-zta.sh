@@ -834,6 +834,92 @@ else
 fi
 
 # ========================
+# Test 4m: Falco runtime detection (PR #22 — doc/31-falco-runtime-detection.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚨 Test 4m: Falco runtime detection (eBPF + custom ZTA rules)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+FALCO_NS="${FALCO_NS:-falco}"
+if kubectl -n "$FALCO_NS" get ds falco >/dev/null 2>&1; then
+  # 1. Falco DaemonSet covers all nodes
+  F_DESIRED=$(kubectl -n "$FALCO_NS" get ds falco \
+    -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+  F_READY=$(kubectl -n "$FALCO_NS" get ds falco \
+    -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+  F_DESIRED=${F_DESIRED:-0}
+  F_READY=${F_READY:-0}
+  if [ "$F_READY" -ge 1 ] && [ "$F_READY" = "$F_DESIRED" ]; then
+    result PASS "falco DaemonSet covers all nodes ($F_READY/$F_DESIRED)"
+  else
+    result FAIL "falco DS incomplete ($F_READY/$F_DESIRED)" \
+      "kubectl -n $FALCO_NS describe ds falco | tail -30"
+  fi
+
+  # 2. Falcosidekick Deployment Ready
+  if kubectl -n "$FALCO_NS" get deploy falco-falcosidekick >/dev/null 2>&1; then
+    SK_READY=$(kubectl -n "$FALCO_NS" get deploy falco-falcosidekick \
+      -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+    SK_READY=${SK_READY:-0}
+    if [ "$SK_READY" -ge 1 ]; then
+      result PASS "falcosidekick Deployment Ready ($SK_READY)"
+    else
+      result FAIL "falcosidekick Deployment not Ready" \
+        "kubectl -n $FALCO_NS describe deploy falco-falcosidekick"
+    fi
+  else
+    result WARN "falcosidekick Deployment missing" \
+      "Re-run scripts/zta-deploy-falco.sh"
+  fi
+
+  # 3. eBPF driver successfully loaded (no driver error in logs)
+  DRIVER_STATUS=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=200 2>/dev/null \
+    | grep -E "(loading rules|engine|driver)" | tail -3)
+  if echo "$DRIVER_STATUS" | grep -qiE "(modern_ebpf|ebpf).*loaded|engine.*started|loading rules"; then
+    result PASS "Falco eBPF driver loaded + rules engine running"
+  else
+    DRIVER_ERR=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=100 2>/dev/null \
+      | grep -iE "(error|fatal).*driver" | tail -1)
+    if [ -n "$DRIVER_ERR" ]; then
+      result FAIL "Falco driver init failed: ${DRIVER_ERR:0:80}..." \
+        "kubectl -n $FALCO_NS logs ds/falco -c falco --tail=40"
+    else
+      result WARN "Falco driver status unclear" \
+        "kubectl -n $FALCO_NS logs ds/falco -c falco --tail=30"
+    fi
+  fi
+
+  # 4. ZTA custom rules loaded (count rules with 'ZTA' tag)
+  ZTA_RULE_COUNT=$(kubectl -n "$FALCO_NS" exec ds/falco -c falco -- \
+    sh -c 'grep -c "^- rule: ZTA" /etc/falco/rules.d/zta-rules.yaml 2>/dev/null' 2>/dev/null \
+    | tr -d '[:space:]' || echo 0)
+  ZTA_RULE_COUNT=${ZTA_RULE_COUNT:-0}
+  if [ "$ZTA_RULE_COUNT" -ge 5 ]; then
+    result PASS "ZTA custom rules loaded ($ZTA_RULE_COUNT rules in zta-rules.yaml)"
+  elif [ "$ZTA_RULE_COUNT" -ge 1 ]; then
+    result WARN "Only $ZTA_RULE_COUNT ZTA rules loaded (expected >=5)" \
+      "Check infras/k8s-yaml/falco/values.yaml customRules section"
+  else
+    result FAIL "No ZTA custom rules loaded" \
+      "kubectl -n $FALCO_NS exec ds/falco -c falco -- ls /etc/falco/rules.d/"
+  fi
+
+  # 5. Falcosidekick connected to Elasticsearch (logs reference ES URL or POSTs)
+  SK_LOG=$(kubectl -n "$FALCO_NS" logs deploy/falco-falcosidekick --tail=80 2>/dev/null \
+    | grep -E "(elasticsearch|Elasticsearch)" | tail -1)
+  if [ -n "$SK_LOG" ]; then
+    result PASS "falcosidekick configured for Elasticsearch (sink active)"
+  else
+    result WARN "No falcosidekick→ES log line yet — alerts may not have flowed" \
+      "kubectl -n $FALCO_NS logs deploy/falco-falcosidekick --tail=20"
+  fi
+else
+  result WARN "Falco runtime detection not deployed" \
+    "Run scripts/zta-deploy-falco.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

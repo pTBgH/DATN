@@ -1,0 +1,90 @@
+# =============================================================================
+# PR #10 — L7 enforcement: Keycloak OIDC
+# Reference: doc/20-5w1h-policy-matrix.md row #7-8
+#
+# Keycloak admin console (/admin) chỉ accessible từ host (operator); workload
+# chỉ cần realm endpoints (login, token, jwks, userinfo).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-keycloak-oidc-allowlist
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+      zta.job7189/role: sso
+  ingress:
+  # 1) oauth2-proxy + Kong + ingress-nginx + apps — chỉ realm endpoint
+  - fromEndpoints:
+    - matchExpressions:
+      - key: zta.job7189/role
+        operator: In
+        values: ["proxy", "api"]
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        zta.job7189/role: proxy
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      rules:
+        http:
+        # OIDC discovery + JWKS
+        - method: "GET"
+          path: "/realms/zta/.well-known/openid-configuration"
+        - method: "GET"
+          path: "/realms/zta/protocol/openid-connect/certs"
+        # Auth flow
+        - method: "GET"
+          path: "/realms/zta/protocol/openid-connect/auth"
+        - method: "POST"
+          path: "/realms/zta/protocol/openid-connect/auth"
+        - method: "POST"
+          path: "/realms/zta/protocol/openid-connect/token"
+        - method: "GET"
+          path: "/realms/zta/protocol/openid-connect/userinfo"
+        - method: "POST"
+          path: "/realms/zta/protocol/openid-connect/userinfo"
+        - method: "GET"
+          path: "/realms/zta/protocol/openid-connect/logout"
+        - method: "POST"
+          path: "/realms/zta/protocol/openid-connect/logout"
+        # Login form static assets
+        - method: "GET"
+          path: "/realms/zta/login-actions/.*"
+        - method: "POST"
+          path: "/realms/zta/login-actions/.*"
+        - method: "GET"
+          path: "/resources/.*"
+  # 2) Admin console — chỉ host/remote-node (operator port-forward)
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/admin/.*"
+        - method: "POST"
+          path: "/admin/.*"
+        - method: "PUT"
+          path: "/admin/.*"
+        - method: "DELETE"
+          path: "/admin/.*"
+        - method: "GET"
+          path: "/realms/master/.*"
+        - method: "POST"
+          path: "/realms/master/.*"
+        - method: "GET"
+          path: "/health.*"
+        - method: "GET"
+          path: "/metrics"

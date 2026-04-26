@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# scripts/zta-deploy-policy-controller.sh
+#
+# Deploy sigstore policy-controller (admission webhook) for real Cosign
+# signature verification of container images. Closes the gap left by PR #16
+# Gatekeeper image-trust constraints which only check annotations.
+#
+# Workflow:
+#   1. helm install policy-controller into ns 'cosign-system'
+#   2. Read cosign public key from PR #16 ConfigMap
+#      (security/zta-cosign-public-key) and patch into ClusterImagePolicy
+#      'zta-job7189-apps-signed'
+#   3. Apply 3 ClusterImagePolicy rules:
+#        - zta-system-passthrough  (allow infra images)
+#        - zta-job7189-apps-signed (require Cosign sig in job7189-apps)
+#        - zta-keyless-trust-job7189 (optional, GHA-keyless)
+#   4. Label namespace `job7189-apps` to opt-in:
+#        kubectl label ns job7189-apps policy.sigstore.dev/include=true
+#
+# Usage:
+#   bash scripts/zta-deploy-policy-controller.sh                # install
+#   bash scripts/zta-deploy-policy-controller.sh --uninstall    # remove
+#   bash scripts/zta-deploy-policy-controller.sh --policies-only
+#
+# Resource budget: ~150-300Mi RAM, ~120-450m CPU.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$SCRIPT_DIR"
+
+NAMESPACE="${PC_NAMESPACE:-cosign-system}"
+APP_NAMESPACE="${APP_NAMESPACE:-job7189-apps}"
+COSIGN_CM_NS="${COSIGN_CM_NS:-security}"
+COSIGN_CM_NAME="${COSIGN_CM_NAME:-zta-cosign-public-key}"
+COSIGN_CM_KEY="${COSIGN_CM_KEY:-cosign-public-key.pem}"
+
+HELM_REPO_NAME="sigstore"
+HELM_REPO_URL="https://sigstore.github.io/helm-charts"
+HELM_CHART="${HELM_REPO_NAME}/policy-controller"
+HELM_RELEASE="policy-controller"
+
+VALUES_FILE="$SCRIPT_DIR/infras/k8s-yaml/policy-controller/values.yaml"
+CIP_FILE="$SCRIPT_DIR/infras/k8s-yaml/policy-controller/cluster-image-policies.yaml"
+
+UNINSTALL=0
+POLICIES_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --uninstall) UNINSTALL=1 ;;
+    --policies-only) POLICIES_ONLY=1 ;;
+    -h|--help) sed -n '2,28p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    *) echo "Unknown flag: $arg" >&2; exit 1 ;;
+  esac
+done
+
+red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
+green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
+blue()   { printf '\033[0;34m%s\033[0m\n' "$*"; }
+
+# ---------------------------------------------------------------
+# Helper: read cosign pub key + patch into CIP YAML inline
+# ---------------------------------------------------------------
+apply_policies_with_key() {
+  if ! kubectl get cm -n "$COSIGN_CM_NS" "$COSIGN_CM_NAME" >/dev/null 2>&1; then
+    red "ERROR: cosign public key ConfigMap $COSIGN_CM_NS/$COSIGN_CM_NAME not found"
+    red "       Run scripts/zta-cosign-keygen.sh first (PR #16)"
+    exit 1
+  fi
+
+  PUB_KEY_PEM=$(kubectl get cm -n "$COSIGN_CM_NS" "$COSIGN_CM_NAME" \
+    -o jsonpath="{.data.$COSIGN_CM_KEY}" 2>/dev/null)
+  if [ -z "$PUB_KEY_PEM" ]; then
+    red "ERROR: ConfigMap $COSIGN_CM_NS/$COSIGN_CM_NAME has empty data.$COSIGN_CM_KEY"
+    exit 1
+  fi
+
+  # Render the public key with proper YAML indentation (8 spaces -> matches
+  # spec.authorities[].key.data pipe block).
+  PUB_KEY_INDENTED=$(echo "$PUB_KEY_PEM" | sed 's/^/        /')
+
+  TMP_FILE="$(mktemp)"
+
+  # awk replaces only the lines between BEGIN/END of the placeholder block.
+  awk -v key="$PUB_KEY_INDENTED" '
+    /-----BEGIN PUBLIC KEY-----/ { in_block = 1; print key; next }
+    /-----END PUBLIC KEY-----/   { in_block = 0; next }
+    in_block { next }
+    { print }
+  ' "$CIP_FILE" > "$TMP_FILE"
+
+  kubectl apply -f "$TMP_FILE"
+  rm -f "$TMP_FILE"
+}
+
+blue "============================================================"
+blue " ZTA Step 2.3.9 — sigstore policy-controller"
+blue "   namespace:        $NAMESPACE"
+blue "   app namespace:    $APP_NAMESPACE"
+blue "   cosign key cm:    $COSIGN_CM_NS/$COSIGN_CM_NAME"
+blue "============================================================"
+
+# ---------------------------------------------------------------
+# UNINSTALL
+# ---------------------------------------------------------------
+if [ "$UNINSTALL" -eq 1 ]; then
+  yellow "[1/4] Removing ClusterImagePolicy resources..."
+  kubectl delete clusterimagepolicy zta-system-passthrough zta-job7189-apps-signed zta-keyless-trust-job7189 --ignore-not-found 2>&1 | sed 's/^/    /' || true
+
+  yellow "[2/4] Removing namespace opt-in label..."
+  kubectl label ns "$APP_NAMESPACE" policy.sigstore.dev/include- 2>/dev/null || true
+
+  yellow "[3/4] Uninstalling helm release..."
+  if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "^${HELM_RELEASE}"; then
+    helm uninstall "$HELM_RELEASE" -n "$NAMESPACE" || true
+  fi
+
+  yellow "[4/4] Removing namespace..."
+  kubectl delete ns "$NAMESPACE" --ignore-not-found
+
+  green "✓ policy-controller removed"
+  exit 0
+fi
+
+# ---------------------------------------------------------------
+# POLICIES-ONLY (re-apply CIPs after editing without re-installing chart)
+# ---------------------------------------------------------------
+if [ "$POLICIES_ONLY" -eq 1 ]; then
+  blue "[1/2] Patching ClusterImagePolicy with cosign public key..."
+  apply_policies_with_key
+  green "✓ ClusterImagePolicy applied"
+  exit 0
+fi
+
+# ---------------------------------------------------------------
+# INSTALL
+# ---------------------------------------------------------------
+if ! command -v helm >/dev/null 2>&1; then
+  red "ERROR: helm not installed."; exit 1
+fi
+if ! command -v kubectl >/dev/null 2>&1; then
+  red "ERROR: kubectl not installed."; exit 1
+fi
+
+blue "[1/5] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
+helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
+helm repo update >/dev/null 2>&1
+
+blue "[2/5] Installing $HELM_CHART (helm release: $HELM_RELEASE)..."
+kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+# Recover from a previous failed install: helm uninstall stale 'failed' release.
+if helm list -n "$NAMESPACE" --all 2>/dev/null \
+    | awk 'NR>1 {print $1, $8}' \
+    | grep -E "^${HELM_RELEASE} (failed|pending-install|uninstalling)$" >/dev/null; then
+  yellow "    detected stale failed '${HELM_RELEASE}' release — cleaning up before re-install"
+  helm uninstall "$HELM_RELEASE" -n "$NAMESPACE" 2>/dev/null || true
+  sleep 3
+fi
+
+helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
+  -n "$NAMESPACE" \
+  -f "$VALUES_FILE" \
+  --wait --timeout=300s || {
+  red "  ✗ helm install/upgrade failed — common causes:"
+  red "      1. ImagePullBackOff (registry rate-limit) → kubectl -n $NAMESPACE describe pod"
+  red "      2. Webhook cert generation timeout → kubectl -n $NAMESPACE get cert"
+  red "      3. Existing 'failed' release still present → bash $0 --uninstall first"
+  echo
+  kubectl -n "$NAMESPACE" get pod
+  exit 1
+}
+
+blue "[3/5] Waiting for policy-controller webhook rollout..."
+kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeout=180s || {
+  red "  ✗ policy-controller-webhook rollout failed"
+  kubectl -n "$NAMESPACE" describe pod -l app.kubernetes.io/component=webhook | tail -30
+  exit 1
+}
+
+blue "[4/5] Patching ClusterImagePolicy with cosign public key from $COSIGN_CM_NS/$COSIGN_CM_NAME..."
+apply_policies_with_key
+
+blue "[5/5] Opt-in namespace '$APP_NAMESPACE' for image signature verification..."
+kubectl label ns "$APP_NAMESPACE" policy.sigstore.dev/include=true --overwrite
+
+green "============================================================"
+green " ✓ policy-controller installed"
+green "============================================================"
+echo
+echo "Verify:"
+echo "  kubectl -n $NAMESPACE get pod"
+echo "  kubectl get clusterimagepolicy"
+echo "  kubectl get ns $APP_NAMESPACE -o jsonpath='{.metadata.labels}'"
+echo
+echo "Test (warn-only mode at first):"
+echo "  kubectl -n $APP_NAMESPACE run unsigned --image=nginx:1.25 --restart=Never"
+echo "  kubectl -n $APP_NAMESPACE get events --sort-by='.lastTimestamp' | tail -5"
+echo "  # Expected: warning 'no matching authority found' but pod still admitted"
+echo
+echo "Switch to enforce mode:"
+echo "  kubectl patch clusterimagepolicy zta-job7189-apps-signed --type=merge -p '{\"spec\":{\"mode\":\"enforce\"}}'"
+echo
+echo "Run 09-verify-zta.sh — Test 4j checks policy-controller health."

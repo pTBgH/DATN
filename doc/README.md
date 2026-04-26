@@ -59,6 +59,7 @@ Cap nhat: 2026-04-26 (19 files)
 | Adaptive Security Loop (Gatekeeper + Tetragon) | `24` |
 | PDP Controller (continuous label compliance) | `25` |
 | SPIRE Workload Attestation (Devices Advanced) | `27` |
+| sigstore policy-controller (real Cosign verify) | `28` |
 
 ## Archive
 

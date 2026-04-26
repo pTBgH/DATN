@@ -611,6 +611,81 @@ else
 fi
 
 # ========================
+# Test 4j: sigstore policy-controller (PR #19 — doc/28-sigstore-policy-controller.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔐 Test 4j: sigstore policy-controller (real Cosign verify)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+PC_NS="${PC_NS:-cosign-system}"
+if kubectl get ns "$PC_NS" >/dev/null 2>&1; then
+  # 1. policy-controller-webhook Deployment Ready
+  PC_READY=$(kubectl -n "$PC_NS" get deploy policy-controller-webhook \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  PC_DESIRED=$(kubectl -n "$PC_NS" get deploy policy-controller-webhook \
+    -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+  PC_READY=${PC_READY:-0}
+  if [ "$PC_READY" = "$PC_DESIRED" ] && [ "$PC_READY" -ge 1 ]; then
+    result PASS "policy-controller-webhook Ready ($PC_READY/$PC_DESIRED)"
+  else
+    result FAIL "policy-controller-webhook not Ready ($PC_READY/$PC_DESIRED)" \
+      "kubectl -n $PC_NS describe pod -l app.kubernetes.io/component=webhook"
+  fi
+
+  # 2. ClusterImagePolicy resources registered
+  EXPECTED_CIP="zta-system-passthrough zta-job7189-apps-signed zta-keyless-trust-job7189"
+  CIP_FOUND=0
+  for cip in $EXPECTED_CIP; do
+    if kubectl get clusterimagepolicy "$cip" >/dev/null 2>&1; then
+      CIP_FOUND=$((CIP_FOUND + 1))
+    fi
+  done
+  if [ "$CIP_FOUND" -eq 3 ]; then
+    result PASS "ClusterImagePolicy resources registered (3/3: passthrough, apps-signed, keyless)"
+  else
+    result WARN "ClusterImagePolicy incomplete ($CIP_FOUND/3)" \
+      "Apply: bash scripts/zta-deploy-policy-controller.sh --policies-only"
+  fi
+
+  # 3. Cosign public key embedded in zta-job7189-apps-signed CIP (real, not stub)
+  CIP_KEY=$(kubectl get clusterimagepolicy zta-job7189-apps-signed \
+    -o jsonpath='{.spec.authorities[0].key.data}' 2>/dev/null)
+  if echo "$CIP_KEY" | grep -q "BEGIN PUBLIC KEY"; then
+    if echo "$CIP_KEY" | grep -q "REPLACED_AT_DEPLOY_TIME"; then
+      result FAIL "Cosign public key still placeholder in CIP (deploy script not fully run)" \
+        "bash scripts/zta-deploy-policy-controller.sh --policies-only"
+    else
+      result PASS "Cosign public key embedded in zta-job7189-apps-signed (real PEM)"
+    fi
+  else
+    result WARN "zta-job7189-apps-signed CIP has no public key data" \
+      "kubectl get clusterimagepolicy zta-job7189-apps-signed -o yaml"
+  fi
+
+  # 4. job7189-apps namespace opted-in for image policy verification
+  APP_NS="${APP_NS:-job7189-apps}"
+  PC_LABEL=$(kubectl get ns "$APP_NS" \
+    -o jsonpath='{.metadata.labels.policy\.sigstore\.dev/include}' 2>/dev/null)
+  if [ "$PC_LABEL" = "true" ]; then
+    result PASS "Namespace $APP_NS opted-in for image-policy verification"
+  else
+    result WARN "Namespace $APP_NS NOT opted-in (label policy.sigstore.dev/include missing)" \
+      "kubectl label ns $APP_NS policy.sigstore.dev/include=true"
+  fi
+
+  # 5. ValidatingAdmissionWebhook registered
+  if kubectl get validatingwebhookconfiguration policy.sigstore.dev >/dev/null 2>&1; then
+    result PASS "ValidatingAdmissionWebhook 'policy.sigstore.dev' registered"
+  else
+    result WARN "ValidatingAdmissionWebhook 'policy.sigstore.dev' missing" \
+      "kubectl get validatingwebhookconfiguration | grep sigstore"
+  fi
+else
+  result WARN "sigstore policy-controller not deployed" "Run scripts/zta-deploy-policy-controller.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""
@@ -678,6 +753,9 @@ fi
 APPS_TIER="Advanced (Kong JWT + ZTA pipeline)"
 if kubectl get constrainttemplate k8simagedigestrequired >/dev/null 2>&1; then
   APPS_TIER="Advanced+(Kong JWT + ZTA pipeline + image-digest/cosign trust)"
+fi
+if kubectl get clusterimagepolicy zta-job7189-apps-signed >/dev/null 2>&1; then
+  APPS_TIER="Optimal  (Advanced+ + sigstore real Cosign verify at admission)"
 fi
 echo "   Identity:      $IDENTITY_TIER"
 echo "   Devices:       $DEVICES_TIER"

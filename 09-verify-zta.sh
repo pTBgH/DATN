@@ -482,6 +482,46 @@ else
 fi
 
 # ========================
+# Test 4g: PDP Controller (Adaptive Loop, PR #15 — doc/25-pdp-controller.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧠 Test 4g: PDP Controller (Adaptive Loop Closure)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if kubectl get deployment zta-pdp -n security >/dev/null 2>&1; then
+  PDP_READY=$(kubectl get deployment zta-pdp -n security -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  PDP_DESIRED=$(kubectl get deployment zta-pdp -n security -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 0)
+  if [ "${PDP_READY:-0}" = "${PDP_DESIRED:-1}" ] && [ "${PDP_READY:-0}" != "0" ]; then
+    result PASS "PDP Controller running ($PDP_READY/$PDP_DESIRED replica Ready)"
+
+    # Sample trust-score annotation on a job7189-apps pod (proves PDP is reconciling)
+    SAMPLE_POD=$(kubectl get pod -n job7189-apps -l 'cilium.zta/source' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -n "$SAMPLE_POD" ]; then
+      TRUST_SCORE=$(kubectl get pod -n job7189-apps "$SAMPLE_POD" -o jsonpath='{.metadata.annotations.cilium\.zta/trust-score}' 2>/dev/null || true)
+      if [ -n "$TRUST_SCORE" ]; then
+        result PASS "PDP annotated trust-score=$TRUST_SCORE on pod ns=job7189-apps/$SAMPLE_POD"
+      else
+        result WARN "PDP not yet annotated trust-score (give it 1 reconcile cycle, default 60s)" "kubectl logs -n security -l app=zta-pdp --tail=20"
+      fi
+    fi
+
+    # Prometheus metrics endpoint reachable
+    METRICS_OK=$( { kubectl exec -n security deploy/zta-pdp -- /bin/sh -c 'wget -q -O - http://localhost:9100/metrics 2>/dev/null | head -5' 2>/dev/null || true; } | grep -c '^# HELP pdp_' | tr -d ' \n')
+    METRICS_OK=${METRICS_OK:-0}
+    if [ "$METRICS_OK" -gt 0 ] 2>/dev/null; then
+      result PASS "PDP Prometheus metrics endpoint healthy"
+    else
+      result WARN "PDP /metrics not yet ready" "Wait 60s after deploy for first scrape"
+    fi
+  else
+    result WARN "PDP Controller deployed but not Ready ($PDP_READY/$PDP_DESIRED)" "kubectl describe pod -n security -l app=zta-pdp"
+  fi
+else
+  result WARN "PDP Controller not deployed" "Run scripts/zta-deploy-pdp.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

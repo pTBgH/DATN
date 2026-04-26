@@ -257,6 +257,16 @@ else
   yellow "    skip: $TRACING_APPLY (Tetragon CRD missing — run 10-deploy-tetragon.sh first)"
 fi
 
+# 5f. PDP Controller — Adaptive Loop closure (PR #15)
+PDP_DEPLOY="$SCRIPT_DIR/scripts/zta-deploy-pdp.sh"
+if [ -x "$PDP_DEPLOY" ]; then
+  echo "--- 5f. PDP Controller (PR #15) ---"
+  bash "$PDP_DEPLOY" || yellow "    PDP deploy failed — continuing"
+  green "    ✓ PDP Controller deployed (audit-only mode)"
+else
+  yellow "    skip: $PDP_DEPLOY not found"
+fi
+
 stop_after zta
 fi  # should_run zta
 

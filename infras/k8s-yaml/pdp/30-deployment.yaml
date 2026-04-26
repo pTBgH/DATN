@@ -1,0 +1,131 @@
+# =============================================================================
+# PDP Controller Deployment — runs python:3.11-slim with kopf operator.
+# Step 2.3.6 — Adaptive Loop Closure
+#
+# Resource budget: 256Mi memory limit, 100m CPU. Single replica (cluster-wide
+# operator; HA leader election handled by kopf if scaled).
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zta-pdp
+  namespace: security
+  labels:
+    app: zta-pdp
+    cilium.zta/tier: T1
+    cilium.zta/source: zta-pdp
+    cilium.zta/destination: kube-apiserver
+    cilium.zta/role: control-plane
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zta-pdp
+  template:
+    metadata:
+      labels:
+        app: zta-pdp
+        cilium.zta/tier: T1
+        cilium.zta/source: zta-pdp
+        cilium.zta/destination: kube-apiserver
+        cilium.zta/role: control-plane
+        cilium.zta/owner: security-team
+        cilium.zta/sensitivity: confidential
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: zta-pdp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: controller
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        # Install deps then exec the script. pip cache mounted on emptyDir.
+        # In production, replace with a pre-built image.
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          echo "[init] Installing kopf + kubernetes + prometheus_client..."
+          pip install --no-cache-dir --target=/tmp/pylibs -r /app/requirements.txt
+          echo "[init] Starting PDP controller..."
+          export PYTHONPATH=/tmp/pylibs
+          exec python /app/pdp_controller.py
+        env:
+        - name: ZTA_NAMESPACES
+          value: "data,vault,security,monitoring,gateway,management,job7189-apps"
+        - name: PROMETHEUS_PORT
+          value: "9100"
+        - name: RECONCILE_PERIOD
+          value: "60"
+        - name: LOG_LEVEL
+          value: "INFO"
+        ports:
+        - name: metrics
+          containerPort: 9100
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: script
+          mountPath: /app
+          readOnly: true
+        - name: pip-cache
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: script
+        configMap:
+          name: zta-pdp-script
+          defaultMode: 0444
+      - name: pip-cache
+        emptyDir:
+          sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zta-pdp-metrics
+  namespace: security
+  labels:
+    app: zta-pdp
+spec:
+  selector:
+    app: zta-pdp
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+    protocol: TCP

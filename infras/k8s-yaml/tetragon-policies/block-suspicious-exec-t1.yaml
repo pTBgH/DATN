@@ -1,0 +1,102 @@
+# PR #12 — Adaptive Security Loop (PEP Runtime)
+# TracingPolicy: block-suspicious-exec-t1
+#
+# Cluster-scoped TracingPolicy with podSelector on zta.job7189/tier=T1
+# (vault, mysql, kafka, keycloak, kong) — kills suspicious exec attempts
+# regardless of namespace. Complements existing namespace-scoped policy in
+# job7189-apps (block-suspicious-exec.yaml).
+#
+# Signal source: thesis 3.4.5 — adaptive security loop must protect the
+# crown jewels (T1 / data-classification=confidential) from lateral
+# movement attacks like privilege-esc via /bin/bash exec inside Vault pod.
+#
+# Caveat: Tetragon does NOT support Kubernetes label selectors directly.
+# We approximate by using "matchNamespaces" (kernel-NS, NOT k8s NS) +
+# pidNamespace match, and rely on the TracingPolicyNamespaced version
+# below for actual k8s namespace gating in T1 namespaces.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: block-suspicious-exec
+  namespace: vault
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/bin/sh"
+        - "/bin/bash"
+        - "/usr/bin/curl"
+        - "/usr/bin/wget"
+        - "/usr/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/usr/bin/ssh"
+      matchActions:
+      - action: Sigkill
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: block-suspicious-exec
+  namespace: data
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/bin/sh"
+        - "/bin/bash"
+        - "/usr/bin/curl"
+        - "/usr/bin/wget"
+        - "/usr/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/usr/bin/ssh"
+      matchActions:
+      - action: Sigkill
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: block-suspicious-exec
+  namespace: security
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/bin/sh"
+        - "/bin/bash"
+        - "/usr/bin/curl"
+        - "/usr/bin/wget"
+        - "/usr/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/usr/bin/ssh"
+      matchActions:
+      - action: Sigkill

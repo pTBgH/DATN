@@ -421,6 +421,67 @@ if [ -n "$HUBBLE_POD" ]; then
 fi
 
 # ========================
+# Test 4f: Adaptive Security Loop (PR #12 — doc/24-adaptive-security-loop.md)
+# Covers: OPA Gatekeeper constraints + Tetragon TracingPolicy coverage
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🛡️  Test 4f: Adaptive Security (Gatekeeper + Tetragon)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# 4f.1 Gatekeeper installed
+if kubectl get ns gatekeeper-system >/dev/null 2>&1 \
+   && kubectl -n gatekeeper-system get deploy gatekeeper-controller-manager >/dev/null 2>&1; then
+  GK_READY=$(kubectl -n gatekeeper-system get deploy gatekeeper-controller-manager \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+  if [ "${GK_READY:-0}" -ge 1 ]; then
+    result PASS "OPA Gatekeeper running ($GK_READY replicas Ready)"
+  else
+    result WARN "Gatekeeper controller-manager not Ready" "Run scripts/zta-deploy-gatekeeper.sh"
+  fi
+
+  # 4f.2 ConstraintTemplates registered
+  CT_COUNT=$(kubectl get constrainttemplate --no-headers 2>/dev/null | grep -c "^zta" || echo "0")
+  if [ "$CT_COUNT" -ge 3 ]; then
+    result PASS "ZTA ConstraintTemplates registered ($CT_COUNT/3)"
+  else
+    result WARN "Only $CT_COUNT/3 ZTA ConstraintTemplates" "Run scripts/zta-deploy-gatekeeper.sh"
+  fi
+
+  # 4f.3 Constraint violations reported (audit-only mode)
+  if kubectl get ztarequiredlabels.constraints.gatekeeper.sh zta-labels-required >/dev/null 2>&1; then
+    VIOL=$(kubectl get ztarequiredlabels.constraints.gatekeeper.sh zta-labels-required \
+      -o jsonpath='{.status.totalViolations}' 2>/dev/null || echo "?")
+    if [ "$VIOL" = "0" ]; then
+      result PASS "zta-labels-required: 0 violations (label coverage 100%)"
+    else
+      result WARN "zta-labels-required: $VIOL violations" "Run scripts/zta-apply-workload-labels.sh --apply"
+    fi
+  else
+    result WARN "Constraint zta-labels-required not applied" "Run scripts/zta-deploy-gatekeeper.sh"
+  fi
+else
+  result WARN "Gatekeeper not installed" "Run scripts/zta-deploy-gatekeeper.sh"
+fi
+
+# 4f.4 Tetragon TracingPolicies in T1 namespaces
+if kubectl get crd tracingpoliciesnamespaced.cilium.io >/dev/null 2>&1; then
+  T1_NS_WITH_POLICY=0
+  for t1ns in vault data security job7189-apps; do
+    if kubectl -n "$t1ns" get tracingpoliciesnamespaced.cilium.io block-suspicious-exec >/dev/null 2>&1; then
+      T1_NS_WITH_POLICY=$((T1_NS_WITH_POLICY + 1))
+    fi
+  done
+  if [ "$T1_NS_WITH_POLICY" -ge 4 ]; then
+    result PASS "Tetragon block-suspicious-exec in 4/4 T1+app ns"
+  else
+    result WARN "Tetragon TracingPolicy in only $T1_NS_WITH_POLICY/4 ns" "Run scripts/zta-apply-tracing-policies.sh --apply"
+  fi
+else
+  result WARN "Tetragon CRDs not present" "Run 10-deploy-tetragon.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

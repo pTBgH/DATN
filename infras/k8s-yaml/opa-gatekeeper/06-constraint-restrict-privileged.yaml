@@ -1,0 +1,24 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# Constraint: zta-restrict-privileged
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: ZTARestrictPrivileged
+metadata:
+  name: zta-restrict-privileged
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    namespaces:
+    - "data"
+    - "vault"
+    - "security"
+    - "gateway"
+    - "management"
+    - "job7189-apps"
+    - "frontend"
+    excludedNamespaces:
+    - "kube-system"
+    - "monitoring"  # node-exporter needs hostNetwork
+    - "gatekeeper-system"

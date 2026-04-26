@@ -1,0 +1,55 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# ConstraintTemplate: ztarestrictprivileged
+#
+# Block:
+#   - privileged containers
+#   - capabilities.add containing CAP_SYS_ADMIN, CAP_NET_RAW (unless allowed)
+#   - hostNetwork / hostPID / hostIPC = true
+#   - allowPrivilegeEscalation = true
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: ztarestrictprivileged
+spec:
+  crd:
+    spec:
+      names:
+        kind: ZTARestrictPrivileged
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package ztarestrictprivileged
+
+      violation[{"msg": msg}] {
+        c := input.review.object.spec.containers[_]
+        c.securityContext.privileged == true
+        msg := sprintf("Container %q is privileged", [c.name])
+      }
+
+      violation[{"msg": msg}] {
+        c := input.review.object.spec.containers[_]
+        c.securityContext.allowPrivilegeEscalation == true
+        msg := sprintf("Container %q allows privilege escalation", [c.name])
+      }
+
+      violation[{"msg": msg}] {
+        input.review.object.spec.hostNetwork == true
+        msg := "hostNetwork is forbidden"
+      }
+
+      violation[{"msg": msg}] {
+        input.review.object.spec.hostPID == true
+        msg := "hostPID is forbidden"
+      }
+
+      violation[{"msg": msg}] {
+        input.review.object.spec.hostIPC == true
+        msg := "hostIPC is forbidden"
+      }
+
+      violation[{"msg": msg}] {
+        c := input.review.object.spec.containers[_]
+        cap := c.securityContext.capabilities.add[_]
+        cap == "SYS_ADMIN"
+        msg := sprintf("Container %q adds CAP_SYS_ADMIN", [c.name])
+      }

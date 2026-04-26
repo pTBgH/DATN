@@ -1,0 +1,39 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# Constraint: zta-block-host-mounts
+#
+# Reject pods mounting /, /etc, /var/run/docker.sock, /proc, /sys (host)
+# in non-admin namespaces. node-exporter (in monitoring) needs /proc + /sys
+# but is excluded by namespace match — node-exporter runs as DaemonSet in
+# kube-system or via excludedNamespaces.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: ZTABlockHostMounts
+metadata:
+  name: zta-block-host-mounts
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    namespaces:
+    - "data"
+    - "vault"
+    - "security"
+    - "gateway"
+    - "management"
+    - "job7189-apps"
+    - "frontend"
+    excludedNamespaces:
+    - "kube-system"
+    - "monitoring"
+    - "gatekeeper-system"
+  parameters:
+    forbiddenPaths:
+    - "/"
+    - "/etc"
+    - "/var/run/docker.sock"
+    - "/var/lib/docker"
+    - "/proc"
+    - "/sys"
+    - "/root"
+    - "/home"

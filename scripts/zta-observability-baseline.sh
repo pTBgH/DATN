@@ -77,8 +77,10 @@ kubectl get ciliumclusterwidenetworkpolicies -o yaml \
 kubectl get tracingpolicies,tracingpoliciesnamespaced -A -o yaml \
   > "$OUT_DIR/06-existing-tracing-policies.yaml" 2>&1 || true
 
-CNP_COUNT=$(kubectl get ciliumnetworkpolicies -A --no-headers 2>/dev/null | wc -l || echo 0)
-TP_COUNT=$(kubectl get tracingpolicies,tracingpoliciesnamespaced -A --no-headers 2>/dev/null | wc -l || echo 0)
+CNP_COUNT=$( { kubectl get ciliumnetworkpolicies -A --no-headers 2>/dev/null || true; } | wc -l | tr -d ' \n')
+CNP_COUNT=${CNP_COUNT:-0}
+TP_COUNT=$( { kubectl get tracingpolicies,tracingpoliciesnamespaced -A --no-headers 2>/dev/null || true; } | wc -l | tr -d ' \n')
+TP_COUNT=${TP_COUNT:-0}
 
 # --------------------------------------------------------------------------
 # 3) Hubble flow capture (East-West + North-South)

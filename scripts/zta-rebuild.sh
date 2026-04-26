@@ -211,9 +211,35 @@ GK_DEPLOY="$SCRIPT_DIR/scripts/zta-deploy-gatekeeper.sh"
 TRACING_APPLY="$SCRIPT_DIR/scripts/zta-apply-tracing-policies.sh"
 
 # 5a. Namespace default-deny + per-flow allows (PR #8)
+#     Bao gồm 3 nguồn:
+#       (i) infras/k8s-yaml/20-security-policies.yaml — default-deny-job7189-apps
+#           + default-deny-data + identity→mysql + ingress→kong (KHÔNG được
+#           script nào khác auto-apply trong rebuild flow → phải apply thủ công)
+#       (ii) cilium-policies/apply-zta-microsegmentation.sh — 5 file CNP
+#            cho job7189-apps (allow-egress-dns/data + ingress-kong + internal-api)
+#       (iii) namespaces/apply-zta-namespace-policies.sh — per-ns CNP cho 6 ns
+#             non-app (monitoring/data/vault/security/gateway/management)
+echo "--- 5a. Namespace CNPs (PR #8) ---"
+
+# (i) Foundational CNPs (default-deny + SA-based microseg) — bắt buộc
+if [ -f "$SCRIPT_DIR/infras/k8s-yaml/20-security-policies.yaml" ]; then
+  echo "    [i] Apply 20-security-policies.yaml (default-deny-data + default-deny-job7189-apps + SA microseg)"
+  kubectl apply -f "$SCRIPT_DIR/infras/k8s-yaml/20-security-policies.yaml" || yellow "    (20-security-policies apply failed — continuing)"
+fi
+
+# (ii) job7189-apps microsegmentation (5 CNPs)
+APPS_MICROSEG="$SCRIPT_DIR/infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh"
+if [ -x "$APPS_MICROSEG" ]; then
+  echo "    [ii] Apply job7189-apps microsegmentation (5 CNPs)"
+  bash "$APPS_MICROSEG" || yellow "    (job7189-apps microseg failed — continuing)"
+else
+  yellow "    skip: $APPS_MICROSEG not found"
+fi
+
+# (iii) Per-namespace CNPs (skip job7189-apps — already covered by ii)
 if [ -x "$NS_APPLY" ]; then
-  echo "--- 5a. Namespace CNPs (PR #8) ---"
-  for ns in monitoring data vault security gateway management job7189-apps; do
+  echo "    [iii] Per-namespace CNPs"
+  for ns in monitoring data vault security gateway management; do
     bash "$NS_APPLY" "--namespace=$ns" --apply || yellow "    (ns=$ns skipped/failed — continuing)"
   done
   green "    ✓ namespace CNPs applied"

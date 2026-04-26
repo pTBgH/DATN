@@ -40,9 +40,6 @@ spec:
         protocol: UDP
       - port: "53"
         protocol: TCP
-      rules:
-        dns:
-        - matchPattern: "*"
 ---
 # 2) MySQL ingress: bổ sung từ Keycloak (data + identity store)
 apiVersion: cilium.io/v2
@@ -98,6 +95,29 @@ spec:
   - fromEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "9092"
+        protocol: TCP
+      - port: "9093"
+        protocol: TCP
+---
+# 4b) Kafka egress phía apps: cho phép tất cả pod trong job7189-apps gọi kafka:9092/9093.
+#     Đây là CNP nằm trong namespace job7189-apps (egress source side) — bù
+#     cho default-deny-job7189-apps. Nếu không có, hiring-service / job-service /
+#     ... bị DROP khi publish/consume Kafka.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apps-egress-kafka
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+        app: kafka
     toPorts:
     - ports:
       - port: "9092"

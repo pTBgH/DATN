@@ -17,9 +17,16 @@ metadata:
   namespace: monitoring
 spec:
   endpointSelector: {}
-  # Cilium <1.14 dùng pattern empty list (VALID=False quirk; default-deny vẫn enforce).
-  ingress: []
-  egress: []
+  # Default-deny pattern: select-all + rule với matchLabels không tồn tại.
+  # Schema validation pass (VALID=True) + default-deny enforce (vì rule không match pod nào).
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2
@@ -40,9 +47,6 @@ spec:
         protocol: UDP
       - port: "53"
         protocol: TCP
-      rules:
-        dns:
-        - matchPattern: "*"
 ---
 # 3) Prometheus egress: scrape EVERY pod cluster-wide.
 #    Sử dụng cách Cilium quy ước: cho phép tới mọi endpoint TCP các port phổ biến.
@@ -268,8 +272,11 @@ spec:
         protocol: TCP
 ---
 # 9) kube-state-metrics egress: scrape K8s API để expose metric (pods, deploys, ...)
-#    KSM cần list/watch resources qua kube-apiserver. Trước đó bị DROP do
-#    default-deny không có rule cho KSM.
+#    KSM list/watch resources qua kube-apiserver.
+#    Lưu ý: với Kind cluster (control-plane chạy trong container 172.18.0.2),
+#    Cilium KHÔNG gắn identity 'kube-apiserver' cho IP này vì apiserver chạy ở
+#    network namespace của Kind node — phải dùng entities 'host' + 'remote-node'
+#    + CIDR fallback. Kết hợp cả 3 để cover mọi trường hợp.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -282,9 +289,20 @@ spec:
   egress:
   - toEntities:
     - kube-apiserver
+    - host
+    - remote-node
     toPorts:
     - ports:
       - port: "443"
         protocol: TCP
       - port: "6443"
+        protocol: TCP
+  # Fallback: Kind cluster network thường là 172.18.0.0/16
+  - toCIDR:
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+      - port: "443"
         protocol: TCP

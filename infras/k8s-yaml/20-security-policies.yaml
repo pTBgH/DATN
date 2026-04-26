@@ -5,10 +5,16 @@ metadata:
   namespace: job7189-apps
 spec:
   endpointSelector: {}
-  # Cilium <1.14 dùng pattern empty list. CRD báo VALID=False (quirk) nhưng
-  # default-deny VẪN enforce (verified bằng wget timeout test trên ptbsrv).
-  ingress: []
-  egress: []
+  # Default-deny pattern: select-all + rule với matchLabels không tồn tại.
+  # Schema validation pass (VALID=True) + default-deny enforce (vì rule không match pod nào).
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 
 ---
 apiVersion: cilium.io/v2
@@ -18,8 +24,14 @@ metadata:
   namespace: data
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 
 ---
 # NOTE: This policy set uses ServiceAccount identity labels because

@@ -15,9 +15,16 @@ metadata:
   namespace: gateway
 spec:
   endpointSelector: {}
-  # Cilium <1.14 dùng pattern empty list (VALID=False quirk; default-deny vẫn enforce).
-  ingress: []
-  egress: []
+  # Default-deny pattern: select-all + rule với matchLabels không tồn tại.
+  # Schema validation pass (VALID=True) + default-deny enforce (vì rule không match pod nào).
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2
@@ -38,9 +45,6 @@ spec:
         protocol: UDP
       - port: "53"
         protocol: TCP
-      rules:
-        dns:
-        - matchPattern: "*"
 ---
 # 3) Ingress vào kong proxy: chỉ ingress-nginx + remote-node (in case of LB)
 apiVersion: cilium.io/v2

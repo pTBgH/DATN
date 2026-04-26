@@ -20,8 +20,14 @@ spec:
   # Note: Cilium <1.14 không nhận `enableDefaultDeny`, dùng pattern empty
   # ingress/egress lists. CRD sẽ báo VALID=False (quirk Cilium hiện hữu),
   # nhưng default-deny VẪN enforce — đã verify bằng wget timeout từ testpod.
-  ingress: []
-  egress: []
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2
@@ -42,9 +48,6 @@ spec:
         protocol: UDP
       - port: "53"
         protocol: TCP
-      rules:
-        dns:
-        - matchPattern: "*"
 ---
 # 3) Vault ingress 8200 (API): từ job7189-apps + data/mysql + data/* dùng dynamic creds
 apiVersion: cilium.io/v2

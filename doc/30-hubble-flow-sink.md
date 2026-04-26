@@ -35,7 +35,7 @@ PR #21 ship flows ra disk + Elasticsearch để:
                                                │ HTTP POST /index     │
                                                ▼                      │
                               ┌────────────────────────────┐          │
-                              │ Elasticsearch (ns: data)   │          │
+                              │ Elasticsearch (ns: monitoring)│       │
                               │ index: hubble-flows-       │          │
                               │   YYYY.MM.DD               │          │
                               │ template: 1 shard, 0       │          │
@@ -78,7 +78,7 @@ DaemonSet `hubble-flow-shipper` (ns: monitoring), 1 pod/node:
 - Image: `docker.elastic.co/beats/filebeat:8.10.4` (~96Mi RAM)
 - Mount: hostPath `/var/run/cilium/hubble` RO → container `/hostlogs/cilium/hubble`
 - Input: `filestream` với `ndjson` parser
-- Output: HTTP POST tới `elasticsearch.data.svc.cluster.local:9200`
+- Output: HTTP POST tới `elasticsearch.monitoring.svc.cluster.local:9200`
 - Index pattern: `hubble-flows-%{+yyyy.MM.dd}`
 
 Filebeat watches both `events.log` (current) và `events.log.*` (rotated) để không miss flow nào during rotation.
@@ -97,13 +97,22 @@ setup.template.settings:
 ## 5. Triển khai
 
 ```bash
-# Prerequisite: PR #7 (Hubble enabled), Elasticsearch trong ns 'data' (PR #5)
+# Prerequisite: PR #7 (Hubble enabled + Elasticsearch ns 'monitoring')
+
+# 1. Default deploy = shipper-only (KHÔNG patch cilium-config)
+#    Recommended on Kind clusters where cilium DS restart can cascade
+#    control-plane CrashLoopBackOff.
 bash scripts/zta-deploy-hubble-export.sh
+
+# 2. Sau khi shipper Ready, bật cilium hubble-export-file:
+bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export
+#  - cilium DS restart (5-10 phút 4 nodes)
+#  - nếu rollout fail → tự động revert cilium-config patch
 
 # Verify
 kubectl -n kube-system exec ds/cilium -c cilium-agent -- ls -la /var/run/cilium/hubble/
 kubectl -n monitoring logs ds/hubble-flow-shipper --tail=20
-kubectl -n data exec deploy/elasticsearch -- \
+kubectl -n monitoring exec es-0 -- \
   curl -s http://localhost:9200/_cat/indices/hubble-flows-*
 
 # Test 4l

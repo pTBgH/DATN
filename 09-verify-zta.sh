@@ -727,18 +727,28 @@ if kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" >/dev/null 2>&1; then
       "kubectl apply -f infras/k8s-yaml/spire/spire-demo-workload.yaml"
   fi
 
-  # 4. Pod logs contain svid_acquired line (workload actually fetched SVID).
-  SVID_LOG=$(kubectl -n "$DEMO_NS" logs deploy/"$DEMO_NAME" --tail=60 2>/dev/null \
-    | grep -E '(svid_acquired|svid_fetch_pending)' | tail -1)
-  if echo "$SVID_LOG" | grep -q "svid_acquired"; then
-    SPIFFE_ID=$(echo "$SVID_LOG" | sed -n 's/.*spiffe_id=\(spiffe:[^ ]*\).*/\1/p')
-    result PASS "Demo workload fetched SVID via Workload API (id=${SPIFFE_ID:-unknown})"
-  elif echo "$SVID_LOG" | grep -q "svid_fetch_pending"; then
-    result WARN "Demo workload still attesting (controller-manager registering entry)" \
-      "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=10"
+  # 4. spiffe-helper logs SVID write OR /svids/svid.crt exists in pod
+  SVID_LOG=$(kubectl -n "$DEMO_NS" logs deploy/"$DEMO_NAME" --tail=80 2>/dev/null \
+    | grep -iE '(SVID updated|svid file written|new svid|x509-svid|received update|getx509)' | tail -1)
+  if [ -n "$SVID_LOG" ]; then
+    result PASS "spiffe-helper received & wrote SVID (${SVID_LOG:0:70}...)"
   else
-    result WARN "No SVID-acquired log line yet — wait 30s + re-run" \
-      "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=10"
+    # Fallback: check if SVID file actually exists in pod's /svids volume
+    POD_NAME=$(kubectl -n "$DEMO_NS" get pod -l app="$DEMO_NAME" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -n "$POD_NAME" ]; then
+      SVID_FILE=$(kubectl -n "$DEMO_NS" exec "$POD_NAME" -- \
+        ls /svids/svid.crt 2>/dev/null | head -1)
+      if [ -n "$SVID_FILE" ]; then
+        result PASS "SVID PEM file written to /svids/svid.crt by spiffe-helper"
+      else
+        result WARN "spiffe-helper running but no SVID written yet — wait 60s + re-run" \
+          "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=20"
+      fi
+    else
+      result WARN "spiffe-helper pod not found" \
+        "kubectl -n $DEMO_NS get pod -l app=$DEMO_NAME"
+    fi
   fi
 
   # 5. SPIRE entry exists for the demo workload's SPIFFE ID
@@ -803,20 +813,32 @@ if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
   fi
 
   # 4. ES index exists with > 0 docs
-  ES_INDEX_INFO=$(kubectl -n data exec deploy/elasticsearch -- \
-    curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
-  if [ -n "$ES_INDEX_INFO" ]; then
-    DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
-    DOC_COUNT=${DOC_COUNT:-0}
-    if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
-      result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+  # Auto-detect ES pod (PR #7 deploys es-0 StatefulSet in monitoring; some envs may use 'elasticsearch' Deployment)
+  ES_POD=$(kubectl -n monitoring get pod -l app=elasticsearch \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -z "$ES_POD" ]; then
+    ES_POD=$(kubectl -n monitoring get pod \
+      -o jsonpath='{range .items[?(@.metadata.name=="es-0")]}{.metadata.name}{end}' 2>/dev/null)
+  fi
+  if [ -n "$ES_POD" ]; then
+    ES_INDEX_INFO=$(kubectl -n monitoring exec "$ES_POD" -- \
+      curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
+    if [ -n "$ES_INDEX_INFO" ]; then
+      DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
+      DOC_COUNT=${DOC_COUNT:-0}
+      if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
+        result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+      else
+        result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
+          "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+      fi
     else
-      result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
-        "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+      result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
+        "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices"
     fi
   else
-    result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
-      "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices"
+    result WARN "Elasticsearch pod not found in 'monitoring' ns — set ES_NS env" \
+      "kubectl -n monitoring get pod -l app=elasticsearch"
   fi
 
   # 5. Cilium agent can write to hubble export path (file exists)

@@ -1,0 +1,91 @@
+# =============================================================================
+# PR #10 — L7 enforcement: Vault API
+# Reference: doc/20-5w1h-policy-matrix.md row #5
+#
+# Vault expose hơn 100 paths (sys/*, auth/*, secret/*, database/*, transit/*,
+# kv/*). Phần lớn KHÔNG cần thiết cho workload. Whitelist cụ thể những path
+# mà identity-service / Vault-Agent-Injector thực sự dùng.
+#
+# Selector: pod app=vault trong namespace vault (StatefulSet vault-0).
+# Source: pod có serviceAccount = identity-service (từ job7189-apps) +
+#         vault-agent-agent-injector + vault-prod ↔ vault-dev (intra-ns).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-vault-api-allowlist
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+      zta.job7189/role: secret-store
+      zta.job7189/env: prod
+  ingress:
+  # 1) identity-service (job7189-apps) — DB cred JIT + sys/health
+  - fromEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: identity-service
+        io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/v1/sys/health.*"
+        - method: "GET"
+          path: "/v1/sys/seal-status"
+        - method: "POST"
+          path: "/v1/auth/kubernetes/login"
+        - method: "POST"
+          path: "/v1/database/creds/identity-service"
+        - method: "GET"
+          path: "/v1/secret/data/laravel-common"
+        - method: "PUT"
+          path: "/v1/auth/token/renew-self"
+        - method: "POST"
+          path: "/v1/auth/token/revoke-self"
+  # 2) Other backend services có Vault Agent Injector — cùng pattern
+  - fromEndpoints:
+    - matchExpressions:
+      - key: zta.job7189/role
+        operator: In
+        values: ["api"]
+      - key: zta.job7189/team
+        operator: In
+        values: ["backend"]
+      - key: io.kubernetes.pod.namespace
+        operator: In
+        values: ["job7189-apps"]
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/v1/sys/health.*"
+        - method: "POST"
+          path: "/v1/auth/kubernetes/login"
+        - method: "POST"
+          path: "/v1/database/creds/.*"
+        - method: "GET"
+          path: "/v1/secret/data/.*"
+        - method: "PUT"
+          path: "/v1/auth/token/renew-self"
+  # 3) vault-agent-injector webhook health check (host)
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/v1/sys/health.*"
+        - method: "GET"
+          path: "/v1/sys/seal-status"

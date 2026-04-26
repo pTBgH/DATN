@@ -381,6 +381,45 @@ for ns in $LABEL_NAMESPACES; do
 done
 
 # ========================
+# Test 4e: L7 enforcement coverage (PR #10 — doc/20-5w1h-policy-matrix.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🌐 Test 4e: L7 Policy Coverage (5W1H)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+L7_POLICIES="l7-vault-api-allowlist:vault l7-keycloak-oidc-allowlist:security l7-keycloak-jwks-from-kong:security l7-kong-admin-readonly:gateway l7-prom-scrape-node-exporter:monitoring l7-prom-scrape-kube-state-metrics:monitoring"
+
+l7_present=0
+l7_missing=0
+for entry in $L7_POLICIES; do
+  name="${entry%%:*}"
+  ns="${entry##*:}"
+  if kubectl get cnp "$name" -n "$ns" >/dev/null 2>&1; then
+    valid=$(kubectl get cnp "$name" -n "$ns" -o jsonpath='{.status.conditions[?(@.type=="Valid")].status}' 2>/dev/null)
+    if [ "$valid" = "True" ]; then
+      result PASS "L7 CNP $name (ns=$ns) VALID=True"
+      l7_present=$((l7_present + 1))
+    else
+      result WARN "L7 CNP $name (ns=$ns) exists but VALID=$valid" "Check kubectl describe cnp $name -n $ns"
+    fi
+  else
+    result WARN "L7 CNP $name (ns=$ns) not applied" "Run scripts/zta-apply-l7-policies.sh --apply"
+    l7_missing=$((l7_missing + 1))
+  fi
+done
+
+# Hubble L7 flow check
+if [ -n "$HUBBLE_POD" ]; then
+  L7_FLOWS=$(kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe --type l7 --last 50 -o compact 2>/dev/null | wc -l || echo "0")
+  if [ "$L7_FLOWS" -gt 0 ]; then
+    result PASS "Hubble L7 flows captured: $L7_FLOWS samples"
+  else
+    result WARN "Hubble L7 flows = 0" "Generate traffic (curl Vault/Keycloak) then re-run"
+  fi
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

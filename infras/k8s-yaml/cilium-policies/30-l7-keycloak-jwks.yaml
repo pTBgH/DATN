@@ -1,0 +1,35 @@
+# =============================================================================
+# PR #10 — L7 enforcement: Keycloak JWKS-only (Kong)
+# Reference: doc/20-5w1h-policy-matrix.md row #8
+#
+# Kong-gateway chỉ cần fetch JWKS (public key set) để verify JWT.
+# Block mọi luồng khác từ Kong → Keycloak (Kong không cần OIDC auth flow).
+#
+# Bổ sung scope hẹp hơn 30-l7-keycloak-oidc.yaml: kong CHỈ được GET /certs.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-keycloak-jwks-from-kong
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+      zta.job7189/role: sso
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: kong-gateway
+        zta.job7189/role: proxy
+        k8s:io.kubernetes.pod.namespace: gateway
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/realms/zta/protocol/openid-connect/certs"
+        - method: "GET"
+          path: "/realms/zta/.well-known/openid-configuration"

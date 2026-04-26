@@ -1,23 +1,48 @@
 ---
 # PR #20 — SPIRE Workload Integration demo workload.
 #
-# A minimal pod that consumes the SPIFFE Workload API socket via the
-# csi.spiffe.io ephemeral CSI driver (provided by PR #17). It runs
-# `spire-agent api fetch x509 -timeout 5s -socketPath ...` in a loop and
-# logs the issued SVID. The pod proves end-to-end SPIRE attestation:
-#   spire-controller-manager  →  spire-server (issue entry)  →  spire-agent
-#   (workload-attest pod)     →  Workload API socket (CSI mount)
-#   →  spire-agent CLI (this pod) prints SVID PEM.
+# Uses the OFFICIAL spiffe-helper image which:
+#   - opens Workload API socket via /spiffe-workload-api/spire-agent.sock
+#   - watches for SVID issue/rotate events
+#   - writes SVID PEM files to /svids/{svid.crt, svid.key, bundle.crt}
+#   - logs each rotation event to stdout
 #
-# Lift CISA ZTMM Devices: Advanced (issuance) → toward Optimal (consumption).
+# Why spiffe-helper instead of spire-agent CLI:
+#   ghcr.io/spiffe/spire-agent is distroless (no /bin/sh) -> any
+#   command-wrapping shell loop fails with exec format error.
+#   spiffe-helper is purpose-built for the "consume SVID" use case
+#   that PR #20 demos and bundles a long-running daemon plus shell.
 #
-# Resource budget: ~10m CPU / 32Mi RAM (single tiny container).
+# Lift CISA ZTMM Devices: Advanced (issuance) -> Optimal (consumption).
 
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: spire-demo-workload
   namespace: security
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-demo-workload-config
+  namespace: security
+  labels:
+    app: spire-demo-workload
+data:
+  # spiffe-helper helper.conf — see https://github.com/spiffe/spiffe-helper
+  helper.conf: |-
+    agent_address       = "/spiffe-workload-api/spire-agent.sock"
+    cert_dir            = "/svids"
+    add_intermediates_to_bundle = true
+    exit_when_ready     = false
+    include_federated_domains = false
+    svid_file_name      = "svid.crt"
+    svid_key_file_name  = "svid.key"
+    svid_bundle_file_name = "bundle.crt"
+    cmd                 = ""
+    cmd_args            = ""
+    renew_signal        = ""
 
 ---
 apiVersion: apps/v1
@@ -52,38 +77,14 @@ spec:
       serviceAccountName: spire-demo-workload
       automountServiceAccountToken: false
       containers:
-      - name: spire-agent-fetcher
-        image: ghcr.io/spiffe/spire-agent:1.9.0
+      # spiffe-helper: long-running daemon, watches SVID rotations,
+      # writes PEM files to /svids and logs to stdout.
+      - name: spiffe-helper
+        image: ghcr.io/spiffe/spiffe-helper:0.8.0
         imagePullPolicy: IfNotPresent
-        command: ["/bin/sh", "-c"]
         args:
-        - |
-          set -eu
-          echo "spire-demo-workload starting; trustDomain=zta.job7189"
-          echo "Waiting for SPIFFE Workload API socket /spiffe-workload-api/spire-agent.sock ..."
-          for i in $(seq 1 30); do
-            if [ -S /spiffe-workload-api/spire-agent.sock ]; then break; fi
-            sleep 2
-          done
-          if [ ! -S /spiffe-workload-api/spire-agent.sock ]; then
-            echo "ERROR: socket not present after 60s; check spire-agent DS health"
-            exit 1
-          fi
-          echo "Workload API socket ready, fetching SVID ..."
-          while true; do
-            ts=$(date -u +%FT%TZ)
-            if /opt/spire/bin/spire-agent api fetch x509 \
-                 -socketPath /spiffe-workload-api/spire-agent.sock \
-                 -timeout 5s 2>&1 | grep -q "SPIFFE ID"; then
-              SPIFFE_ID=$(/opt/spire/bin/spire-agent api fetch x509 \
-                 -socketPath /spiffe-workload-api/spire-agent.sock \
-                 -timeout 5s 2>/dev/null | awk '/SPIFFE ID/ {print $3; exit}')
-              echo "[$ts] svid_acquired spiffe_id=$SPIFFE_ID"
-            else
-              echo "[$ts] svid_fetch_pending workload_attestation_in_progress"
-            fi
-            sleep 30
-          done
+        - "-config"
+        - "/etc/spiffe-helper/helper.conf"
         resources:
           requests:
             cpu: 10m
@@ -92,17 +93,23 @@ spec:
             cpu: 50m
             memory: 64Mi
         volumeMounts:
+        - name: config
+          mountPath: /etc/spiffe-helper
+          readOnly: true
         - name: spiffe-workload-api
           mountPath: /spiffe-workload-api
           readOnly: true
+        - name: svids
+          mountPath: /svids
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
           readOnlyRootFilesystem: true
       volumes:
+      - name: config
+        configMap:
+          name: spire-demo-workload-config
       # Ephemeral CSI volume provided by spiffe-csi-driver (PR #17).
       # Each pod gets its own private socket bind-mounted from the host,
       # which spire-agent uses for workload attestation (UID, labels, SA).
@@ -110,13 +117,15 @@ spec:
         csi:
           driver: csi.spiffe.io
           readOnly: true
+      - name: svids
+        emptyDir: {}
 
 ---
 # ClusterSPIFFEID rule for the demo workload — gives it SVID
 #   spiffe://zta.job7189/ns/security/sa/spire-demo-workload
-# already covered by zta-default-workload-identity (PR #17), but we add an
-# explicit rule for clarity + so the controller-manager registers the entry
-# even before generic Cilium ZTA labels propagate.
+# Already covered by zta-default-workload-identity (PR #17), but we add
+# an explicit rule for clarity + so the controller-manager registers
+# the entry even before generic Cilium ZTA labels propagate.
 apiVersion: spire.spiffe.io/v1alpha1
 kind: ClusterSPIFFEID
 metadata:

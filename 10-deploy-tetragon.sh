@@ -5,15 +5,24 @@
 # PURPOSE: Deploy Tetragon eBPF runtime enforcement (PEP Runtime layer)
 #          and apply TracingPolicy to block suspicious syscalls in job7189-apps.
 # RUN AFTER: Script 08 (Security Hardening)
-# RESOURCE: ~192Mi per worker node (DaemonSet), total ~576Mi for 3 workers
+# RESOURCE: ~256Mi per worker node (DaemonSet), total ~768Mi for 3 workers
 # NOTE: By default this script does NOT schedule Tetragon on the control-plane
 #       node — set TETRAGON_INCLUDE_CONTROL_PLANE=1 to override.
 # ROLLBACK: helm uninstall tetragon -n kube-system
 #
 # Pre-flight strategy (RAM-first, not timeout-first):
 #   - Per-node memory availability check: aborts if any target node lacks RAM
-#   - Auto-runs scripts/free-ram-for-tetragon.sh if host avail RAM < 800Mi
-#   - Caps Tetragon resource limit at 192Mi/pod (generous headroom for kprobe bursts)
+#   - Auto-runs scripts/free-ram-for-tetragon.sh if host avail RAM < 900Mi
+#   - Sets Tetragon resource limit to 256Mi/pod — the agent's BPF maps and
+#     event ringbuf grow with kprobe rate, and 192Mi was triggering periodic
+#     OOM-kills + liveness-probe failures on busy nodes (php-fpm forking,
+#     openresty workers).
+#
+# Idempotency:
+#   By default this script does a CLEAN install: any existing Tetragon helm
+#   release + CRDs are uninstalled before re-installing. Set
+#   TETRAGON_FRESH_INSTALL=0 to attempt an in-place helm upgrade instead
+#   (use only if previous install was healthy).
 # ==========================================
 
 set -euo pipefail
@@ -21,28 +30,41 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ==================== TUNABLES ====================
-# Resource ceiling for Tetragon — 192Mi gives generous headroom over the
-# 128Mi minimum so kprobe bursts (e.g. forking pods) don't trigger OOM.
-TETRAGON_MEM_REQ="${TETRAGON_MEM_REQ:-96Mi}"
-TETRAGON_MEM_LIM="${TETRAGON_MEM_LIM:-192Mi}"
+# Resource ceiling for Tetragon — 256Mi is the production-recommended floor
+# from upstream docs. Lower values trigger gRPC livenessProbe failures on
+# busy nodes (PHP-FPM, OpenResty) because the BPF event ringbuf backs up
+# faster than the agent can drain it under cgroup memory pressure.
+TETRAGON_MEM_REQ="${TETRAGON_MEM_REQ:-128Mi}"
+TETRAGON_MEM_LIM="${TETRAGON_MEM_LIM:-256Mi}"
 TETRAGON_CPU_REQ="${TETRAGON_CPU_REQ:-50m}"
-TETRAGON_CPU_LIM="${TETRAGON_CPU_LIM:-250m}"
+TETRAGON_CPU_LIM="${TETRAGON_CPU_LIM:-300m}"
 TETRAGON_OPERATOR_MEM_LIM="${TETRAGON_OPERATOR_MEM_LIM:-64Mi}"
 
 # By default skip control-plane node — workloads run on workers, monitoring
 # kube-system is not the priority. Set to 1 to also run on control-plane.
 TETRAGON_INCLUDE_CONTROL_PLANE="${TETRAGON_INCLUDE_CONTROL_PLANE:-0}"
 
+# By default uninstall existing tetragon + delete CRDs before re-installing.
+# This avoids stuck CrashLoopBackOff state from previous broken policies and
+# is safe because Tetragon is observation-only (deleting the agent doesn't
+# break workloads). Set to 0 to attempt helm upgrade in-place.
+TETRAGON_FRESH_INSTALL="${TETRAGON_FRESH_INSTALL:-1}"
+
 # Per-node free memory required to schedule a Tetragon pod = limit + 25% buffer.
-# (192Mi limit * 1.25 ≈ 240Mi). A node with less than this is rejected.
-TETRAGON_PER_NODE_HEADROOM_MI="${TETRAGON_PER_NODE_HEADROOM_MI:-240}"
+# (256Mi limit * 1.25 ≈ 320Mi). A node with less than this is rejected.
+TETRAGON_PER_NODE_HEADROOM_MI="${TETRAGON_PER_NODE_HEADROOM_MI:-320}"
 
 # Pin chart version for reproducibility.
 TETRAGON_CHART_VERSION="${TETRAGON_CHART_VERSION:-1.2.0}"
 
 # RAM target for pre-flight on the host. If host avail < target, free-ram
-# script runs. 800Mi gives buffer for 3 × 192Mi (=576Mi) plus operator + churn.
-TETRAGON_RAM_TARGET_MI="${TETRAGON_RAM_TARGET_MI:-800}"
+# script runs. 900Mi gives buffer for 3 × 256Mi (=768Mi) plus operator + churn.
+TETRAGON_RAM_TARGET_MI="${TETRAGON_RAM_TARGET_MI:-900}"
+
+# Restart-count threshold beyond which we automatically dump --previous logs
+# of the tetragon container. Helps diagnose mid-life crashes (BPF map OOM,
+# liveness probe failure) without the user having to look up commands.
+TETRAGON_CRASH_DUMP_THRESHOLD="${TETRAGON_CRASH_DUMP_THRESHOLD:-2}"
 
 # Timeouts kept at sensible defaults — not the variable that needs tuning.
 HELM_TIMEOUT="${HELM_TIMEOUT:-120s}"
@@ -58,6 +80,50 @@ echo "============================================================"
 echo ""
 
 avail_mi() { free -m | awk '/^Mem:/ {print $7}'; }
+
+# ========================
+# Step 0: Clean up any existing/broken install
+# ========================
+# Tetragon is observation-only (eBPF tracepoints are kernel-side; uninstalling
+# the userspace agent doesn't disrupt workloads). A clean reinstall is the
+# fastest way to recover from a CrashLoopBackOff state, and idempotent.
+cleanup_existing() {
+  echo "━━━ Step 0: Clean-up existing Tetragon (FRESH_INSTALL=${TETRAGON_FRESH_INSTALL}) ━━━"
+  if [ "$TETRAGON_FRESH_INSTALL" != "1" ]; then
+    echo "   Skipped — will attempt in-place helm upgrade later."
+    return 0
+  fi
+
+  if helm status tetragon -n kube-system >/dev/null 2>&1; then
+    echo "   Found existing helm release — uninstalling..."
+    helm uninstall tetragon -n kube-system --wait --timeout=60s 2>&1 | sed 's/^/      /' || true
+  else
+    echo "   No existing helm release — nothing to uninstall."
+  fi
+
+  # Delete any orphan tetragon pods (left over if previous helm uninstall failed)
+  ORPHAN_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon -o name 2>/dev/null || true)
+  if [ -n "$ORPHAN_PODS" ]; then
+    echo "   Deleting orphan tetragon pods..."
+    kubectl delete -n kube-system $ORPHAN_PODS --grace-period=10 --timeout=30s 2>&1 | sed 's/^/      /' || true
+  fi
+
+  # Delete CRDs so we don't carry over a partially-applied schema. Helm will
+  # reinstall them. Any existing TracingPolicy / TracingPolicyNamespaced
+  # objects are removed by the CRD deletion (cascading delete).
+  for crd in tracingpolicies.cilium.io tracingpoliciesnamespaced.cilium.io \
+             podinfo.cilium.io; do
+    if kubectl get crd "$crd" >/dev/null 2>&1; then
+      echo "   Deleting CRD ${crd}..."
+      kubectl delete crd "$crd" --timeout=30s 2>&1 | sed 's/^/      /' || true
+    fi
+  done
+
+  rm -rf "${HOME}/.kube/cache/discovery" 2>/dev/null || true
+  echo "   ✓ Cleanup complete"
+  echo ""
+}
+cleanup_existing
 
 # ========================
 # Step 1: RAM-first pre-flight
@@ -149,7 +215,7 @@ if [ "$NODE_FAILED" -gt 0 ]; then
   echo "     2) FREE_RAM_AGGRESSIVE=1 bash scripts/free-ram-for-tetragon.sh"
   echo "     3) Reduce some pod's memory request, e.g.:"
   echo "          kubectl -n monitoring patch ds filebeat ... requests.memory=64Mi"
-  echo "     4) Override TETRAGON_PER_NODE_HEADROOM_MI=120 (risky — pod may OOM)"
+  echo "     4) Override TETRAGON_PER_NODE_HEADROOM_MI=200 (risky — pod may OOM)"
   exit 1
 fi
 
@@ -263,6 +329,32 @@ if [ "$TETRAGON_READY" = "0" ]; then
   echo "        - eBPF kernel feature missing: check kernel version (need ≥5.4)"
   echo "        - SELinux/AppArmor blocking: check pod events"
   exit 1
+fi
+
+# Crash diagnostic — if any tetragon container has restarted ≥ threshold,
+# auto-dump --previous logs + last events. Pod restarting in a loop is the
+# #1 reason for "policies applied but nothing fires" debugging sessions.
+HIGH_RESTART_PODS=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=tetragon \
+  -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.containerStatuses[?(@.name=="tetragon")]}{.restartCount}{"\n"}{end}{end}' 2>/dev/null \
+  | awk -v th="$TETRAGON_CRASH_DUMP_THRESHOLD" '$2 >= th {print $1}' || true)
+
+if [ -n "$HIGH_RESTART_PODS" ]; then
+  echo ""
+  echo "   ⚠ Detected pods with tetragon container restartCount ≥ ${TETRAGON_CRASH_DUMP_THRESHOLD}:"
+  for pod in $HIGH_RESTART_PODS; do
+    echo "   ── ${pod} ──"
+    echo "      Last termination reason:"
+    kubectl get pod -n kube-system "$pod" -o jsonpath='{range .status.containerStatuses[?(@.name=="tetragon")]}{.lastState.terminated.reason}{"  exitCode="}{.lastState.terminated.exitCode}{"\n"}{end}' 2>/dev/null \
+      | sed 's/^/        /' || true
+    echo "      Last 30 lines of previous tetragon container:"
+    kubectl logs -n kube-system "$pod" -c tetragon --previous --tail=30 2>&1 | sed 's/^/        /' || true
+  done
+  echo ""
+  echo "   Common causes:"
+  echo "     - OOMKilled / exit code 137: bump TETRAGON_MEM_LIM (current ${TETRAGON_MEM_LIM})"
+  echo "     - 'failed to load BPF': kernel too old or kprobe symbol missing"
+  echo "     - 'context deadline' on liveness gRPC: agent overwhelmed, increase CPU limit"
+  echo ""
 fi
 
 # ========================

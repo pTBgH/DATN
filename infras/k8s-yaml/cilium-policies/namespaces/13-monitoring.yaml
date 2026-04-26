@@ -266,3 +266,25 @@ spec:
         protocol: TCP
       - port: "6443"
         protocol: TCP
+---
+# 9) kube-state-metrics egress: scrape K8s API để expose metric (pods, deploys, ...)
+#    KSM cần list/watch resources qua kube-apiserver. Trước đó bị DROP do
+#    default-deny không có rule cho KSM.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-state-metrics-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+  egress:
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP

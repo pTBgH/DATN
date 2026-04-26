@@ -176,7 +176,11 @@ spec:
   ingress: []
 
 ---
-# Allow DNS egress to kube-dns (cluster DNS) so pods can resolve services
+# Allow DNS egress to kube-dns (cluster DNS) so pods can resolve services.
+# Lưu ý: dùng toEndpoints (pod selector) thay vì toCIDR vì Cilium evaluate
+# destination ở mức pod (coredns pod-IP, không phải service VIP 10.96.0.10).
+# Pattern toCIDR hỏng khi kube-proxy replacement DNAT sang pod-IP — pods
+# không match policy → DNS bị DROP. Đã verify hubble: 'DROPPED (UDP) → coredns:53'.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -185,8 +189,10 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-  - toCIDR:
-    - "10.96.0.10/32"
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
     toPorts:
     - ports:
       - port: "53"

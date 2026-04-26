@@ -24,6 +24,13 @@ kind: StatefulSet
 metadata:
   name: kafka
   namespace: data
+  labels:
+    zta.job7189/role: broker
+    zta.job7189/tier: T1
+    zta.job7189/env: prod
+    zta.job7189/data-classification: confidential
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: data
 spec:
   serviceName: kafka-svc
   replicas: 1
@@ -34,6 +41,12 @@ spec:
     metadata:
       labels:
         app: kafka
+        zta.job7189/role: broker
+        zta.job7189/tier: T1
+        zta.job7189/env: prod
+        zta.job7189/data-classification: confidential
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: data
     spec:
       containers:
       - name: kafka
@@ -94,6 +107,13 @@ kind: Deployment
 metadata:
   name: kafbat
   namespace: management
+  labels:
+    zta.job7189/role: ui
+    zta.job7189/tier: T3
+    zta.job7189/env: prod
+    zta.job7189/data-classification: none
+    zta.job7189/exposure: internal
+    zta.job7189/team: data
 spec:
   replicas: 1
   selector:
@@ -103,6 +123,12 @@ spec:
     metadata:
       labels:
         app: kafbat
+        zta.job7189/role: ui
+        zta.job7189/tier: T3
+        zta.job7189/env: prod
+        zta.job7189/data-classification: none
+        zta.job7189/exposure: internal
+        zta.job7189/team: data
     spec:
       serviceAccountName: kafbat
       containers:

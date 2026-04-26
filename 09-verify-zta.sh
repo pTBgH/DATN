@@ -321,6 +321,43 @@ else
 fi
 
 # ========================
+# Test 4d: Workload labeling coverage (PR #9 — doc/19-label-schema.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🏷️  Test 4d: Workload Label Coverage"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+LABEL_NAMESPACES="data vault security monitoring gateway management registry job7189-apps frontend"
+LABEL_KEYS="zta.job7189/role zta.job7189/tier zta.job7189/env zta.job7189/data-classification zta.job7189/exposure zta.job7189/team"
+
+for ns in $LABEL_NAMESPACES; do
+  if ! kubectl get ns "$ns" >/dev/null 2>&1; then
+    continue
+  fi
+  pods=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l)
+  if [ "$pods" -eq 0 ]; then
+    continue
+  fi
+
+  missing_pods=0
+  for key in $LABEL_KEYS; do
+    # số pod KHÔNG có label này
+    have=$(kubectl get pods -n "$ns" -l "$key" --no-headers 2>/dev/null | wc -l)
+    diff=$((pods - have))
+    if [ "$diff" -gt 0 ]; then
+      missing_pods=$((missing_pods + diff))
+    fi
+  done
+
+  if [ "$missing_pods" -eq 0 ]; then
+    result PASS "ns=$ns ($pods pods) — all 6 ZTA labels present"
+  else
+    result WARN "ns=$ns: $missing_pods label-misses across $pods pods" "Run scripts/zta-apply-workload-labels.sh --apply"
+  fi
+done
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

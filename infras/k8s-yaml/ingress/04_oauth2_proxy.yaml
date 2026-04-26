@@ -82,6 +82,13 @@ kind: Deployment
 metadata:
   name: oauth2-proxy
   namespace: security
+  labels:
+    zta.job7189/role: proxy
+    zta.job7189/tier: T1
+    zta.job7189/env: prod
+    zta.job7189/data-classification: confidential
+    zta.job7189/exposure: internal
+    zta.job7189/team: security
 spec:
   replicas: 1
   selector:
@@ -91,6 +98,12 @@ spec:
     metadata:
       labels:
         app: oauth2-proxy
+        zta.job7189/role: proxy
+        zta.job7189/tier: T1
+        zta.job7189/env: prod
+        zta.job7189/data-classification: confidential
+        zta.job7189/exposure: internal
+        zta.job7189/team: security
     spec:
       serviceAccountName: oauth2-proxy
       # Inject DNS mapping cho pod — auth.job7189.local → keycloak service IP

@@ -9,6 +9,13 @@ kind: Deployment
 metadata:
   name: kong-gateway
   namespace: gateway
+  labels:
+    zta.job7189/role: proxy
+    zta.job7189/tier: T2
+    zta.job7189/env: prod
+    zta.job7189/data-classification: none
+    zta.job7189/exposure: external
+    zta.job7189/team: platform
 spec:
   replicas: 1
   selector:
@@ -18,6 +25,12 @@ spec:
     metadata:
       labels:
         app: kong-gateway
+        zta.job7189/role: proxy
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: none
+        zta.job7189/exposure: external
+        zta.job7189/team: platform
     spec:
       serviceAccountName: kong-gateway
       containers:

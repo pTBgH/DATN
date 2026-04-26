@@ -1,0 +1,89 @@
+# PR #17 — SPIRE Workload Attestation
+# ClusterSPIFFEID resources — define which K8s pods receive which SPIFFE ID.
+#
+# CRD reference:
+#   https://github.com/spiffe/spire-controller-manager/blob/main/docs/clusterspiffeid-crd.md
+#
+# Each ClusterSPIFFEID maps a pod selector → a SPIFFE ID template.
+# spire-controller-manager watches matching pods and registers an entry with
+# spire-server, which then issues an SVID via spire-agent's Workload API.
+#
+# All rules cross-cut 7 ZTA namespaces (data, vault, security, monitoring,
+# gateway, management, job7189-apps).
+
+# ---------------------------------------------------------------------------
+# Rule 1: Default identity for every pod in 7 ZTA namespaces.
+# SPIFFE ID format:
+#   spiffe://zta.job7189/ns/<namespace>/sa/<service-account>
+# ---------------------------------------------------------------------------
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: zta-default-workload-identity
+spec:
+  # Template uses K8s ServiceAccount name as the workload identifier suffix.
+  spiffeIDTemplate: "spiffe://zta.job7189/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  podSelector:
+    matchExpressions:
+    - key: cilium.zta/role
+      operator: Exists
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: In
+      values:
+      - data
+      - vault
+      - security
+      - monitoring
+      - gateway
+      - management
+      - job7189-apps
+  # ZTA labels are mirrored onto the SVID's DNS SANs for downstream policy.
+  dnsNameTemplates:
+  - "{{ index .PodMeta.Labels \"app\" }}.{{ .PodMeta.Namespace }}.svc.cluster.local"
+---
+# ---------------------------------------------------------------------------
+# Rule 2: High-sensitivity workloads (T1 / vault, security) get longer SVID
+#         TTL since they are slow-moving and re-issuance is expensive.
+#         Lower TTL would create churn on the spire-server CA.
+# ---------------------------------------------------------------------------
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: zta-tier1-extended-ttl
+spec:
+  spiffeIDTemplate: "spiffe://zta.job7189/tier1/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  ttl: 3600s          # 1 hour rotation
+  podSelector:
+    matchLabels:
+      cilium.zta/tier: T1
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: In
+      values:
+      - vault
+      - security
+---
+# ---------------------------------------------------------------------------
+# Rule 3: Frontend (T3 — internet-exposed) gets short TTL — rotate every
+#         15min to limit blast-radius if a frontend pod is compromised.
+# ---------------------------------------------------------------------------
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: zta-tier3-short-ttl
+spec:
+  spiffeIDTemplate: "spiffe://zta.job7189/tier3/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  ttl: 900s           # 15 min rotation
+  podSelector:
+    matchLabels:
+      cilium.zta/tier: T3
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: In
+      values:
+      - gateway
+      - job7189-apps

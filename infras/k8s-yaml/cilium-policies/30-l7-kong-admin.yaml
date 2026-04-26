@@ -1,0 +1,52 @@
+# =============================================================================
+# PR #10 — L7 enforcement: Kong admin API (port 8001)
+# Reference: doc/20-5w1h-policy-matrix.md row #10
+#
+# Kong admin API (8001) đã giới hạn ở 14-gateway.yaml (chỉ host/remote-node).
+# Tăng cường: chỉ cho phép GET (read-only) trên /status, /metrics. Block mọi
+# POST/PATCH/DELETE để operator KHÔNG modify config qua admin API mà phải
+# qua declarative config (kong-declarative-config configmap).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-kong-admin-readonly
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+      zta.job7189/role: proxy
+  ingress:
+  # Admin API (8001) — read-only operations only
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8001"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/status.*"
+        - method: "GET"
+          path: "/metrics"
+        - method: "GET"
+          path: "/"
+        - method: "GET"
+          path: "/services"
+        - method: "GET"
+          path: "/services/.*"
+        - method: "GET"
+          path: "/routes"
+        - method: "GET"
+          path: "/routes/.*"
+        - method: "GET"
+          path: "/plugins"
+        - method: "GET"
+          path: "/plugins/.*"
+        - method: "GET"
+          path: "/consumers"
+        - method: "GET"
+          path: "/consumers/.*"

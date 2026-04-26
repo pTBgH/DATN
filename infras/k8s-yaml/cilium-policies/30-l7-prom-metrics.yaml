@@ -1,0 +1,71 @@
+# =============================================================================
+# PR #10 — L7 enforcement: Prometheus scrape — chỉ GET /metrics
+# Reference: doc/20-5w1h-policy-matrix.md row #12
+#
+# Prometheus scrape /metrics trên mọi pod có port "metrics" hoặc :9100,:9090.
+# Restrict: chỉ GET /metrics — block bất kỳ POST/DELETE/PATCH attempt từ
+# pod prometheus (defense in depth nếu prometheus pod bị compromise).
+#
+# Selector: bất kỳ pod nào có label `prometheus.io/scrape: "true"` HOẶC
+# nằm trong list endpoint scrape của prometheus.
+#
+# Mẫu hẹp: chỉ áp lên những target chính node-exporter + kube-state-metrics
+# + cilium agent (PR #10 incremental). Mở rộng cho microservices ở PR #11.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-prom-scrape-node-exporter
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: node-exporter
+      zta.job7189/role: scraper
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: prometheus
+        zta.job7189/role: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
+    authentication:
+      mode: required
+    toPorts:
+    - ports:
+      - port: "9100"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/metrics"
+        - method: "GET"
+          path: "/"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: l7-prom-scrape-kube-state-metrics
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kube-state-metrics
+      zta.job7189/role: scraper
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: prometheus
+        zta.job7189/role: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
+    authentication:
+      mode: required
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/metrics"
+        - method: "GET"
+          path: "/healthz"

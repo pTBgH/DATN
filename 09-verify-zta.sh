@@ -107,45 +107,60 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🛡️ Test 3: Kong JWT Enforcement"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Kong image has no curl/wget — use ephemeral busybox pod to test via ClusterIP
+# Use kubectl port-forward (apiserver SPDY tunnel — bypasses Cilium policy on
+# pod→pod traffic). Avoids creating ephemeral test pods which (a) hang waiting
+# for image pull through default-deny, (b) require label/policy carve-outs.
 KONG_SVC=$(kubectl get svc -n gateway -l app=kong-gateway -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-if [ -z "$KONG_SVC" ]; then
-  # Fallback: try known service name
-  KONG_SVC="kong-proxy"
-fi
-KONG_URL="http://${KONG_SVC}.gateway.svc.cluster.local:80"
+if [ -z "$KONG_SVC" ]; then KONG_SVC="kong-proxy"; fi
 
-echo "   Using Kong endpoint: $KONG_URL"
+PF_PORT=18800
+echo "   Using kubectl port-forward svc/${KONG_SVC} ${PF_PORT}:80"
 
-# Test: protected route without token → should return 401
-# Use curlimages/curl image (curl + clean stderr separation) instead of busybox wget;
-# capture only stdout (the HTTP status code), suppress kubectl/pod lifecycle messages.
-JWT_POD="jwt-test-$$"
-JWT_401=$(kubectl run "$JWT_POD" --image=curlimages/curl:8.10.1 --restart=Never \
-  --rm -i --quiet --command -- \
-  curl -sk -m 10 -o /dev/null -w '%{http_code}' \
-  "${KONG_URL}/api/recruiters/profile" 2>/dev/null || echo "000")
-kubectl delete pod "$JWT_POD" --ignore-not-found --grace-period=0 --force >/dev/null 2>&1 || true
+# Cleanup any stale port-forward
+pkill -f "port-forward.*svc/${KONG_SVC}.*${PF_PORT}" 2>/dev/null || true
+sleep 1
 
-if [ "$JWT_401" = "401" ]; then
-  result PASS "Protected route returns 401 without JWT"
-  echo "   HTTP 401 — JWT enforcement active" > "$EVIDENCE_DIR/jwt-401-${TIMESTAMP}.txt"
+# Start port-forward in background, redirect output to log
+PF_LOG="$EVIDENCE_DIR/port-forward-${TIMESTAMP}.log"
+kubectl -n gateway port-forward "svc/${KONG_SVC}" "${PF_PORT}:80" \
+  >"$PF_LOG" 2>&1 &
+PF_PID=$!
+
+# Wait for port to come up (max 8s)
+PF_READY=0
+for _ in 1 2 3 4 5 6 7 8; do
+  if curl -s -o /dev/null -m 1 "http://localhost:${PF_PORT}/" 2>/dev/null; then
+    PF_READY=1; break
+  fi
+  sleep 1
+done
+
+if [ "$PF_READY" = "1" ]; then
+  # Test: protected route without token → should return 401
+  JWT_401=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' \
+    "http://localhost:${PF_PORT}/api/recruiters/profile" 2>/dev/null || echo "000")
+  if [ "$JWT_401" = "401" ]; then
+    result PASS "Protected route returns 401 without JWT"
+    echo "   HTTP 401 — JWT enforcement active" > "$EVIDENCE_DIR/jwt-401-${TIMESTAMP}.txt"
+  else
+    result WARN "Protected route returned '$JWT_401'" "Expected 401 — Kong may use different route path"
+  fi
+
+  # Test: open route → should return non-000
+  OPEN_CODE=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' \
+    "http://localhost:${PF_PORT}/" 2>/dev/null || echo "000")
+  if [ "$OPEN_CODE" != "000" ]; then
+    result PASS "Kong proxy reachable (HTTP $OPEN_CODE)"
+  else
+    result WARN "Kong proxy unreachable via port-forward" "Check kong pod health"
+  fi
 else
-  result WARN "Protected route returned '$JWT_401'" "Expected 401 — Kong may use different route path"
+  result WARN "Kong port-forward did not become ready in 8s" "Run kubectl get pod -n gateway"
 fi
 
-# Test: unprotected route → should return non-401 (200/404/503 all acceptable)
-HEALTH_POD="health-test-$$"
-OPEN_CODE=$(kubectl run "$HEALTH_POD" --image=curlimages/curl:8.10.1 --restart=Never \
-  --rm -i --quiet --command -- \
-  curl -sk -m 10 -o /dev/null -w '%{http_code}' "${KONG_URL}/" 2>/dev/null || echo "000")
-kubectl delete pod "$HEALTH_POD" --ignore-not-found --grace-period=0 --force >/dev/null 2>&1 || true
-
-if [ "$OPEN_CODE" != "000" ]; then
-  result PASS "Kong proxy reachable (HTTP $OPEN_CODE)"
-else
-  result WARN "Kong proxy unreachable from test pod" "Network policy may be blocking"
-fi
+# Cleanup port-forward
+kill "$PF_PID" 2>/dev/null || true
+wait "$PF_PID" 2>/dev/null || true
 
 # ========================
 # Test 4: Cilium Microsegmentation

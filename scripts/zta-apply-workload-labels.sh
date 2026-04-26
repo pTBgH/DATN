@@ -73,6 +73,25 @@ label_workload() {
 JSON
 )
   run kubectl patch "$kind" "$name" -n "$ns" --type=strategic --patch "$patch"
+
+  # 3) Label TRỰC TIẾP các pod đang chạy (kubectl patch chỉ update template,
+  #    pod hiện hữu KHÔNG được relabel cho tới khi roll-out).
+  #    Pod chính được match bằng "app=<name>" theo convention của repo.
+  #    Nếu app label không tồn tại trên pod, kubectl trả về 0 pods, không lỗi.
+  if [[ $APPLY -eq 1 ]]; then
+    if kubectl get pods -n "$ns" -l "app=$name" --no-headers 2>/dev/null | grep -q .; then
+      kubectl label pods -n "$ns" -l "app=$name" \
+        "zta.job7189/role=$role" \
+        "zta.job7189/tier=$tier" \
+        "zta.job7189/env=$env" \
+        "zta.job7189/data-classification=$dc" \
+        "zta.job7189/exposure=$expo" \
+        "zta.job7189/team=$team" \
+        --overwrite >/dev/null 2>&1 \
+        && echo "  ✓ live pods labeled: app=$name in ns=$ns" \
+        || echo "  ! live-pod label failed (continuing)"
+    fi
+  fi
 }
 
 echo "============================================================"

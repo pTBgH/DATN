@@ -759,6 +759,81 @@ else
 fi
 
 # ========================
+# Test 4l: Hubble flow → Elasticsearch sink (PR #21 — doc/30-hubble-flow-sink.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📤 Test 4l: Hubble flow → Elasticsearch (audit trail)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+SHIPPER_NS="${SHIPPER_NS:-monitoring}"
+if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
+  # 1. Cilium config has hubble-export-file enabled
+  HUBBLE_PATH=$(kubectl -n kube-system get cm cilium-config \
+    -o jsonpath='{.data.hubble-export-file-path}' 2>/dev/null || echo "")
+  if [ -n "$HUBBLE_PATH" ]; then
+    result PASS "Cilium hubble-export enabled (path=$HUBBLE_PATH)"
+  else
+    result FAIL "Cilium hubble-export NOT enabled — flows won't be written to disk" \
+      "bash scripts/zta-deploy-hubble-export.sh  # patches cilium-config"
+  fi
+
+  # 2. filebeat DaemonSet covers all nodes
+  DS_DESIRED=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
+    -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+  DS_READY=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
+    -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+  DS_DESIRED=${DS_DESIRED:-0}
+  DS_READY=${DS_READY:-0}
+  if [ "$DS_READY" -ge 1 ] && [ "$DS_READY" = "$DS_DESIRED" ]; then
+    result PASS "hubble-flow-shipper DaemonSet covers all nodes ($DS_READY/$DS_DESIRED)"
+  else
+    result FAIL "hubble-flow-shipper DS incomplete ($DS_READY/$DS_DESIRED)" \
+      "kubectl -n $SHIPPER_NS describe ds hubble-flow-shipper"
+  fi
+
+  # 3. Filebeat logs show successful ES output
+  FB_LOG=$(kubectl -n "$SHIPPER_NS" logs ds/hubble-flow-shipper --tail=80 2>/dev/null \
+    | grep -E '(Connection.*established|harvester started|Non-zero metrics|publish_events)' | tail -1)
+  if [ -n "$FB_LOG" ]; then
+    result PASS "filebeat actively shipping (last activity: ${FB_LOG:0:80}...)"
+  else
+    result WARN "No filebeat activity log — shipper may still be initializing or no flows yet" \
+      "kubectl -n $SHIPPER_NS logs ds/hubble-flow-shipper --tail=30"
+  fi
+
+  # 4. ES index exists with > 0 docs
+  ES_INDEX_INFO=$(kubectl -n data exec deploy/elasticsearch -- \
+    curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
+  if [ -n "$ES_INDEX_INFO" ]; then
+    DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
+    DOC_COUNT=${DOC_COUNT:-0}
+    if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
+      result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+    else
+      result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
+        "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+    fi
+  else
+    result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
+      "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices"
+  fi
+
+  # 5. Cilium agent can write to hubble export path (file exists)
+  HUBBLE_FILE_CHECK=$(kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+    ls /var/run/cilium/hubble/events.log 2>/dev/null | head -1)
+  if [ -n "$HUBBLE_FILE_CHECK" ]; then
+    result PASS "Cilium agents writing to /var/run/cilium/hubble/events.log"
+  else
+    result WARN "Hubble events.log not found on agent yet — wait for first flow + restart" \
+      "kubectl -n kube-system rollout restart ds cilium"
+  fi
+else
+  result WARN "Hubble flow → ES sink not deployed" \
+    "Run scripts/zta-deploy-hubble-export.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

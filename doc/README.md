@@ -61,6 +61,7 @@ Cap nhat: 2026-04-26 (19 files)
 | SPIRE Workload Attestation (Devices Advanced) | `27` |
 | sigstore policy-controller (real Cosign verify) | `28` |
 | SPIRE Workload Integration (consume SVID) | `29` |
+| Hubble flow sink (Elasticsearch audit trail) | `30` |
 
 ## Archive
 

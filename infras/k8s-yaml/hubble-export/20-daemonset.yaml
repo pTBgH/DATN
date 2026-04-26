@@ -1,0 +1,93 @@
+---
+# Filebeat DaemonSet — one per node. Reads Hubble flow log from
+# /var/run/cilium/hubble/events.log (hostPath, RO) and ships JSON
+# documents to Elasticsearch.
+#
+# Prerequisite: cilium-config patched to enable hubble-export-file.
+# See scripts/zta-deploy-hubble-export.sh.
+#
+# Resource budget per replica: ~50m CPU / 96-192Mi RAM.
+# 4 nodes -> ~200-400Mi RAM total.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hubble-flow-shipper
+  namespace: monitoring
+  labels:
+    app: hubble-flow-shipper
+    cilium.zta/role: log-shipper
+    cilium.zta/tier: t2
+    cilium.zta/exposure: internal
+    cilium.zta/data-class: internal
+    cilium.zta/lifecycle: prod
+    cilium.zta/identity: workload
+spec:
+  selector:
+    matchLabels:
+      app: hubble-flow-shipper
+  template:
+    metadata:
+      labels:
+        app: hubble-flow-shipper
+        cilium.zta/role: log-shipper
+        cilium.zta/tier: t2
+        cilium.zta/exposure: internal
+        cilium.zta/data-class: internal
+        cilium.zta/lifecycle: prod
+        cilium.zta/identity: workload
+    spec:
+      serviceAccountName: hubble-flow-shipper
+      tolerations:
+      - operator: Exists
+      hostNetwork: false
+      containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:8.10.4
+        imagePullPolicy: IfNotPresent
+        args:
+        - "-c"
+        - "/etc/filebeat/filebeat.yml"
+        - "-e"   # log to stderr
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources:
+          requests:
+            cpu: 30m
+            memory: 96Mi
+          limits:
+            cpu: 200m
+            memory: 192Mi
+        securityContext:
+          runAsUser: 0    # hostPath /var/run/cilium owned by root
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+            add: ["DAC_READ_SEARCH"]    # read root-owned files
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: config
+          mountPath: /etc/filebeat
+          readOnly: true
+        - name: hubble-events
+          mountPath: /hostlogs/cilium/hubble
+          readOnly: true
+        - name: data
+          mountPath: /usr/share/filebeat/data
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: config
+        configMap:
+          name: hubble-flow-shipper-config
+      - name: hubble-events
+        hostPath:
+          path: /var/run/cilium/hubble
+          type: DirectoryOrCreate
+      - name: data
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}

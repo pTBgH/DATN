@@ -2,7 +2,7 @@
 
 Kho tri thuc gon cho du an Zero Trust job7189.
 Muc tieu: giam token khi lam viec voi AI — chi doc dung file can thiet.
-Cap nhat: 2026-04-24 (16 files)
+Cap nhat: 2026-04-25 (17 files)
 
 ## Index
 
@@ -24,7 +24,8 @@ Cap nhat: 2026-04-24 (16 files)
 | 13 | `13-maintenance-rules.md` | Quy uoc cap nhat KB + query map |
 | 14 | `14-tetragon-runtime.md` | **MOI** — PEP Runtime: TracingPolicy, MITRE mapping, ke hoach deploy |
 | 15 | `15-encryption-mtls-spiffe.md` | **MOI** — mTLS + WireGuard + SPIFFE + OPA/Rego + ABAC + CAEP |
-| 16 | `16-pip-data-sources.md` | **MOI** — PIP tools: Keycloak, Vault, Cilium, Prometheus, EFK, Hubble |
+| 16 | `16-pip-data-sources.md` | PIP tools: Keycloak, Vault, Cilium, Prometheus, EFK, Hubble |
+| 17 | `17-observability-baseline.md` | **MOI** (PR #7) — Step 2.3.1: Hubble flow baseline + DAAS prep |
 
 ## Query Map (cho AI/Agent)
 

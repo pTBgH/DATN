@@ -161,6 +161,21 @@ dang chay trong cluster, co pod/service rieng, expose API hoac du lieu cho PE su
 
 **Ket luan**: 4/7 PIP da trien khai day du. 1 partial. 2 chua co (declared trong thesis).
 
+## Phase 4 — PIP hardening roadmap
+
+Trien khai tuan tu theo **5 buoc** cua do an 1 (Muc 2.3 / 3.4):
+
+| Phase | Buoc thesis | Tac dong len PIP |
+|-------|-------------|------------------|
+| PR #7 | 2.3.1 Observability | PIP 7 — them baseline snapshot tool (`scripts/zta-observability-baseline.sh`); doc `17-observability-baseline.md` |
+| PR #8 | 2.3.2 Zero Trust DAAS + microperimeter | PIP 4 — DAAS classification van ban hoa; default-deny mo rong moi namespace |
+| PR #9 | 2.3.3 Workload labeling | PIP 2 — Cilium identity mo rong (4-6 nhan), PE co them subject attributes |
+| PR #10 | 2.3.4 5W1H comprehensive policy | PIP 1+2+3+7 — moi luong duoc mo ta theo Who/What/When/Where/Why/How |
+| PR #11 | 2.3.5 Adaptive security | PIP 7 — closed loop Tetragon → controller → Cilium label patcher; chuan bi cau truc cho PIP 6 (Threat Intel) |
+
+PIP 5 (Device Posture) va PIP 6 (Threat Intel) duoc dat o **Phase 5** vi can
+nguon du lieu external (MDM/EDR / threat feed) chua available trong cluster.
+
 ## Vong doi du lieu PIP → PE → PEP
 
 ```

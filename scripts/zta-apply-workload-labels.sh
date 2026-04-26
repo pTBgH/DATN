@@ -76,20 +76,57 @@ JSON
 
   # 3) Label TRỰC TIẾP các pod đang chạy (kubectl patch chỉ update template,
   #    pod hiện hữu KHÔNG được relabel cho tới khi roll-out).
-  #    Pod chính được match bằng "app=<name>" theo convention của repo.
-  #    Nếu app label không tồn tại trên pod, kubectl trả về 0 pods, không lỗi.
+  #    Strategy: tìm pods qua ownerReferences (chính xác nhất),
+  #    fallback sang label selector phổ biến (app=, app.kubernetes.io/name=).
   if [[ $APPLY -eq 1 ]]; then
-    if kubectl get pods -n "$ns" -l "app=$name" --no-headers 2>/dev/null | grep -q .; then
-      kubectl label pods -n "$ns" -l "app=$name" \
-        "zta.job7189/role=$role" \
-        "zta.job7189/tier=$tier" \
-        "zta.job7189/env=$env" \
-        "zta.job7189/data-classification=$dc" \
-        "zta.job7189/exposure=$expo" \
-        "zta.job7189/team=$team" \
-        --overwrite >/dev/null 2>&1 \
-        && echo "  ✓ live pods labeled: app=$name in ns=$ns" \
-        || echo "  ! live-pod label failed (continuing)"
+    local pod_names=""
+    # 3a. Find pods via ownerReference (replicaset của Deployment, hoặc statefulset trực tiếp)
+    if [ "$kind" = "statefulset" ]; then
+      pod_names=$(kubectl get pods -n "$ns" -o json 2>/dev/null \
+        | jq -r --arg n "$name" '.items[] | select(.metadata.ownerReferences[]? | select(.kind=="StatefulSet" and .name==$n)) | .metadata.name' 2>/dev/null || true)
+    elif [ "$kind" = "deployment" ]; then
+      # ReplicaSet name = <deployment>-<hash>; pods owner = ReplicaSet
+      local rs_names
+      rs_names=$(kubectl get rs -n "$ns" -o json 2>/dev/null \
+        | jq -r --arg n "$name" '.items[] | select(.metadata.ownerReferences[]? | select(.kind=="Deployment" and .name==$n)) | .metadata.name' 2>/dev/null || true)
+      if [ -n "$rs_names" ]; then
+        for rs in $rs_names; do
+          local p
+          p=$(kubectl get pods -n "$ns" -o json 2>/dev/null \
+            | jq -r --arg n "$rs" '.items[] | select(.metadata.ownerReferences[]? | select(.kind=="ReplicaSet" and .name==$n)) | .metadata.name' 2>/dev/null || true)
+          pod_names="$pod_names $p"
+        done
+      fi
+    fi
+    pod_names=$(echo "$pod_names" | tr -s ' \n' '\n' | grep -v '^$' || true)
+
+    # 3b. Fallback: thử label selector phổ biến nếu owner-ref không tìm được pod
+    if [ -z "$pod_names" ]; then
+      for sel in "app=$name" "app.kubernetes.io/name=$name" "app.kubernetes.io/instance=$name"; do
+        local found
+        found=$(kubectl get pods -n "$ns" -l "$sel" --no-headers 2>/dev/null | awk '{print $1}')
+        if [ -n "$found" ]; then
+          pod_names="$found"
+          break
+        fi
+      done
+    fi
+
+    if [ -n "$pod_names" ]; then
+      local cnt=0
+      for pod in $pod_names; do
+        kubectl label pod "$pod" -n "$ns" \
+          "zta.job7189/role=$role" \
+          "zta.job7189/tier=$tier" \
+          "zta.job7189/env=$env" \
+          "zta.job7189/data-classification=$dc" \
+          "zta.job7189/exposure=$expo" \
+          "zta.job7189/team=$team" \
+          --overwrite >/dev/null 2>&1 && cnt=$((cnt + 1)) || true
+      done
+      echo "  ✓ live pods labeled: $cnt pod(s) for $kind/$name in ns=$ns"
+    else
+      echo "  ! live-pod label: 0 pods found for $kind/$name in ns=$ns (only template patched)"
     fi
   fi
 }

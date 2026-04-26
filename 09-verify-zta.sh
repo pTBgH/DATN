@@ -411,8 +411,9 @@ done
 
 # Hubble L7 flow check
 if [ -n "$HUBBLE_POD" ]; then
-  L7_FLOWS=$(kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe --type l7 --last 50 -o compact 2>/dev/null | wc -l || echo "0")
-  if [ "$L7_FLOWS" -gt 0 ]; then
+  L7_FLOWS=$( { kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe --type l7 --last 50 -o compact 2>/dev/null || true; } | wc -l | tr -d ' \n')
+  L7_FLOWS=${L7_FLOWS:-0}
+  if [ "$L7_FLOWS" -gt 0 ] 2>/dev/null; then
     result PASS "Hubble L7 flows captured: $L7_FLOWS samples"
   else
     result WARN "Hubble L7 flows = 0" "Generate traffic (curl Vault/Keycloak) then re-run"

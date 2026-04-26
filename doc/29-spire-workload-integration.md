@@ -25,16 +25,16 @@ PR #20 demo workload integration thực: 1 pod mount `csi.spiffe.io` ephemeral v
 │         │                                            ▼              │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │  Pod: spire-demo-workload                                    │   │
-│  │   container: spire-agent-fetcher                             │   │
+│  │   container: spiffe-helper                                   │   │
 │  │     mount: /spiffe-workload-api  (csi: csi.spiffe.io)        │   │
-│  │     command:                                                 │   │
-│  │       /opt/spire/bin/spire-agent api fetch x509              │   │
-│  │         -socketPath /spiffe-workload-api/spire-agent.sock    │   │
-│  │       → outputs:                                             │   │
-│  │         SPIFFE ID:    spiffe://zta.job7189/ns/security/sa/   │   │
-│  │                       spire-demo-workload                    │   │
-│  │         X509-SVID:    PEM (cert + chain)                     │   │
-│  │         Private Key:  PEM                                    │   │
+│  │     image: ghcr.io/spiffe/spiffe-helper:0.8.0                │   │
+│  │     daemon watches Workload API + writes PEM files:          │   │
+│  │       /svids/svid.crt    (X.509 cert PEM)                    │   │
+│  │       /svids/svid.key    (private key PEM)                   │   │
+│  │       /svids/bundle.crt  (trust bundle PEM)                  │   │
+│  │     SPIFFE ID issued:                                        │   │
+│  │       spiffe://zta.job7189/ns/security/sa/                   │   │
+│  │                                spire-demo-workload           │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -42,16 +42,16 @@ PR #20 demo workload integration thực: 1 pod mount `csi.spiffe.io` ephemeral v
 ## 3. Workload attestation flow
 
 1. Pod khởi động, kubelet binds CSI volume (host: `/run/spire/agent-sockets/<node>` → pod: `/spiffe-workload-api`).
-2. Pod gọi `spire-agent api fetch x509 -socketPath /spiffe-workload-api/spire-agent.sock`.
-3. spire-agent CSI side nhận RPC, attest **caller** bằng selectors:
+2. spiffe-helper daemon mở Workload API socket `/spiffe-workload-api/spire-agent.sock` và subscribe `WatchX509SVID` gRPC stream.
+3. spire-agent (CSI side) attest **caller** bằng selectors:
    - `k8s:pod-uid:<UID>`
    - `k8s:ns:<namespace>`
    - `k8s:sa:<service-account>`
    - `k8s:pod-label:app=spire-demo-workload`
 4. spire-agent forward request lên spire-server với selectors.
 5. spire-server tra entry có matching selectors → issue X.509 SVID + chain.
-6. spire-agent trả SVID về pod qua socket.
-7. Pod log `svid_acquired spiffe_id=spiffe://...`.
+6. spire-agent push SVID về spiffe-helper qua stream.
+7. spiffe-helper write `/svids/svid.crt`, `/svids/svid.key`, `/svids/bundle.crt` + log line.
 
 ## 4. ClusterSPIFFEID rule
 
@@ -79,38 +79,42 @@ spec:
   serviceAccountName: spire-demo-workload
   automountServiceAccountToken: false   # KHÔNG xài SA token — only SVID
   containers:
-  - name: spire-agent-fetcher
-    image: ghcr.io/spiffe/spire-agent:1.9.0
+  - name: spiffe-helper
+    image: ghcr.io/spiffe/spiffe-helper:0.8.0
+    args: ["-config", "/etc/spiffe-helper/helper.conf"]
     volumeMounts:
     - name: spiffe-workload-api
       mountPath: /spiffe-workload-api
       readOnly: true
+    - name: svids
+      mountPath: /svids                # SVID PEM files written here
   volumes:
   - name: spiffe-workload-api
     csi:
-      driver: csi.spiffe.io        # provided by spiffe-csi-driver DS (PR #17)
+      driver: csi.spiffe.io            # provided by spiffe-csi-driver DS (PR #17)
       readOnly: true
+  - name: svids
+    emptyDir: {}
 ```
 
-Lưu ý: `automountServiceAccountToken: false` chứng minh pod không cần SA token để authenticate — **toàn bộ identity nằm ở SVID**.
+Lưu ý:
+- `automountServiceAccountToken: false` chứng minh pod không cần SA token để authenticate — **toàn bộ identity nằm ở SVID**.
+- Image **distroless** `ghcr.io/spiffe/spire-agent` không có `/bin/sh`, nên ta dùng [`spiffe-helper`](https://github.com/spiffe/spiffe-helper) — daemon chính thức của SPIFFE để consume SVID, có shell + helper logic + auto-rotate.
 
 ## 6. SVID rotation
 
-X.509 SVIDs expire (default 1h, có thể tune trong helm values). spire-agent tự động re-fetch khi 50% TTL còn lại. Pod observed:
+X.509 SVIDs expire (default 1h, có thể tune trong helm values). spire-agent tự động push SVID mới qua stream khi 50% TTL còn lại. spiffe-helper observe và overwrite các file PEM. Logs:
 
 ```
-[2026-04-26T13:50:00Z] svid_acquired spiffe_id=spiffe://zta.job7189/ns/security/sa/spire-demo-workload
-[2026-04-26T13:50:30Z] svid_acquired spiffe_id=spiffe://zta.job7189/ns/security/sa/spire-demo-workload
-...
-[2026-04-26T14:20:00Z] svid_acquired spiffe_id=spiffe://zta.job7189/ns/security/sa/spire-demo-workload  # rotated SVID, mới cert
+time=...  msg="X.509 SVID updated"  spiffe_id="spiffe://zta.job7189/ns/security/sa/spire-demo-workload"
+time=...  msg="SVID file written"   path=/svids/svid.crt
 ```
 
-Verify rotation:
+Verify rotation by inspecting cert lifetime in pod:
 ```bash
 kubectl -n security exec deploy/spire-demo-workload -- \
-  /opt/spire/bin/spire-agent api fetch x509 \
-  -socketPath /spiffe-workload-api/spire-agent.sock 2>&1 \
-  | openssl x509 -in /dev/stdin -text -noout | grep -E "Not (Before|After)"
+  cat /svids/svid.crt | openssl x509 -text -noout | grep -E "Not (Before|After)|Subject:"
+# Subject sẽ chứa URI:spiffe://zta.job7189/ns/security/sa/spire-demo-workload
 ```
 
 ## 7. Triển khai
@@ -120,7 +124,8 @@ kubectl -n security exec deploy/spire-demo-workload -- \
 bash scripts/zta-spire-onboard-demo.sh
 
 # Verify
-kubectl -n security logs deploy/spire-demo-workload --tail=10 | grep svid_acquired
+kubectl -n security logs deploy/spire-demo-workload --tail=10 | grep -i svid
+kubectl -n security exec deploy/spire-demo-workload -- ls -la /svids/
 
 # Inspect SPIRE entry
 kubectl -n spire exec statefulset/spire-server -c spire-server -- \

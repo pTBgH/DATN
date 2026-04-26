@@ -92,18 +92,25 @@ spec:
           readOnly: true
         - name: pip-cache
           mountPath: /tmp
+        # startupProbe gives generous 5min for pip install on first run
+        # before liveness/readiness kick in.
+        startupProbe:
+          httpGet:
+            path: /metrics
+            port: 9100
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 30   # 30 × 10s = 300s total
         livenessProbe:
           httpGet:
             path: /metrics
             port: 9100
-          initialDelaySeconds: 60
           periodSeconds: 30
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /metrics
             port: 9100
-          initialDelaySeconds: 30
           periodSeconds: 10
       volumes:
       - name: script

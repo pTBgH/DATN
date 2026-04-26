@@ -137,7 +137,8 @@ spec:
     - ports:
       - {port: "443", protocol: TCP}
       - {port: "6443", protocol: TCP}
-  # DNS
+  # DNS — must have rules.dns: matchPattern "*" so Cilium DNS proxy
+  # learns IP→FQDN mappings for the toFQDNs rule below to work.
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: kube-system
@@ -146,12 +147,24 @@ spec:
     - ports:
       - {port: "53", protocol: UDP}
       - {port: "53", protocol: TCP}
-  # PyPI (initial pip install — only first run)
+      rules:
+        dns:
+        - matchPattern: "*"
+  # PyPI (initial pip install only — broad pattern because PyPI uses
+  # Fastly CDN with rotating IPs).
   - toFQDNs:
     - matchPattern: "*.pypi.org"
     - matchPattern: "*.pythonhosted.org"
-    - matchName: "pypi.org"
-    - matchName: "files.pythonhosted.org"
+    - matchPattern: "*.fastly.net"
+    - matchPattern: "*.fastlylb.net"
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+  # Fallback: temporary broad CIDR for first install. PDP only needs this
+  # once — after pip cache is warm, can remove via:
+  #   kubectl -n security patch cnp allow-pdp-controller-egress --type=json \
+  #     -p='[{"op":"remove","path":"/spec/egress/4"}]'
+  - toCIDR: ["0.0.0.0/0"]
     toPorts:
     - ports:
       - {port: "443", protocol: TCP}
@@ -167,8 +180,8 @@ spec:
 EOF
 
 echo
-blue "⏳ Waiting for PDP Controller pod ready (timeout 180s)..."
-if kubectl rollout status deployment/zta-pdp -n security --timeout=180s; then
+blue "⏳ Waiting for PDP Controller pod ready (timeout 360s — pip install)..."
+if kubectl rollout status deployment/zta-pdp -n security --timeout=360s; then
   green "✅ zta-pdp rollout complete"
 else
   red "❌ zta-pdp rollout timed out — check logs:"

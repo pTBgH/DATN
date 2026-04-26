@@ -21,8 +21,10 @@ Runtime: kopf 1.37+ on Python 3.11.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sys
 import threading
 import time
 from typing import Any
@@ -81,16 +83,26 @@ PDP_RECONCILES = Counter(
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
-    format='{"ts":"%(asctime)s","lvl":"%(levelname)s","comp":"pdp",'
-           '"msg":"%(message)s"}',
+    format="%(message)s",
 )
 log = logging.getLogger("pdp")
 
 
+def _structured(level: str, **fields: Any) -> None:
+    """Emit one valid JSON line per call (Filebeat-friendly)."""
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "lvl": level,
+        "comp": "pdp",
+        **{k: ("" if v is None else v) for k, v in fields.items()},
+    }
+    sys.stdout.write(json.dumps(record, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
 def audit(event: str, **fields: Any) -> None:
-    """Emit a structured audit line for Filebeat to ship to Elasticsearch."""
-    payload = ",".join(f'"{k}":"{v}"' for k, v in fields.items())
-    log.info(f'event":"{event}",{payload}')
+    """Emit a structured audit JSON line for Filebeat to ship to Elasticsearch."""
+    _structured("INFO", event=event, **fields)
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +187,7 @@ def reconcile_loop(api: client.CoreV1Api) -> None:
                     )
                     TRUST_SCORE.labels(namespace=ns, pod=pod.metadata.name).set(score)
                     annotate_trust_score(api, ns, pod.metadata.name, score)
-            log.info(f'reconcile-complete":"namespaces":{len(ZTA_NAMESPACES)}')
+            audit("reconcile-complete", namespaces=len(ZTA_NAMESPACES))
         except Exception as exc:  # noqa: BLE001 - keep loop alive
             log.error(f"reconcile error: {exc}")
         time.sleep(METRICS_RECONCILE_PERIOD)
@@ -186,7 +198,7 @@ def reconcile_loop(api: client.CoreV1Api) -> None:
 # ---------------------------------------------------------------------------
 @kopf.on.startup()
 def on_startup(settings: kopf.OperatorSettings, **_kwargs):
-    log.info(f'startup":"namespaces":"{",".join(ZTA_NAMESPACES)}","prom":"{PROMETHEUS_PORT}"')
+    audit("startup", namespaces=",".join(ZTA_NAMESPACES), prom=PROMETHEUS_PORT)
     # Disable kopf's posting of events (we use stdout audit log instead)
     settings.posting.enabled = False
     # Bind Prometheus metrics endpoint

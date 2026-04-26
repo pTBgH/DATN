@@ -506,11 +506,19 @@ if kubectl get deployment zta-pdp -n security >/dev/null 2>&1; then
       fi
     fi
 
-    # Prometheus metrics endpoint reachable
-    METRICS_OK=$( { kubectl exec -n security deploy/zta-pdp -- /bin/sh -c 'wget -q -O - http://localhost:9100/metrics 2>/dev/null | head -5' 2>/dev/null || true; } | grep -c '^# HELP pdp_' | tr -d ' \n')
+    # Prometheus metrics endpoint reachable.
+    # python:3.11-slim has no wget/curl — use python urllib via kubectl exec.
+    METRICS_RAW=$(kubectl exec -n security deploy/zta-pdp -- python -c 'import urllib.request, sys
+try:
+  data = urllib.request.urlopen("http://localhost:9100/metrics", timeout=3).read().decode()
+  print(sum(1 for l in data.splitlines() if l.startswith("# HELP pdp_")))
+except Exception as e:
+  print(0)
+  sys.exit(0)' 2>/dev/null || echo 0)
+    METRICS_OK=$(echo "$METRICS_RAW" | tr -d ' \n')
     METRICS_OK=${METRICS_OK:-0}
     if [ "$METRICS_OK" -gt 0 ] 2>/dev/null; then
-      result PASS "PDP Prometheus metrics endpoint healthy"
+      result PASS "PDP Prometheus metrics endpoint healthy ($METRICS_OK pdp_* series)"
     else
       result WARN "PDP /metrics not yet ready" "Wait 60s after deploy for first scrape"
     fi

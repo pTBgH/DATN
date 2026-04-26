@@ -283,9 +283,12 @@ metadata:
   name: allow-kube-state-metrics-egress
   namespace: monitoring
 spec:
+  # Match cả 2 cách KSM helm chart label pod (depending on chart version)
   endpointSelector:
-    matchLabels:
-      app.kubernetes.io/name: kube-state-metrics
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values: [kube-state-metrics]
   egress:
   - toEntities:
     - kube-apiserver
@@ -297,12 +300,15 @@ spec:
         protocol: TCP
       - port: "6443"
         protocol: TCP
-  # Fallback: Kind cluster network thường là 172.18.0.0/16
+  # Service CIDR fallback: kubernetes service ClusterIP (10.96.0.1 by default)
+  # Cilium kube-proxy-replacement không phải lúc nào cũng gắn identity
+  # 'kube-apiserver' cho 10.96.0.1 → cần explicit CIDR cho service network.
   - toCIDR:
-    - 172.18.0.0/16
+    - 10.96.0.0/12        # Default Kind/k8s service CIDR
+    - 172.18.0.0/16       # Default Kind node network
     toPorts:
     - ports:
-      - port: "6443"
-        protocol: TCP
       - port: "443"
+        protocol: TCP
+      - port: "6443"
         protocol: TCP

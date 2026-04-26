@@ -100,6 +100,12 @@ spec:
         protocol: TCP
 ---
 # 5) Vault egress: K8s API server (ServiceAccount auth-delegator)
+#    Bao phủ cả 2 workload trong ns=vault cần API server:
+#      - vault server (app=vault) — SA auth-delegator
+#      - vault-agent-injector (app.kubernetes.io/name=vault-agent-injector)
+#        — list/watch MutatingWebhookConfiguration để auto-tls
+#    + CIDR fallback 10.96.0.0/12 vì Cilium kube-proxy-replacement không
+#    luôn gắn identity 'kube-apiserver' cho ClusterIP 10.96.0.1.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -107,16 +113,71 @@ metadata:
   namespace: vault
 spec:
   endpointSelector:
-    matchLabels:
-      app: vault
+    matchExpressions:
+    - key: app
+      operator: In
+      values: [vault, vault-agent-injector]
   egress:
   - toEntities:
     - kube-apiserver
+    - host
+    - remote-node
     toPorts:
     - ports:
       - port: "443"
         protocol: TCP
       - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 5b) Egress riêng cho vault-agent-injector dùng label
+#     'app.kubernetes.io/name=vault-agent-injector' (helm chart label).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-injector-egress-apiserver
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault-agent-injector
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  # Injector cần ingress TLS từ apiserver webhook port 8080
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
         protocol: TCP
 ---
 # 6) Vault egress to vault-dev (transit auto-unseal — disabled by default

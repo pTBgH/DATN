@@ -506,6 +506,11 @@ log_time "9b. Prometheus + Grafana"
 # ========================
 # 9c. Microsegmentation Policies (ZTA enforcement)
 # ========================
+# Default flow is "legacy" — applies the original 5 monolithic CNPs covering
+# job7189-apps only.
+# Set ZTA_ENABLE_POLICIES=0 (e.g. when calling from scripts/zta-rebuild.sh)
+# to skip this step entirely; the rebuild script then applies PR #8 namespace
+# CNPs + PR #9 labels + PR #10 L7 policies in a separate phase.
 echo ""
 echo "🛡️ Step 9c: Applying ZTA Microsegmentation policies..."
 ZTA_ENABLE_POLICIES="${ZTA_ENABLE_POLICIES:-1}"
@@ -523,6 +528,7 @@ if [ "$ZTA_ENABLE_POLICIES" = "1" ]; then
   fi
 else
   echo "   ⏩ Skipped (ZTA_ENABLE_POLICIES=0)"
+  echo "   → Use scripts/zta-rebuild.sh to apply PR #8/#9/#10 enforcement"
 fi
 log_time "9c. Microsegmentation Policies"
 

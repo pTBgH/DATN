@@ -1,0 +1,49 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# Constraint: zta-labels-required
+#
+# enforcementAction: dryrun  →  AUDIT-ONLY for first rollout. Existing pods
+# without ZTA labels are reported in violations[] but NOT rejected at admission.
+# Switch to "deny" once doc/19 label coverage = 100% (Test 4d PASS for all ns).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: ZTARequiredLabels
+metadata:
+  name: zta-labels-required
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    - apiGroups: ["apps"]
+      kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces:
+    - "data"
+    - "vault"
+    - "security"
+    - "monitoring"
+    - "gateway"
+    - "management"
+    - "job7189-apps"
+    - "frontend"
+    excludedNamespaces:
+    - "kube-system"
+    - "kube-public"
+    - "kube-node-lease"
+    - "ingress-nginx"
+    - "cert-manager"
+    - "gatekeeper-system"
+    - "default"
+  parameters:
+    labels:
+    - key: "zta.job7189/role"
+      allowedRegex: "^(api|worker|cache|db|broker|proxy|sso|secret-store|ui|monitoring|scraper|init|registry)$"
+    - key: "zta.job7189/tier"
+      allowedRegex: "^T[123]$"
+    - key: "zta.job7189/env"
+      allowedRegex: "^(prod|dev|staging)$"
+    - key: "zta.job7189/data-classification"
+      allowedRegex: "^(confidential|internal|public|none)$"
+    - key: "zta.job7189/exposure"
+      allowedRegex: "^(external|internal|cluster-only)$"
+    - key: "zta.job7189/team"
+      allowedRegex: "^(platform|backend|frontend|data|security)$"

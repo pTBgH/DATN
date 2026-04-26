@@ -1,0 +1,67 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# ConstraintTemplate: enforce-zta-labels
+#
+# Rejects/audits Pods that miss any of the 6 ZTA labels:
+#   zta.job7189/role
+#   zta.job7189/tier
+#   zta.job7189/env
+#   zta.job7189/data-classification
+#   zta.job7189/exposure
+#   zta.job7189/team
+#
+# Scope is set by the Constraint (next file) — typically all pod-bearing
+# namespaces in the project. Pods in kube-system, ingress-nginx, etc. are
+# excluded by Constraint .spec.match.excludedNamespaces.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: ztarequiredlabels
+  annotations:
+    description: >
+      Require every Pod (and Pod-managing controller) in scoped namespaces
+      to carry the 6 zta.job7189/* labels defined in doc/19-label-schema.md.
+spec:
+  crd:
+    spec:
+      names:
+        kind: ZTARequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  allowedRegex:
+                    type: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package ztarequiredlabels
+
+      violation[{"msg": msg}] {
+        # Required labels list — passed via Constraint .spec.parameters.labels
+        required := {label.key | label := input.parameters.labels[_]}
+        provided := {label | input.review.object.metadata.labels[label]}
+        missing := required - provided
+        count(missing) > 0
+        msg := sprintf(
+          "ZTA labels missing on %v/%v: %v (see doc/19-label-schema.md)",
+          [input.review.object.kind, input.review.object.metadata.name, missing])
+      }
+
+      violation[{"msg": msg}] {
+        some i
+        label := input.parameters.labels[i]
+        label.allowedRegex != ""
+        value := input.review.object.metadata.labels[label.key]
+        not regex.match(label.allowedRegex, value)
+        msg := sprintf(
+          "ZTA label %v on %v/%v has invalid value %q (must match %q)",
+          [label.key, input.review.object.kind,
+           input.review.object.metadata.name, value, label.allowedRegex])
+      }

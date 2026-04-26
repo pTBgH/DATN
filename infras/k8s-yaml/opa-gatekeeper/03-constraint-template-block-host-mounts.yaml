@@ -1,0 +1,38 @@
+# PR #12 — Adaptive Security Loop (PEP Admission)
+# ConstraintTemplate: ztablockhostmounts
+#
+# Block Pods that mount sensitive host paths.
+# Allowed (admin-managed) namespaces are passed via Constraint
+# spec.match.excludedNamespaces (kube-system, monitoring node-exporter).
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: ztablockhostmounts
+spec:
+  crd:
+    spec:
+      names:
+        kind: ZTABlockHostMounts
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            forbiddenPaths:
+              type: array
+              items:
+                type: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package ztablockhostmounts
+
+      violation[{"msg": msg}] {
+        volume := input.review.object.spec.volumes[_]
+        volume.hostPath
+        path := volume.hostPath.path
+        forbidden := input.parameters.forbiddenPaths[_]
+        startswith(path, forbidden)
+        msg := sprintf(
+          "Pod %v mounts forbidden host path %q (matches policy prefix %q)",
+          [input.review.object.metadata.name, path, forbidden])
+      }

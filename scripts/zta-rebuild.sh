@@ -201,12 +201,14 @@ fi
 if should_run zta; then
 echo
 blue "════════════════════════════════════════════════════════"
-blue " PHASE zta: Apply ZTA policies (PR #8 + #9 + #10)"
+blue " PHASE zta: Apply ZTA policies (PR #8 + #9 + #10 + #12)"
 blue "════════════════════════════════════════════════════════"
 
 NS_APPLY="$SCRIPT_DIR/infras/k8s-yaml/cilium-policies/namespaces/apply-zta-namespace-policies.sh"
 LABEL_APPLY="$SCRIPT_DIR/scripts/zta-apply-workload-labels.sh"
 L7_APPLY="$SCRIPT_DIR/scripts/zta-apply-l7-policies.sh"
+GK_DEPLOY="$SCRIPT_DIR/scripts/zta-deploy-gatekeeper.sh"
+TRACING_APPLY="$SCRIPT_DIR/scripts/zta-apply-tracing-policies.sh"
 
 # 5a. Namespace default-deny + per-flow allows (PR #8)
 if [ -x "$NS_APPLY" ]; then
@@ -235,6 +237,24 @@ if [ -x "$L7_APPLY" ]; then
   green "    ✓ L7 policies applied"
 else
   yellow "    skip: $L7_APPLY not found"
+fi
+
+# 5d. OPA Gatekeeper + ZTA constraints (PR #12)
+if [ -x "$GK_DEPLOY" ]; then
+  echo "--- 5d. OPA Gatekeeper + ZTA constraints (PR #12) ---"
+  bash "$GK_DEPLOY" || yellow "    Gatekeeper deploy failed — continuing"
+  green "    ✓ Gatekeeper installed (audit-only mode)"
+else
+  yellow "    skip: $GK_DEPLOY not found"
+fi
+
+# 5e. Tetragon TracingPolicy for T1 ns (PR #12)
+if [ -x "$TRACING_APPLY" ] && kubectl get crd tracingpoliciesnamespaced.cilium.io >/dev/null 2>&1; then
+  echo "--- 5e. Tetragon TracingPolicies for T1 ns (PR #12) ---"
+  bash "$TRACING_APPLY" --apply || yellow "    Tetragon policy apply failed — continuing"
+  green "    ✓ Tetragon TracingPolicies applied"
+else
+  yellow "    skip: $TRACING_APPLY (Tetragon CRD missing — run 10-deploy-tetragon.sh first)"
 fi
 
 stop_after zta

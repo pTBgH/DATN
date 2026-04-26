@@ -33,6 +33,8 @@ print_menu() {
   echo "║  4. Run Phase 3 only (Microservices)                    ║"
   echo "║  5. Run Phase 2 & 3 (Skip cluster setup)                ║"
   echo "║  6. Clean up and start over                             ║"
+  echo "║  7. ZTA full teardown (kind delete + wipe data)         ║"
+  echo "║  8. ZTA full rebuild (01 → 02 → 03 → 08 → ZTA → verify) ║"
   echo "║  0. Exit                                                 ║"
   echo "╚══════════════════════════════════════════════════════════╝"
   echo ""
@@ -196,14 +198,22 @@ while true; do
     6)
       cleanup_cluster
       ;;
-    
+
+    7)
+      bash scripts/zta-teardown.sh
+      ;;
+
+    8)
+      bash scripts/zta-rebuild.sh
+      ;;
+
     0)
       echo -e "${YELLOW}Goodbye!${NC}"
       exit 0
       ;;
     
     *)
-      echo -e "${RED}Invalid option. Please select 0-6${NC}"
+      echo -e "${RED}Invalid option. Please select 0-8${NC}"
       ;;
   esac
 done

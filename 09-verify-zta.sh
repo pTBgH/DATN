@@ -586,13 +586,25 @@ if kubectl get ns "$SPIRE_NS" >/dev/null 2>&1; then
       "Wait 60s after deploy for controller-manager to register pods. Verify via: kubectl -n $SPIRE_NS exec statefulset/spire-server -- /opt/spire/bin/spire-server entry show"
   fi
 
-  # 5. Trust domain matches
-  TD=$(kubectl -n "$SPIRE_NS" get cm spire-server -o jsonpath='{.data.server\.conf}' 2>/dev/null \
-    | grep -oE 'trust_domain *= *"[^"]+"' | head -1 | grep -oE '"[^"]+"' | tr -d '"' || echo "")
+  # 5. Trust domain matches (helm-charts-hardened uses cm name 'spire-server')
+  TD=$(kubectl -n "$SPIRE_NS" get cm -l app.kubernetes.io/name=server \
+    -o jsonpath='{.items[*].data.server\.conf}' 2>/dev/null \
+    | grep -oE 'trust_domain *= *"[^"]+"' | head -1 \
+    | grep -oE '"[^"]+"' | tr -d '"' || echo "")
+  if [ -z "$TD" ]; then
+    # Fallback: query the running spire-server pod directly
+    TD=$(kubectl -n "$SPIRE_NS" exec statefulset/spire-server -c spire-server -- \
+      sh -c 'grep -E "trust_domain" /run/spire/config/server.conf 2>/dev/null | head -1' 2>/dev/null \
+      | grep -oE '"[^"]+"' | tr -d '"' || echo "")
+  fi
   if [ "$TD" = "zta.job7189" ]; then
     result PASS "SPIRE trustDomain = 'zta.job7189' (matches doc/27)"
   elif [ -n "$TD" ]; then
-    result WARN "SPIRE trustDomain mismatch: '$TD' (expected zta.job7189)" "Update infras/k8s-yaml/spire/values.yaml + helm upgrade"
+    result WARN "SPIRE trustDomain mismatch: '$TD' (expected zta.job7189)" \
+      "Update infras/k8s-yaml/spire/values.yaml + helm upgrade"
+  else
+    result WARN "Could not auto-detect SPIRE trustDomain" \
+      "kubectl -n $SPIRE_NS get cm -l app.kubernetes.io/name=server -o yaml | grep trust_domain"
   fi
 else
   result WARN "SPIRE not deployed" "Run scripts/zta-deploy-spire.sh"
@@ -651,10 +663,26 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 CISA ZTMM 2.0 Quick Assessment"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "   Identity:      Advanced (Keycloak + Vault SA mapping)"
-echo "   Devices:       Initial  (no MDM/EDR)"
+# Dynamically reflect maturity gained by recent PRs:
+#   PR #15 (PDP)            → Identity: Advanced → Optimal
+#   PR #17 (SPIRE)          → Devices:  Initial  → Advanced
+#   PR #16 (image-trust)    → Applications: Advanced → Advanced+ (image hygiene + provenance)
+IDENTITY_TIER="Advanced (Keycloak + Vault SA mapping)"
+if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
+  IDENTITY_TIER="Optimal  (Advanced + PDP continuous label compliance)"
+fi
+DEVICES_TIER="Initial  (no MDM/EDR)"
+if kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
+  DEVICES_TIER="Advanced (SPIRE workload SVIDs, auto-rotated)"
+fi
+APPS_TIER="Advanced (Kong JWT + ZTA pipeline)"
+if kubectl get constrainttemplate k8simagedigestrequired >/dev/null 2>&1; then
+  APPS_TIER="Advanced+(Kong JWT + ZTA pipeline + image-digest/cosign trust)"
+fi
+echo "   Identity:      $IDENTITY_TIER"
+echo "   Devices:       $DEVICES_TIER"
 echo "   Networks:      $([ "$MESH_AUTH" = "true" ] && echo "Advanced+" || echo "Advanced ") (Cilium microseg$([ "$MESH_AUTH" = "true" ] && echo " + mTLS")$([ "$WIREGUARD" = "true" ] && echo " + WireGuard"))"
-echo "   Applications:  Advanced (Kong JWT + ZTA pipeline)"
+echo "   Applications:  $APPS_TIER"
 echo "   Data:          Advanced (Vault JIT + tmpfs + auto-rotate)"
 echo ""
 

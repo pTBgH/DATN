@@ -282,6 +282,19 @@ log_time "2. Setup Cert-Manager Issuer"
 # ========================
 echo ""
 echo "🏦 Step 3: Deploying Vault infrastructure..."
+
+# F-1 fix (audit finding 2025-Q4): vault-dev token KHÔNG còn hard-coded.
+# Tạo Secret 'vault-dev-token' với giá trị random per-cluster TRƯỚC khi apply
+# Deployment. Re-apply sẽ giữ nguyên token cũ (idempotent).
+if ! kubectl get secret vault-dev-token -n vault >/dev/null 2>&1; then
+  VAULT_DEV_TOKEN=$(openssl rand -hex 16)
+  kubectl create secret generic vault-dev-token --namespace=vault \
+    --from-literal=token="$VAULT_DEV_TOKEN"
+  echo "   🔑 Sinh vault-dev token mới (random, lưu trong Secret vault-dev-token)"
+else
+  echo "   ✓ vault-dev-token Secret đã tồn tại — tái sử dụng"
+fi
+
 kubectl apply -f infras/k8s-yaml/11-vault.yaml
 
 echo "   Waiting for Vault pod to reach Running phase before bootstrap..."

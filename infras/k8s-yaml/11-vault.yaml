@@ -41,20 +41,30 @@ spec:
       containers:
       - name: vault-dev
         image: hashicorp/vault:1.17
+        # F-1 fix: token đọc từ Secret 'vault-dev-token' (random per-cluster).
+        # Vault server -dev đọc VAULT_DEV_ROOT_TOKEN_ID từ env, không cần CLI arg.
+        # Secret này được tạo trong 02-deploy-infrastructure.sh trước khi apply file.
         command:
         - vault
         - server
         - -dev
         - -dev-listen-address=0.0.0.0:8300
-        - -dev-root-token-id=vault-dev-root-token   # token cố định để dễ config
         ports:
         - containerPort: 8300
           name: api
         env:
         - name: VAULT_ADDR
           value: "http://127.0.0.1:8300"
+        - name: VAULT_DEV_ROOT_TOKEN_ID
+          valueFrom:
+            secretKeyRef:
+              name: vault-dev-token
+              key: token
         - name: VAULT_TOKEN
-          value: "vault-dev-root-token"
+          valueFrom:
+            secretKeyRef:
+              name: vault-dev-token
+              key: token
         resources:
           requests:
             memory: "128Mi"

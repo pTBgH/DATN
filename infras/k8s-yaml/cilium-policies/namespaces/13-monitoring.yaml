@@ -1,0 +1,267 @@
+# =============================================================================
+# Namespace: monitoring  (Tier 2 — observability stack)
+# DAAS:
+#   Data: elasticsearch (logs)
+#   Service: prometheus, grafana, kibana, filebeat
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# IMPORTANT: prometheus cần egress rộng để scrape EVERY namespace. Mở theo
+# serviceAccount "prometheus" + danh sách target trong baseline.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-monitoring
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-monitoring
+  namespace: monitoring
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+---
+# 3) Prometheus egress: scrape EVERY pod cluster-wide.
+#    Sử dụng cách Cilium quy ước: cho phép tới mọi endpoint TCP các port phổ biến.
+#    Gắn lại theo serviceAccount=prometheus để chỉ pod prometheus có quyền.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: prometheus
+  egress:
+  # K8s API server (cho service-discovery role:node/pod)
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  # Scrape mọi endpoint trong cluster — port phổ biến của exporter
+  - toEndpoints:
+    - {}
+    toPorts:
+    - ports:
+      - port: "8080"   # node-exporter, kube-state-metrics, identity etc
+        protocol: TCP
+      - port: "8081"
+        protocol: TCP
+      - port: "9100"   # node-exporter
+        protocol: TCP
+      - port: "9090"   # prometheus
+        protocol: TCP
+      - port: "9092"   # kafka
+        protocol: TCP
+      - port: "9093"
+        protocol: TCP
+      - port: "9200"   # elasticsearch
+        protocol: TCP
+      - port: "5556"   # kafka-jmx-exporter
+        protocol: TCP
+      - port: "9104"   # mysql-exporter
+        protocol: TCP
+      - port: "9121"   # redis-exporter
+        protocol: TCP
+      - port: "9404"   # jvm-exporter
+        protocol: TCP
+      - port: "10250"  # kubelet
+        protocol: TCP
+      - port: "10255"
+        protocol: TCP
+---
+# 4) Prometheus ingress (Grafana scrapes prometheus, oauth2-proxy serves UI)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      io.cilium.k8s.policy.serviceaccount: prometheus
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: grafana
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: oauth2-proxy
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP
+---
+# 5) Elasticsearch ingress: chỉ filebeat, kibana, grafana
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-elasticsearch-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: elasticsearch
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s-app: filebeat
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: kibana
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: grafana
+    toPorts:
+    - ports:
+      - port: "9200"
+        protocol: TCP
+---
+# 6) Kibana / Grafana ingress: chỉ qua oauth2-proxy + ingress-nginx
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kibana-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kibana
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: oauth2-proxy
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "5601"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-grafana-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: grafana
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: oauth2-proxy
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+---
+# 7) Kibana / Grafana egress: tới Elasticsearch + Prometheus
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kibana-egress-es
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kibana
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: elasticsearch
+    toPorts:
+    - ports:
+      - port: "9200"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-grafana-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: grafana
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: elasticsearch
+    toPorts:
+    - ports:
+      - port: "9200"
+        protocol: TCP
+---
+# 8) Filebeat egress: tới Elasticsearch + K8s API (add_kubernetes_metadata)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-filebeat-egress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: filebeat
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: elasticsearch
+    toPorts:
+    - ports:
+      - port: "9200"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP

@@ -1,0 +1,189 @@
+# =============================================================================
+# Namespace: security  (Tier 1 — IAM + oauth2-proxy)
+# DAAS: Application: keycloak; Service: oauth2-proxy
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Keycloak (8080):
+#   Ingress: ingress-nginx, gateway/kong, oauth2-proxy, job7189-apps (JWKS)
+#   Egress:  data/mysql:3306 (Keycloak DB), DNS
+# oauth2-proxy (4180):
+#   Ingress: ingress-nginx
+#   Egress:  keycloak/8080, kibana/5601, grafana/3000, phpmyadmin/8080, kafbat/8080
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-security
+  namespace: security
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-security
+  namespace: security
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+---
+# 3) Keycloak ingress (8080)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-keycloak-ingress
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway
+        app: kong-gateway
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: oauth2-proxy
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+# 4) Keycloak egress: MySQL DB
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-keycloak-egress-mysql
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+        app: mysql
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+---
+# 5) oauth2-proxy ingress (4180)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-oauth2-proxy-ingress
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: oauth2-proxy
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "4180"
+        protocol: TCP
+---
+# 6) oauth2-proxy egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-oauth2-proxy-egress
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: oauth2-proxy
+  egress:
+  # Keycloak (cùng namespace)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: keycloak
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  # Kibana
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: kibana
+    toPorts:
+    - ports:
+      - port: "5601"
+        protocol: TCP
+  # Grafana
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: grafana
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+  # phpmyadmin
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+        app: phpmyadmin
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  # kafbat
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+        app: kafbat
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+# 7) Allow Prometheus scrape keycloak metrics
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-security
+  namespace: security
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      - port: "4180"
+        protocol: TCP

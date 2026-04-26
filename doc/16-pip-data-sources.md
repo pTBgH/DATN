@@ -168,7 +168,7 @@ Trien khai tuan tu theo **5 buoc** cua do an 1 (Muc 2.3 / 3.4):
 | Phase | Buoc thesis | Tac dong len PIP |
 |-------|-------------|------------------|
 | PR #7 | 2.3.1 Observability | PIP 7 — them baseline snapshot tool (`scripts/zta-observability-baseline.sh`); doc `17-observability-baseline.md` |
-| PR #8 | 2.3.2 Zero Trust DAAS + microperimeter | PIP 4 — DAAS classification van ban hoa; default-deny mo rong moi namespace |
+| PR #8 | 2.3.2 Zero Trust DAAS + microperimeter | PIP 4 — DAAS classification van ban hoa (`doc/18-daas-classification.md`); CNP per-namespace dat trong `infras/k8s-yaml/cilium-policies/namespaces/`; audit findings F-1/F-2/F-4 fixed (`doc/22-audit-findings-remediation.md`) |
 | PR #9 | 2.3.3 Workload labeling | PIP 2 — Cilium identity mo rong (4-6 nhan), PE co them subject attributes |
 | PR #10 | 2.3.4 5W1H comprehensive policy | PIP 1+2+3+7 — moi luong duoc mo ta theo Who/What/When/Where/Why/How |
 | PR #11 | 2.3.5 Adaptive security | PIP 7 — closed loop Tetragon → controller → Cilium label patcher; chuan bi cau truc cho PIP 6 (Threat Intel) |

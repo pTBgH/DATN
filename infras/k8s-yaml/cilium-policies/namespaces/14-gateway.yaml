@@ -1,0 +1,153 @@
+# =============================================================================
+# Namespace: gateway  (Tier 2 — Kong PEP biên)
+# DAAS: Service: kong-gateway (PEP north-south)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# kong-proxy: 8000 (HTTP), 8443 (HTTPS), 8001 (admin — chỉ in-namespace)
+# Egress: tới mọi service trong job7189-apps + security/keycloak
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-gateway
+  namespace: gateway
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-gateway
+  namespace: gateway
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+---
+# 3) Ingress vào kong proxy: chỉ ingress-nginx + remote-node (in case of LB)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-proxy-ingress
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "8443"
+        protocol: TCP
+  # Cho phép health-check từ kubelet/host để readinessProbe ổn định
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "8001"
+        protocol: TCP
+---
+# 4) Egress kong → mọi service trong job7189-apps qua port 80 (svc port)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-egress-apps
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+---
+# 5) Egress kong → keycloak (security/8080) cho JWKS / OIDC discovery
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-egress-keycloak
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: keycloak
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+# 6) Egress kong → phpmyadmin/kafbat (qua route admin) — Tier 3, optional
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-egress-management
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+# 7) Allow Prometheus scrape kong status (port 8001 hoặc 8100 tuỳ config)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-gateway
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "8100"
+        protocol: TCP
+      - port: "8001"
+        protocol: TCP

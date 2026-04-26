@@ -1,0 +1,81 @@
+# =============================================================================
+# Namespace: registry  (Tier 3 — docker-registry)
+# DAAS:      Application: docker-registry; Asset: image blobs
+# Step:      2.3.2 — Microperimeter + default-deny
+# =============================================================================
+
+# 1) Default-deny mọi ingress/egress trong namespace registry
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-registry
+  namespace: registry
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+---
+# 2) Allow DNS egress để registry resolve được service / external blob store
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-registry
+  namespace: registry
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+---
+# 3) Allow ingress 5000 từ kubelet trên mọi node (image pull)
+#    Trong Cilium, traffic từ kubelet xuất hiện với reserved identity "host".
+#    Sử dụng fromEntities: [host, remote-node] để cover cả node-local và
+#    cross-node kubelet pulls.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kubelet-pull-registry
+  namespace: registry
+spec:
+  endpointSelector:
+    matchLabels:
+      app: docker-registry
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+---
+# 4) (Tuỳ chọn) Allow ingress 5000 từ pod có serviceAccount "ci-puller"
+#    để CI build/push image. Bật khi cần.
+# apiVersion: cilium.io/v2
+# kind: CiliumNetworkPolicy
+# metadata:
+#   name: allow-ci-puller-registry
+#   namespace: registry
+# spec:
+#   endpointSelector:
+#     matchLabels:
+#       app: docker-registry
+#   ingress:
+#   - fromEndpoints:
+#     - matchLabels:
+#         io.cilium.k8s.policy.serviceaccount: ci-puller
+#     toPorts:
+#     - ports:
+#       - port: "5000"
+#         protocol: TCP

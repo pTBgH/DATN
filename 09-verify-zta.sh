@@ -243,6 +243,84 @@ else
 fi
 
 # ========================
+# Test 4b: Default-Deny coverage across all critical namespaces (PR #8)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🛡️ Test 4b: Default-Deny per Namespace"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+declare -A NS_DEFAULT_DENY=(
+  [data]="default-deny-data"
+  [vault]="default-deny-vault"
+  [security]="default-deny-security"
+  [monitoring]="default-deny-monitoring"
+  [gateway]="default-deny-gateway"
+  [management]="default-deny-management"
+  [registry]="default-deny-registry"
+  [job7189-apps]="default-deny-job7189-apps default-deny-all"
+)
+
+for ns in "${!NS_DEFAULT_DENY[@]}"; do
+  found=""
+  for cnp_name in ${NS_DEFAULT_DENY[$ns]}; do
+    if kubectl get cnp "$cnp_name" -n "$ns" >/dev/null 2>&1; then
+      found="$cnp_name"
+      break
+    fi
+  done
+  if [ -n "$found" ]; then
+    cnp_total=$(kubectl get cnp -n "$ns" --no-headers 2>/dev/null | wc -l)
+    result PASS "ns=$ns default-deny present ($found, $cnp_total CNPs total)"
+  else
+    if kubectl get namespace "$ns" >/dev/null 2>&1; then
+      result WARN "ns=$ns missing default-deny" "Run apply-zta-namespace-policies.sh --namespace=$ns --apply"
+    else
+      result WARN "ns=$ns does not exist" "Skipped"
+    fi
+  fi
+done
+
+# ========================
+# Test 4c: Audit findings F-1 / F-2 / F-4 (PR #8)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Test 4c: Audit Findings Remediation"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# F-1: vault-dev hard-coded token must NOT exist in repo
+HARDCODED_HITS=$(grep -rn "vault-dev-root-token" \
+  --include="*.sh" --include="*.yaml" --include="*.md" "$SCRIPT_DIR" \
+  2>/dev/null | grep -v "audit-findings\|F-1 fix\|22-audit-findings" | wc -l)
+if [ "$HARDCODED_HITS" -eq 0 ]; then
+  result PASS "F-1: no hardcoded 'vault-dev-root-token' in repo"
+else
+  result FAIL "F-1: still $HARDCODED_HITS occurrences of hardcoded token"
+fi
+
+# F-1: Secret vault-dev-token exists in cluster
+if kubectl get secret vault-dev-token -n vault >/dev/null 2>&1; then
+  result PASS "F-1: Secret vault-dev-token present"
+else
+  result WARN "F-1: Secret vault-dev-token missing" "Will be created on next deploy"
+fi
+
+# F-2: vault-prod-init.json gitignored
+if grep -q "vault-prod-init.json" "$SCRIPT_DIR/.gitignore" 2>/dev/null; then
+  result PASS "F-2: vault-prod-init.json in repo .gitignore"
+else
+  result FAIL "F-2: vault-prod-init.json missing from root .gitignore"
+fi
+
+# F-4: phpmyadmin only egress to data/mysql
+if kubectl get cnp allow-phpmyadmin-egress-mysql -n management >/dev/null 2>&1; then
+  result PASS "F-4: phpmyadmin egress restricted to data/mysql via CNP"
+else
+  result WARN "F-4: management CNP not yet applied" "Run apply-zta-namespace-policies.sh --namespace=management --apply"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

@@ -5,8 +5,16 @@ metadata:
   namespace: job7189-apps
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  # Default-deny pattern: select-all + rule với matchLabels không tồn tại.
+  # Schema validation pass (VALID=True) + default-deny enforce (vì rule không match pod nào).
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 
 ---
 apiVersion: cilium.io/v2
@@ -16,8 +24,14 @@ metadata:
   namespace: data
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
 
 ---
 # NOTE: This policy set uses ServiceAccount identity labels because
@@ -174,7 +188,11 @@ spec:
   ingress: []
 
 ---
-# Allow DNS egress to kube-dns (cluster DNS) so pods can resolve services
+# Allow DNS egress to kube-dns (cluster DNS) so pods can resolve services.
+# Lưu ý: dùng toEndpoints (pod selector) thay vì toCIDR vì Cilium evaluate
+# destination ở mức pod (coredns pod-IP, không phải service VIP 10.96.0.10).
+# Pattern toCIDR hỏng khi kube-proxy replacement DNAT sang pod-IP — pods
+# không match policy → DNS bị DROP. Đã verify hubble: 'DROPPED (UDP) → coredns:53'.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -183,8 +201,10 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-  - toCIDR:
-    - "10.96.0.10/32"
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
     toPorts:
     - ports:
       - port: "53"

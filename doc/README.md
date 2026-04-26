@@ -2,7 +2,7 @@
 
 Kho tri thuc gon cho du an Zero Trust job7189.
 Muc tieu: giam token khi lam viec voi AI — chi doc dung file can thiet.
-Cap nhat: 2026-04-25 (17 files)
+Cap nhat: 2026-04-26 (19 files)
 
 ## Index
 
@@ -25,7 +25,9 @@ Cap nhat: 2026-04-25 (17 files)
 | 14 | `14-tetragon-runtime.md` | **MOI** — PEP Runtime: TracingPolicy, MITRE mapping, ke hoach deploy |
 | 15 | `15-encryption-mtls-spiffe.md` | **MOI** — mTLS + WireGuard + SPIFFE + OPA/Rego + ABAC + CAEP |
 | 16 | `16-pip-data-sources.md` | PIP tools: Keycloak, Vault, Cilium, Prometheus, EFK, Hubble |
-| 17 | `17-observability-baseline.md` | **MOI** (PR #7) — Step 2.3.1: Hubble flow baseline + DAAS prep |
+| 17 | `17-observability-baseline.md` | (PR #7) — Step 2.3.1: Hubble flow baseline + DAAS prep |
+| 18 | `18-daas-classification.md` | **MOI** (PR #8) — Step 2.3.2: DAAS per namespace + tier + microperimeter map |
+| 22 | `22-audit-findings-remediation.md` | **MOI** (PR #8) — F-1/F-2/F-4 audit findings remediation + rotation runbook |
 
 ## Query Map (cho AI/Agent)
 
@@ -48,6 +50,9 @@ Cap nhat: 2026-04-25 (17 files)
 | Tetragon, syscall, runtime | `14` |
 | mTLS, WireGuard, SPIFFE, OPA, ABAC, CAEP | `15` |
 | PIP, Data Sources, NIST Figure 2 | `16` |
+| Hubble baseline, DAAS prep | `17` |
+| DAAS classification, tier, microperimeter | `18` |
+| Audit findings F-1/F-2/F-4 + Vault rotation | `22` |
 
 ## Archive
 

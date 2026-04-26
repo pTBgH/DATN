@@ -67,6 +67,16 @@ echo "    ✔ Clean up hoàn tất."
 # --- 2. DEPLOY YAML ---
 echo -e "\n==> [2/6] Deploy K8s Resources..."
 run_with_timeout "$CMD_TIMEOUT_MEDIUM" kubectl apply -f ../10-cert-manager-issuer.yaml
+
+# F-1 fix: đảm bảo Secret vault-dev-token tồn tại trước khi apply Deployment
+# (Deployment dùng valueFrom secretKeyRef → nếu thiếu, pod kẹt ContainerCreating)
+if ! kubectl get secret vault-dev-token -n vault >/dev/null 2>&1; then
+  VAULT_DEV_TOKEN=$(openssl rand -hex 16)
+  kubectl create secret generic vault-dev-token --namespace=vault \
+    --from-literal=token="$VAULT_DEV_TOKEN"
+  echo "    🔑 Sinh vault-dev token mới (random)"
+fi
+
 run_with_timeout "$CMD_TIMEOUT_MEDIUM" kubectl apply -f ../11-vault.yaml
 
 # --- 3. INIT VAULT-DEV ---
@@ -77,7 +87,12 @@ until run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n vault deploy/vault-d
   if [ $count -ge $MAX_RETRIES ]; then echo "ERROR: vault-dev timeout" >&2; exit 1; fi
   sleep $SLEEP
 done
-run_with_timeout "$CMD_TIMEOUT_MEDIUM" kubectl exec -n vault deploy/vault-dev -- sh -c "VAULT_ADDR=http://127.0.0.1:8300 VAULT_TOKEN=vault-dev-root-token vault secrets enable transit 2>/dev/null || true; vault write -f transit/keys/vault-prod-unseal-key 2>/dev/null || true"
+
+# F-1 fix: đọc token từ Secret thay vì hard-code
+VAULT_DEV_TOKEN_VAL=$(kubectl get secret vault-dev-token -n vault \
+  -o jsonpath='{.data.token}' | base64 -d)
+run_with_timeout "$CMD_TIMEOUT_MEDIUM" kubectl exec -n vault deploy/vault-dev -- sh -c \
+  "VAULT_ADDR=http://127.0.0.1:8300 VAULT_TOKEN='$VAULT_DEV_TOKEN_VAL' vault secrets enable transit 2>/dev/null || true; VAULT_ADDR=http://127.0.0.1:8300 VAULT_TOKEN='$VAULT_DEV_TOKEN_VAL' vault write -f transit/keys/vault-prod-unseal-key 2>/dev/null || true"
 echo "    ✔ Transit Unseal hoàn tất."
 
 # --- 4. INIT VAULT-PROD ---

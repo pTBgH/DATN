@@ -1,0 +1,182 @@
+# =============================================================================
+# Namespace: vault  (Tier 1 — secret + dynamic credentials)
+# DAAS:
+#   Data: vault (StatefulSet) — token, secret, dynamic creds
+#   Service: vault-dev (transit unsealer)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# vault-prod (StatefulSet) ports: 8200 (api), 8201 (cluster/raft)
+# vault-dev (Deployment)    port: 8300 (dev api)
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-vault
+  namespace: vault
+spec:
+  endpointSelector: {}
+  # Note: Cilium <1.14 không nhận `enableDefaultDeny`, dùng pattern empty
+  # ingress/egress lists. CRD sẽ báo VALID=False (quirk Cilium hiện hữu),
+  # nhưng default-deny VẪN enforce — đã verify bằng wget timeout từ testpod.
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-vault
+  namespace: vault
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) Vault ingress 8200 (API): từ job7189-apps + data/mysql + data/* dùng dynamic creds
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-api-ingress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+  # Cho phép vault-injector (kube-system) gọi webhook callback nếu được dùng
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+        app.kubernetes.io/name: vault-agent-injector
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+---
+# 4) Vault cluster ingress 8201: chỉ giữa các pod vault (raft peer)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-cluster-peer
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+        app: vault
+    toPorts:
+    - ports:
+      - port: "8201"
+        protocol: TCP
+---
+# 5) Vault egress: K8s API server (ServiceAccount auth-delegator)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-egress-apiserver
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  egress:
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 6) Vault egress to vault-dev (transit auto-unseal — disabled by default
+#    in vault-config but kept open for fallback).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-egress-vaultdev
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+        app: vault-dev
+    toPorts:
+    - ports:
+      - port: "8300"
+        protocol: TCP
+---
+# 7) vault-dev ingress 8300: chỉ từ vault-prod cùng namespace
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vaultdev-ingress
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault-dev
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+        app: vault
+    toPorts:
+    - ports:
+      - port: "8300"
+        protocol: TCP
+---
+# 8) Allow Prometheus scrape vault metrics (8200/sys/metrics yêu cầu token,
+#    nhưng Cilium chỉ cần mở port; quản lý quyền thuộc vault policy)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-vault
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP

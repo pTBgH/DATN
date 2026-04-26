@@ -1,0 +1,212 @@
+# =============================================================================
+# Namespace: data  (Tier 1 — DB + Event bus)
+# DAAS:
+#   Data: mysql (3306), kafka (9092/9093) — chứa user/CV/job/message
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Default-deny đã có trong infras/k8s-yaml/20-security-policies.yaml
+# (default-deny-data). File này KHÔNG re-define mà bổ sung allow rules
+# cho Kafka và Prometheus scrape.
+#
+# MySQL allow rules đã có:
+#   - allow-mysql-from-identity  (data/mysql ← job7189-apps/identity-service)
+#   - allow-mysql-to-vault       (data/mysql → vault/8200)
+#
+# File này thêm:
+#   - allow-mysql-from-keycloak  (data/mysql ← security/keycloak)
+#   - allow-mysql-from-phpmyadmin
+#   - allow-kafka-from-apps
+#   - allow-kafka-from-kafbat
+#   - allow-prometheus-scrape-data
+#   - allow-dns-egress-data
+# =============================================================================
+
+# 1) DNS egress (mosquito test client + mysql/kafka cần resolve service)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-data
+  namespace: data
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 2) MySQL ingress: bổ sung từ Keycloak (data + identity store)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-from-keycloak
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: keycloak
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+---
+# 3) MySQL ingress: bổ sung từ phpmyadmin (admin UI)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-from-phpmyadmin
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+        app: phpmyadmin
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+---
+# 4) Kafka ingress: từ tất cả service trong job7189-apps (publish/subscribe)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kafka-from-apps
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kafka
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "9092"
+        protocol: TCP
+      - port: "9093"
+        protocol: TCP
+---
+# 4b) Kafka egress phía apps: cho phép tất cả pod trong job7189-apps gọi kafka:9092/9093.
+#     Đây là CNP nằm trong namespace job7189-apps (egress source side) — bù
+#     cho default-deny-job7189-apps. Nếu không có, hiring-service / job-service /
+#     ... bị DROP khi publish/consume Kafka.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apps-egress-kafka
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+        app: kafka
+    toPorts:
+    - ports:
+      - port: "9092"
+        protocol: TCP
+      - port: "9093"
+        protocol: TCP
+---
+# 4c) Intra-namespace traffic trong job7189-apps:
+#     Mỗi microservice có Redis riêng (vd: hiring-service-redis), gọi nội bộ
+#     qua port 6379. Cho phép intra-ns traffic trên các port service phổ biến
+#     (Redis 6379, Octane 9000, HTTP 80). PR #10 sẽ refine theo từng workload
+#     (5W1H matrix), còn ở PR #8 cho phép broad intra-ns để default-deny không
+#     break các microservice cùng tin cậy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apps-intra-ns-services
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "6379"   # Redis
+        protocol: TCP
+      - port: "9000"   # Laravel Octane
+        protocol: TCP
+      - port: "80"     # HTTP
+        protocol: TCP
+      - port: "8080"   # HTTP alt
+        protocol: TCP
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "6379"
+        protocol: TCP
+      - port: "9000"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+---
+# 5) Kafka ingress: từ kafbat (admin UI)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kafka-from-kafbat
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kafka
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+        app: kafbat
+    toPorts:
+    - ports:
+      - port: "9092"
+        protocol: TCP
+      - port: "9093"
+        protocol: TCP
+---
+# 6) Allow Prometheus scrape mysql + kafka exporter
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-data
+  namespace: data
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9104"   # mysql-exporter
+        protocol: TCP
+      - port: "5556"   # kafka-jmx-exporter
+        protocol: TCP
+      - port: "9308"   # kafka-exporter (alternative)
+        protocol: TCP

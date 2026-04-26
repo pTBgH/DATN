@@ -10,7 +10,18 @@
 
 set -euo pipefail
 
-VAULT_DEV_TOKEN="vault-dev-root-token"
+# F-1 fix: đọc vault-dev token từ Secret thay vì hard-code.
+# Secret 'vault-dev-token' do 02-deploy-infrastructure.sh hoặc 99-fast-rebuild
+# tạo ra với giá trị random per-cluster.
+VAULT_DEV_TOKEN=$(kubectl get secret vault-dev-token -n vault \
+  -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || echo "")
+if [ -z "$VAULT_DEV_TOKEN" ]; then
+  echo "ERROR: Secret 'vault-dev-token' không tồn tại trong namespace 'vault'." >&2
+  echo "       Chạy 02-deploy-infrastructure.sh hoặc tạo bằng:" >&2
+  echo "         kubectl create secret generic vault-dev-token -n vault \\" >&2
+  echo "           --from-literal=token=\$(openssl rand -hex 16)" >&2
+  exit 1
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

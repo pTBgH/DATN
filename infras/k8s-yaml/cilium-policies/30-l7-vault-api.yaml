@@ -27,8 +27,6 @@ spec:
     - matchLabels:
         io.cilium.k8s.policy.serviceaccount: identity-service
         io.kubernetes.pod.namespace: job7189-apps
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "8200"
@@ -61,8 +59,6 @@ spec:
       - key: io.kubernetes.pod.namespace
         operator: In
         values: ["job7189-apps"]
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "8200"

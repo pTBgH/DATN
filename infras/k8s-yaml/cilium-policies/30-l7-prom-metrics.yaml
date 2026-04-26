@@ -28,8 +28,6 @@ spec:
         app: prometheus
         zta.job7189/role: monitoring
         k8s:io.kubernetes.pod.namespace: monitoring
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "9100"
@@ -57,8 +55,6 @@ spec:
         app: prometheus
         zta.job7189/role: monitoring
         k8s:io.kubernetes.pod.namespace: monitoring
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "8080"

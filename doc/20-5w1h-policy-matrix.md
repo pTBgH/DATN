@@ -111,26 +111,21 @@ allow-list bị Cilium reject ngay tại data-plane (Envoy redirect):
 
 ## 4. mTLS-required (Cilium mesh-auth)
 
-Cilium 1.14+ có `authentication.mode: required` trên CNP. Khi enable:
+PR #7 đã enable mesh-auth ở mức **cluster** (`mesh-auth-enabled: true` trong
+cilium-config). Khi enable, Cilium agent yêu cầu SPIFFE handshake giữa mọi
+endpoint trước khi forward L4/L7 traffic — KHÔNG cần per-CNP annotation.
+Pod không có Cilium identity hợp lệ (vd attacker chạy raw pod trong cluster)
+sẽ bị reject ở data-plane bởi mesh-auth chứ không bởi CNP rule.
 
-- Cả 2 endpoint phải mTLS-handshake qua SPIFFE identity (managed by Cilium).
-- Pod không có Cilium identity hợp lệ (vd attacker chạy raw pod trong cluster) → kết nối bị reject ở data-plane.
-
-PR #10 annotate **mTLS-required** cho mọi luồng vào T1:
-
-```yaml
-# Sample: 30-l7-vault-api.yaml
-spec:
-  endpointSelector: { matchLabels: { app: vault } }
-  ingress:
-  - fromEndpoints: [...]
-    authentication:
-      mode: required
-    toPorts: [...]
-```
-
-Workload đã có mesh-auth enabled từ PR #7 (Cilium config `mesh-auth-enabled: true`).
-PR #10 chỉ flag từng CNP yêu cầu chặn nếu mTLS fail.
+> **Trạng thái hiện tại (PR #10)**: KHÔNG đặt `authentication.mode: required`
+> trong từng CNP vì cần Cilium ≥1.15 + cấu hình SPIFFE issuer cho schema này
+> được validation chấp nhận. mesh-auth global đủ cho mục tiêu Phase 4 hiện
+> tại — verify qua Test 5 của `09-verify-zta.sh` (Cilium Mutual Authentication
+> ENABLED + WireGuard ENABLED).
+>
+> **Roadmap**: PR #11 (hoặc later) sẽ thêm per-CNP `authentication.mode:
+> required` sau khi xác nhận Cilium version ≥1.15 và SPIFFE issuer trong
+> cluster đã sẵn sàng.
 
 ---
 

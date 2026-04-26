@@ -107,42 +107,60 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🛡️ Test 3: Kong JWT Enforcement"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Kong image has no curl/wget — use ephemeral busybox pod to test via ClusterIP
+# Use kubectl port-forward (apiserver SPDY tunnel — bypasses Cilium policy on
+# pod→pod traffic). Avoids creating ephemeral test pods which (a) hang waiting
+# for image pull through default-deny, (b) require label/policy carve-outs.
 KONG_SVC=$(kubectl get svc -n gateway -l app=kong-gateway -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-if [ -z "$KONG_SVC" ]; then
-  # Fallback: try known service name
-  KONG_SVC="kong-proxy"
-fi
-KONG_URL="http://${KONG_SVC}.gateway.svc.cluster.local:80"
+if [ -z "$KONG_SVC" ]; then KONG_SVC="kong-proxy"; fi
 
-echo "   Using Kong endpoint: $KONG_URL"
+PF_PORT=18800
+echo "   Using kubectl port-forward svc/${KONG_SVC} ${PF_PORT}:80"
 
-# Test: protected route without token → should return 401
-JWT_401=$(kubectl run jwt-test-$$  --image=busybox:1.36 --restart=Never --rm -i --timeout=15s \
-  -- sh -c "wget -q -S -O /dev/null '${KONG_URL}/api/recruiters/profile' 2>&1 | head -1 | grep -o '[0-9][0-9][0-9]'" 2>/dev/null || echo "000")
-# Clean up pod if stuck
-kubectl delete pod jwt-test-$$ --ignore-not-found --grace-period=0 --force >/dev/null 2>&1 || true
+# Cleanup any stale port-forward
+pkill -f "port-forward.*svc/${KONG_SVC}.*${PF_PORT}" 2>/dev/null || true
+sleep 1
 
-if [ "$JWT_401" = "401" ]; then
-  result PASS "Protected route returns 401 without JWT"
-  echo "   HTTP 401 — JWT enforcement active" > "$EVIDENCE_DIR/jwt-401-${TIMESTAMP}.txt"
-elif echo "$JWT_401" | grep -q "401"; then
-  result PASS "Protected route returns 401 without JWT"
-  echo "   HTTP 401 — JWT enforcement active" > "$EVIDENCE_DIR/jwt-401-${TIMESTAMP}.txt"
+# Start port-forward in background, redirect output to log
+PF_LOG="$EVIDENCE_DIR/port-forward-${TIMESTAMP}.log"
+kubectl -n gateway port-forward "svc/${KONG_SVC}" "${PF_PORT}:80" \
+  >"$PF_LOG" 2>&1 &
+PF_PID=$!
+
+# Wait for port to come up (max 8s)
+PF_READY=0
+for _ in 1 2 3 4 5 6 7 8; do
+  if curl -s -o /dev/null -m 1 "http://localhost:${PF_PORT}/" 2>/dev/null; then
+    PF_READY=1; break
+  fi
+  sleep 1
+done
+
+if [ "$PF_READY" = "1" ]; then
+  # Test: protected route without token → should return 401
+  JWT_401=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' \
+    "http://localhost:${PF_PORT}/api/recruiters/profile" 2>/dev/null || echo "000")
+  if [ "$JWT_401" = "401" ]; then
+    result PASS "Protected route returns 401 without JWT"
+    echo "   HTTP 401 — JWT enforcement active" > "$EVIDENCE_DIR/jwt-401-${TIMESTAMP}.txt"
+  else
+    result WARN "Protected route returned '$JWT_401'" "Expected 401 — Kong may use different route path"
+  fi
+
+  # Test: open route → should return non-000
+  OPEN_CODE=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' \
+    "http://localhost:${PF_PORT}/" 2>/dev/null || echo "000")
+  if [ "$OPEN_CODE" != "000" ]; then
+    result PASS "Kong proxy reachable (HTTP $OPEN_CODE)"
+  else
+    result WARN "Kong proxy unreachable via port-forward" "Check kong pod health"
+  fi
 else
-  result WARN "Protected route returned '$JWT_401'" "Expected 401 — Kong may use different route path"
+  result WARN "Kong port-forward did not become ready in 8s" "Run kubectl get pod -n gateway"
 fi
 
-# Test: unprotected route → should return non-401 (200/404/503 all acceptable)
-OPEN_CODE=$(kubectl run health-test-$$ --image=busybox:1.36 --restart=Never --rm -i --timeout=15s \
-  -- sh -c "wget -q -S -O /dev/null '${KONG_URL}/' 2>&1 | head -1 | grep -o '[0-9][0-9][0-9]'" 2>/dev/null || echo "000")
-kubectl delete pod health-test-$$ --ignore-not-found --grace-period=0 --force >/dev/null 2>&1 || true
-
-if [ "$OPEN_CODE" != "000" ]; then
-  result PASS "Kong proxy reachable (HTTP $OPEN_CODE)"
-else
-  result WARN "Kong proxy unreachable from test pod" "Network policy may be blocking"
-fi
+# Cleanup port-forward
+kill "$PF_PID" 2>/dev/null || true
+wait "$PF_PID" 2>/dev/null || true
 
 # ========================
 # Test 4: Cilium Microsegmentation
@@ -160,11 +178,13 @@ else
   result FAIL "Only $POLICY_COUNT policies found (expected ≥4)"
 fi
 
-# Test: Default Deny should be present
-if kubectl get ciliumnetworkpolicy default-deny-all -n job7189-apps >/dev/null 2>&1; then
-  result PASS "Default Deny policy exists"
+# Test: Default Deny should be present (PR #8 renamed default-deny-all → default-deny-job7189-apps)
+if kubectl get ciliumnetworkpolicy default-deny-job7189-apps -n job7189-apps >/dev/null 2>&1; then
+  result PASS "Default Deny policy exists (default-deny-job7189-apps)"
+elif kubectl get ciliumnetworkpolicy default-deny-all -n job7189-apps >/dev/null 2>&1; then
+  result PASS "Default Deny policy exists (legacy default-deny-all)"
 else
-  result FAIL "Default Deny policy missing"
+  result FAIL "Default Deny policy missing in job7189-apps"
 fi
 
 # Hubble flow check (if available)
@@ -290,8 +310,11 @@ echo "📝 Test 4c: Audit Findings Remediation"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # F-1: vault-dev hard-coded token must NOT exist in repo
+# NOTE: exclude this verify script itself (pattern in grep arg matches own source line)
 HARDCODED_HITS=$(grep -rn "vault-dev-root-token" \
-  --include="*.sh" --include="*.yaml" --include="*.md" "$SCRIPT_DIR" \
+  --include="*.sh" --include="*.yaml" --include="*.md" \
+  --exclude="09-verify-zta.sh" \
+  "$SCRIPT_DIR" \
   2>/dev/null | grep -v "audit-findings\|F-1 fix\|22-audit-findings" | wc -l)
 if [ "$HARDCODED_HITS" -eq 0 ]; then
   result PASS "F-1: no hardcoded 'vault-dev-root-token' in repo"
@@ -319,6 +342,43 @@ if kubectl get cnp allow-phpmyadmin-egress-mysql -n management >/dev/null 2>&1; 
 else
   result WARN "F-4: management CNP not yet applied" "Run apply-zta-namespace-policies.sh --namespace=management --apply"
 fi
+
+# ========================
+# Test 4d: Workload labeling coverage (PR #9 — doc/19-label-schema.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🏷️  Test 4d: Workload Label Coverage"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+LABEL_NAMESPACES="data vault security monitoring gateway management registry job7189-apps frontend"
+LABEL_KEYS="zta.job7189/role zta.job7189/tier zta.job7189/env zta.job7189/data-classification zta.job7189/exposure zta.job7189/team"
+
+for ns in $LABEL_NAMESPACES; do
+  if ! kubectl get ns "$ns" >/dev/null 2>&1; then
+    continue
+  fi
+  pods=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l)
+  if [ "$pods" -eq 0 ]; then
+    continue
+  fi
+
+  missing_pods=0
+  for key in $LABEL_KEYS; do
+    # số pod KHÔNG có label này
+    have=$(kubectl get pods -n "$ns" -l "$key" --no-headers 2>/dev/null | wc -l)
+    diff=$((pods - have))
+    if [ "$diff" -gt 0 ]; then
+      missing_pods=$((missing_pods + diff))
+    fi
+  done
+
+  if [ "$missing_pods" -eq 0 ]; then
+    result PASS "ns=$ns ($pods pods) — all 6 ZTA labels present"
+  else
+    result WARN "ns=$ns: $missing_pods label-misses across $pods pods" "Run scripts/zta-apply-workload-labels.sh --apply"
+  fi
+done
 
 # ========================
 # Test 4e: L7 enforcement coverage (PR #10 — doc/20-5w1h-policy-matrix.md)

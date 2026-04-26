@@ -29,8 +29,6 @@ spec:
         k8s:io.kubernetes.pod.namespace: gateway
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: ingress-nginx
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "8080"

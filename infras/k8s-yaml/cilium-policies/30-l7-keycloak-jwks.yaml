@@ -23,8 +23,6 @@ spec:
         app: kong-gateway
         zta.job7189/role: proxy
         k8s:io.kubernetes.pod.namespace: gateway
-    authentication:
-      mode: required
     toPorts:
     - ports:
       - port: "8080"

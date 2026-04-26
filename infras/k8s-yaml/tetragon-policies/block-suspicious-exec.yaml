@@ -1,7 +1,12 @@
+# Namespace-scoped policy → fires ONLY for pods in job7189-apps.
+# Replaces previous TracingPolicy + matchNamespaces[namespace=job7189-apps],
+# which was schema-invalid: matchNamespaces filters Linux kernel namespaces
+# (Mnt/Pid/Net/...), not Kubernetes namespaces.
 apiVersion: cilium.io/v1alpha1
-kind: TracingPolicy
+kind: TracingPolicyNamespaced
 metadata:
   name: block-suspicious-exec
+  namespace: job7189-apps
 spec:
   kprobes:
   - call: "sys_execve"
@@ -10,9 +15,11 @@ spec:
     - index: 0
       type: "string"
     selectors:
+    # Tetragon has no "In" operator. "Equal" with a list of values does
+    # OR-match: triggers if arg equals ANY of the listed values.
     - matchArgs:
       - index: 0
-        operator: "In"
+        operator: "Equal"
         values:
         - "/bin/sh"
         - "/bin/bash"
@@ -21,8 +28,5 @@ spec:
         - "/usr/bin/nc"
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
-      matchNamespaces:
-      - namespace: job7189-apps
-        operator: In
       matchActions:
       - action: Sigkill

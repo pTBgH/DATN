@@ -173,21 +173,19 @@ HELM_SET_FLAGS=(
   --set "export.stdout.resources.limits.memory=32Mi"
 )
 
-# By default DROP the control-plane toleration so Tetragon won't schedule there.
-# This saves ~128Mi total RAM and avoids racing the API server / etcd.
+# By default keep Tetragon off the control-plane node — saves ~192Mi RAM
+# and avoids racing the API server / etcd. Set TETRAGON_INCLUDE_CONTROL_PLANE=1
+# to schedule on all nodes.
+#
+# IMPORTANT: chart values for tolerations/affinity are at TOP LEVEL
+# (.Values.tolerations, .Values.affinity), NOT under .Values.tetragon.*.
+# The chart's default `tolerations: [{operator: Exists}]` tolerates ALL taints
+# including control-plane, so we must (a) override that list AND (b) add a
+# nodeAffinity exclusion. Using --set-json for the array overrides cleanly.
 if [ "$TETRAGON_INCLUDE_CONTROL_PLANE" != "1" ]; then
   HELM_SET_FLAGS+=(
-    --set 'tetragon.tolerations[0].key=node-role.kubernetes.io/control-plane'
-    --set 'tetragon.tolerations[0].operator=Exists'
-    --set 'tetragon.tolerations[0].effect=NoSchedule'
-    --set 'tetragon.tolerations[0].value='
-  )
-  # Override default toleration list (which has Exists with no key = tolerate all)
-  HELM_SET_FLAGS+=( --set 'tetragon.nodeSelector.kubernetes\.io/os=linux' )
-  # Use affinity to actively exclude control-plane label
-  HELM_SET_FLAGS+=(
-    --set-string 'tetragon.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=node-role.kubernetes.io/control-plane'
-    --set-string 'tetragon.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=DoesNotExist'
+    --set-json 'tolerations=[{"key":"kubernetes.io/os","operator":"Exists"}]'
+    --set-json 'affinity={"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"node-role.kubernetes.io/control-plane","operator":"DoesNotExist"}]}]}}}'
   )
 fi
 
@@ -276,11 +274,19 @@ echo "━━━ Step 5: Rendering TracingPolicies ━━━"
 POLICY_DIR="${SCRIPT_DIR}/infras/k8s-yaml/tetragon-policies"
 mkdir -p "$POLICY_DIR"
 
-cat > "${POLICY_DIR}/block-suspicious-exec.yaml" <<'POLICY'
+# Policies are tracked in git and may have been hand-edited. Only render
+# defaults if the file is missing — never overwrite committed YAML.
+# Schema notes:
+#   - K8s namespace filtering uses TracingPolicyNamespaced (kind), NOT
+#     matchNamespaces (which is for Linux kernel namespaces).
+#   - matchArgs.operator: "Equal" + values list does OR-match. "In" is invalid.
+if [ ! -f "${POLICY_DIR}/block-suspicious-exec.yaml" ]; then
+  cat > "${POLICY_DIR}/block-suspicious-exec.yaml" <<'POLICY'
 apiVersion: cilium.io/v1alpha1
-kind: TracingPolicy
+kind: TracingPolicyNamespaced
 metadata:
   name: block-suspicious-exec
+  namespace: job7189-apps
 spec:
   kprobes:
   - call: "sys_execve"
@@ -291,7 +297,7 @@ spec:
     selectors:
     - matchArgs:
       - index: 0
-        operator: "In"
+        operator: "Equal"
         values:
         - "/bin/sh"
         - "/bin/bash"
@@ -300,18 +306,18 @@ spec:
         - "/usr/bin/nc"
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
-      matchNamespaces:
-      - namespace: job7189-apps
-        operator: In
       matchActions:
       - action: Sigkill
 POLICY
+fi
 
-cat > "${POLICY_DIR}/monitor-sensitive-files.yaml" <<'POLICY'
+if [ ! -f "${POLICY_DIR}/monitor-sensitive-files.yaml" ]; then
+  cat > "${POLICY_DIR}/monitor-sensitive-files.yaml" <<'POLICY'
 apiVersion: cilium.io/v1alpha1
-kind: TracingPolicy
+kind: TracingPolicyNamespaced
 metadata:
   name: monitor-sensitive-files
+  namespace: job7189-apps
 spec:
   kprobes:
   - call: "sys_openat"
@@ -328,12 +334,10 @@ spec:
         - "/etc/passwd"
         - "/proc/self/environ"
         - "/var/run/secrets/kubernetes.io"
-      matchNamespaces:
-      - namespace: job7189-apps
-        operator: In
       matchActions:
       - action: Post
 POLICY
+fi
 
 # ========================
 # Step 6: Apply policies with retry on transient errors
@@ -374,9 +378,9 @@ apply_with_retry "${POLICY_DIR}/monitor-sensitive-files.yaml" || POLICY_FAILED=$
 echo ""
 echo "━━━ Step 7: Verification ━━━"
 
-POLICY_COUNT=$(kubectl get tracingpolicies --no-headers 2>/dev/null | wc -l || echo "0")
-echo "   TracingPolicies: ${POLICY_COUNT}"
-kubectl get tracingpolicies 2>/dev/null || true
+POLICY_COUNT=$(kubectl get tracingpoliciesnamespaced -A --no-headers 2>/dev/null | wc -l || echo "0")
+echo "   TracingPoliciesNamespaced: ${POLICY_COUNT}"
+kubectl get tracingpoliciesnamespaced -A 2>/dev/null || true
 
 if [ "$POLICY_FAILED" -gt 0 ]; then
   echo "❌ ${POLICY_FAILED} policy(ies) failed to apply"

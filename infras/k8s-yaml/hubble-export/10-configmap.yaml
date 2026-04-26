@@ -38,7 +38,7 @@ data:
         ignore_missing: true
 
     output.elasticsearch:
-      hosts: ["http://elasticsearch.data.svc.cluster.local:9200"]
+      hosts: ["http://elasticsearch.monitoring.svc.cluster.local:9200"]
       index: "hubble-flows-%{+yyyy.MM.dd}"
       # Disable ES auto-discover ILM (we use date-based index pattern).
       ilm.enabled: false

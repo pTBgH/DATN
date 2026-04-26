@@ -813,20 +813,32 @@ if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
   fi
 
   # 4. ES index exists with > 0 docs
-  ES_INDEX_INFO=$(kubectl -n data exec deploy/elasticsearch -- \
-    curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
-  if [ -n "$ES_INDEX_INFO" ]; then
-    DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
-    DOC_COUNT=${DOC_COUNT:-0}
-    if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
-      result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+  # Auto-detect ES pod (PR #7 deploys es-0 StatefulSet in monitoring; some envs may use 'elasticsearch' Deployment)
+  ES_POD=$(kubectl -n monitoring get pod -l app=elasticsearch \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -z "$ES_POD" ]; then
+    ES_POD=$(kubectl -n monitoring get pod \
+      -o jsonpath='{range .items[?(@.metadata.name=="es-0")]}{.metadata.name}{end}' 2>/dev/null)
+  fi
+  if [ -n "$ES_POD" ]; then
+    ES_INDEX_INFO=$(kubectl -n monitoring exec "$ES_POD" -- \
+      curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
+    if [ -n "$ES_INDEX_INFO" ]; then
+      DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
+      DOC_COUNT=${DOC_COUNT:-0}
+      if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
+        result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+      else
+        result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
+          "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+      fi
     else
-      result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
-        "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+      result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
+        "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices"
     fi
   else
-    result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
-      "kubectl -n data exec deploy/elasticsearch -- curl -s http://localhost:9200/_cat/indices"
+    result WARN "Elasticsearch pod not found in 'monitoring' ns — set ES_NS env" \
+      "kubectl -n monitoring get pod -l app=elasticsearch"
   fi
 
   # 5. Cilium agent can write to hubble export path (file exists)

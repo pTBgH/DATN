@@ -19,6 +19,7 @@ spec:
       {{- end }}
       labels:
         {{- include "fe-recruiter.selectorLabels" . | nindent 8 }}
+        {{- include "fe-recruiter.ztaLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

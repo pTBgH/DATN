@@ -101,6 +101,12 @@ metadata:
   namespace: monitoring
   labels:
     k8s-app: filebeat
+    zta.job7189/role: scraper
+    zta.job7189/tier: T2
+    zta.job7189/env: prod
+    zta.job7189/data-classification: none
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: platform
 spec:
   selector:
     matchLabels:
@@ -109,6 +115,12 @@ spec:
     metadata:
       labels:
         k8s-app: filebeat
+        zta.job7189/role: scraper
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: none
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: platform
     spec:
       serviceAccountName: filebeat
       terminationGracePeriodSeconds: 30

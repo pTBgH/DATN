@@ -18,6 +18,13 @@ kind: Deployment
 metadata:
   name: keycloak
   namespace: security
+  labels:
+    zta.job7189/role: sso
+    zta.job7189/tier: T1
+    zta.job7189/env: prod
+    zta.job7189/data-classification: confidential
+    zta.job7189/exposure: internal
+    zta.job7189/team: security
 spec:
   replicas: 1
   selector:
@@ -27,6 +34,12 @@ spec:
     metadata:
       labels:
         app: keycloak
+        zta.job7189/role: sso
+        zta.job7189/tier: T1
+        zta.job7189/env: prod
+        zta.job7189/data-classification: confidential
+        zta.job7189/exposure: internal
+        zta.job7189/team: security
     spec:
       serviceAccountName: keycloak
       initContainers:

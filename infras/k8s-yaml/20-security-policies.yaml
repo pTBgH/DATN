@@ -5,8 +5,10 @@ metadata:
   namespace: job7189-apps
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  # Cilium 1.14+: enableDefaultDeny → VALID=True (so với pattern cũ `ingress: []`)
+  enableDefaultDeny:
+    ingress: true
+    egress: true
 
 ---
 apiVersion: cilium.io/v2
@@ -16,8 +18,9 @@ metadata:
   namespace: data
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  enableDefaultDeny:
+    ingress: true
+    egress: true
 
 ---
 # NOTE: This policy set uses ServiceAccount identity labels because

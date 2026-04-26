@@ -19,8 +19,9 @@ metadata:
   namespace: security
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  enableDefaultDeny:
+    ingress: true
+    egress: true
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2

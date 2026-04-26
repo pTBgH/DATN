@@ -17,8 +17,10 @@ metadata:
   namespace: vault
 spec:
   endpointSelector: {}
-  ingress: []
-  egress: []
+  # Cilium 1.14+: enableDefaultDeny → VALID=True và explicit hơn `ingress: []`.
+  enableDefaultDeny:
+    ingress: true
+    egress: true
 ---
 # 2) DNS egress
 apiVersion: cilium.io/v2

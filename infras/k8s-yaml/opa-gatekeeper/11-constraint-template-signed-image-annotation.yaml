@@ -1,0 +1,74 @@
+# PR #16 — Image Provenance
+# ConstraintTemplate: K8sSignedImageAnnotation
+#
+# Require Pod-bearing controllers (Deployment, StatefulSet, DaemonSet) to
+# carry signature provenance annotations:
+#   image.zta/signed-by: "<keyid|principal>"          (required)
+#   image.zta/signature-algo: "<sigstore|cosign|...>" (required)
+#   image.zta/signature: "<base64 signature blob>"    (required)
+#
+# This is a lightweight policy stub — it does NOT cryptographically verify
+# the signature. Real verification happens in:
+#   - sigstore policy-controller (Cosign verification at admission), OR
+#   - external CI gate before image push.
+#
+# Stub purpose: enforce that operators MUST attach signature metadata to
+# every workload, so a downstream verifier (or audit team) can validate
+# offline. Acts as a "gate" that workloads cannot be deployed without
+# provenance fields filled in.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8ssignedimageannotation
+  annotations:
+    description: >
+      Require Deployment/StatefulSet/DaemonSet to carry image.zta/signed-by,
+      image.zta/signature-algo, image.zta/signature annotations.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sSignedImageAnnotation
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            requiredAnnotations:
+              description: Annotation keys that must be present and non-empty.
+              type: array
+              items:
+                type: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package k8ssignedimageannotation
+
+      required_annotations := input.parameters.requiredAnnotations
+
+      # Pod template annotations live at .spec.template.metadata.annotations
+      # for Deployment/StatefulSet/DaemonSet. For Pod itself, .metadata.annotations.
+      pod_template_annotations := input.review.object.spec.template.metadata.annotations
+
+      pod_annotations := input.review.object.metadata.annotations
+
+      # The annotation must exist on EITHER the controller's pod template OR
+      # (for raw Pod kind) the Pod metadata itself.
+      has_annotation(key) {
+        value := pod_template_annotations[key]
+        count(value) > 0
+      }
+      has_annotation(key) {
+        value := pod_annotations[key]
+        count(value) > 0
+      }
+
+      violation[{"msg": msg}] {
+        required := required_annotations[_]
+        not has_annotation(required)
+        msg := sprintf(
+          "missing required signature annotation %q. Add to .spec.template." +
+          "metadata.annotations (Deployment/StatefulSet/DaemonSet) or to " +
+          ".metadata.annotations (raw Pod). Use scripts/zta-cosign-sign-deployment.sh.",
+          [required],
+        )
+      }

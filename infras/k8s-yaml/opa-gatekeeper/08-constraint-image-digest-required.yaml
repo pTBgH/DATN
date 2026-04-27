@@ -1,0 +1,55 @@
+# PR #16 — Image Provenance
+# Constraint: image-digest-required
+#
+# enforcementAction: dryrun  →  AUDIT-ONLY for first rollout. Existing pods
+# with tag-referenced images are reported in violations[] but NOT rejected.
+# Switch to "deny" after all images in 7 ZTA ns are pinned to digests.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sImageDigestRequired
+metadata:
+  name: image-digest-required
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    - apiGroups: ["apps"]
+      kinds: ["Deployment", "StatefulSet", "DaemonSet", "ReplicaSet"]
+    - apiGroups: ["batch"]
+      kinds: ["Job", "CronJob"]
+    namespaces:
+    - "data"
+    - "vault"
+    - "security"
+    - "monitoring"
+    - "gateway"
+    - "management"
+    - "job7189-apps"
+    - "frontend"
+    excludedNamespaces:
+    - "kube-system"
+    - "kube-public"
+    - "kube-node-lease"
+    - "ingress-nginx"
+    - "cert-manager"
+    - "gatekeeper-system"
+    - "default"
+  parameters:
+    # Exempt third-party images that are difficult to pin without breaking
+    # helm-chart upgrade flows. Document each exemption rationale.
+    exemptImages:
+    # Helm-managed (digest changes per chart version, hard to track)
+    - "hashicorp/vault*"
+    - "hashicorp/vault-k8s*"
+    - "kong:*"
+    - "kong/kong-gateway:*"
+    - "quay.io/keycloak/keycloak:*"
+    # Cilium / Hubble managed by helm chart upgrade
+    - "quay.io/cilium/*"
+    # Observability (helm)
+    - "docker.elastic.co/*"
+    - "grafana/grafana:*"
+    - "prom/prometheus:*"
+    - "registry.k8s.io/kube-state-metrics/*"
+    - "quay.io/prometheus/node-exporter:*"

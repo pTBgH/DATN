@@ -530,6 +530,81 @@ else
 fi
 
 # ========================
+# Test 4h: Image Provenance (PR #16 — doc/26-image-provenance.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔏 Test 4h: Image Provenance & Supply-Chain Trust"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# 1. Image-trust ConstraintTemplates registered
+EXPECTED_IMG_CT="k8simagedigestrequired k8sblocklatesttag k8ssignedimageannotation"
+CT_FOUND=0
+for ct in $EXPECTED_IMG_CT; do
+  if kubectl get constrainttemplate "$ct" >/dev/null 2>&1; then
+    CT_FOUND=$((CT_FOUND + 1))
+  fi
+done
+if [ "$CT_FOUND" -eq 3 ]; then
+  result PASS "Image-trust ConstraintTemplates registered (3/3)"
+else
+  result WARN "Image-trust ConstraintTemplates incomplete ($CT_FOUND/3)" \
+    "Apply: bash scripts/zta-deploy-gatekeeper.sh --constraints-only"
+fi
+
+# 2. Image digest constraint — count violations (audit mode)
+if kubectl get k8simagedigestrequired image-digest-required >/dev/null 2>&1; then
+  DIGEST_VIOLATIONS=$(kubectl get k8simagedigestrequired image-digest-required \
+    -o jsonpath='{.status.totalViolations}' 2>/dev/null || echo 0)
+  DIGEST_VIOLATIONS=${DIGEST_VIOLATIONS:-0}
+  if [ "$DIGEST_VIOLATIONS" -eq 0 ]; then
+    result PASS "image-digest-required: 0 violations (all images sha256-pinned)"
+  else
+    result WARN "image-digest-required: $DIGEST_VIOLATIONS violations (audit mode)" \
+      "kubectl get k8simagedigestrequired image-digest-required -o yaml | yq '.status.violations'"
+  fi
+fi
+
+# 3. Block-latest constraint — should be 0
+if kubectl get k8sblocklatesttag block-latest-tag >/dev/null 2>&1; then
+  LATEST_VIOLATIONS=$(kubectl get k8sblocklatesttag block-latest-tag \
+    -o jsonpath='{.status.totalViolations}' 2>/dev/null || echo 0)
+  LATEST_VIOLATIONS=${LATEST_VIOLATIONS:-0}
+  if [ "$LATEST_VIOLATIONS" -eq 0 ]; then
+    result PASS "block-latest-tag: 0 violations"
+  else
+    result WARN "block-latest-tag: $LATEST_VIOLATIONS violations" \
+      "kubectl get k8sblocklatesttag block-latest-tag -o yaml | yq '.status.violations'"
+  fi
+fi
+
+# 4. Cosign public key published in cluster
+if kubectl get cm -n security zta-cosign-public-key >/dev/null 2>&1; then
+  KEY_LEN=$(kubectl get cm -n security zta-cosign-public-key \
+    -o jsonpath='{.data.cosign-public-key\.pem}' 2>/dev/null | wc -c | tr -d ' ')
+  if [ "$KEY_LEN" -gt 100 ]; then
+    result PASS "Cosign public key published (security/zta-cosign-public-key, $KEY_LEN bytes)"
+  else
+    result WARN "Cosign public-key ConfigMap empty" "Run scripts/zta-cosign-keygen.sh"
+  fi
+else
+  result WARN "Cosign public-key ConfigMap not present" "Run scripts/zta-cosign-keygen.sh"
+fi
+
+# 5. Sample workload signature annotation present
+SAMPLE_DEPLOY=$(kubectl -n job7189-apps get deploy -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+if [ -n "$SAMPLE_DEPLOY" ]; then
+  SIGNED_BY=$(kubectl -n job7189-apps get deploy "$SAMPLE_DEPLOY" \
+    -o jsonpath='{.spec.template.metadata.annotations.image\.zta/signed-by}' 2>/dev/null)
+  if [ -n "$SIGNED_BY" ]; then
+    result PASS "Sample workload $SAMPLE_DEPLOY signed by '$SIGNED_BY'"
+  else
+    result WARN "Workloads not yet signed (image.zta/signed-by missing on $SAMPLE_DEPLOY)" \
+      "Run scripts/zta-cosign-sign-deployment.sh on each Deployment YAML"
+  fi
+fi
+
+# ========================
 # Test 4i: SPIRE Workload Attestation (PR #17 — doc/27-spire-workload-attestation.md)
 # ========================
 echo ""

@@ -56,12 +56,13 @@ blue "============================================================"
 # ---------------------------------------------------------------
 if [ "$UNINSTALL" -eq 1 ]; then
   yellow "[1/3] Removing constraints..."
-  for f in "$CONSTRAINT_DIR"/0[2456]-constraint-*.yaml; do
+  for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-*.yaml; do
+    [[ "$(basename "$f")" == *constraint-template* ]] && continue
     kubectl delete -f "$f" --ignore-not-found 2>&1 | sed 's/^/    /' || true
   done
 
   yellow "[2/3] Removing constraint templates..."
-  for f in "$CONSTRAINT_DIR"/0[1356]-constraint-template-*.yaml; do
+  for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml; do
     kubectl delete -f "$f" --ignore-not-found 2>&1 | sed 's/^/    /' || true
   done
 
@@ -119,7 +120,7 @@ fi
 # APPLY constraints
 # ---------------------------------------------------------------
 blue "[3/4] Applying ConstraintTemplates..."
-for f in "$CONSTRAINT_DIR"/0[1356]-constraint-template-*.yaml; do
+for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml; do
   echo "    + $(basename "$f")"
   kubectl apply -f "$f"
 done
@@ -129,7 +130,7 @@ echo "    waiting 12s for constraint CRDs to register..."
 sleep 12
 
 blue "[4/4] Applying Constraints..."
-for f in "$CONSTRAINT_DIR"/0[2456]-constraint-*.yaml; do
+for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-*.yaml; do
   if [[ "$(basename "$f")" == *constraint-template* ]]; then
     continue
   fi

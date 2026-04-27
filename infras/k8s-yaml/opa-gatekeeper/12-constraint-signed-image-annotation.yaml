@@ -1,0 +1,22 @@
+# PR #16 — Image Provenance
+# Constraint: signed-image-annotation-required
+#
+# Apply to job7189-apps first (custom-built workloads); other namespaces
+# use helm-managed third-party images that don't yet have signed releases.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sSignedImageAnnotation
+metadata:
+  name: signed-image-annotation-required
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+    - apiGroups: ["apps"]
+      kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces:
+    - "job7189-apps"
+  parameters:
+    requiredAnnotations:
+    - "image.zta/signed-by"
+    - "image.zta/signature-algo"
+    - "image.zta/signature"

@@ -17,6 +17,11 @@ infras/k8s-yaml/vault-scripts/vault-prod-init.json
 evidence/baseline-*/
 evidence/audit-*/
 
+# PR #16 — Cosign private signing keys (NEVER commit)
+infras/cosign-keys/*.key
+infras/cosign-keys/*.key.old.*
+infras/cosign-keys/*.pub.old.*
+
 # Cilium policy dry-run dumps
 *.dryrun.yaml
 

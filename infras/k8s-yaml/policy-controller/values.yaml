@@ -1,0 +1,63 @@
+# sigstore policy-controller — Helm values for ZTA cluster (kind-job7189).
+#
+# Deploys an admission controller that verifies container-image signatures
+# (Cosign / Sigstore) before admitting pods. Closes the gap left by PR #16
+# Gatekeeper image-trust constraints which only check ANNOTATIONS, not real
+# cryptographic signatures.
+#
+# Resource budget (4-node Kind, 1 webhook + 1 controller + 1 tuf-mirror):
+#   policy-controller-webhook:    50-150m / 96-192Mi
+#   policy-controller-controller: 50-100m / 64-128Mi
+#   policy-controller-tuf:        20-50m  / 32-64Mi
+# Total: ~150-300Mi RAM.
+
+# All components live in cosign-system (chart default; we do not change this
+# to keep upstream docs/troubleshooting applicable).
+
+webhook:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+  # Skip namespaces that contain cluster infra — admission failure here
+  # would brick the cluster.
+  configData:
+    no-match-policy: allow   # default-allow for unscoped images
+  failurePolicy: Ignore       # mode 'warn' across cluster — we explicitly
+                              # set per-policy enforce/warn via ClusterImagePolicy.
+
+policyController:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# tuf-mirror caches the Sigstore root of trust offline. With Internet access
+# (Kind runs on host), we leave it enabled so policy-controller can verify
+# Sigstore-keyless signed images even without per-pod outbound to rekor.
+tuf:
+  enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# Disable cosigned namespace include — we manually opt-in selected namespaces
+# via label `policy.sigstore.dev/include=true` to avoid blocking infra.
+namespace:
+  create: true
+  name: cosign-system
+
+# Cluster image policies are applied separately (cluster-image-policies.yaml).
+clusterImagePolicies: []

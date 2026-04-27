@@ -761,6 +761,281 @@ else
 fi
 
 # ========================
+# Test 4k: SPIRE Workload Integration (PR #20 — doc/29-spire-workload-integration.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔗 Test 4k: SPIRE Workload Integration (consume SVID via Workload API)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+DEMO_NS="${SPIRE_DEMO_NS:-security}"
+DEMO_NAME="${SPIRE_DEMO_NAME:-spire-demo-workload}"
+if kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" >/dev/null 2>&1; then
+  # 1. Demo deployment Ready
+  DEMO_READY=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  DEMO_DESIRED=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+  DEMO_READY=${DEMO_READY:-0}
+  if [ "$DEMO_READY" = "$DEMO_DESIRED" ] && [ "$DEMO_READY" -ge 1 ]; then
+    result PASS "$DEMO_NAME deployment Ready ($DEMO_READY/$DEMO_DESIRED)"
+  else
+    result FAIL "$DEMO_NAME not Ready ($DEMO_READY/$DEMO_DESIRED)" \
+      "kubectl -n $DEMO_NS describe pod -l app=$DEMO_NAME"
+  fi
+
+  # 2. CSI volume mount referencing csi.spiffe.io present in pod spec
+  CSI_VOL=$(kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" \
+    -o jsonpath='{.spec.template.spec.volumes[?(@.csi.driver=="csi.spiffe.io")].name}' 2>/dev/null)
+  if [ -n "$CSI_VOL" ]; then
+    result PASS "Pod consumes csi.spiffe.io ephemeral volume ($CSI_VOL)"
+  else
+    result FAIL "Pod does not mount csi.spiffe.io volume" \
+      "kubectl -n $DEMO_NS get deploy $DEMO_NAME -o yaml | grep -A2 volumes"
+  fi
+
+  # 3. ClusterSPIFFEID rule for demo workload registered
+  if kubectl get clusterspiffeid zta-spire-demo-workload >/dev/null 2>&1; then
+    result PASS "ClusterSPIFFEID 'zta-spire-demo-workload' registered"
+  else
+    result WARN "ClusterSPIFFEID 'zta-spire-demo-workload' missing" \
+      "kubectl apply -f infras/k8s-yaml/spire/spire-demo-workload.yaml"
+  fi
+
+  # 4. spiffe-helper logs SVID write OR /svids/svid.crt exists in pod
+  SVID_LOG=$(kubectl -n "$DEMO_NS" logs deploy/"$DEMO_NAME" --tail=80 2>/dev/null \
+    | grep -iE '(SVID updated|svid file written|new svid|x509-svid|received update|getx509)' | tail -1)
+  if [ -n "$SVID_LOG" ]; then
+    result PASS "spiffe-helper received & wrote SVID (${SVID_LOG:0:70}...)"
+  else
+    # Fallback: check if SVID file actually exists in pod's /svids volume
+    POD_NAME=$(kubectl -n "$DEMO_NS" get pod -l app="$DEMO_NAME" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -n "$POD_NAME" ]; then
+      SVID_FILE=$(kubectl -n "$DEMO_NS" exec "$POD_NAME" -- \
+        ls /svids/svid.crt 2>/dev/null | head -1)
+      if [ -n "$SVID_FILE" ]; then
+        result PASS "SVID PEM file written to /svids/svid.crt by spiffe-helper"
+      else
+        result WARN "spiffe-helper running but no SVID written yet — wait 60s + re-run" \
+          "kubectl -n $DEMO_NS logs deploy/$DEMO_NAME --tail=20"
+      fi
+    else
+      result WARN "spiffe-helper pod not found" \
+        "kubectl -n $DEMO_NS get pod -l app=$DEMO_NAME"
+    fi
+  fi
+
+  # 5. SPIRE entry exists for the demo workload's SPIFFE ID
+  ENTRIES=$(kubectl -n spire exec statefulset/spire-server -c spire-server -- \
+    /opt/spire/bin/spire-server entry show \
+    -socketPath /tmp/spire-server/private/api.sock 2>/dev/null \
+    | grep -c "sa/$DEMO_NAME" || echo 0)
+  ENTRIES=${ENTRIES:-0}
+  if [ "$ENTRIES" -ge 1 ]; then
+    result PASS "SPIRE entry registered for $DEMO_NAME ($ENTRIES entries)"
+  else
+    result WARN "No SPIRE entry yet for sa/$DEMO_NAME — wait for controller-manager" \
+      "kubectl -n spire logs deploy/spire-spire-controller-manager --tail=20"
+  fi
+else
+  result WARN "SPIRE workload integration demo not deployed" \
+    "Run scripts/zta-spire-onboard-demo.sh"
+fi
+
+# ========================
+# Test 4l: Hubble flow → Elasticsearch sink (PR #21 — doc/30-hubble-flow-sink.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📤 Test 4l: Hubble flow → Elasticsearch (audit trail)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+SHIPPER_NS="${SHIPPER_NS:-monitoring}"
+if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
+  # 1. Cilium config has hubble-export-file enabled
+  HUBBLE_PATH=$(kubectl -n kube-system get cm cilium-config \
+    -o jsonpath='{.data.hubble-export-file-path}' 2>/dev/null || echo "")
+  if [ -n "$HUBBLE_PATH" ]; then
+    result PASS "Cilium hubble-export enabled (path=$HUBBLE_PATH)"
+  else
+    result FAIL "Cilium hubble-export NOT enabled — flows won't be written to disk" \
+      "bash scripts/zta-deploy-hubble-export.sh  # patches cilium-config"
+  fi
+
+  # 2. filebeat DaemonSet covers all nodes
+  DS_DESIRED=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
+    -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+  DS_READY=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
+    -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+  DS_DESIRED=${DS_DESIRED:-0}
+  DS_READY=${DS_READY:-0}
+  if [ "$DS_READY" -ge 1 ] && [ "$DS_READY" = "$DS_DESIRED" ]; then
+    result PASS "hubble-flow-shipper DaemonSet covers all nodes ($DS_READY/$DS_DESIRED)"
+  else
+    result FAIL "hubble-flow-shipper DS incomplete ($DS_READY/$DS_DESIRED)" \
+      "kubectl -n $SHIPPER_NS describe ds hubble-flow-shipper"
+  fi
+
+  # 3. Filebeat logs show successful ES output
+  FB_LOG=$(kubectl -n "$SHIPPER_NS" logs ds/hubble-flow-shipper --tail=80 2>/dev/null \
+    | grep -E '(Connection.*established|harvester started|Non-zero metrics|publish_events)' | tail -1)
+  if [ -n "$FB_LOG" ]; then
+    result PASS "filebeat actively shipping (last activity: ${FB_LOG:0:80}...)"
+  else
+    result WARN "No filebeat activity log — shipper may still be initializing or no flows yet" \
+      "kubectl -n $SHIPPER_NS logs ds/hubble-flow-shipper --tail=30"
+  fi
+
+  # 4. ES index exists with > 0 docs
+  # Auto-detect ES pod (PR #7 deploys es-0 StatefulSet in monitoring; some envs may use 'elasticsearch' Deployment)
+  ES_POD=$(kubectl -n monitoring get pod -l app=elasticsearch \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -z "$ES_POD" ]; then
+    ES_POD=$(kubectl -n monitoring get pod \
+      -o jsonpath='{range .items[?(@.metadata.name=="es-0")]}{.metadata.name}{end}' 2>/dev/null)
+  fi
+  if [ -n "$ES_POD" ]; then
+    ES_INDEX_INFO=$(kubectl -n monitoring exec "$ES_POD" -- \
+      curl -s --max-time 5 'http://localhost:9200/_cat/indices/hubble-flows-*?h=index,docs.count' 2>/dev/null | head -1)
+    if [ -n "$ES_INDEX_INFO" ]; then
+      DOC_COUNT=$(echo "$ES_INDEX_INFO" | awk '{print $2}')
+      DOC_COUNT=${DOC_COUNT:-0}
+      if [ "$DOC_COUNT" -gt 0 ] 2>/dev/null; then
+        result PASS "Elasticsearch hubble-flows index has $DOC_COUNT docs"
+      else
+        result WARN "ES hubble-flows index empty — wait for traffic to generate flows" \
+          "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+      fi
+    else
+      result WARN "ES hubble-flows-* index not found yet — shipper may need ~60s for first batch" \
+        "kubectl -n monitoring exec $ES_POD -- curl -s http://localhost:9200/_cat/indices"
+    fi
+  else
+    result WARN "Elasticsearch pod not found in 'monitoring' ns — set ES_NS env" \
+      "kubectl -n monitoring get pod -l app=elasticsearch"
+  fi
+
+  # 5. Cilium agent can write to hubble export path (file exists)
+  HUBBLE_FILE_CHECK=$(kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+    ls /var/run/cilium/hubble/events.log 2>/dev/null | head -1)
+  if [ -n "$HUBBLE_FILE_CHECK" ]; then
+    result PASS "Cilium agents writing to /var/run/cilium/hubble/events.log"
+  else
+    result WARN "Hubble events.log not found on agent yet — wait for first flow + restart" \
+      "kubectl -n kube-system rollout restart ds cilium"
+  fi
+else
+  result WARN "Hubble flow → ES sink not deployed" \
+    "Run scripts/zta-deploy-hubble-export.sh"
+fi
+
+# ========================
+# Test 4m: Falco runtime detection (PR #22 — doc/31-falco-runtime-detection.md)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚨 Test 4m: Falco runtime detection (eBPF + custom ZTA rules)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+FALCO_NS="${FALCO_NS:-falco}"
+if kubectl -n "$FALCO_NS" get ds falco >/dev/null 2>&1; then
+  # 1. Falco DaemonSet covers all nodes
+  F_DESIRED=$(kubectl -n "$FALCO_NS" get ds falco \
+    -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
+  F_READY=$(kubectl -n "$FALCO_NS" get ds falco \
+    -o jsonpath='{.status.numberReady}' 2>/dev/null || echo 0)
+  F_DESIRED=${F_DESIRED:-0}
+  F_READY=${F_READY:-0}
+  if [ "$F_READY" -ge 1 ] && [ "$F_READY" = "$F_DESIRED" ]; then
+    result PASS "falco DaemonSet covers all nodes ($F_READY/$F_DESIRED)"
+  else
+    result FAIL "falco DS incomplete ($F_READY/$F_DESIRED)" \
+      "kubectl -n $FALCO_NS describe ds falco | tail -30"
+  fi
+
+  # 2. Falcosidekick Deployment Ready
+  if kubectl -n "$FALCO_NS" get deploy falco-falcosidekick >/dev/null 2>&1; then
+    SK_READY=$(kubectl -n "$FALCO_NS" get deploy falco-falcosidekick \
+      -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+    SK_READY=${SK_READY:-0}
+    if [ "$SK_READY" -ge 1 ]; then
+      result PASS "falcosidekick Deployment Ready ($SK_READY)"
+    else
+      result FAIL "falcosidekick Deployment not Ready" \
+        "kubectl -n $FALCO_NS describe deploy falco-falcosidekick"
+    fi
+  else
+    result WARN "falcosidekick Deployment missing" \
+      "Re-run scripts/zta-deploy-falco.sh"
+  fi
+
+  # 3. eBPF driver successfully loaded (no driver error in logs)
+  DRIVER_STATUS=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=200 2>/dev/null \
+    | grep -E "(loading rules|engine|driver)" | tail -3)
+  if echo "$DRIVER_STATUS" | grep -qiE "(modern_ebpf|ebpf).*loaded|engine.*started|loading rules"; then
+    result PASS "Falco eBPF driver loaded + rules engine running"
+  else
+    DRIVER_ERR=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=100 2>/dev/null \
+      | grep -iE "(error|fatal).*driver" | tail -1)
+    if [ -n "$DRIVER_ERR" ]; then
+      result FAIL "Falco driver init failed: ${DRIVER_ERR:0:80}..." \
+        "kubectl -n $FALCO_NS logs ds/falco -c falco --tail=40"
+    else
+      result WARN "Falco driver status unclear" \
+        "kubectl -n $FALCO_NS logs ds/falco -c falco --tail=30"
+    fi
+  fi
+
+  # 4. ZTA custom rules loaded (count rules with 'ZTA' tag)
+  ZTA_RULE_COUNT=$(kubectl -n "$FALCO_NS" exec ds/falco -c falco -- \
+    sh -c 'grep -c "^- rule: ZTA" /etc/falco/rules.d/zta-rules.yaml 2>/dev/null' 2>/dev/null \
+    | tr -d '[:space:]' || echo 0)
+  ZTA_RULE_COUNT=${ZTA_RULE_COUNT:-0}
+  if [ "$ZTA_RULE_COUNT" -ge 5 ]; then
+    result PASS "ZTA custom rules loaded ($ZTA_RULE_COUNT rules in zta-rules.yaml)"
+  elif [ "$ZTA_RULE_COUNT" -ge 1 ]; then
+    result WARN "Only $ZTA_RULE_COUNT ZTA rules loaded (expected >=5)" \
+      "Check infras/k8s-yaml/falco/values.yaml customRules section"
+  else
+    result FAIL "No ZTA custom rules loaded" \
+      "kubectl -n $FALCO_NS exec ds/falco -c falco -- ls /etc/falco/rules.d/"
+  fi
+
+  # 5. Falcosidekick → Elasticsearch (check ES index falco-events-* exists)
+  ES_POD=$(kubectl -n monitoring get pod -l app=elasticsearch \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -z "$ES_POD" ]; then
+    ES_POD=$(kubectl -n monitoring get pod \
+      -o jsonpath='{range .items[?(@.metadata.name=="es-0")]}{.metadata.name}{end}' 2>/dev/null)
+  fi
+  if [ -n "$ES_POD" ]; then
+    FALCO_INDEX=$(kubectl -n monitoring exec "$ES_POD" -- \
+      curl -s --max-time 5 'http://localhost:9200/_cat/indices/falco-events-*?h=index,docs.count' 2>/dev/null | head -1)
+    if [ -n "$FALCO_INDEX" ]; then
+      result PASS "Elasticsearch falco-events-* index present ($FALCO_INDEX)"
+    else
+      # Fallback: check sidekick logs reference ES (config loaded but no docs yet)
+      SK_LOG=$(kubectl -n "$FALCO_NS" logs deploy/falco-falcosidekick --tail=80 2>/dev/null \
+        | grep -iE "elastic" | tail -1)
+      if [ -n "$SK_LOG" ]; then
+        result WARN "falcosidekick configured for ES but no alerts shipped yet" \
+          "Trigger test alert: kubectl run alert-test --image=alpine --rm -it -- cat /etc/shadow"
+      else
+        result WARN "No falco-events index + no sidekick→ES log line — sidekick may still be starting" \
+          "kubectl -n $FALCO_NS logs deploy/falco-falcosidekick --tail=20"
+      fi
+    fi
+  else
+    result WARN "Elasticsearch pod not found in monitoring ns — cannot verify sink" \
+      "kubectl -n monitoring get pod -l app=elasticsearch"
+  fi
+else
+  result WARN "Falco runtime detection not deployed" \
+    "Run scripts/zta-deploy-falco.sh"
+fi
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""
@@ -821,9 +1096,13 @@ IDENTITY_TIER="Advanced (Keycloak + Vault SA mapping)"
 if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
   IDENTITY_TIER="Optimal  (Advanced + PDP continuous label compliance)"
 fi
-DEVICES_TIER="Initial  (no MDM/EDR)"
-if kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
-  DEVICES_TIER="Advanced (SPIRE workload SVIDs, auto-rotated)"
+# Highest Devices tier wins.
+if kubectl -n security get deploy spire-demo-workload >/dev/null 2>&1; then
+  DEVICES_TIER="Optimal  (PR #20: SPIRE SVID consumed by workload via CSI Workload API)"
+elif kubectl get statefulset -n spire spire-server >/dev/null 2>&1; then
+  DEVICES_TIER="Advanced (PR #17: SPIRE workload SVIDs issued, auto-rotated)"
+else
+  DEVICES_TIER="Initial  (no MDM/EDR)"
 fi
 # Highest tier wins; check most-advanced first to avoid override-order bugs.
 if kubectl get clusterimagepolicy zta-job7189-apps-signed >/dev/null 2>&1; then

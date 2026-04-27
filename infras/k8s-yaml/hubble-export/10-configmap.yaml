@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hubble-flow-shipper-config
+  namespace: monitoring
+  labels:
+    app: hubble-flow-shipper
+data:
+  filebeat.yml: |
+    # Filebeat reads Hubble flow logs (JSON-pb format) emitted by cilium
+    # agents to /var/run/cilium/hubble/events.log on each node. Each node
+    # has one filebeat replica via DaemonSet — mounts hostPath read-only.
+
+    filebeat.inputs:
+    - type: filestream
+      id: hubble-flows
+      enabled: true
+      paths:
+      - /hostlogs/cilium/hubble/events.log
+      - /hostlogs/cilium/hubble/events.log.*    # rotated logs
+      parsers:
+      - ndjson:
+          target: ""
+          add_error_key: true
+      fields:
+        log_source: hubble
+        cluster: kind-job7189
+      fields_under_root: true
+
+    processors:
+    - add_kubernetes_metadata:
+        host: ${NODE_NAME}
+        matchers:
+        - logs_path:
+            logs_path: "/var/log/containers/"
+    - drop_fields:
+        fields: ["agent", "ecs", "host", "input", "log"]
+        ignore_missing: true
+
+    output.elasticsearch:
+      hosts: ["http://elasticsearch.monitoring.svc.cluster.local:9200"]
+      index: "hubble-flows-%{+yyyy.MM.dd}"
+      # Disable ES auto-discover ILM (we use date-based index pattern).
+      ilm.enabled: false
+
+    setup.template.enabled: true
+    setup.template.name: "hubble-flows"
+    setup.template.pattern: "hubble-flows-*"
+    setup.template.settings:
+      index.number_of_shards: 1
+      index.number_of_replicas: 0
+    setup.ilm.enabled: false
+    # No Kibana setup here — index template is enough; user can build
+    # dashboards manually.
+
+    logging.level: info
+    logging.to_stderr: true
+    logging.metrics.enabled: false

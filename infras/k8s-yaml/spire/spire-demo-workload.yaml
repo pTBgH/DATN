@@ -1,0 +1,140 @@
+---
+# PR #20 — SPIRE Workload Integration demo workload.
+#
+# Uses the OFFICIAL spiffe-helper image which:
+#   - opens Workload API socket via /spiffe-workload-api/spire-agent.sock
+#   - watches for SVID issue/rotate events
+#   - writes SVID PEM files to /svids/{svid.crt, svid.key, bundle.crt}
+#   - logs each rotation event to stdout
+#
+# Why spiffe-helper instead of spire-agent CLI:
+#   ghcr.io/spiffe/spire-agent is distroless (no /bin/sh) -> any
+#   command-wrapping shell loop fails with exec format error.
+#   spiffe-helper is purpose-built for the "consume SVID" use case
+#   that PR #20 demos and bundles a long-running daemon plus shell.
+#
+# Lift CISA ZTMM Devices: Advanced (issuance) -> Optimal (consumption).
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-demo-workload
+  namespace: security
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-demo-workload-config
+  namespace: security
+  labels:
+    app: spire-demo-workload
+data:
+  # spiffe-helper helper.conf — see https://github.com/spiffe/spiffe-helper
+  helper.conf: |-
+    agent_address       = "/spiffe-workload-api/spire-agent.sock"
+    cert_dir            = "/svids"
+    add_intermediates_to_bundle = true
+    exit_when_ready     = false
+    include_federated_domains = false
+    svid_file_name      = "svid.crt"
+    svid_key_file_name  = "svid.key"
+    svid_bundle_file_name = "bundle.crt"
+    cmd                 = ""
+    cmd_args            = ""
+    renew_signal        = ""
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-demo-workload
+  namespace: security
+  labels:
+    app: spire-demo-workload
+    cilium.zta/role: spire-demo
+    cilium.zta/tier: t2
+    cilium.zta/exposure: internal
+    cilium.zta/data-class: public
+    cilium.zta/lifecycle: prod
+    cilium.zta/identity: workload
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-demo-workload
+  template:
+    metadata:
+      labels:
+        app: spire-demo-workload
+        cilium.zta/role: spire-demo
+        cilium.zta/tier: t2
+        cilium.zta/exposure: internal
+        cilium.zta/data-class: public
+        cilium.zta/lifecycle: prod
+        cilium.zta/identity: workload
+    spec:
+      serviceAccountName: spire-demo-workload
+      automountServiceAccountToken: false
+      containers:
+      # spiffe-helper: long-running daemon, watches SVID rotations,
+      # writes PEM files to /svids and logs to stdout.
+      - name: spiffe-helper
+        image: ghcr.io/spiffe/spiffe-helper:0.8.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - "-config"
+        - "/etc/spiffe-helper/helper.conf"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 24Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts:
+        - name: config
+          mountPath: /etc/spiffe-helper
+          readOnly: true
+        - name: spiffe-workload-api
+          mountPath: /spiffe-workload-api
+          readOnly: true
+        - name: svids
+          mountPath: /svids
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+      volumes:
+      - name: config
+        configMap:
+          name: spire-demo-workload-config
+      # Ephemeral CSI volume provided by spiffe-csi-driver (PR #17).
+      # Each pod gets its own private socket bind-mounted from the host,
+      # which spire-agent uses for workload attestation (UID, labels, SA).
+      - name: spiffe-workload-api
+        csi:
+          driver: csi.spiffe.io
+          readOnly: true
+      - name: svids
+        emptyDir: {}
+
+---
+# ClusterSPIFFEID rule for the demo workload — gives it SVID
+#   spiffe://zta.job7189/ns/security/sa/spire-demo-workload
+# Already covered by zta-default-workload-identity (PR #17), but we add
+# an explicit rule for clarity + so the controller-manager registers
+# the entry even before generic Cilium ZTA labels propagate.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: zta-spire-demo-workload
+spec:
+  spiffeIDTemplate: "spiffe://zta.job7189/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  podSelector:
+    matchLabels:
+      app: spire-demo-workload
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: security

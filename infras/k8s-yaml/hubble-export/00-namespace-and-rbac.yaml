@@ -1,0 +1,41 @@
+---
+# Reuse 'monitoring' ns for the filebeat DaemonSet (already exists per PR #7).
+# We do NOT create a new ns; just the SA + RBAC for filebeat.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hubble-flow-shipper
+  namespace: monitoring
+  labels:
+    app: hubble-flow-shipper
+    cilium.zta/role: log-shipper
+    cilium.zta/tier: t2
+    cilium.zta/exposure: internal
+    cilium.zta/data-class: internal
+    cilium.zta/lifecycle: prod
+    cilium.zta/identity: workload
+
+---
+# filebeat needs to read pod metadata for kubernetes.* enrichment.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hubble-flow-shipper
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces", "pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hubble-flow-shipper
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hubble-flow-shipper
+subjects:
+- kind: ServiceAccount
+  name: hubble-flow-shipper
+  namespace: monitoring

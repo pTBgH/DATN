@@ -1,0 +1,187 @@
+# PR #22 — Falco + Falcosidekick Helm values for ZTA cluster.
+# Chart: falcosecurity/falco (https://falcosecurity.github.io/charts)
+#
+# Driver choice:
+#   modern_ebpf  →  CO-RE eBPF, no kernel headers needed (kernel >= 5.8).
+#                   Best fit for Kind on Linux host.
+#   ebpf         →  legacy eBPF probe (kernel >= 4.14), needs build-time
+#                   match. Falls back if modern_ebpf unsupported.
+#
+# Resource budget (per replica × 4 nodes):
+#   falco:         100-500m CPU / 200-512 Mi RAM
+#   falcosidekick: 25-100m CPU / 64-128 Mi RAM (single Deployment, not DS)
+#   Total:         ~800-1024 Mi RAM
+#
+# Sink: Falcosidekick → Elasticsearch (monitoring ns) index falco-events-*
+#
+# Stacked on PR #21 (Hubble flow → ES) so audit trail and runtime
+# detection both land in the same Kibana cluster.
+
+driver:
+  kind: modern_ebpf
+  modernEbpf:
+    leastPrivileged: true
+
+# Run as DaemonSet (default) — 1 falco per node attaching its eBPF probe.
+falco:
+  # Output channels — sidekick is the canonical sink. Stdout left enabled
+  # for kubectl logs debugging.
+  json_output: true
+  json_include_output_property: true
+  log_stderr: true
+  log_syslog: false
+  priority: notice
+  http_output:
+    enabled: true
+    url: "http://falco-falcosidekick:2801/"
+
+  # Load custom ZTA rules from the bundled ConfigMap (mounted at
+  # /etc/falco/rules.d via customRules below).
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/rules.d
+
+# Custom rules ConfigMap (mounted at /etc/falco/rules.d/<filename>).
+customRules:
+  zta-rules.yaml: |-
+    # ZTA Runtime Detection rules — deterministic security-only triggers.
+    #
+    # Audience: thesis Chapter 4 evidence (alerts collected in ES via
+    # falcosidekick), Chapter 3 architecture (defence in depth).
+
+    - macro: zta_security_namespaces
+      condition: (k8s.ns.name in (security, vault, spire, cosign-system))
+
+    - macro: zta_secret_files
+      condition: >
+        (fd.name startswith "/vault/secrets/" or
+         fd.name startswith "/var/run/secrets/" or
+         fd.name startswith "/cosign-keys/" or
+         fd.name startswith "/run/spire/")
+
+    - rule: ZTA Vault Secret File Read by Foreign Process
+      desc: >
+        Detect read of /vault/secrets/* (Vault Agent injected tmpfs) by a
+        process not running inside the vault sidecar. Indicates lateral
+        access or volume mount misconfiguration.
+      condition: >
+        open_read and
+        fd.name startswith "/vault/secrets/" and
+        not proc.name in (vault, vault-agent, sh, sleep)
+      output: >
+        ZTA Alert: Vault tmpfs read by foreign process
+        (user=%user.name proc=%proc.name file=%fd.name
+         container=%container.name pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: WARNING
+      tags: [zta, vault, tmpfs, T1552.001]
+
+    - rule: ZTA Cosign Private Key Access
+      desc: >
+        Detect any read of /cosign-keys/* (PR #16 sign-time secrets).
+        These keys MUST never be read at runtime by workloads.
+      condition: >
+        open_read and fd.name startswith "/cosign-keys/"
+      output: >
+        ZTA Alert: Cosign private key access
+        (user=%user.name proc=%proc.name file=%fd.name
+         container=%container.name pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: CRITICAL
+      tags: [zta, cosign, supply-chain, T1552.004]
+
+    - rule: ZTA Shell in Security Namespace Pod
+      desc: >
+        Detect kubectl exec or shell spawn inside ZTA security-tier pods
+        (vault, spire, security, cosign-system). Should be rare; alert.
+      condition: >
+        spawned_process and container and zta_security_namespaces and
+        proc.name in (sh, bash, ash, zsh, ksh)
+      output: >
+        ZTA Alert: Shell spawned in security-tier pod
+        (user=%user.name pod=%k8s.pod.name container=%container.name
+         proc=%proc.name parent=%proc.pname ns=%k8s.ns.name)
+      priority: WARNING
+      tags: [zta, security-ns, kubectl-exec, TA0008]
+
+    - rule: ZTA Privilege Escalation via setuid root
+      desc: >
+        Detect setuid(0) called by non-root process inside container —
+        classic privilege escalation pattern.
+      condition: >
+        evt.type=setuid and evt.dir=> and evt.arg.uid=0 and
+        not user.uid=0 and container
+      output: >
+        ZTA Alert: setuid(0) escalation in container
+        (user=%user.name proc=%proc.name pod=%k8s.pod.name
+         container=%container.name ns=%k8s.ns.name)
+      priority: CRITICAL
+      tags: [zta, privesc, T1068]
+
+    - rule: ZTA SPIRE Workload API Socket Tampering
+      desc: >
+        Detect write/unlink to spire-agent.sock — adversary attempting to
+        hijack workload identity issuance.
+      condition: >
+        (open_write or evt.type in (unlinkat, unlink, rename)) and
+        fd.name endswith "spire-agent.sock"
+      output: >
+        ZTA Alert: SPIRE Workload API socket tampered
+        (user=%user.name proc=%proc.name file=%fd.name
+         container=%container.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [zta, spire, identity, T1078.004]
+
+# Falcosidekick — alert router. Forwards events to Elasticsearch index
+# falco-events-* (date-suffixed). Optional: enable Slack/Teams via
+# webhookurl in helm values.
+falcosidekick:
+  enabled: true
+  fullfqdn: false
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    debug: false
+    elasticsearch:
+      hostport: "http://elasticsearch.monitoring.svc.cluster.local:9200"
+      index: "falco-events"
+      suffix: "daily"
+      type: "_doc"
+      minimumpriority: "notice"
+    # Slack/Teams webhook can be appended here later — leave empty to
+    # disable. Use kubectl set env or sealed-secrets for production.
+    slack:
+      webhookurl: ""
+      minimumpriority: "warning"
+  webui:
+    enabled: false   # save RAM; ES + Kibana are canonical UI
+
+# Falco DS resource sizing.
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# DS scheduling — tolerate all taints so it covers control-plane nodes.
+tolerations:
+- effect: NoSchedule
+  operator: Exists
+- effect: NoExecute
+  operator: Exists
+
+# Disable bundled web-UI; we use ES+Kibana from PR #21.
+falcoctl:
+  artifact:
+    install:
+      enabled: true
+    follow:
+      enabled: true

@@ -158,6 +158,8 @@ label_workload deployment keycloak security \
   sso T1 prod confidential internal security
 label_workload deployment oauth2-proxy security \
   proxy T1 prod confidential internal security
+label_workload deployment zta-pdp security \
+  controller T1 prod confidential cluster-only security
 
 # gateway namespace
 label_workload deployment kong-gateway gateway \
@@ -186,6 +188,8 @@ label_workload deployment kube-state-metrics monitoring \
   scraper T2 prod none cluster-only platform
 label_workload daemonset node-exporter monitoring \
   scraper T2 prod none cluster-only platform
+label_workload daemonset hubble-flow-shipper monitoring \
+  scraper T2 prod internal cluster-only platform
 
 # registry namespace
 label_workload deployment docker-registry registry \

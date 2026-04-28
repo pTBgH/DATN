@@ -855,7 +855,7 @@ SHIPPER_NS="${SHIPPER_NS:-monitoring}"
 if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
   # 1. Cilium config has hubble-export-file enabled
   HUBBLE_PATH=$(kubectl -n kube-system get cm cilium-config \
-    -o jsonpath='{.data.hubble-export-file-path}' 2>/dev/null || echo "")
+    -o go-template='{{index .data "hubble-export-file-path"}}' 2>/dev/null || echo "")
   if [ -n "$HUBBLE_PATH" ]; then
     result PASS "Cilium hubble-export enabled (path=$HUBBLE_PATH)"
   else
@@ -972,8 +972,8 @@ if kubectl -n "$FALCO_NS" get ds falco >/dev/null 2>&1; then
 
   # 3. eBPF driver successfully loaded (no driver error in logs)
   DRIVER_STATUS=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=200 2>/dev/null \
-    | grep -E "(loading rules|engine|driver)" | tail -3)
-  if echo "$DRIVER_STATUS" | grep -qiE "(modern_ebpf|ebpf).*loaded|engine.*started|loading rules"; then
+    | grep -E "(Loading rules|Loaded event sources|Enabled event sources|Opening 'syscall' source|engine|driver)" | tail -5)
+  if echo "$DRIVER_STATUS" | grep -qiE "(modern_ebpf|ebpf).*loaded|engine.*started|Loading rules|Opening 'syscall' source with modern BPF probe|Enabled event sources"; then
     result PASS "Falco eBPF driver loaded + rules engine running"
   else
     DRIVER_ERR=$(kubectl -n "$FALCO_NS" logs ds/falco -c falco --tail=100 2>/dev/null \

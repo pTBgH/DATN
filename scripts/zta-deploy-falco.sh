@@ -89,9 +89,9 @@ helm repo update 2>&1 | grep -E "(Falco|falco)" | sed 's/^/    /' || true
 
 blue "[2/4] Creating namespace + cleaning failed releases..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - 2>&1 | sed 's/^/    /'
-# Auto-recover from failed/pending-install state
-RELEASE_STATUS=$(helm list -n "$NAMESPACE" --filter "^${RELEASE}\$" --all -o json 2>/dev/null \
-  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r[0]['status'] if r else '')" 2>/dev/null)
+RELEASE_STATUS=$(helm status -n "$NAMESPACE" "$RELEASE" -o json 2>/dev/null \
+  | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('status',''))" 2>/dev/null || true)
+RELEASE_STATUS=${RELEASE_STATUS:-}
 if [ -n "$RELEASE_STATUS" ] && [ "$RELEASE_STATUS" != "deployed" ]; then
   yellow "    Existing release in '$RELEASE_STATUS' state — uninstalling first..."
   helm uninstall -n "$NAMESPACE" "$RELEASE" 2>&1 | sed 's/^/      /' || true

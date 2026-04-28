@@ -182,11 +182,15 @@ spec:
     metadata:
       labels:
         app: kube-state-metrics
+        app.kubernetes.io/name: kube-state-metrics
     spec:
       serviceAccountName: kube-state-metrics
       containers:
       - name: kube-state-metrics
         image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0
+        args:
+        - --port=8080
+        - --telemetry-port=8081
         ports:
         - containerPort: 8080
           name: http-metrics
@@ -195,10 +199,10 @@ spec:
         resources:
           requests:
             cpu: "10m"
-            memory: "32Mi"
+            memory: "64Mi"
           limits:
             cpu: "100m"
-            memory: "128Mi"
+            memory: "256Mi"
         livenessProbe:
           httpGet:
             path: /healthz

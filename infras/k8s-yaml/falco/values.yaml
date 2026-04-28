@@ -31,6 +31,7 @@ falco:
   log_stderr: true
   log_syslog: false
   priority: notice
+  watch_config_files: false
   http_output:
     enabled: true
     url: "http://falco-falcosidekick:2801/"
@@ -182,6 +183,6 @@ tolerations:
 falcoctl:
   artifact:
     install:
-      enabled: true
+      enabled: false
     follow:
-      enabled: true
+      enabled: false

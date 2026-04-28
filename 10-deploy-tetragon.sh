@@ -461,8 +461,18 @@ apply_with_retry() {
 }
 
 POLICY_FAILED=0
-apply_with_retry "${POLICY_DIR}/block-suspicious-exec.yaml"   || POLICY_FAILED=$((POLICY_FAILED+1))
-apply_with_retry "${POLICY_DIR}/monitor-sensitive-files.yaml" || POLICY_FAILED=$((POLICY_FAILED+1))
+POLICY_FILE_COUNT=0
+shopt -s nullglob
+for policy_file in "${POLICY_DIR}"/*.yaml; do
+  POLICY_FILE_COUNT=$((POLICY_FILE_COUNT + 1))
+  apply_with_retry "$policy_file" || POLICY_FAILED=$((POLICY_FAILED+1))
+done
+shopt -u nullglob
+
+if [ "$POLICY_FILE_COUNT" -eq 0 ]; then
+  echo "   ❌ No TracingPolicy YAML files found in ${POLICY_DIR}"
+  exit 1
+fi
 
 # ========================
 # Step 7: Verify

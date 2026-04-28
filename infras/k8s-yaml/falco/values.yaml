@@ -31,6 +31,7 @@ falco:
   log_stderr: true
   log_syslog: false
   priority: notice
+  config_files: []
   watch_config_files: false
   http_output:
     enabled: true

@@ -20,7 +20,7 @@
 driver:
   kind: modern_ebpf
   modernEbpf:
-    leastPrivileged: true
+    leastPrivileged: false
 
 # Run as DaemonSet (default) — 1 falco per node attaching its eBPF probe.
 falco:

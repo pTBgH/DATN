@@ -140,7 +140,7 @@ revert_cilium_patch() {
 if [ "$ENABLE_CILIUM_EXPORT" -eq 1 ]; then
   blue "[A/3] Patching cilium-config: enable hubble-export-file..."
   CURRENT_PATH=$(kubectl -n "$CILIUM_NS" get cm cilium-config \
-    -o jsonpath='{.data.hubble-export-file-path}' 2>/dev/null || echo "")
+    -o go-template='{{index .data "hubble-export-file-path"}}' 2>/dev/null || echo "")
   if [ "$CURRENT_PATH" = "$HUBBLE_EXPORT_PATH" ]; then
     yellow "    already enabled (hubble-export-file-path=$HUBBLE_EXPORT_PATH)"
   else
@@ -201,7 +201,7 @@ green " ✓ Hubble flow sink deployed"
 green "============================================================"
 echo
 echo "Verify hubble-config (if --enable-cilium-export was used):"
-echo "  kubectl -n $CILIUM_NS get cm cilium-config -o jsonpath='{.data.hubble-export-file-path}'"
+echo "  kubectl -n $CILIUM_NS get cm cilium-config -o go-template='{{index .data \"hubble-export-file-path\"}}'"
 echo "  kubectl -n $CILIUM_NS exec ds/cilium -c cilium-agent -- ls -la /var/run/cilium/hubble/"
 echo
 echo "Verify filebeat → ES:"

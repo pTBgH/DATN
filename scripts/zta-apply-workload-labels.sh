@@ -159,7 +159,7 @@ label_workload deployment keycloak security \
 label_workload deployment oauth2-proxy security \
   proxy T1 prod confidential internal security
 label_workload deployment zta-pdp security \
-  controller T1 prod confidential cluster-only security
+  worker T1 prod confidential cluster-only security
 
 # gateway namespace
 label_workload deployment kong-gateway gateway \

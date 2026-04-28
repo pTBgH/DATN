@@ -3,6 +3,10 @@
 # This script: Creates Kind cluster, installs CNI (Cilium), cert-manager, Nginx Ingress
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
+
 # ==================== TIMING FUNCTIONS ====================
 SCRIPT_START_TIME=$(date +%s)
 STEP_START_TIME=$SCRIPT_START_TIME
@@ -72,7 +76,8 @@ echo "? [3/8] Adding Helm repositories..."
 helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
 helm repo add hashicorp https://helm.releases.hashicorp.com 2>/dev/null || true
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
-helm repo update
+wait_for_dns helm.cilium.io helm.releases.hashicorp.com kubernetes.github.io
+helm_repo_update_retry cilium hashicorp ingress-nginx
 log_time "3. Add Helm repos"
 
 # ========================
@@ -101,6 +106,7 @@ echo "    ? Cluster API is ready (${_cluster_wait_elapsed}s waited)"
 # Step 4: Install Gateway API CRDs
 # ========================
 echo "? [4/8] Installing Gateway API CRDs..."
+wait_for_dns github.com
 # --validate=false skips client-side OpenAPI schema validation, avoiding a
 # second TLS handshake to the API server that can time out on slow starts.
 # Server-side apply (--server-side) still enforces correctness on the server.
@@ -237,6 +243,7 @@ log_time "6. Create namespaces"
 # Step 7: Install cert-manager
 # ========================
 echo "? [7/8] Installing cert-manager..."
+wait_for_dns github.com
 kubectl apply -f \
   "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
 log_time "7a. Install cert-manager"
@@ -260,6 +267,7 @@ log_time "7b. Cert-manager quick-check"
 # Step 8: Install Nginx Ingress Controller
 # ========================
 echo "? [8/8] Installing Nginx Ingress Controller..."
+wait_for_dns raw.githubusercontent.com
 kubectl apply -f \
   https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.0/deploy/static/provider/kind/deploy.yaml
 log_time "8a. Install Nginx Ingress"

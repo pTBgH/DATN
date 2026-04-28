@@ -17,6 +17,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 NAMESPACE="${FALCO_NS:-falco}"
 RELEASE="${FALCO_RELEASE:-falco}"
@@ -85,7 +87,8 @@ fi
 # ---------------------------------------------------------------
 blue "[1/4] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" 2>&1 | sed 's/^/    /' || true
-helm repo update 2>&1 | grep -E "(Falco|falco)" | sed 's/^/    /' || true
+wait_for_dns falcosecurity.github.io
+helm_repo_update_retry "$HELM_REPO_NAME"
 
 blue "[2/4] Creating namespace + cleaning failed releases..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - 2>&1 | sed 's/^/    /'

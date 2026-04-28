@@ -283,12 +283,9 @@ metadata:
   name: allow-kube-state-metrics-egress
   namespace: monitoring
 spec:
-  # Match cả 2 cách KSM helm chart label pod (depending on chart version)
   endpointSelector:
-    matchExpressions:
-    - key: app.kubernetes.io/name
-      operator: In
-      values: [kube-state-metrics]
+    matchLabels:
+      app: kube-state-metrics
   egress:
   - toEntities:
     - kube-apiserver
@@ -300,15 +297,37 @@ spec:
         protocol: TCP
       - port: "6443"
         protocol: TCP
-  # Service CIDR fallback: kubernetes service ClusterIP (10.96.0.1 by default)
-  # Cilium kube-proxy-replacement không phải lúc nào cũng gắn identity
-  # 'kube-apiserver' cho 10.96.0.1 → cần explicit CIDR cho service network.
-  - toCIDR:
-    - 10.96.0.0/12        # Default Kind/k8s service CIDR
-    - 172.18.0.0/16       # Default Kind node network
+---
+# 10) kube-state-metrics probes: kubelet/host probes /healthz and telemetry.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-state-metrics-probes
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kube-state-metrics
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
     toPorts:
     - ports:
-      - port: "443"
+      - port: "8080"
         protocol: TCP
-      - port: "6443"
+      rules:
+        http:
+        - method: "GET"
+          path: "/healthz"
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8081"
         protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/"

@@ -732,9 +732,13 @@ echo "   Running helmfile apply to deploy Laravel microservices (job7189-apps)..
 echo "   (This may take 2-5 minutes as pods initialize)"
 echo ""
 
-# Run helmfile and save full output, but show a filtered view to reduce noise
+# Run helmfile and save full output. Helmfile can return non-zero while the
+# Kubernetes resources it created keep rolling out successfully, so capture the
+# exit code explicitly instead of letting `set -e -o pipefail` abort here.
+set +e
 helmfile --selector namespace=job7189-apps apply 2>&1 | tee /tmp/helmfile-output.log
 HELMFILE_EXIT=${PIPESTATUS[0]}
+set -e
 
 # Show filtered output to the user (suppress resource diff "has been added" blocks)
 cat /tmp/helmfile-output.log | grep -v -E '(^Comparing release=|has been added:|^\+ )' || true

@@ -9,6 +9,7 @@
 #   bash scripts/zta-rebuild.sh --yes            # no prompt
 #   bash scripts/zta-rebuild.sh --skip-cluster   # cluster đã có, chỉ deploy lại
 #   bash scripts/zta-rebuild.sh --skip-frontend  # bỏ qua build FE images (fast)
+#   bash scripts/zta-rebuild.sh --full-enforcement # chạy thêm Tetragon/SPIRE/Cosign/Hubble
 #   bash scripts/zta-rebuild.sh --until=phase    # dừng sau 1 phase: cluster | infra | apps | exporters | harden | zta | verify
 #   bash scripts/zta-rebuild.sh --from=phase     # resume từ 1 phase (skip các phase trước đó)
 #
@@ -30,6 +31,7 @@ SKIP_CLUSTER=0
 SKIP_FRONTEND=0
 UNTIL=""
 FROM=""
+FULL_ENFORCEMENT=0
 # Cho phép phase 'apps' báo OK nếu pods eventually Ready (mặc dù 03-deploy báo non-zero)
 APPS_TOLERATE_TIMEOUT=1
 
@@ -38,11 +40,16 @@ for arg in "$@"; do
     --yes|-y) NO_PROMPT=1 ;;
     --skip-cluster)  SKIP_CLUSTER=1 ;;
     --skip-frontend) SKIP_FRONTEND=1 ;;
+    --full-enforcement) FULL_ENFORCEMENT=1 ;;
     --until=*)       UNTIL="${arg#*=}" ;;
     --from=*)        FROM="${arg#*=}" ;;
     --strict-apps)   APPS_TOLERATE_TIMEOUT=0 ;;
     -h|--help)
       sed -n '2,24p' "$0" | sed 's/^# \?//'
+      echo
+      echo "Options:"
+      echo "  --full-enforcement  also deploy heavy optional modules: Tetragon, Cosign policy-controller, SPIRE, Hubble export"
+      echo "  --strict-apps       do not tolerate eventually-Ready app rollout timeouts"
       exit 0 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
@@ -105,6 +112,7 @@ blue "============================================================"
 blue " ZTA Rebuild — fresh deploy with full Phase 4 enforcement"
 blue " Skip cluster:  $([ "$SKIP_CLUSTER" -eq 1 ] && echo YES || echo NO)"
 blue " Skip frontend: $([ "$SKIP_FRONTEND" -eq 1 ] && echo YES || echo NO)"
+blue " Full enforce:  $([ "$FULL_ENFORCEMENT" -eq 1 ] && echo YES || echo NO)"
 blue " From phase:    ${FROM:-(start)}"
 blue " Until phase:   ${UNTIL:-(all)}"
 blue "============================================================"
@@ -295,6 +303,45 @@ fi
 
 stop_after zta
 fi  # should_run zta
+
+# ============================================================
+# OPTIONAL — heavy post-deploy enforcement modules
+# ============================================================
+if [ "$FULL_ENFORCEMENT" -eq 1 ] && should_run verify; then
+echo
+blue "════════════════════════════════════════════════════════"
+blue " PHASE optional: Tetragon + Cosign policy-controller + SPIRE + Hubble export"
+blue "════════════════════════════════════════════════════════"
+yellow " Heavy modules are sequential and fail-fast to avoid cascading API timeouts."
+
+run_phase "tetragon" "Deploy Tetragon runtime security" \
+  bash 10-deploy-tetragon.sh
+
+run_phase "cosign-key" "Generate/publish Cosign public key" \
+  bash scripts/zta-cosign-keygen.sh
+
+run_phase "policy-controller" "Deploy sigstore policy-controller" \
+  bash scripts/zta-deploy-policy-controller.sh
+
+run_phase "spire" "Deploy SPIRE workload attestation" \
+  bash scripts/zta-deploy-spire.sh
+
+run_phase "spire-demo" "Deploy SPIRE workload API demo" \
+  bash scripts/zta-spire-onboard-demo.sh
+
+run_phase "hubble-export" "Enable Hubble flow export to Elasticsearch" \
+  bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export
+else
+  yellow " Optional heavy modules skipped by default."
+  yellow " Run after the base rebuild is PASS/WARN-only:"
+  yellow "   bash 10-deploy-tetragon.sh"
+  yellow "   bash scripts/zta-cosign-keygen.sh"
+  yellow "   bash scripts/zta-deploy-policy-controller.sh"
+  yellow "   bash scripts/zta-deploy-spire.sh"
+  yellow "   bash scripts/zta-spire-onboard-demo.sh"
+  yellow "   bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export"
+  yellow " Or use: bash scripts/zta-rebuild.sh --full-enforcement"
+fi
 
 # ============================================================
 # PHASE 7 — verify

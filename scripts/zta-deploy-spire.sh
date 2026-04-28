@@ -28,6 +28,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 NAMESPACE="${SPIRE_NAMESPACE:-spire}"
 HELM_REPO_URL="https://spiffe.github.io/helm-charts-hardened/"
@@ -107,13 +109,14 @@ fi
 
 blue "[1/5] Adding helm repo: spiffe helm-charts-hardened..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
-helm repo update >/dev/null 2>&1
+wait_for_dns spiffe.github.io
+helm_repo_update_retry "$HELM_REPO_NAME"
 
 blue "[2/5] Installing spire-crds (CRDs first — ClusterSPIFFEID etc.)..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
   -n "$NAMESPACE" \
-  --wait --timeout=120s
+  --wait --timeout="${SPIRE_CRDS_HELM_TIMEOUT:-300s}"
 
 # Recover from a previous failed install: chart leaves orphan ConfigMaps when
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
@@ -130,7 +133,7 @@ blue "[3/5] Installing spire (server + agent + controller-manager)..."
 helm upgrade --install spire "$SPIRE_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout=480s || {
+  --wait --timeout="${SPIRE_HELM_TIMEOUT:-900s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. namespaces 'spire-system'/'spire-server' not found"
   red "         → ensure values.yaml sets global.spire.namespaces.{system,server}.name=$NAMESPACE"

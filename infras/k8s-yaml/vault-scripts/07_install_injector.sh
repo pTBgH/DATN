@@ -6,12 +6,17 @@
 
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$REPO_ROOT/scripts/utils/zta-common.sh"
+
 VAULT_NAMESPACE="vault"
 RELEASE_NAME="vault-agent"
 
 echo "==> [1/4] Thêm HashiCorp Helm repo..."
 helm repo add hashicorp https://helm.releases.hashicorp.com 2>/dev/null || true
-helm repo update
+wait_for_dns helm.releases.hashicorp.com
+helm_repo_update_retry hashicorp
 echo "    ✔ Helm repo OK"
 
 echo "==> [2/4] Kiểm tra đã cài chưa..."

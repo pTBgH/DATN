@@ -17,6 +17,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 NAMESPACE="${FALCO_NS:-falco}"
 RELEASE="${FALCO_RELEASE:-falco}"
@@ -85,13 +87,14 @@ fi
 # ---------------------------------------------------------------
 blue "[1/4] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" 2>&1 | sed 's/^/    /' || true
-helm repo update 2>&1 | grep -E "(Falco|falco)" | sed 's/^/    /' || true
+wait_for_dns falcosecurity.github.io
+helm_repo_update_retry "$HELM_REPO_NAME"
 
 blue "[2/4] Creating namespace + cleaning failed releases..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - 2>&1 | sed 's/^/    /'
-# Auto-recover from failed/pending-install state
-RELEASE_STATUS=$(helm list -n "$NAMESPACE" --filter "^${RELEASE}\$" --all -o json 2>/dev/null \
-  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r[0]['status'] if r else '')" 2>/dev/null)
+RELEASE_STATUS=$(helm status -n "$NAMESPACE" "$RELEASE" -o json 2>/dev/null \
+  | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('status',''))" 2>/dev/null || true)
+RELEASE_STATUS=${RELEASE_STATUS:-}
 if [ -n "$RELEASE_STATUS" ] && [ "$RELEASE_STATUS" != "deployed" ]; then
   yellow "    Existing release in '$RELEASE_STATUS' state — uninstalling first..."
   helm uninstall -n "$NAMESPACE" "$RELEASE" 2>&1 | sed 's/^/      /' || true

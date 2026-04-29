@@ -28,6 +28,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 # ==================== TUNABLES ====================
 # Resource ceiling for Tetragon — 256Mi is the production-recommended floor
@@ -67,8 +69,8 @@ TETRAGON_RAM_TARGET_MI="${TETRAGON_RAM_TARGET_MI:-900}"
 TETRAGON_CRASH_DUMP_THRESHOLD="${TETRAGON_CRASH_DUMP_THRESHOLD:-2}"
 
 # Timeouts kept at sensible defaults — not the variable that needs tuning.
-HELM_TIMEOUT="${HELM_TIMEOUT:-120s}"
-DS_ROLLOUT_TIMEOUT="${DS_ROLLOUT_TIMEOUT:-90s}"
+HELM_TIMEOUT="${HELM_TIMEOUT:-300s}"
+DS_ROLLOUT_TIMEOUT="${DS_ROLLOUT_TIMEOUT:-300s}"
 CRD_WAIT_TIMEOUT="${CRD_WAIT_TIMEOUT:-90s}"
 POLICY_APPLY_RETRIES="${POLICY_APPLY_RETRIES:-12}"
 POLICY_APPLY_BACKOFF="${POLICY_APPLY_BACKOFF:-5}"
@@ -225,7 +227,8 @@ fi
 echo "━━━ Step 2: Installing Tetragon ━━━"
 
 helm repo add cilium https://helm.cilium.io 2>/dev/null || true
-helm repo update cilium 2>/dev/null || true
+wait_for_dns helm.cilium.io
+helm_repo_update_retry cilium
 
 HELM_SET_FLAGS=(
   --set "tetragon.resources.requests.memory=${TETRAGON_MEM_REQ}"
@@ -461,8 +464,18 @@ apply_with_retry() {
 }
 
 POLICY_FAILED=0
-apply_with_retry "${POLICY_DIR}/block-suspicious-exec.yaml"   || POLICY_FAILED=$((POLICY_FAILED+1))
-apply_with_retry "${POLICY_DIR}/monitor-sensitive-files.yaml" || POLICY_FAILED=$((POLICY_FAILED+1))
+POLICY_FILE_COUNT=0
+shopt -s nullglob
+for policy_file in "${POLICY_DIR}"/*.yaml; do
+  POLICY_FILE_COUNT=$((POLICY_FILE_COUNT + 1))
+  apply_with_retry "$policy_file" || POLICY_FAILED=$((POLICY_FAILED+1))
+done
+shopt -u nullglob
+
+if [ "$POLICY_FILE_COUNT" -eq 0 ]; then
+  echo "   ❌ No TracingPolicy YAML files found in ${POLICY_DIR}"
+  exit 1
+fi
 
 # ========================
 # Step 7: Verify

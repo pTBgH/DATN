@@ -23,6 +23,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 GK_NS="gatekeeper-system"
 GK_VERSION="${GATEKEEPER_VERSION:-3.16.3}"
@@ -84,14 +86,16 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   if helm list -n "$GK_NS" 2>/dev/null | grep -q gatekeeper; then
     yellow "    helm release 'gatekeeper' already present — running upgrade"
     helm repo add gatekeeper "$GK_CHART_REPO" >/dev/null 2>&1 || true
-    helm repo update >/dev/null 2>&1 || true
+    wait_for_dns open-policy-agent.github.io
+    helm_repo_update_retry gatekeeper
     helm upgrade gatekeeper gatekeeper/gatekeeper \
       -n "$GK_NS" \
       --version "$GK_VERSION" \
       --reuse-values
   else
     helm repo add gatekeeper "$GK_CHART_REPO" >/dev/null 2>&1 || true
-    helm repo update >/dev/null 2>&1 || true
+    wait_for_dns open-policy-agent.github.io
+    helm_repo_update_retry gatekeeper
     kubectl create ns "$GK_NS" --dry-run=client -o yaml | kubectl apply -f -
     helm install gatekeeper gatekeeper/gatekeeper \
       -n "$GK_NS" \

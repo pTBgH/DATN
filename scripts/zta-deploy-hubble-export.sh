@@ -43,6 +43,8 @@ ES_HOST="${ES_HOST:-${ES_SERVICE}.${ES_NS}.svc.cluster.local:9200}"
 HUBBLE_EXPORT_PATH="/var/run/cilium/hubble/events.log"
 MANIFESTS_DIR="$SCRIPT_DIR/infras/k8s-yaml/hubble-export"
 CILIUM_ROLLOUT_TIMEOUT="${CILIUM_ROLLOUT_TIMEOUT:-600s}"
+SHIPPER_ROLLOUT_TIMEOUT="${SHIPPER_ROLLOUT_TIMEOUT:-600s}"
+CONTROL_PLANE_WAIT_TIMEOUT="${CONTROL_PLANE_WAIT_TIMEOUT:-180s}"
 
 UNINSTALL=0
 ENABLE_CILIUM_EXPORT=0
@@ -69,6 +71,33 @@ blue "   cilium ns:   $CILIUM_NS"
 blue "   mode:        $([ "$ENABLE_CILIUM_EXPORT" -eq 1 ] && echo 'cilium-export + shipper' || echo 'shipper-only (cilium patch skipped)')"
 blue "============================================================"
 
+set_cilium_serial_rollout() {
+  yellow "    Ensuring cilium DS rolls one node at a time (maxUnavailable=1)..."
+  kubectl -n "$CILIUM_NS" patch ds cilium --type=merge -p '{
+    "spec": {
+      "updateStrategy": {
+        "type": "RollingUpdate",
+        "rollingUpdate": {
+          "maxUnavailable": 1
+        }
+      }
+    }
+  }' 2>&1 | sed 's/^/    /'
+}
+
+wait_for_kube_system_ready() {
+  yellow "    Waiting for kube-system control plane/network pods to settle..."
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l component=kube-controller-manager \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l component=kube-scheduler \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l io.cilium/app=operator \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
+}
+
 # ---------------------------------------------------------------
 # UNINSTALL
 # ---------------------------------------------------------------
@@ -84,6 +113,7 @@ if [ "$UNINSTALL" -eq 1 ]; then
   ]' 2>/dev/null || true
 
   yellow "[3/3] Restarting cilium DS (this may take 5-10 min)..."
+  set_cilium_serial_rollout
   kubectl -n "$CILIUM_NS" rollout restart ds cilium
   yellow "    NOTE: not waiting for rollout — let it complete in background."
   yellow "    Check: kubectl -n $CILIUM_NS rollout status ds cilium"
@@ -116,6 +146,7 @@ revert_cilium_patch() {
     {"op":"remove","path":"/data/hubble-export-file-max-size-mb"},
     {"op":"remove","path":"/data/hubble-export-file-max-backups"}
   ]' 2>/dev/null || true
+  set_cilium_serial_rollout
   kubectl -n "$CILIUM_NS" rollout restart ds cilium 2>&1 | sed 's/^/    /' || true
   red "    cilium-config reverted; cilium DS restarting in background."
   red "    Wait for rollout: kubectl -n $CILIUM_NS rollout status ds cilium"
@@ -124,7 +155,7 @@ revert_cilium_patch() {
 if [ "$ENABLE_CILIUM_EXPORT" -eq 1 ]; then
   blue "[A/3] Patching cilium-config: enable hubble-export-file..."
   CURRENT_PATH=$(kubectl -n "$CILIUM_NS" get cm cilium-config \
-    -o jsonpath='{.data.hubble-export-file-path}' 2>/dev/null || echo "")
+    -o go-template='{{index .data "hubble-export-file-path"}}' 2>/dev/null || echo "")
   if [ "$CURRENT_PATH" = "$HUBBLE_EXPORT_PATH" ]; then
     yellow "    already enabled (hubble-export-file-path=$HUBBLE_EXPORT_PATH)"
   else
@@ -141,6 +172,7 @@ EOF
 
     blue "[A2/3] Restarting cilium DS to pick up new config (timeout: $CILIUM_ROLLOUT_TIMEOUT)..."
     yellow "    NOTE: 4-node restart can cascade control-plane CrashLoop briefly."
+    set_cilium_serial_rollout
     yellow "    NOTE: If it doesn't recover after $CILIUM_ROLLOUT_TIMEOUT, the patch will be reverted."
     kubectl -n "$CILIUM_NS" rollout restart ds cilium
 
@@ -154,6 +186,13 @@ EOF
       exit 1
     fi
     green "    ✓ cilium DS restarted with hubble export enabled"
+    if ! wait_for_kube_system_ready; then
+      red "  ✗ kube-system did not stabilize after cilium restart"
+      red "    Check:"
+      red "      kubectl -n kube-system get pod | grep -E 'cilium-operator|kube-controller-manager|kube-scheduler'"
+      red "      kubectl -n kube-system logs deploy/cilium-operator --tail=80"
+      exit 1
+    fi
   fi
 else
   yellow "[A/3] Skipping cilium-config patch (default; pass --enable-cilium-export to enable)"
@@ -172,7 +211,7 @@ sed "s,elasticsearch.data.svc.cluster.local:9200,$ES_HOST,g" "$MANIFESTS_DIR/10-
 kubectl apply -f "$MANIFESTS_DIR/20-daemonset.yaml" 2>&1 | sed 's/^/    /'
 
 blue "[B2/3] Waiting for filebeat DaemonSet rollout..."
-if ! kubectl -n "$SHIPPER_NS" rollout status ds hubble-flow-shipper --timeout=300s; then
+if ! kubectl -n "$SHIPPER_NS" rollout status ds hubble-flow-shipper --timeout="$SHIPPER_ROLLOUT_TIMEOUT"; then
   red "  ✗ filebeat rollout did not complete"
   red "    Check: kubectl -n $SHIPPER_NS describe ds hubble-flow-shipper"
   red "           kubectl -n $SHIPPER_NS logs ds/hubble-flow-shipper --tail=40"
@@ -184,12 +223,12 @@ green " ✓ Hubble flow sink deployed"
 green "============================================================"
 echo
 echo "Verify hubble-config (if --enable-cilium-export was used):"
-echo "  kubectl -n $CILIUM_NS get cm cilium-config -o jsonpath='{.data.hubble-export-file-path}'"
+echo "  kubectl -n $CILIUM_NS get cm cilium-config -o go-template='{{index .data \"hubble-export-file-path\"}}'"
 echo "  kubectl -n $CILIUM_NS exec ds/cilium -c cilium-agent -- ls -la /var/run/cilium/hubble/"
 echo
 echo "Verify filebeat → ES:"
 echo "  kubectl -n $SHIPPER_NS logs ds/hubble-flow-shipper --tail=20 | grep -i 'connection\\|publish'"
-echo "  kubectl -n $ES_NS exec deploy/$ES_SERVICE -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
+echo "  kubectl -n $ES_NS exec es-0 -- curl -s http://localhost:9200/_cat/indices/hubble-flows-*"
 echo
 if [ "$ENABLE_CILIUM_EXPORT" -eq 0 ]; then
   yellow "NOTE: cilium-config NOT patched. To complete the pipeline:"

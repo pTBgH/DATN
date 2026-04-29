@@ -27,6 +27,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 NAMESPACE="${PC_NAMESPACE:-cosign-system}"
 APP_NAMESPACE="${APP_NAMESPACE:-job7189-apps}"
@@ -153,7 +155,8 @@ fi
 
 blue "[1/5] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
-helm repo update >/dev/null 2>&1
+wait_for_dns sigstore.github.io
+helm_repo_update_retry "$HELM_REPO_NAME"
 
 blue "[2/5] Installing $HELM_CHART (helm release: $HELM_RELEASE)..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
@@ -170,7 +173,7 @@ fi
 helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout=300s || {
+  --wait --timeout="${POLICY_CONTROLLER_HELM_TIMEOUT:-600s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. ImagePullBackOff (registry rate-limit) → kubectl -n $NAMESPACE describe pod"
   red "      2. Webhook cert generation timeout → kubectl -n $NAMESPACE get cert"
@@ -184,8 +187,26 @@ blue "[3/5] Waiting for policy-controller webhook rollout..."
 kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeout=180s || {
   red "  ✗ policy-controller-webhook rollout failed"
   kubectl -n "$NAMESPACE" describe pod -l app.kubernetes.io/component=webhook | tail -30
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true
   exit 1
 }
+kubectl -n "$NAMESPACE" wait --for=condition=Ready pod \
+  -l control-plane=policy-controller-webhook \
+  --timeout=120s >/dev/null || {
+  red "  ✗ policy-controller-webhook pod not Ready after rollout"
+  kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true
+  exit 1
+}
+sleep "${POLICY_CONTROLLER_STABILITY_WAIT:-20}"
+if kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook --no-headers 2>/dev/null \
+    | grep -qE 'CrashLoopBackOff|Error|OOMKilled'; then
+  red "  ✗ policy-controller-webhook became unhealthy after initial rollout"
+  kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook
+  kubectl -n "$NAMESPACE" describe pod -l control-plane=policy-controller-webhook | tail -60
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --previous --tail=80 2>/dev/null || true
+  exit 1
+fi
 
 blue "[4/5] Patching ClusterImagePolicy with cosign public key from $COSIGN_CM_NS/$COSIGN_CM_NAME..."
 apply_policies_with_key

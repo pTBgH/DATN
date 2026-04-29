@@ -20,7 +20,7 @@
 driver:
   kind: modern_ebpf
   modernEbpf:
-    leastPrivileged: true
+    leastPrivileged: false
 
 # Run as DaemonSet (default) — 1 falco per node attaching its eBPF probe.
 falco:
@@ -31,6 +31,8 @@ falco:
   log_stderr: true
   log_syslog: false
   priority: notice
+  config_files: []
+  watch_config_files: false
   http_output:
     enabled: true
     url: "http://falco-falcosidekick:2801/"
@@ -182,6 +184,6 @@ tolerations:
 falcoctl:
   artifact:
     install:
-      enabled: true
+      enabled: false
     follow:
-      enabled: true
+      enabled: false

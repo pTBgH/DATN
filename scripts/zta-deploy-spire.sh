@@ -28,6 +28,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 
 NAMESPACE="${SPIRE_NAMESPACE:-spire}"
 HELM_REPO_URL="https://spiffe.github.io/helm-charts-hardened/"
@@ -53,6 +55,45 @@ red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 blue()   { printf '\033[0;34m%s\033[0m\n' "$*"; }
+
+ensure_spire_tokenreview_rbac() {
+  local server_sa="${SPIRE_SERVER_SA:-spire-server}"
+
+  blue "    Ensuring spire-server can create TokenReview requests..."
+  kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: zta-spire-server-tokenreview
+rules:
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create", "get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zta-spire-server-tokenreview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: zta-spire-server-tokenreview
+subjects:
+- kind: ServiceAccount
+  name: ${server_sa}
+  namespace: ${NAMESPACE}
+EOF
+
+  if ! kubectl auth can-i create tokenreviews.authentication.k8s.io \
+      --as="system:serviceaccount:${NAMESPACE}:${server_sa}" >/dev/null; then
+    red "  ✗ spire-server ServiceAccount still cannot create tokenreviews"
+    red "    Check: kubectl get clusterrolebinding zta-spire-server-tokenreview -o yaml"
+    exit 1
+  fi
+}
 
 blue "============================================================"
 blue " ZTA Step 2.3.8 — SPIRE Workload Attestation"
@@ -107,13 +148,15 @@ fi
 
 blue "[1/5] Adding helm repo: spiffe helm-charts-hardened..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
-helm repo update >/dev/null 2>&1
+wait_for_dns spiffe.github.io
+helm_repo_update_retry "$HELM_REPO_NAME"
 
 blue "[2/5] Installing spire-crds (CRDs first — ClusterSPIFFEID etc.)..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+ensure_spire_tokenreview_rbac
 helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
   -n "$NAMESPACE" \
-  --wait --timeout=120s
+  --wait --timeout="${SPIRE_CRDS_HELM_TIMEOUT:-300s}"
 
 # Recover from a previous failed install: chart leaves orphan ConfigMaps when
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
@@ -130,7 +173,7 @@ blue "[3/5] Installing spire (server + agent + controller-manager)..."
 helm upgrade --install spire "$SPIRE_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout=480s || {
+  --wait --timeout="${SPIRE_HELM_TIMEOUT:-900s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. namespaces 'spire-system'/'spire-server' not found"
   red "         → ensure values.yaml sets global.spire.namespaces.{system,server}.name=$NAMESPACE"

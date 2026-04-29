@@ -15,12 +15,19 @@ metadata:
   namespace: monitoring
   labels:
     app: hubble-flow-shipper
+    k8s-app: filebeat
     cilium.zta/role: log-shipper
     cilium.zta/tier: t2
     cilium.zta/exposure: internal
     cilium.zta/data-class: internal
     cilium.zta/lifecycle: prod
     cilium.zta/identity: workload
+    zta.job7189/role: scraper
+    zta.job7189/tier: T2
+    zta.job7189/env: prod
+    zta.job7189/data-classification: internal
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: platform
 spec:
   selector:
     matchLabels:
@@ -29,12 +36,19 @@ spec:
     metadata:
       labels:
         app: hubble-flow-shipper
+        k8s-app: filebeat
         cilium.zta/role: log-shipper
         cilium.zta/tier: t2
         cilium.zta/exposure: internal
         cilium.zta/data-class: internal
         cilium.zta/lifecycle: prod
         cilium.zta/identity: workload
+        zta.job7189/role: scraper
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: platform
     spec:
       serviceAccountName: hubble-flow-shipper
       tolerations:

@@ -169,6 +169,11 @@ if ! command -v kubectl >/dev/null 2>&1; then
 fi
 
 blue "[0/5] Pre-flight: cluster RAM check (policy-controller wants ~150-300Mi total)..."
+require_host_ram_mi "${PC_REQUIRED_HOST_MI:-1200}" "policy-controller" || {
+  red "  ✗ host VM has insufficient available RAM for policy-controller"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_HOST_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
 require_node_ram_mi "${PC_REQUIRED_NODE_MI:-200}" "policy-controller" || {
   red "  ✗ at least one node has insufficient free RAM for policy-controller"
   red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."

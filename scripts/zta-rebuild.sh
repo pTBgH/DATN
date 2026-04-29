@@ -26,6 +26,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
+# shellcheck source=scripts/utils/zta-common.sh
+source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
+
 NO_PROMPT=0
 SKIP_CLUSTER=0
 SKIP_FRONTEND=0
@@ -313,6 +316,16 @@ blue "════════════════════════�
 blue " PHASE optional: Tetragon + Cosign policy-controller + SPIRE + Hubble export"
 blue "════════════════════════════════════════════════════════"
 yellow " Heavy modules are sequential and fail-fast to avoid cascading API timeouts."
+
+# Host VM RAM gate before any heavy module — Kind shares host kernel, so when
+# host available RAM <2Gi, kube-apiserver lease renews start timing out (5s)
+# and kube-scheduler / kube-controller-manager / cilium-operator /
+# spire-controller-manager flap on leader-election. Blocking here is far
+# cheaper than diagnosing a cascade after the fact.
+require_host_ram_mi "${REBUILD_FULL_REQUIRED_HOST_MI:-2000}" "full-enforcement" || {
+  yellow "  Bypass with ZTA_HOST_RAM_CHECK_FATAL=0 if you accept the flap risk."
+  exit 1
+}
 
 run_phase "tetragon" "Deploy Tetragon runtime security" \
   bash 10-deploy-tetragon.sh

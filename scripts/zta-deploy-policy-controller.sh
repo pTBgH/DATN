@@ -187,8 +187,26 @@ blue "[3/5] Waiting for policy-controller webhook rollout..."
 kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeout=180s || {
   red "  ✗ policy-controller-webhook rollout failed"
   kubectl -n "$NAMESPACE" describe pod -l app.kubernetes.io/component=webhook | tail -30
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true
   exit 1
 }
+kubectl -n "$NAMESPACE" wait --for=condition=Ready pod \
+  -l control-plane=policy-controller-webhook \
+  --timeout=120s >/dev/null || {
+  red "  ✗ policy-controller-webhook pod not Ready after rollout"
+  kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true
+  exit 1
+}
+sleep "${POLICY_CONTROLLER_STABILITY_WAIT:-20}"
+if kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook --no-headers 2>/dev/null \
+    | grep -qE 'CrashLoopBackOff|Error|OOMKilled'; then
+  red "  ✗ policy-controller-webhook became unhealthy after initial rollout"
+  kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook
+  kubectl -n "$NAMESPACE" describe pod -l control-plane=policy-controller-webhook | tail -60
+  kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --previous --tail=80 2>/dev/null || true
+  exit 1
+fi
 
 blue "[4/5] Patching ClusterImagePolicy with cosign public key from $COSIGN_CM_NS/$COSIGN_CM_NAME..."
 apply_policies_with_key

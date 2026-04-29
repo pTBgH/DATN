@@ -44,6 +44,33 @@ spire-server:
   nameOverride: spire-server
   replicaCount: 1
 
+  serviceAccount:
+    name: spire-server
+
+  nodeAttestor:
+    k8sPSAT:
+      enabled: true
+
+  controllerManager:
+    enabled: true
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 6
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 200m
+        memory: 192Mi
+
   resources:
     requests:
       cpu: 100m
@@ -62,6 +89,16 @@ spire-server:
   service:
     type: ClusterIP
 
+  livenessProbe:
+    failureThreshold: 6
+    initialDelaySeconds: 30
+    periodSeconds: 60
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
   # Database: SQLite on PVC (good enough for thesis; HA-prod = postgres).
   dataStore:
     sql:
@@ -73,6 +110,9 @@ spire-server:
 spire-agent:
   fullnameOverride: spire-agent
   nameOverride: spire-agent
+
+  serviceAccount:
+    name: spire-agent
 
   resources:
     requests:
@@ -107,20 +147,6 @@ spiffe-csi-driver:
     limits:
       cpu: 100m
       memory: 64Mi
-
-# ---------------------------------------------------------------------------
-# ClusterSPIFFEID samples (created via separate manifest, not helm).
-# ---------------------------------------------------------------------------
-spire-controller-manager:
-  fullnameOverride: spire-controller-manager
-  nameOverride: spire-controller-manager
-  resources:
-    requests:
-      cpu: 50m
-      memory: 96Mi
-    limits:
-      cpu: 200m
-      memory: 192Mi
 
 # ---------------------------------------------------------------------------
 # spire-oidc-discovery-provider: not needed yet (used for federation).

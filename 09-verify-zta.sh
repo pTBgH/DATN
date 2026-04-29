@@ -860,10 +860,11 @@ if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
     result PASS "Cilium hubble-export enabled (path=$HUBBLE_PATH)"
   else
     result FAIL "Cilium hubble-export NOT enabled — flows won't be written to disk" \
-      "bash scripts/zta-deploy-hubble-export.sh  # patches cilium-config"
+      "bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export"
   fi
 
   # 2. filebeat DaemonSet covers all nodes
+  kubectl -n "$SHIPPER_NS" rollout status ds hubble-flow-shipper --timeout="${HUBBLE_VERIFY_DS_WAIT:-180s}" >/dev/null 2>&1 || true
   DS_DESIRED=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
     -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo 0)
   DS_READY=$(kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper \
@@ -872,6 +873,9 @@ if kubectl -n "$SHIPPER_NS" get ds hubble-flow-shipper >/dev/null 2>&1; then
   DS_READY=${DS_READY:-0}
   if [ "$DS_READY" -ge 1 ] && [ "$DS_READY" = "$DS_DESIRED" ]; then
     result PASS "hubble-flow-shipper DaemonSet covers all nodes ($DS_READY/$DS_DESIRED)"
+  elif [ "$DS_READY" -ge 1 ]; then
+    result WARN "hubble-flow-shipper DS partially ready ($DS_READY/$DS_DESIRED)" \
+      "kubectl -n $SHIPPER_NS rollout status ds hubble-flow-shipper"
   else
     result FAIL "hubble-flow-shipper DS incomplete ($DS_READY/$DS_DESIRED)" \
       "kubectl -n $SHIPPER_NS describe ds hubble-flow-shipper"

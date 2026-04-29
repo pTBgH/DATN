@@ -16,13 +16,16 @@
 
 webhook:
   replicaCount: 1
+  env:
+    GOMEMLIMIT: "384MiB"
+    GOGC: "75"
   resources:
     requests:
       cpu: 50m
-      memory: 96Mi
+      memory: 128Mi
     limits:
       cpu: 200m
-      memory: 192Mi
+      memory: 512Mi
   # Skip namespaces that contain cluster infra — admission failure here
   # would brick the cluster.
   configData:

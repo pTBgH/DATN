@@ -43,6 +43,8 @@ ES_HOST="${ES_HOST:-${ES_SERVICE}.${ES_NS}.svc.cluster.local:9200}"
 HUBBLE_EXPORT_PATH="/var/run/cilium/hubble/events.log"
 MANIFESTS_DIR="$SCRIPT_DIR/infras/k8s-yaml/hubble-export"
 CILIUM_ROLLOUT_TIMEOUT="${CILIUM_ROLLOUT_TIMEOUT:-600s}"
+SHIPPER_ROLLOUT_TIMEOUT="${SHIPPER_ROLLOUT_TIMEOUT:-600s}"
+CONTROL_PLANE_WAIT_TIMEOUT="${CONTROL_PLANE_WAIT_TIMEOUT:-180s}"
 
 UNINSTALL=0
 ENABLE_CILIUM_EXPORT=0
@@ -81,6 +83,19 @@ set_cilium_serial_rollout() {
       }
     }
   }' 2>&1 | sed 's/^/    /'
+}
+
+wait_for_kube_system_ready() {
+  yellow "    Waiting for kube-system control plane/network pods to settle..."
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l component=kube-controller-manager \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l component=kube-scheduler \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
+  kubectl -n "$CILIUM_NS" wait --for=condition=Ready pod \
+    -l io.cilium/app=operator \
+    --timeout="$CONTROL_PLANE_WAIT_TIMEOUT" 2>&1 | sed 's/^/    /' || return 1
 }
 
 # ---------------------------------------------------------------
@@ -171,6 +186,13 @@ EOF
       exit 1
     fi
     green "    ✓ cilium DS restarted with hubble export enabled"
+    if ! wait_for_kube_system_ready; then
+      red "  ✗ kube-system did not stabilize after cilium restart"
+      red "    Check:"
+      red "      kubectl -n kube-system get pod | grep -E 'cilium-operator|kube-controller-manager|kube-scheduler'"
+      red "      kubectl -n kube-system logs deploy/cilium-operator --tail=80"
+      exit 1
+    fi
   fi
 else
   yellow "[A/3] Skipping cilium-config patch (default; pass --enable-cilium-export to enable)"
@@ -189,7 +211,7 @@ sed "s,elasticsearch.data.svc.cluster.local:9200,$ES_HOST,g" "$MANIFESTS_DIR/10-
 kubectl apply -f "$MANIFESTS_DIR/20-daemonset.yaml" 2>&1 | sed 's/^/    /'
 
 blue "[B2/3] Waiting for filebeat DaemonSet rollout..."
-if ! kubectl -n "$SHIPPER_NS" rollout status ds hubble-flow-shipper --timeout=300s; then
+if ! kubectl -n "$SHIPPER_NS" rollout status ds hubble-flow-shipper --timeout="$SHIPPER_ROLLOUT_TIMEOUT"; then
   red "  ✗ filebeat rollout did not complete"
   red "    Check: kubectl -n $SHIPPER_NS describe ds hubble-flow-shipper"
   red "           kubectl -n $SHIPPER_NS logs ds/hubble-flow-shipper --tail=40"

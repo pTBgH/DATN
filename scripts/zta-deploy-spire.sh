@@ -111,20 +111,27 @@ blue "============================================================"
 # UNINSTALL
 # ---------------------------------------------------------------
 if [ "$UNINSTALL" -eq 1 ]; then
-  yellow "[1/4] Removing ClusterSPIFFEID resources..."
+  yellow "[1/6] Removing ClusterSPIFFEID resources..."
   kubectl delete -f "$CLUSTER_SPIFFE_IDS" --ignore-not-found 2>&1 | sed 's/^/    /' || true
 
-  yellow "[2/4] Uninstalling spire helm release..."
+  yellow "[2/6] Uninstalling spire helm release..."
   if helm list -n "$NAMESPACE" 2>/dev/null | grep -q '^spire\s'; then
     helm uninstall spire -n "$NAMESPACE" || true
   fi
 
-  yellow "[3/4] Uninstalling spire-crds helm release..."
+  yellow "[3/6] Uninstalling spire-crds helm release..."
   if helm list -n "$NAMESPACE" 2>/dev/null | grep -q '^spire-crds\s'; then
     helm uninstall spire-crds -n "$NAMESPACE" || true
   fi
 
-  yellow "[4/4] Removing namespace..."
+  yellow "[4/6] Force-deleting orphan SPIRE pods (helm uninstall sometimes leaves CrashLoop pods alive)..."
+  kubectl -n "$NAMESPACE" delete pod --all --grace-period=0 --force --ignore-not-found 2>/dev/null || true
+
+  yellow "[5/6] Removing leftover PVC + helm hook jobs..."
+  kubectl -n "$NAMESPACE" delete pvc --all --ignore-not-found 2>/dev/null || true
+  kubectl -n "$NAMESPACE" delete job --all --ignore-not-found 2>/dev/null || true
+
+  yellow "[6/6] Removing namespace..."
   kubectl delete ns "$NAMESPACE" --ignore-not-found
 
   green "✓ SPIRE removed"
@@ -150,6 +157,13 @@ fi
 if ! command -v kubectl >/dev/null 2>&1; then
   red "ERROR: kubectl not installed."; exit 1
 fi
+
+blue "[0/5] Pre-flight: cluster RAM check (SPIRE wants ~700Mi-1.2Gi total)..."
+require_node_ram_mi "${SPIRE_REQUIRED_NODE_MI:-450}" "spire" || {
+  red "  ✗ at least one node has insufficient free RAM for spire"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
 
 blue "[1/5] Adding helm repo: spiffe helm-charts-hardened..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
@@ -213,10 +227,14 @@ if [ "$NEEDS_RESET" -eq 1 ]; then
 fi
 
 blue "[3/5] Installing spire (server + agent + controller-manager)..."
+# --cleanup-on-fail: if a chart resource (Job hook, StatefulSet) fails to
+# come Ready in time, helm cleans up the partially-applied manifest set
+# instead of leaving orphan pods/PVCs that block subsequent re-runs.
 helm upgrade --install spire "$SPIRE_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout="${SPIRE_HELM_TIMEOUT:-900s}" || {
+  --wait --cleanup-on-fail \
+  --timeout="${SPIRE_HELM_TIMEOUT:-900s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. namespaces 'spire-system'/'spire-server' not found"
   red "         → ensure values.yaml sets global.spire.namespaces.{system,server}.name=$NAMESPACE"

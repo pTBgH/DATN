@@ -53,23 +53,28 @@ spire-server:
 
   controllerManager:
     enabled: true
+    # Slower start probes — controller-manager has to list every namespace +
+    # ClusterSPIFFEID + ServiceAccount before it can declare ready, which can
+    # take 30-60s on a busy 4-node Kind cluster (11 ClusterSPIFFEIDs in repo).
     livenessProbe:
-      initialDelaySeconds: 30
-      periodSeconds: 20
-      timeoutSeconds: 5
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 10
       failureThreshold: 6
     readinessProbe:
-      initialDelaySeconds: 10
+      initialDelaySeconds: 20
       periodSeconds: 20
-      timeoutSeconds: 5
-      failureThreshold: 6
+      timeoutSeconds: 10
+      failureThreshold: 8
     resources:
       requests:
         cpu: 50m
         memory: 96Mi
       limits:
+        # 192Mi was OOM-killing controller-manager when it processed 11+
+        # ClusterSPIFFEIDs at boot — bumping to 256Mi gives it ~30% headroom.
         cpu: 200m
-        memory: 192Mi
+        memory: 256Mi
 
   resources:
     requests:

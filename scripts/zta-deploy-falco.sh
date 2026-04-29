@@ -85,6 +85,13 @@ fi
 # ---------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------
+blue "[0/4] Pre-flight: cluster RAM check (Falco wants ~800Mi-1.5Gi total)..."
+require_node_ram_mi "${FALCO_REQUIRED_NODE_MI:-300}" "falco" || {
+  red "  ✗ at least one node has insufficient free RAM for falco"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
+
 blue "[1/4] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" 2>&1 | sed 's/^/    /' || true
 wait_for_dns falcosecurity.github.io
@@ -104,6 +111,7 @@ blue "[3/4] Installing/upgrading $RELEASE chart (3-5 min for image pull + eBPF p
 if ! helm upgrade --install "$RELEASE" "$HELM_REPO_NAME/falco" \
      --namespace "$NAMESPACE" \
      --values "$VALUES_FILE" \
+     --cleanup-on-fail \
      --timeout 8m 2>&1 | tail -10; then
   red "  ✗ helm install/upgrade failed"
   red "    Diagnose:"

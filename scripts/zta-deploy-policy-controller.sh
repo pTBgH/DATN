@@ -123,18 +123,25 @@ blue "============================================================"
 # UNINSTALL
 # ---------------------------------------------------------------
 if [ "$UNINSTALL" -eq 1 ]; then
-  yellow "[1/4] Removing ClusterImagePolicy resources..."
+  yellow "[1/6] Removing ClusterImagePolicy resources..."
   kubectl delete clusterimagepolicy zta-system-passthrough zta-job7189-apps-signed zta-keyless-trust-job7189 --ignore-not-found 2>&1 | sed 's/^/    /' || true
 
-  yellow "[2/4] Removing namespace opt-in label..."
+  yellow "[2/6] Removing namespace opt-in label..."
   kubectl label ns "$APP_NAMESPACE" policy.sigstore.dev/include- 2>/dev/null || true
 
-  yellow "[3/4] Uninstalling helm release..."
+  yellow "[3/6] Uninstalling helm release..."
   if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "^${HELM_RELEASE}"; then
     helm uninstall "$HELM_RELEASE" -n "$NAMESPACE" || true
   fi
 
-  yellow "[4/4] Removing namespace..."
+  yellow "[4/6] Wiping cluster-scoped webhook configs (survive helm uninstall in some chart versions)..."
+  kubectl delete validatingwebhookconfiguration policy.sigstore.dev --ignore-not-found 2>/dev/null || true
+  kubectl delete mutatingwebhookconfiguration   policy.sigstore.dev --ignore-not-found 2>/dev/null || true
+
+  yellow "[5/6] Force-deleting orphan webhook pods..."
+  kubectl -n "$NAMESPACE" delete pod --all --grace-period=0 --force --ignore-not-found 2>/dev/null || true
+
+  yellow "[6/6] Removing namespace..."
   kubectl delete ns "$NAMESPACE" --ignore-not-found
 
   green "✓ policy-controller removed"
@@ -160,6 +167,13 @@ fi
 if ! command -v kubectl >/dev/null 2>&1; then
   red "ERROR: kubectl not installed."; exit 1
 fi
+
+blue "[0/5] Pre-flight: cluster RAM check (policy-controller wants ~150-300Mi total)..."
+require_node_ram_mi "${PC_REQUIRED_NODE_MI:-200}" "policy-controller" || {
+  red "  ✗ at least one node has insufficient free RAM for policy-controller"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
 
 blue "[1/5] Adding helm repo: $HELM_REPO_NAME ($HELM_REPO_URL)..."
 helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
@@ -216,7 +230,8 @@ fi
 helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout="${POLICY_CONTROLLER_HELM_TIMEOUT:-600s}" || {
+  --wait --cleanup-on-fail \
+  --timeout="${POLICY_CONTROLLER_HELM_TIMEOUT:-600s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. ImagePullBackOff (registry rate-limit) → kubectl -n $NAMESPACE describe pod"
   red "      2. Webhook cert generation timeout → kubectl -n $NAMESPACE get cert"

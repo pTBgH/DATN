@@ -122,9 +122,22 @@ Mong đợi:
 |---|---|---|---|---|
 | spire-server | 100m / 300m | 192Mi / 384Mi | 1 | 192-384Mi |
 | spire-agent | 50m / 200m | 96Mi / 192Mi | 4 (DS) | 384-768Mi |
-| spire-controller-manager | 50m / 200m | 96Mi / 192Mi | 1 | 96-192Mi |
+| spire-controller-manager | 50m / 200m | 96Mi / **256Mi** | 1 | 96-256Mi |
 | spiffe-csi-driver | 20m / 100m | 32Mi / 64Mi | 4 (DS) | 128-256Mi |
-| **Tổng** | ~400m / ~1.4 | ~800Mi / ~1.6Gi | — | **~800Mi-1.6Gi** |
+| **Tổng** | ~400m / ~1.4 | ~800Mi / ~1.7Gi | — | **~800Mi-1.7Gi** |
+
+> Cập nhật PR #24: `controllerManager.resources.limits.memory` đã được nâng từ
+> 192Mi → 256Mi vì controller bị OOM-killed khi reconcile 11+ ClusterSPIFFEID
+> ở thời điểm boot. Đồng thời nới `livenessProbe.initialDelaySeconds` 30→60s
+> và `readinessProbe.initialDelaySeconds` 10→20s để chart không flap pods
+> trước khi controller xây xong cache.
+>
+> Pre-flight cluster: `scripts/zta-deploy-spire.sh` từ chối install nếu node
+> nào có <450Mi free RAM. Bypass: `ZTA_RAM_CHECK_FATAL=0` hoặc set
+> `SPIRE_REQUIRED_NODE_MI=200`.
+>
+> Recovery: `bash scripts/zta-deploy-spire.sh --reset` (deployed-but-broken)
+> hoặc `--uninstall && deploy lại` (orphan pod / PVC corrupt). Xem `32`.
 
 ## 9. CISA ZTMM mapping
 

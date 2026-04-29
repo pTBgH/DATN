@@ -173,7 +173,24 @@ kubectl -n job7189-apps run unsigned-block --image=nginx:1.26 --restart=Never
 | policy-controller-tuf | 32 / 64 Mi | 1 | 32-64 Mi |
 | **Total** |  |  | **~150-300 Mi** |
 
-So với SPIRE (~800Mi-1.6Gi), Falco (~800Mi), policy-controller rẻ nhất nhưng đóng đúng gap PR #16.
+So với SPIRE (~800Mi-1.7Gi), Falco (~800Mi), policy-controller rẻ nhất nhưng đóng đúng gap PR #16.
+
+> **Cập nhật PR #24 — recovery & operational hardening:**
+>
+> - Pre-flight cluster: `scripts/zta-deploy-policy-controller.sh` từ chối install
+>   nếu node nào có <200Mi free RAM. Bypass: `ZTA_RAM_CHECK_FATAL=0` hoặc set
+>   `PC_REQUIRED_NODE_MI=100`.
+> - Helm install dùng `--cleanup-on-fail` để failed install không để lại orphan.
+> - `--reset` flag: detect "deployed-but-broken" (webhook pod restart ≥5) và tự
+>   xoá `policy.sigstore.dev` ValidatingWebhookConfiguration +
+>   MutatingWebhookConfiguration cluster-scoped trước khi reinstall — tránh lỗi
+>   `conflict with "webhook" using admissionregistration.k8s.io/v1:
+>   .webhooks[name="policy.sigstore.dev"].namespaceSelector` (do webhook pod
+>   đang chạy SSA-update field này).
+> - `--uninstall` flag mới đầy đủ: helm uninstall + xoá CIP + un-label namespace
+>   + nuke webhook configs cluster-scoped + force-delete orphan pods + xoá ns.
+>
+> Recovery flow chi tiết: xem `32-deploy-script-troubleshooting.md` § 3.
 
 ## 9. CISA ZTMM Mapping
 

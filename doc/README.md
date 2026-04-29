@@ -2,7 +2,7 @@
 
 Kho tri thuc gon cho du an Zero Trust job7189.
 Muc tieu: giam token khi lam viec voi AI — chi doc dung file can thiet.
-Cap nhat: 2026-04-26 (19 files)
+Cap nhat: 2026-04-29 (32 files)
 
 ## Index
 
@@ -27,7 +27,19 @@ Cap nhat: 2026-04-26 (19 files)
 | 16 | `16-pip-data-sources.md` | PIP tools: Keycloak, Vault, Cilium, Prometheus, EFK, Hubble |
 | 17 | `17-observability-baseline.md` | (PR #7) — Step 2.3.1: Hubble flow baseline + DAAS prep |
 | 18 | `18-daas-classification.md` | **MOI** (PR #8) — Step 2.3.2: DAAS per namespace + tier + microperimeter map |
+| 19 | `19-label-schema.md` | **MOI** (PR #9) — 6 ZTA criteria labels + apply tool |
+| 20 | `20-5w1h-policy-matrix.md` | **MOI** (PR #10) — 5W1H L7 enforcement (vault/keycloak/kong/prom) |
 | 22 | `22-audit-findings-remediation.md` | **MOI** (PR #8) — F-1/F-2/F-4 audit findings remediation + rotation runbook |
+| 23 | `23-rebuild-from-scratch.md` | Teardown + rebuild via `zta-rebuild.sh` (full-enforcement, --from/--until phase) |
+| 24 | `24-adaptive-security-loop.md` | (PR #12) — Gatekeeper + Tetragon T1 ns + adaptive loop |
+| 25 | `25-pdp-controller.md` | (PR #15) — PDP Controller continuous label compliance |
+| 26 | `26-image-provenance.md` | (PR #16) — Cosign + Gatekeeper image-digest required |
+| 27 | `27-spire-workload-attestation.md` | (PR #17) — SPIRE server/agent/CSI + 11 ClusterSPIFFEID |
+| 28 | `28-sigstore-policy-controller.md` | (PR #19) — sigstore policy-controller real Cosign verify |
+| 29 | `29-spire-workload-integration.md` | (PR #20) — Consume SVID via spiffe-helper + Workload API |
+| 30 | `30-hubble-flow-sink.md` | (PR #21) — Hubble flow → Elasticsearch via filebeat shipper |
+| 31 | `31-falco-runtime-detection.md` | (PR #22) — Falco eBPF + 5 ZTA custom rules + Falcosidekick |
+| 32 | `32-deploy-script-troubleshooting.md` | **MOI** (PR #24) — Deploy script recovery: --reset, --uninstall, RAM pre-flight, cluster cascade fix |
 
 ## Query Map (cho AI/Agent)
 
@@ -64,6 +76,7 @@ Cap nhat: 2026-04-26 (19 files)
 | SPIRE Workload Integration (consume SVID) | `29` |
 | Hubble flow sink (Elasticsearch audit trail) | `30` |
 | Falco runtime detection + Falcosidekick | `31` |
+| Deploy script troubleshooting (--reset, --uninstall, RAM pre-flight) | `32` |
 
 ## Archive
 

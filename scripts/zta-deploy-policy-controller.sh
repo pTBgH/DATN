@@ -19,8 +19,14 @@
 #
 # Usage:
 #   bash scripts/zta-deploy-policy-controller.sh                # install
+#                                                               # (auto-recovers
+#                                                               # from broken state)
 #   bash scripts/zta-deploy-policy-controller.sh --uninstall    # remove
 #   bash scripts/zta-deploy-policy-controller.sh --policies-only
+#   bash scripts/zta-deploy-policy-controller.sh --reset        # force helm
+#                                                               # uninstall +
+#                                                               # webhook delete
+#                                                               # before install
 #
 # Resource budget: ~150-300Mi RAM, ~120-450m CPU.
 set -euo pipefail
@@ -46,10 +52,12 @@ CIP_FILE="$SCRIPT_DIR/infras/k8s-yaml/policy-controller/cluster-image-policies.y
 
 UNINSTALL=0
 POLICIES_ONLY=0
+RESET=0
 for arg in "$@"; do
   case "$arg" in
     --uninstall) UNINSTALL=1 ;;
     --policies-only) POLICIES_ONLY=1 ;;
+    --reset) RESET=1 ;;
     -h|--help) sed -n '2,28p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
@@ -161,13 +169,48 @@ helm_repo_update_retry "$HELM_REPO_NAME"
 blue "[2/5] Installing $HELM_CHART (helm release: $HELM_RELEASE)..."
 kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-# Recover from a previous failed install: helm uninstall stale 'failed' release.
-if helm list -n "$NAMESPACE" --all 2>/dev/null \
-    | awk 'NR>1 {print $1, $8}' \
-    | grep -E "^${HELM_RELEASE} (failed|pending-install|uninstalling)$" >/dev/null; then
-  yellow "    detected stale failed '${HELM_RELEASE}' release — cleaning up before re-install"
+# Detect a previously failed install or a 'deployed' release that is actually
+# unhealthy (webhook pod CrashLoopBackOff for >5 restarts). In both cases the
+# safest path is to uninstall + reinstall fresh — helm's server-side apply
+# refuses to reconcile webhook configurations whose .namespaceSelector is owned
+# by another field manager (the running webhook pod itself can mutate them),
+# producing:
+#   "conflict with \"webhook\" using admissionregistration.k8s.io/v1:
+#    .webhooks[name=\"policy.sigstore.dev\"].namespaceSelector"
+PC_RELEASE_STATUS=$(helm list -n "$NAMESPACE" --all 2>/dev/null \
+  | awk -v r="$HELM_RELEASE" 'NR>1 && $1==r {print $8}' | head -1)
+PC_WEBHOOK_UNHEALTHY=0
+if kubectl -n "$NAMESPACE" get deploy policy-controller-webhook >/dev/null 2>&1; then
+  PC_RESTARTS=$(kubectl -n "$NAMESPACE" get pod \
+    -l control-plane=policy-controller-webhook \
+    -o jsonpath='{range .items[*]}{.status.containerStatuses[0].restartCount}{"\n"}{end}' 2>/dev/null \
+    | sort -n | tail -1)
+  if [ "${PC_RESTARTS:-0}" -ge 5 ]; then
+    PC_WEBHOOK_UNHEALTHY=1
+  fi
+fi
+
+PC_NEEDS_RESET=0
+if [ "$RESET" -eq 1 ]; then
+  PC_NEEDS_RESET=1
+elif echo "$PC_RELEASE_STATUS" | grep -qE '^(failed|pending-install|pending-upgrade|uninstalling)$'; then
+  yellow "    detected stale '$PC_RELEASE_STATUS' '${HELM_RELEASE}' release — cleaning up before re-install"
+  PC_NEEDS_RESET=1
+elif [ "$PC_RELEASE_STATUS" = "deployed" ] && [ "$PC_WEBHOOK_UNHEALTHY" -eq 1 ]; then
+  yellow "    '${HELM_RELEASE}' release is 'deployed' but webhook pod has $PC_RESTARTS restarts"
+  yellow "    helm upgrade against an unhealthy webhook tends to deadlock on SSA conflicts — reinstalling"
+  PC_NEEDS_RESET=1
+fi
+
+if [ "$PC_NEEDS_RESET" -eq 1 ]; then
   helm uninstall "$HELM_RELEASE" -n "$NAMESPACE" 2>/dev/null || true
-  sleep 3
+  # Webhook configurations are cluster-scoped and survive helm uninstall in
+  # some chart versions. Wipe them so the fresh install owns SSA fields.
+  kubectl delete validatingwebhookconfiguration policy.sigstore.dev --ignore-not-found 2>/dev/null || true
+  kubectl delete mutatingwebhookconfiguration   policy.sigstore.dev --ignore-not-found 2>/dev/null || true
+  # Force-evict any stuck webhook pod so the new ReplicaSet can roll cleanly.
+  kubectl -n "$NAMESPACE" delete pod -l control-plane=policy-controller-webhook --grace-period=0 --force --ignore-not-found 2>/dev/null || true
+  sleep 5
 fi
 
 helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
@@ -177,7 +220,8 @@ helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. ImagePullBackOff (registry rate-limit) → kubectl -n $NAMESPACE describe pod"
   red "      2. Webhook cert generation timeout → kubectl -n $NAMESPACE get cert"
-  red "      3. Existing 'failed' release still present → bash $0 --uninstall first"
+  red "      3. SSA conflict on policy.sigstore.dev webhooks → bash $0 --reset"
+  red "      4. Existing 'failed' release still present → bash $0 --uninstall first"
   echo
   kubectl -n "$NAMESPACE" get pod
   exit 1

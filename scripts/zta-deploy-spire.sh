@@ -8,9 +8,12 @@
 # Lifts CISA ZTMM Devices: Initial → Advanced.
 #
 # Usage:
-#   bash scripts/zta-deploy-spire.sh                # install
+#   bash scripts/zta-deploy-spire.sh                # install (auto-recovers
+#                                                   # from broken state)
 #   bash scripts/zta-deploy-spire.sh --uninstall    # remove all
 #   bash scripts/zta-deploy-spire.sh --crds-only    # apply ClusterSPIFFEID
+#   bash scripts/zta-deploy-spire.sh --reset        # force helm uninstall +
+#                                                   # PVC delete before install
 #
 # Prerequisites:
 #   - kubectl, helm
@@ -41,11 +44,13 @@ CLUSTER_SPIFFE_IDS="$SCRIPT_DIR/infras/k8s-yaml/spire/cluster-spiffe-ids.yaml"
 
 UNINSTALL=0
 CRDS_ONLY=0
+RESET=0
 
 for arg in "$@"; do
   case "$arg" in
     --uninstall) UNINSTALL=1 ;;
     --crds-only) CRDS_ONLY=1 ;;
+    --reset) RESET=1 ;;
     -h|--help) sed -n '2,28p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
@@ -161,12 +166,50 @@ helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
 # Recover from a previous failed install: chart leaves orphan ConfigMaps when
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
 # "release: failed" status. Uninstall stale release before re-install.
-if helm list -n "$NAMESPACE" --all 2>/dev/null | awk 'NR>1 {print $1, $8}' | grep -E '^spire (failed|pending-install|uninstalling)$' >/dev/null; then
-  yellow "    detected stale failed 'spire' release — cleaning up before re-install"
+SPIRE_RELEASE_STATUS=$(helm list -n "$NAMESPACE" --all 2>/dev/null \
+  | awk 'NR>1 && $1=="spire" {print $8}' | head -1)
+SPIRE_SERVER_HEALTHY=1
+if kubectl -n "$NAMESPACE" get statefulset spire-server >/dev/null 2>&1; then
+  SPIRE_SERVER_READY=$(kubectl -n "$NAMESPACE" get statefulset spire-server \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+  SPIRE_SERVER_DESIRED=$(kubectl -n "$NAMESPACE" get statefulset spire-server \
+    -o jsonpath='{.status.replicas}' 2>/dev/null)
+  if [ "${SPIRE_SERVER_READY:-0}" != "${SPIRE_SERVER_DESIRED:-1}" ]; then
+    SPIRE_SERVER_HEALTHY=0
+  fi
+fi
+
+# Drop any pre-upgrade hook job left from a previous failed run — helm refuses
+# to re-run a hook job that already terminated unsuccessfully and will block
+# the entire upgrade with "pre-upgrade hooks failed: ... Job Failed."
+for hook_job in spire-server-pre-upgrade spire-agent-pre-upgrade; do
+  if kubectl -n "$NAMESPACE" get job "$hook_job" >/dev/null 2>&1; then
+    yellow "    cleaning up stale helm hook job $NAMESPACE/$hook_job"
+    kubectl -n "$NAMESPACE" delete job "$hook_job" --ignore-not-found 2>/dev/null || true
+  fi
+done
+
+NEEDS_RESET=0
+if [ "$RESET" -eq 1 ]; then
+  NEEDS_RESET=1
+elif echo "$SPIRE_RELEASE_STATUS" | grep -qE '^(failed|pending-install|pending-upgrade|uninstalling)$'; then
+  yellow "    detected stale '$SPIRE_RELEASE_STATUS' 'spire' release — cleaning up before re-install"
+  NEEDS_RESET=1
+elif [ "$SPIRE_RELEASE_STATUS" = "deployed" ] && [ "$SPIRE_SERVER_HEALTHY" -eq 0 ]; then
+  yellow "    'spire' release is 'deployed' but spire-server StatefulSet is not Ready"
+  yellow "    helm pre-upgrade hooks will fail against an unhealthy server — performing clean reinstall"
+  NEEDS_RESET=1
+fi
+
+if [ "$NEEDS_RESET" -eq 1 ]; then
   helm uninstall spire -n "$NAMESPACE" 2>/dev/null || true
   # Remove orphan ConfigMaps left by failed install
   kubectl -n "$NAMESPACE" delete cm -l app.kubernetes.io/managed-by=Helm --ignore-not-found 2>/dev/null || true
-  sleep 3
+  # Clear leftover spire-server PVC so the statefulset boots a clean trust store
+  kubectl -n "$NAMESPACE" delete pvc -l app.kubernetes.io/name=spire-server --ignore-not-found 2>/dev/null || true
+  # Force-remove any stuck pod so the new StatefulSet can take its place quickly
+  kubectl -n "$NAMESPACE" delete pod -l app.kubernetes.io/name=spire-server --grace-period=0 --force --ignore-not-found 2>/dev/null || true
+  sleep 5
 fi
 
 blue "[3/5] Installing spire (server + agent + controller-manager)..."
@@ -185,8 +228,8 @@ helm upgrade --install spire "$SPIRE_CHART" \
   kubectl -n "$NAMESPACE" get pod
   echo
   yellow "  Recover with:"
-  yellow "    bash scripts/zta-deploy-spire.sh --uninstall"
-  yellow "    bash scripts/zta-deploy-spire.sh"
+  yellow "    bash scripts/zta-deploy-spire.sh --reset       # auto cleanup + reinstall"
+  yellow "    bash scripts/zta-deploy-spire.sh --uninstall   # full removal then re-run install"
   exit 1
 }
 

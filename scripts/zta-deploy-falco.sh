@@ -86,6 +86,11 @@ fi
 # Install
 # ---------------------------------------------------------------
 blue "[0/4] Pre-flight: cluster RAM check (Falco wants ~800Mi-1.5Gi total)..."
+require_host_ram_mi "${FALCO_REQUIRED_HOST_MI:-1800}" "falco" || {
+  red "  ✗ host VM has insufficient available RAM for falco"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_HOST_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
 require_node_ram_mi "${FALCO_REQUIRED_NODE_MI:-300}" "falco" || {
   red "  ✗ at least one node has insufficient free RAM for falco"
   red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."

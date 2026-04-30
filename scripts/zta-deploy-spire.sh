@@ -159,6 +159,11 @@ if ! command -v kubectl >/dev/null 2>&1; then
 fi
 
 blue "[0/5] Pre-flight: cluster RAM check (SPIRE wants ~700Mi-1.2Gi total)..."
+require_host_ram_mi "${SPIRE_REQUIRED_HOST_MI:-1500}" "spire" || {
+  red "  ✗ host VM has insufficient available RAM for spire"
+  red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_HOST_RAM_CHECK_FATAL=0 to bypass."
+  exit 1
+}
 require_node_ram_mi "${SPIRE_REQUIRED_NODE_MI:-450}" "spire" || {
   red "  ✗ at least one node has insufficient free RAM for spire"
   red "    Run scripts/free-ram-for-tetragon.sh first, or set ZTA_RAM_CHECK_FATAL=0 to bypass."

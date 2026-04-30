@@ -51,11 +51,60 @@ helm_repo_update_retry() {
   return 1
 }
 
+# require_host_ram_mi <required_available_mi> <component_name>
+#
+# Refuses to proceed if the *host VM* has less than the requested amount of
+# RAM available (column "available" from `free -m`). On Kind, every node
+# container shares the same host kernel, so host RAM pressure manifests as
+# kube-apiserver lease timeouts (5s) → leader-election cascades on
+# kube-scheduler, kube-controller-manager, cilium-operator,
+# spire-controller-manager, etc. — even when `kubectl top node` reports
+# plenty of headroom (cgroup vs. kernel pressure mismatch).
+#
+# Override by setting ZTA_HOST_RAM_CHECK_FATAL=0 to convert error -> warning,
+# or COMPONENT_REQUIRED_HOST_MI to lower the threshold.
+require_host_ram_mi() {
+  local required_mi="${1:-1500}"
+  local component="${2:-component}"
+
+  if ! command -v free >/dev/null 2>&1; then
+    yellow "    [pre-flight] 'free' not available — skipping host RAM check for $component"
+    return 0
+  fi
+
+  local available_mi
+  available_mi=$(free -m | awk '/^Mem:/ {print $7}')
+
+  if [ -z "$available_mi" ] || ! [[ "$available_mi" =~ ^[0-9]+$ ]]; then
+    yellow "    [pre-flight] could not parse 'free -m' output — skipping host RAM check for $component"
+    return 0
+  fi
+
+  if [ "$available_mi" -lt "$required_mi" ]; then
+    yellow "    [pre-flight] $component wants >=${required_mi}Mi available on HOST VM"
+    yellow "                 host has only ${available_mi}Mi available right now"
+    yellow "                 (Kind nodes share host kernel — apiserver will flap if host is squeezed)"
+    yellow "                 free more RAM first, e.g.:"
+    yellow "                   bash scripts/free-ram-for-tetragon.sh"
+    if [ "${ZTA_HOST_RAM_CHECK_FATAL:-1}" = "1" ]; then
+      yellow "                 (set ZTA_HOST_RAM_CHECK_FATAL=0 to bypass)"
+      return 1
+    fi
+  else
+    yellow "    [pre-flight] host RAM OK for $component: ${available_mi}Mi available (need ${required_mi}Mi)"
+  fi
+  return 0
+}
+
 # require_node_ram_mi <required_per_node_mi> <component_name>
 #
 # Refuses to proceed if any cluster node has less free memory than the
 # requested amount. Falls back to a warning if `kubectl top node` is not
 # available (e.g. metrics-server not installed yet).
+#
+# Note: this checks per-Kind-node cgroup memory, NOT host VM RAM. For Kind
+# clusters the host VM is the actual constraint — call require_host_ram_mi
+# in addition.
 require_node_ram_mi() {
   local required_mi="${1:-512}"
   local component="${2:-component}"

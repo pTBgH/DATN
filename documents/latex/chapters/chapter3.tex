@@ -1395,3 +1395,154 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{5 script tuần
     \caption{Deployment Pipeline: 5 giai đoạn tuần tự với ZTA checkpoints}
     \label{fig:deployment_pipeline}
 \end{figure}
+
+
+%==============================================================================
+% 3.8  RESOURCE BUDGET VÀ BÀI HỌC VẬN HÀNH CLUSTER
+%==============================================================================
+\section{Resource budget và bài học vận hành cluster}
+\label{sec:resource_budget_lessons}
+
+Một quan sát quan trọng phát sinh trong quá trình mở rộng pipeline triển khai sang giai đoạn \textit{full enforcement} (kích hoạt đồng thời Tetragon, SPIRE, sigstore policy-controller, Hubble flow export, Falco và Gatekeeper) là: bản thân ngăn xếp Zero Trust ZTMM Optimal có ngưỡng tài nguyên tối thiểu rất rõ ràng, và việc thiếu hụt tài nguyên không biểu hiện thành lỗi cài đặt mà thành \textbf{một dạng dao động tuần hoàn của control-plane Kubernetes}. Mục này hệ thống lại nguyên nhân và cơ chế phòng vệ đã được tích hợp vào pipeline.
+
+\subsection{Tải hệ thống ở cấu hình full enforcement}
+\label{subsec:full_enforce_load}
+
+Cụm Kind 1 control-plane $+$ 3 worker, sau khi pipeline triển khai xong toàn bộ Phase 4, vận hành xấp xỉ 80--100 container chia sẻ kernel và CPU host. Bảng~\ref{tab:full_enforcement_footprint} liệt kê thành phần chính và đặc điểm tải.
+
+\begin{table}[H]
+\centering
+\caption{Cấu phần và đặc điểm tải của cluster ở chế độ full enforcement}
+\label{tab:full_enforcement_footprint}
+\begin{tabularx}{\textwidth}{|p{3.2cm}|p{2.0cm}|X|}
+\hline
+\textbf{Cấu phần} & \textbf{Số pod} & \textbf{Đặc điểm tải} \\
+\hline
+Kubernetes control-plane (Kind static pods) & 1 (CP node) & \texttt{kube-apiserver}, \texttt{etcd}, \texttt{kube-controller-manager}, \texttt{kube-scheduler}; nhạy với độ trễ I/O do etcd cần \texttt{fsync} dưới 100\,ms. \\
+\hline
+Cilium agent + envoy (DaemonSet) & 4 + 4 & Mỗi agent nạp tập eBPF program (\textasciitilde 30 MB), khi khởi động chạy 6 init container nặng CPU. \\
+\hline
+Tetragon + Tetragon operator & 4 (3 DS + 1 operator) & 2 container/pod, attach kprobe/uprobe, đăng ký maps eBPF; tốn CPU ngắn nhưng dồn dập khi khởi động. \\
+\hline
+SPIRE server $+$ agent $+$ CSI driver & 1 + 4 + 4 & SPIRE server sidecar \texttt{spire-controller-manager} dùng leader-election để reconcile $\geq 11$ \texttt{ClusterSPIFFEID}. \\
+\hline
+sigstore policy-controller webhook & 1 & Validating/mutating admission webhook; validate mọi pod create. \\
+\hline
+Gatekeeper audit + controller & 2 & OPA Rego, audit toàn bộ tài nguyên định kỳ. \\
+\hline
+ZTA PDP, Vault, vault-agent-injector & 3 & Vault inject sidecar cho mọi pod \texttt{job7189-apps}. \\
+\hline
+8 microservices Laravel + Redis sidecar & 16 (mỗi service 4 container + 1 redis) & 32 container ứng dụng + 8 redis. \\
+\hline
+EFK + Prometheus + Grafana + node-exporter + kube-state-metrics + Filebeat & 11 & Filebeat DaemonSet 3 pod, node-exporter DaemonSet 4 pod, Elasticsearch StatefulSet. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Tổng số leader-election lease có thời hạn ngắn (mặc định 5\,s) bao gồm: \texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager} (sidecar trong \texttt{spire-server-0}). Đây là nhóm thành phần cùng chia sẻ một điểm gãy chung -- khả năng renew lease với \texttt{kube-apiserver}.
+
+\subsection{Cơ chế cascade khi kube-apiserver bị starve}
+\label{subsec:cascade_mechanism}
+
+Khi host CPU bão hòa hoặc đĩa I/O bị nghẽn, \texttt{kube-apiserver} có thể chậm hơn 5\,s trong việc phục vụ \texttt{Lease.Update}. Vì \texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator} và \texttt{spire-controller-manager} đều dùng cùng một thuật toán leader-election với hạn định 5\,s, cả nhóm sẽ \textbf{đồng thời} mất leadership trong cùng một cửa sổ và đồng thời tự thoát để chờ tái bầu cử. Chuyển động này biểu hiện ra ngoài thành \textit{một đợt restart đồng pha} cho cả bốn thành phần và là một dạng dao động tuần hoàn nếu nguyên nhân CPU không được xử lý.
+
+\begin{figure}[H]
+    \centering
+    \framebox{
+        \begin{minipage}[t]{0.85\textwidth}
+            \centering
+            \vspace{3.5cm}
+            \textit{[HÌNH 3.14: Sơ đồ cascade -- CPU bão hoà $\rightarrow$ etcd fsync chậm $\rightarrow$ apiserver lease miss $\rightarrow$ đồng loạt mất leadership $\rightarrow$ restart chùm]}
+            \vspace{3.5cm}
+        \end{minipage}
+    }
+    \caption{Cơ chế leader-election lease starvation cascade}
+    \label{fig:lease_cascade}
+\end{figure}
+
+Một xác nhận trực tiếp đến từ event log của \texttt{cilium-operator}:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+Warning  Unhealthy  Liveness probe failed:
+  Get "http://127.0.0.1:9234/healthz": dial tcp 127.0.0.1:9234: connect: connection refused
+Warning  Unhealthy  Readiness probe failed:
+  Get "http://127.0.0.1:9234/healthz": context deadline exceeded
+Normal   Killing    Container cilium-operator failed liveness probe, will be restarted
+\end{minted}
+\caption{Event log của \texttt{cilium-operator} khi cascade xảy ra: probe gọi \texttt{127.0.0.1} ngay trong pod (không phải lỗi mạng)}
+\label{lst:cilium_operator_probe}
+\end{listing}
+
+Vì probe gọi \texttt{127.0.0.1:9234} -- tức là cùng namespace mạng với chính container -- nên nguyên nhân không thể là CNI hỏng. Đó là chỉ dấu cho thấy bản thân tiến trình \texttt{cilium-operator} đang bị block (chờ apiserver hoặc bị starve CPU) đến mức không kịp trả lời healthz trong khoảng \texttt{timeoutSeconds}.
+
+\subsection{Sự kiện kích hoạt: rolling restart Cilium khi bật mesh-auth và WireGuard}
+\label{subsec:trigger_cilium_restart}
+
+Trên cùng một cluster, sự kiện kích hoạt cascade phổ biến nhất là phase \texttt{harden} của pipeline. Script \texttt{08-harden-security.sh} bật \texttt{mesh-auth-enabled} và \texttt{enable-wireguard} bằng \texttt{kubectl patch configmap}, sau đó chờ Cilium DaemonSet roll xong:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+kubectl -n kube-system patch configmap cilium-config --type merge \
+  -p '{"data":{"mesh-auth-enabled":"true"}}'
+kubectl -n kube-system rollout restart daemonset/cilium
+kubectl -n kube-system rollout status daemonset/cilium
+
+# (sau đó lặp lại với enable-wireguard=true → rolling restart lần 2)
+\end{minted}
+\caption{Phase \texttt{harden} kích hoạt rolling restart 4 cilium-agent}
+\label{lst:harden_rolling}
+\end{listing}
+
+Mỗi cilium-agent mới khởi động phải chạy 6 init container (\texttt{config}, \texttt{mount-cgroup}, \texttt{apply-sysctl-overwrites}, \texttt{mount-bpf-fs}, \texttt{clean-cilium-state}, \texttt{install-cni-binaries}) -- nạp lại toàn bộ tập eBPF program và rebuild policy maps. Tải CPU dồn vào ngắn hạn, đủ để vượt ngưỡng renew lease 5\,s nếu host chỉ có 2 vCPU. Quan sát bằng \texttt{kubectl get pod -A | grep cilium} cho thấy 4 cilium-agent có tuổi đời lệch nhau theo bậc 3--4 phút (do được rolling theo lệnh \texttt{rollout restart}), và mỗi lần một agent bước qua giai đoạn \texttt{Init:5/6} thì xuất hiện một đợt restart đồng pha của các thành phần leader-election.
+
+\subsection{Cơ chế phòng vệ đã tích hợp vào pipeline}
+\label{subsec:defenses}
+
+Để đối phó với cascade nói trên, pipeline trang bị bốn cơ chế độc lập, có thể bật/tắt qua biến môi trường:
+
+\paragraph{(1) RAM pre-flight gate.} Trước mỗi cài đặt thành phần nặng (SPIRE, sigstore policy-controller, Falco) và trước phase \texttt{full-enforcement} của \texttt{zta-rebuild.sh}, script gọi hai hàm tiện ích trong \texttt{scripts/utils/zta-common.sh}:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+require_host_ram_mi 1500 "spire"           # cột 'available' của free -m
+require_node_ram_mi 450  "spire"           # qua kubectl top node
+\end{minted}
+\caption{Pre-flight RAM gate trên host VM và per-node}
+\label{lst:ram_pre_flight}
+\end{listing}
+
+Hàm thứ nhất chặn cài đặt nếu host VM có dưới ngưỡng MiB RAM khả dụng (cột \texttt{available} của \texttt{free -m}). Đây là điểm gãy thực tế của Kind: do mọi node container chia sẻ kernel với host, áp lực RAM trên host trực tiếp gây fsync chậm cho etcd và lease miss cho apiserver, ngay cả khi \texttt{kubectl top node} báo node còn dư.
+
+\paragraph{(2) Probe lỏng và bộ nhớ bổ sung cho \texttt{spire-controller-manager}.} \texttt{infras/k8s-yaml/spire/values.yaml} nâng \texttt{livenessProbe.initialDelaySeconds} từ 30 lên 60, \texttt{periodSeconds} 20 lên 30, \texttt{timeoutSeconds} 5 lên 10, \texttt{readinessProbe.failureThreshold} 6 lên 8 và bộ nhớ giới hạn 192\,MiB lên 256\,MiB. Mục đích là cho controller-manager đủ thời gian list 11 \texttt{ClusterSPIFFEID} cộng tất cả namespace/ServiceAccount khi khởi động trên cluster đông đúc.
+
+\paragraph{(3) \texttt{--cleanup-on-fail} cho mọi \texttt{helm upgrade}.} Khi pre-upgrade hook job timeout, helm tự dọn các tài nguyên đã apply một phần. Cơ chế này tránh để lại pod orphan / PVC dư thừa chặn lần chạy sau.
+
+\paragraph{(4) Auto-recovery ``deployed-but-not-Ready''.} Mỗi script \texttt{zta-deploy-spire.sh} và \texttt{zta-deploy-policy-controller.sh} kiểm tra đồng thời: trạng thái helm release và sức khỏe runtime của workload (StatefulSet \texttt{readyReplicas == replicas} với SPIRE; số lần restart $\geq 5$ với webhook policy-controller). Nếu helm báo \texttt{deployed} nhưng workload thực tế hỏng (case rất hay gặp khi cascade vừa xảy ra), script tự gọi \texttt{helm uninstall} $\rightarrow$ xoá ConfigMap orphan, PVC trust-store cũ, hook job pre-upgrade $\rightarrow$ \texttt{helm install} lại từ đầu.
+
+\paragraph{Đánh đổi của (4).} Cơ chế auto-recovery rất hiệu quả khi cluster đã đủ tài nguyên nhưng còn ``di sản'' từ một lần chạy fail trước đó. Ngược lại, trên cluster đang \emph{vẫn} bị starve CPU, mỗi lần chạy script sẽ đánh giá workload là ``not Ready'' (đúng với hiện trạng cascade) và kích hoạt một chu trình uninstall--reinstall mới. Bản thân chu trình này lại sinh thêm một đợt CPU-heavy (CA bootstrap, agent enrollment, webhook cert generation) làm nặng thêm cascade. Đó là lý do ngưỡng pre-flight (1) được giữ \emph{bật mặc định}: cảnh báo sớm trên host yếu quan trọng hơn việc cố gắng tự ``chữa'' bằng chu trình reset. Khi cần bỏ qua pre-flight (ví dụ trong môi trường chỉ có ép tải thấp), người vận hành đặt \texttt{ZTA\_HOST\_RAM\_CHECK\_FATAL=0} để chuyển gate thành cảnh báo.
+
+Bảng~\ref{tab:defense_matrix} tổng hợp ánh xạ \textit{nguyên nhân $\rightarrow$ cơ chế phòng vệ} đã tích hợp.
+
+\begin{table}[H]
+\centering
+\caption{Ma trận phòng vệ cho leader-election cascade}
+\label{tab:defense_matrix}
+\begin{tabularx}{\textwidth}{|p{4cm}|X|}
+\hline
+\textbf{Nguyên nhân} & \textbf{Cơ chế phòng vệ} \\
+\hline
+Host RAM thấp gây fsync etcd chậm & (1) \texttt{require\_host\_ram\_mi}: chặn cài đặt nếu host \texttt{available} dưới ngưỡng. \\
+\hline
+\texttt{spire-controller-manager} OOM khi list nhiều namespace & (2) Bump memory limit 192 $\rightarrow$ 256\,MiB; nới probe \texttt{initialDelay}, \texttt{timeout}. \\
+\hline
+Helm pre-upgrade hook timeout để lại pod/PVC orphan & (3) \texttt{--cleanup-on-fail} dọn rác tự động sau timeout. \\
+\hline
+Helm release \texttt{deployed} nhưng workload runtime hỏng & (4) Auto-recovery: detect StatefulSet \texttt{readyReplicas != replicas} hoặc webhook restart $\geq 5$ $\rightarrow$ uninstall + reinstall. \\
+\hline
+Cluster đang starve CPU, không nên ``tự chữa'' & (4) chỉ chạy khi pre-flight (1) đã pass; người vận hành có thể disable bằng \texttt{ZTA\_AUTO\_RESET=0} (tuỳ chọn). \\
+\hline
+\end{tabularx}
+\end{table}
+
+Kết luận của Chương 3: Phase 4 enforcement không phải tổ hợp ``cài là chạy'' trên mọi máy chủ. Nó đặt ra một yêu cầu CPU/RAM tối thiểu, và pipeline có nghĩa vụ vừa \textit{kích hoạt} đầy đủ chuỗi phòng vệ Zero Trust, vừa \textit{từ chối} cài đặt khi tài nguyên dưới ngưỡng để tránh làm cluster rơi vào dao động không tự thoát ra được. Phép đo định lượng cho ngưỡng này được trình bày ở Chương 4 (mục~\ref{subsec:cpu_starvation_eval}).

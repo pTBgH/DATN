@@ -185,8 +185,26 @@ helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
 # Recover from a previous failed install: chart leaves orphan ConfigMaps when
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
 # "release: failed" status. Uninstall stale release before re-install.
-SPIRE_RELEASE_STATUS=$(helm list -n "$NAMESPACE" --all 2>/dev/null \
-  | awk 'NR>1 && $1=="spire" {print $8}' | head -1)
+#
+# Use `helm list -o json` + jq for robust parsing — the human-readable table
+# format has a multi-word UPDATED column ("2026-05-01 14:13:47.000 +0000 UTC")
+# which fooled the previous awk-based parser. Also `helm list -o json` is
+# stable across helm v3.x while the long-form `--all` flag has been observed
+# to be rejected on some helm builds with "Error: unknown flag: --all" — use
+# the short form `-a` which has been valid since helm v3.0.
+#
+# We do NOT redirect stderr to /dev/null on this command. If helm itself
+# fails (network, kubeconfig, RBAC), set -euo pipefail will halt the script
+# AND the error will be visible in the caller's log instead of being silently
+# swallowed (which is what hid the real failure during the 2026-05-01 rebuild).
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required for SPIRE deploy (used to parse 'helm list -o json')" >&2
+  echo "       install with: sudo apt-get install -y jq" >&2
+  exit 1
+fi
+SPIRE_RELEASE_STATUS=$(helm list -n "$NAMESPACE" -a -o json \
+  | jq -r '.[] | select(.name=="spire") | .status' \
+  | head -1)
 SPIRE_SERVER_HEALTHY=1
 if kubectl -n "$NAMESPACE" get statefulset spire-server >/dev/null 2>&1; then
   SPIRE_SERVER_READY=$(kubectl -n "$NAMESPACE" get statefulset spire-server \

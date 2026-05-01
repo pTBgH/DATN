@@ -6,8 +6,46 @@ networking:
   podSubnet: "10.244.0.0/16"
   serviceSubnet: "10.96.0.0/12"
 
+# kubeadmConfigPatches — apply tới control-plane init phase.
+# - apiserver: ép kubelet không OOM-kill apiserver khi node memory pressure
+#   (ta đã quan sát kube-apiserver lastState.terminated.exitCode=137 trong
+#    diag tháng 4/2026). Tăng request CPU+RAM giúp QoS class lên Burstable
+#   thay vì BestEffort.
+# - controller-manager / scheduler: nới timeout của leader-election
+#   (--leader-elect-lease-duration mặc định 15s, --renew-deadline 10s,
+#    --retry-period 2s) khi etcd lag dưới CPU contention. Tăng lease duration
+#   giúp lease không bị mất khi process hứng GC pause vài giây.
+kubeadmConfigPatches:
+- |
+  kind: ClusterConfiguration
+  apiServer:
+    extraArgs:
+      # Bật profiling tắt đỡ overhead trong dev (default off, just explicit)
+      profiling: "false"
+  controllerManager:
+    extraArgs:
+      leader-elect-lease-duration: "30s"
+      leader-elect-renew-deadline: "20s"
+      leader-elect-retry-period: "4s"
+  scheduler:
+    extraArgs:
+      leader-elect-lease-duration: "30s"
+      leader-elect-renew-deadline: "20s"
+      leader-elect-retry-period: "4s"
+- |
+  kind: InitConfiguration
+  patches:
+    directory: /etc/kubernetes/patches
+
 nodes:
 - role: control-plane
+  # Local file mount cung cấp kubeadm patch — kind tự copy vào node trước khi
+  # chạy `kubeadm init`. Patch này set resources cho 3 static pod control-plane:
+  # apiserver (1 vCPU / 1Gi req), controller-manager (300m / 256Mi),
+  # scheduler (200m / 192Mi). Có request rõ → kubelet không evict + QoS Burstable.
+  extraMounts:
+  - hostPath: ./infras/kind/control-plane-patches
+    containerPath: /etc/kubernetes/patches
 - role: worker
 - role: worker
 - role: worker

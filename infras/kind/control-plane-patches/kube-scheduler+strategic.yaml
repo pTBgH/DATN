@@ -1,0 +1,11 @@
+# Strategic-merge patch cho kube-scheduler.
+# Diag tháng 4/2026: 23 lần CrashLoopBackOff trong 3h, startup probe timeout
+# (TLS handshake ở 127.0.0.1:10259) → cùng pattern CPU starve. Request CPU
+# nhỏ hơn controller-manager vì scheduler chỉ chạy khi có pod cần xếp.
+spec:
+  containers:
+  - name: kube-scheduler
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "192Mi"

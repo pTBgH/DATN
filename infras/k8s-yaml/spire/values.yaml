@@ -94,15 +94,22 @@ spire-server:
   service:
     type: ClusterIP
 
+  # Diag tháng 4/2026: spire-server-0 ghi nhận 23-24 lần CrashLoopBackOff với
+  # readiness probe failed: dial 10.244.1.6:8083 connection refused. Process
+  # còn đang init (load trust bundle + register-existing-attested-nodes) thì
+  # k8s đã đếm fail → restart trước khi healthy. Tăng failureThreshold +
+  # timeout để chịu được giai đoạn boot dài khi etcd đang stress.
   livenessProbe:
-    failureThreshold: 6
-    initialDelaySeconds: 30
+    failureThreshold: 8
+    initialDelaySeconds: 60
     periodSeconds: 60
-    timeoutSeconds: 5
+    timeoutSeconds: 10
 
   readinessProbe:
-    initialDelaySeconds: 10
-    periodSeconds: 10
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 8
+    failureThreshold: 6
 
   # Database: SQLite on PVC (good enough for thesis; HA-prod = postgres).
   dataStore:

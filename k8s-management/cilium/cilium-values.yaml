@@ -35,6 +35,18 @@ ipv6:
 # 7. Hỗ trợ Operator (Quản lý các tài nguyên Cilium)
 operator:
   replicas: 1
+  # Diag tháng 4/2026 ghi nhận cilium-operator restart 34 lần trong 3h. Events
+  # cho thấy Readiness probe failed: Get http://127.0.0.1:9234/healthz → EOF
+  # (probe đến chính pod, không lỗi network) → process không kịp respond
+  # trong 1s. Nới timeout + failureThreshold giảm false-positive khi CPU
+  # bão hoà; resource request đẩy QoS sang Burstable.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
   # Ép 2 Pod Operator phải nằm trên 2 Node vật lý khác nhau (Anti-Affinity)
 #  affinity:
  #   podAntiAffinity:

@@ -254,6 +254,12 @@ spec:
           mountPath: /vault/tls
         - name: data
           mountPath: /vault/data
+        # Diag tháng 4/2026: vault-0 bị 106 probe-failure entries trong log
+        # mặc dù vault tự nó báo "vault is unsealed" thành công. Probe exec
+        # phải spawn `vault status` (mỗi lần ~50–80ms), khi CPU contend lên
+        # >80% thì 5s không đủ → probe fail → pod bị mark NotReady → vault-
+        # agent-injector cũng flap theo. Bump timeout + period để probe ổn
+        # định khi cluster vừa hồi sau cascade.
         readinessProbe:
           exec:
             command:
@@ -263,9 +269,9 @@ spec:
               STATUS_JSON=$(VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 vault status -format=json 2>/dev/null || true)
               echo "$STATUS_JSON" | grep -q '"initialized"[[:space:]]*:[[:space:]]*true' && \
               echo "$STATUS_JSON" | grep -q '"sealed"[[:space:]]*:[[:space:]]*false'
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 10
           failureThreshold: 12
         resources:
           requests:

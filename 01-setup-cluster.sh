@@ -56,14 +56,14 @@ echo ""
 # ========================
 # Step 1: Cleanup
 # ========================
-echo "? [1/8] Cleaning up old cluster..."
+echo "? [1/10] Cleaning up old cluster..."
 kind delete cluster --name $CLUSTER_NAME 2>/dev/null || true
 log_time "1. Cleanup old cluster"
 
 # ========================
 # Step 2: Create Kind Cluster
 # ========================
-echo "? [2/8] Creating Kind cluster..."
+echo "? [2/10] Creating Kind cluster..."
 kind create cluster \
   --config infras/kind/kind-config.yaml \
   --name $CLUSTER_NAME
@@ -72,7 +72,7 @@ log_time "2. Create Kind cluster"
 # ========================
 # Step 3: Add Helm Repos
 # ========================
-echo "? [3/8] Adding Helm repositories..."
+echo "? [3/10] Adding Helm repositories..."
 helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
 helm repo add hashicorp https://helm.releases.hashicorp.com 2>/dev/null || true
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
@@ -105,7 +105,7 @@ echo "    ? Cluster API is ready (${_cluster_wait_elapsed}s waited)"
 # ========================
 # Step 4: Install Gateway API CRDs
 # ========================
-echo "? [4/8] Installing Gateway API CRDs..."
+echo "? [4/10] Installing Gateway API CRDs..."
 wait_for_dns github.com
 # --validate=false skips client-side OpenAPI schema validation, avoiding a
 # second TLS handshake to the API server that can time out on slow starts.
@@ -117,7 +117,7 @@ log_time "4. Install Gateway API v1.1.0"
 # ========================
 # Step 5: Install Cilium CNI
 # ========================
-echo "? [5/8] Installing Cilium CNI (stability baseline: Plain HTTP, no WireGuard)..."
+echo "? [5/10] Installing Cilium CNI (stability baseline: Plain HTTP, no WireGuard)..."
 echo "    Stability-first mode: encryption.enabled=false, authentication.enabled=false"
 
 # Use Helm upgrade/install (atomic) to ensure reproducible config
@@ -233,7 +233,7 @@ log_time "5d. Hubble post-check"
 # ========================
 # Step 6: Create Namespaces
 # ========================
-echo "? [6/8] Creating namespaces..."
+echo "? [6/10] Creating namespaces..."
 for ns in gateway security management data job7189-apps monitoring vault; do
   kubectl create namespace $ns 2>/dev/null || echo "    $ns already exists"
 done
@@ -242,7 +242,7 @@ log_time "6. Create namespaces"
 # ========================
 # Step 7: Install cert-manager
 # ========================
-echo "? [7/8] Installing cert-manager..."
+echo "? [7/10] Installing cert-manager..."
 wait_for_dns github.com
 kubectl apply -f \
   "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
@@ -266,7 +266,7 @@ log_time "7b. Cert-manager quick-check"
 # ========================
 # Step 8: Install Nginx Ingress Controller
 # ========================
-echo "? [8/8] Installing Nginx Ingress Controller..."
+echo "? [8/10] Installing Nginx Ingress Controller..."
 wait_for_dns raw.githubusercontent.com
 kubectl apply -f \
   https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.0/deploy/static/provider/kind/deploy.yaml
@@ -280,6 +280,51 @@ else
   kubectl get events -n ingress-nginx --sort-by='.lastTimestamp' | tail -n 10 || true
 fi
 log_time "8b. Ingress quick-check"
+
+# ========================
+# Step 9: Install metrics-server (kubelet-insecure-tls vì Kind dùng self-signed)
+# ========================
+# Diag tháng 4/2026 phát hiện metrics-server không có sẵn → `kubectl top` fail
+# → bundle troubleshoot không có dữ liệu CPU/RAM thật. Cài luôn ở Phase 1 để
+# 09-verify-zta.sh và mọi diag script sau này có metrics.
+echo "🔧 [9/10] Installing metrics-server..."
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ 2>/dev/null || true
+helm_repo_update_retry metrics-server || helm repo update metrics-server 2>/dev/null || true
+helm upgrade --install metrics-server metrics-server/metrics-server \
+  --namespace kube-system \
+  --set 'args={--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP\,Hostname\,ExternalIP}' \
+  --set replicas=1 \
+  --set 'resources.requests.cpu=20m' \
+  --set 'resources.requests.memory=64Mi' \
+  --set 'resources.limits.cpu=200m' \
+  --set 'resources.limits.memory=200Mi' \
+  --wait --timeout=180s || echo "    ! WARNING: metrics-server install failed (non-blocking)"
+log_time "9. Install metrics-server"
+
+# ========================
+# Step 10: Pre-pull external images vào Kind nodes
+# ========================
+# Diag tháng 4/2026: oauth2-proxy bị 27 lần CrashLoopBackOff vì
+# `quay.io/oauth2-proxy/oauth2-proxy:latest` TLS handshake timeout trên VMware
+# NAT. Pre-pull về host rồi `kind load` đảm bảo node có cache → imagePullPolicy
+# IfNotPresent không cần internet.
+echo "📦 [10/10] Pre-loading external images into kind nodes..."
+EXTERNAL_IMAGES=(
+  "quay.io/oauth2-proxy/oauth2-proxy:v7.6.0"
+)
+for img in "${EXTERNAL_IMAGES[@]}"; do
+  echo "    pulling ${img}..."
+  if docker pull "${img}" >/dev/null 2>&1; then
+    if kind load docker-image "${img}" --name "${CLUSTER_NAME}" >/dev/null 2>&1; then
+      echo "    ✓ ${img} loaded into all kind nodes"
+    else
+      echo "    ! WARNING: kind load failed for ${img} (image will be pulled at runtime)"
+    fi
+  else
+    echo "    ! WARNING: docker pull failed for ${img} (will retry at runtime)"
+  fi
+done
+log_time "10. Pre-load external images"
 
 # ========================
 # COMPLETED

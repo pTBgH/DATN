@@ -103,23 +103,42 @@ spec:
         
         ports:
         - containerPort: 8080
-        
-        # Keycloak khởi động rất chậm (~60s) — readinessProbe để Nginx
-        # không nhận traffic trước khi Keycloak thực sự sẵn sàng
+
+        # Keycloak Quarkus-based runtime cần chạy bước "Updating the
+        # configuration and installing your custom providers" trước khi listener
+        # /health/ready khả dụng. Trên CPU bị contend (ZTA full enforcement
+        # chạy cùng Cosign + Tetragon + SPIRE + Cilium-operator), bước này có
+        # thể tốn 3–8 phút. startupProbe nới window ra 10 phút để liveness
+        # probe không kill container giữa chừng. Sau khi startupProbe pass,
+        # readiness/liveness mới được kích hoạt.
+        startupProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          failureThreshold: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
         readinessProbe:
           httpGet:
             path: /health/ready
             port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          failureThreshold: 20
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
         livenessProbe:
           httpGet:
             path: /health/live
             port: 8080
-          initialDelaySeconds: 60
           periodSeconds: 30
-          failureThreshold: 5
+          timeoutSeconds: 10
+          failureThreshold: 6
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "768Mi"
+          limits:
+            cpu: "1500m"
+            memory: "1536Mi"
 
 ---
 apiVersion: v1

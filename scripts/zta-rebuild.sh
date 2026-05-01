@@ -60,6 +60,29 @@ SUMMARY_FILE="${LOG_DIR}/SUMMARY.md"
 # echo back to the operator. Set ZTA_REBUILD_DUMP_TAIL=200 to limit.
 ZTA_REBUILD_DUMP_TAIL="${ZTA_REBUILD_DUMP_TAIL:-0}"
 
+# Per-step timeout (seconds). If a step doesn't finish within this many
+# seconds, we send SIGTERM (15s grace) then SIGKILL and treat it as a
+# failure with exit code 124 (the convention used by GNU coreutils
+# `timeout`). Default is 1800s = 30 minutes — generous because some
+# steps (kind create + image pulls + Cilium install) can legitimately
+# take 5-10 minutes on a cold machine.
+#
+# Specific steps with tighter expected wall-clock can be given a per-step
+# override via STEP_TIMEOUTS["<step-id>"]=N below.
+ZTA_REBUILD_STEP_TIMEOUT="${ZTA_REBUILD_STEP_TIMEOUT:-1800}"
+
+declare -A STEP_TIMEOUTS=(
+  # Cosign signs 7 small blobs locally; even with NTP skew it should
+  # finish in well under a minute. A long hang here means cosign is
+  # trying to reach Rekor (see scripts/zta-cosign-sign-deployment.sh
+  # comment about --tlog-upload=false).
+  [22-cosign-sign]=300
+  # Cosign keygen is a single openssl-equivalent operation.
+  [21-cosign-keygen]=60
+  # Preflight is fast environment checks.
+  [00-prep]=120
+)
+
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
@@ -434,6 +457,13 @@ run_step() {
     return 0
   fi
 
+  # Resolve per-step timeout. STEP_TIMEOUTS[<id>] overrides the global
+  # ZTA_REBUILD_STEP_TIMEOUT. Set to 0 to disable timeout entirely (NOT
+  # recommended — that's how phase 22-cosign-sign hung for 10+ minutes
+  # waiting for Rekor before this protection existed).
+  local step_timeout="${STEP_TIMEOUTS[$id]:-$ZTA_REBUILD_STEP_TIMEOUT}"
+  blue "  timeout: ${step_timeout}s"
+
   local t0; t0=$(date +%s)
   # Use bash -c so multi-token commands and helper functions both work.
   # `set -o pipefail` keeps tee-style output if the user pipes inside cmd.
@@ -450,7 +480,18 @@ run_step() {
   # (e.g. /etc/environment, ~/environment) into every step's subshell. We've
   # seen `environment: line 26: [: : integer expression expected` warnings
   # from one user's init file leak into 00-prep.log; harmless but noisy.
-  env -u BASH_ENV -u ENV bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1
+  #
+  # `timeout --kill-after=15s` sends SIGTERM at the deadline, then SIGKILL
+  # 15 seconds later if the process is still alive. Exit code 124 means the
+  # process was terminated by SIGTERM at the deadline; exit code 137 means
+  # SIGKILL was delivered (process ignored SIGTERM). Either way the operator
+  # gets a clean halt instead of an indefinite hang.
+  if [ "$step_timeout" -gt 0 ]; then
+    timeout --kill-after=15s "$step_timeout" \
+      env -u BASH_ENV -u ENV bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1
+  else
+    env -u BASH_ENV -u ENV bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1
+  fi
   local exit_code=$?
   local dt=$(( $(date +%s) - t0 ))
 
@@ -462,8 +503,20 @@ run_step() {
     return 0
   fi
 
-  red "  ✗ $id FAILED (exit=$exit_code, ${dt}s)"
-  RESULTS+=("$id|FAIL($exit_code)|$dt|$logfile")
+  # Exit codes 124/137 specifically indicate timeout — make this loud so
+  # the operator doesn't waste time wondering whether the step's own logic
+  # failed or whether we hit the wall clock.
+  if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 137 ]; then
+    red "  ✗ $id TIMED OUT after ${dt}s (limit: ${step_timeout}s, exit=$exit_code)"
+    red "    The step ran longer than its budget and was killed."
+    red "    Common causes: network hang (cosign Rekor upload, helm chart download),"
+    red "    pod stuck Pending (resource starvation, image pull), CrashLoopBackOff."
+    echo "*** ZTA_REBUILD timeout: ${step_timeout}s exceeded ***" >> "$logfile"
+    RESULTS+=("$id|TIMEOUT|$dt|$logfile")
+  else
+    red "  ✗ $id FAILED (exit=$exit_code, ${dt}s)"
+    RESULTS+=("$id|FAIL($exit_code)|$dt|$logfile")
+  fi
   dump_failure_context "$id" "$logfile"
 
   if [ "${ZTA_REBUILD_HALT_ON_FAIL:-1}" = "1" ]; then

@@ -111,11 +111,47 @@ with open(dst, "w") as f:
 PY
 
 # 2. Sign the canonical bytes with cosign sign-blob.
-SIG_B64="$(cosign sign-blob --yes --key "$PRIVATE_KEY" --output-signature "$SIGNATURE" "$CANONICAL" 2>/dev/null \
-  && base64 -w0 < "$SIGNATURE")"
+#
+# IMPORTANT: --tlog-upload=false is REQUIRED on NAT'd / air-gapped clusters.
+# By default cosign uploads the signing cert to the public Rekor transparency
+# log at https://rekor.sigstore.dev. On a host that can't reach Rekor (typical
+# kind-on-VMware setup), the call hangs indefinitely waiting for HTTPS to
+# resolve — observed during the 2026-05-01 rebuild as a >10-minute hang on
+# phase 22-cosign-sign with no visible progress.
+#
+# Setting --tlog-upload=false (CLI flag, not env var — cosign sign-blob does
+# NOT honor COSIGN_TLOG_UPLOAD as an env var for this flag in v2.x) makes
+# the call entirely offline. The signature is still verifiable cluster-side
+# because we don't depend on the public log; verification uses our own
+# public key in the security/zta-cosign-public-key ConfigMap.
+#
+# Override CLI: set ZTA_COSIGN_TLOG_UPLOAD=true if you actually want Rekor
+# upload (e.g. running on a machine with internet egress and want public
+# transparency log entries).
+TLOG_FLAG="--tlog-upload=${ZTA_COSIGN_TLOG_UPLOAD:-false}"
 
+# Capture cosign stderr to a temp file inside TMP_DIR so the existing
+# `trap 'rm -rf "$TMP_DIR"' EXIT` (line 88) cleans it up too — DO NOT
+# install a second EXIT trap here, that would overwrite the first one
+# and leak TMP_DIR.
+COSIGN_STDERR="$TMP_DIR/cosign.stderr"
+
+if ! cosign sign-blob --yes "$TLOG_FLAG" --key "$PRIVATE_KEY" \
+       --output-signature "$SIGNATURE" "$CANONICAL" 2> "$COSIGN_STDERR"; then
+  red "ERROR: cosign sign-blob failed:"
+  cat "$COSIGN_STDERR" >&2
+  exit 1
+fi
+
+if [ ! -s "$SIGNATURE" ]; then
+  red "ERROR: cosign sign-blob produced empty signature file"
+  cat "$COSIGN_STDERR" >&2
+  exit 1
+fi
+
+SIG_B64="$(base64 -w0 < "$SIGNATURE")"
 if [ -z "${SIG_B64:-}" ]; then
-  red "ERROR: cosign sign-blob produced empty signature"
+  red "ERROR: base64 of signature is empty"
   exit 1
 fi
 

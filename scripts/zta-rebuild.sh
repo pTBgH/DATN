@@ -4,7 +4,8 @@
 # End-to-end ZTA cluster rebuild orchestrator. Runs the entire pipeline from
 # `kind delete` (phase 0) through `09-verify-zta.sh` (phase 90), capturing
 # every step's stdout+stderr to a per-step log file. On any failure it dumps:
-#   1. last 80 lines of the failed step's log file
+#   1. the failed step's full log file (or last N lines if
+#      ZTA_REBUILD_DUMP_TAIL=N is set; default 0 = entire log)
 #   2. `kubectl get pod -A` filtered to non-Running / restarting pods
 #   3. `kubectl get events -A --sort-by=.lastTimestamp` last 20 entries
 #   4. `kubectl describe` for any pod in CrashLoopBackOff / Error / Pending
@@ -40,10 +41,24 @@ cd "$REPO_ROOT"
 
 CLUSTER_NAME="${CLUSTER_NAME:-job7189}"
 APPS_NS="${APPS_NS:-job7189-apps}"
+# These are read by helper functions (do_preflight, do_harden_full,
+# do_cosign_sign_workloads) which run inside `bash -c "..."` subshells via
+# run_step. Subshells inherit only EXPORTED variables, so without these
+# exports `$APPS_NS` was an empty string inside do_cosign_sign_workloads,
+# causing `kubectl -n "" get deploy ...` to fail and EVERY service to be
+# silently skipped via the `continue` branch (observed during the
+# 2026-05-01 rebuild: 22-cosign-sign reported OK in 2s with all 7
+# services showing <missing> annotations).
+export CLUSTER_NAME APPS_NS REPO_ROOT
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_DIR="${REPO_ROOT}/evidence/rebuild_${TS}"
 mkdir -p "$LOG_DIR"
 SUMMARY_FILE="${LOG_DIR}/SUMMARY.md"
+
+# How much of a failed step's log to print to console. 0 = entire log.
+# The full log is always preserved on disk; this only controls how much we
+# echo back to the operator. Set ZTA_REBUILD_DUMP_TAIL=200 to limit.
+ZTA_REBUILD_DUMP_TAIL="${ZTA_REBUILD_DUMP_TAIL:-0}"
 
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
@@ -239,6 +254,18 @@ do_harden_full() {
 do_cosign_sign_workloads() {
   set -e
   export COSIGN_TLOG_UPLOAD="${COSIGN_TLOG_UPLOAD:-false}"
+
+  # Defensive: this function runs in a `bash -c` subshell via run_step, so
+  # only EXPORTED variables from the parent reach it. APPS_NS is exported
+  # at the top of zta-rebuild.sh. If we ever get an empty value here it
+  # means someone changed that — fail loudly now instead of silently
+  # skipping every service via the kubectl namespace check below.
+  if [ -z "${APPS_NS:-}" ]; then
+    red "ERROR: APPS_NS is empty inside do_cosign_sign_workloads"
+    red "       (parent must export APPS_NS so 'bash -c' subshells inherit it)"
+    return 1
+  fi
+
   local sign_dir
   sign_dir="$(mktemp -d /tmp/zta-sign.XXXXXX)"
   echo "  staging dir: $sign_dir"
@@ -248,26 +275,54 @@ do_cosign_sign_workloads() {
     job-service storage-service workspace-service
   )
 
+  local skipped=0
+  local signed=0
   for svc in "${services[@]}"; do
     echo "--- signing $svc ---"
     if ! kubectl -n "$APPS_NS" get deploy "$svc" >/dev/null 2>&1; then
       yellow "  deploy/$svc not present in ns $APPS_NS — skipping"
+      skipped=$((skipped + 1))
       continue
     fi
     kubectl -n "$APPS_NS" get deploy "$svc" -o yaml > "$sign_dir/${svc}.yaml"
     bash scripts/zta-cosign-sign-deployment.sh "$sign_dir/${svc}.yaml"
     kubectl apply -f "$sign_dir/${svc}.yaml"
+    signed=$((signed + 1))
   done
 
   echo
   echo "  signed-by annotations:"
+  local missing=0
   for svc in "${services[@]}"; do
     local ann
     ann=$(kubectl -n "$APPS_NS" get deploy "$svc" \
             -o jsonpath='{.spec.template.metadata.annotations.image\.zta/signed-by}' 2>/dev/null || true)
+    if [ -z "$ann" ]; then
+      missing=$((missing + 1))
+    fi
     printf "    %-25s %s\n" "$svc" "${ann:-<missing>}"
   done
   rm -rf "$sign_dir"
+
+  echo
+  echo "  summary: signed=$signed, skipped=$skipped, missing-annotation=$missing"
+
+  # If we didn't actually sign anything (e.g. wrong namespace, kubeconfig
+  # broken, every deployment missing) this used to silently report OK in
+  # 2 seconds. Treat it as a failure so the orchestrator halts and the
+  # operator gets a real diagnostic instead of having to spot the pattern
+  # in the verification table.
+  if [ "$signed" -eq 0 ]; then
+    red "ERROR: do_cosign_sign_workloads signed 0 of ${#services[@]} services"
+    red "       (check that namespace '$APPS_NS' contains the expected Deployments)"
+    return 1
+  fi
+  if [ "$missing" -gt 0 ]; then
+    red "ERROR: $missing service(s) finished without a signed-by annotation"
+    red "       (cosign-sign-deployment.sh succeeded but kubectl apply did not"
+    red "       persist the annotation? check API server admission webhooks)"
+    return 1
+  fi
 }
 
 export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_workloads
@@ -281,10 +336,18 @@ dump_failure_context() {
 
   red "  ──── DIAGNOSTICS for failed step '$step_id' ────"
   if [ -s "$logfile" ]; then
-    red "  >>> last 80 lines of $logfile <<<"
-    tail -80 "$logfile" | sed 's/^/    | /' >&2
+    local total_lines
+    total_lines=$(wc -l < "$logfile" 2>/dev/null || echo 0)
+    if [ "${ZTA_REBUILD_DUMP_TAIL:-0}" -gt 0 ] && [ "$total_lines" -gt "$ZTA_REBUILD_DUMP_TAIL" ]; then
+      red "  >>> last ${ZTA_REBUILD_DUMP_TAIL} of ${total_lines} lines of $logfile <<<"
+      red "      (set ZTA_REBUILD_DUMP_TAIL=0 to print the entire log)"
+      tail -n "$ZTA_REBUILD_DUMP_TAIL" "$logfile" | sed 's/^/    | /' >&2
+    else
+      red "  >>> full log (${total_lines} lines) of $logfile <<<"
+      sed 's/^/    | /' "$logfile" >&2
+    fi
   else
-    red "  (log file empty)"
+    red "  (log file empty — step failed with no output; check exit code or wrapper)"
   fi
 
   if ! command -v kubectl >/dev/null 2>&1; then

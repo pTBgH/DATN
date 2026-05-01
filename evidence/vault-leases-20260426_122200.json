@@ -1,0 +1,9 @@
+[
+  "candidate-service/",
+  "communication-service/",
+  "hiring-service/",
+  "identity-service/",
+  "job-service/",
+  "storage-service/",
+  "workspace-service/"
+]

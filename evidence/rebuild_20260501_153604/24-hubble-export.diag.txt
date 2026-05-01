@@ -1,0 +1,2037 @@
+# Failure diagnostic dump for step 24-hubble-export at 2026-05-01T15:52:18Z
+
+## Sick pods
+NAMESPACE            NAME                                            READY   STATUS              RESTARTS        AGE
+cosign-system        policy-controller-webhook-76f9d45bf4-hbgcd      0/1     Running             2 (3m53s ago)   15m
+job7189-apps         candidate-service-759b577984-zch4n              0/4     Init:0/3            0               16m
+job7189-apps         candidate-service-7c9f674f69-z87h5              4/4     Running             1 (91m ago)     116m
+job7189-apps         communication-service-67947dd588-8flln          0/4     Init:0/3            0               16m
+job7189-apps         communication-service-f4cc9fbb-gbrjl            4/4     Running             1 (91m ago)     116m
+job7189-apps         hiring-service-59dbffb9c5-tzxss                 0/4     Init:0/3            0               16m
+job7189-apps         hiring-service-784c85b555-8fdjm                 4/4     Running             1 (91m ago)     116m
+job7189-apps         identity-service-5ddbc9cf66-s57wp               0/4     Init:0/3            0               16m
+job7189-apps         identity-service-dc76c68c7-xrvm7                4/4     Running             1 (91m ago)     116m
+job7189-apps         job-service-54b4c6db8c-rmrz7                    0/4     Init:0/3            0               15m
+job7189-apps         job-service-5f5947c4-8x7bl                      4/4     Running             1 (91m ago)     116m
+job7189-apps         storage-service-74679bbf59-sh6w4                4/4     Running             1 (90m ago)     116m
+job7189-apps         storage-service-7c5dbcf785-rsjql                0/4     Init:0/3            0               15m
+job7189-apps         workspace-service-74ff856ff5-pjhbj              0/4     Init:0/3            0               15m
+job7189-apps         workspace-service-74ff96c877-fs6wb              4/4     Running             1 (91m ago)     116m
+kube-system          cilium-operator-788c799db4-cv2c4                1/1     Running             3 (4m13s ago)   136m
+kube-system          kube-controller-manager-job7189-control-plane   1/1     Running             2 (74s ago)     136m
+kube-system          kube-scheduler-job7189-control-plane            1/1     Running             2 (64s ago)     136m
+kube-system          metrics-server-94d8f7d95-4w7gx                  0/1     Running             3 (3m5s ago)    132m
+kube-system          tetragon-6hgpv                                  2/2     Running             5 (3m53s ago)   99m
+kube-system          tetragon-q45zl                                  2/2     Running             4               99m
+kube-system          tetragon-v4c6l                                  2/2     Running             4               99m
+monitoring           hubble-flow-shipper-f65k9                       0/1     ContainerCreating   0               10m
+monitoring           kube-state-metrics-856b75dfd5-lcrt8             1/1     Running             1 (11m ago)     99m
+spire                spire-server-0                                  2/2     Running             3 (4m25s ago)   74m
+vault                vault-agent-agent-injector-59999f8dd-t42b2      1/1     Running             1 (3m51s ago)   99m
+
+## Events (last 50)
+monitoring      3m44s       Normal    Started                  pod/hubble-flow-shipper-j89jf                       Container started
+vault           3m43s       Warning   Unhealthy                pod/vault-agent-agent-injector-59999f8dd-t42b2      Liveness probe failed: Get "https://10.244.2.243:8080/health/ready": dial tcp 10.244.2.243:8080: connect: connection refused
+vault           3m33s       Warning   Unhealthy                pod/vault-agent-agent-injector-59999f8dd-t42b2      (combined from similar events): Startup probe failed: Get "https://10.244.2.243:8080/health/ready": remote error: tls: internal error
+job7189-apps    3m25s       Warning   Unhealthy                pod/candidate-service-7c9f674f69-z87h5              Readiness probe failed: command timed out: "/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]" timed out after 1s
+kube-system     3m23s       Normal    Killing                  pod/metrics-server-94d8f7d95-4w7gx                  Container metrics-server failed liveness probe, will be restarted
+spire           3m20s       Normal    LeaderElection           lease/67103523.spiffe.io                            spire-server-0_b492a60b-9f1a-4e29-966f-83a132c9f424 became leader
+kube-system     3m10s       Normal    Pulled                   pod/metrics-server-94d8f7d95-4w7gx                  Container image "registry.k8s.io/metrics-server/metrics-server:v0.8.0" already present on machine and can be accessed by the pod
+vault           3m3s        Warning   Unhealthy                pod/vault-0                                         Readiness probe failed: command timed out: "sh -c STATUS_JSON=$(VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 vault status -format=json 2>/dev/null || true)\necho \"$STATUS_JSON\" | grep -q '\"initialized\"[[:space:]]*:[[:space:]]*true' && \\\necho \"$STATUS_JSON\" | grep -q '\"sealed\"[[:space:]]*:[[:space:]]*false'\n" timed out after 10s
+cosign-system   3m2s        Normal    Killing                  pod/policy-controller-webhook-76f9d45bf4-hbgcd      Container policy-controller-webhook failed liveness probe, will be restarted
+kube-system     2m47s       Warning   Unhealthy                pod/coredns-7d764666f9-84gtn                        Readiness probe failed: Get "http://10.244.1.81:8181/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m43s       Warning   Unhealthy                pod/hubble-relay-999c5cd6f-nzh2k                    Liveness probe failed: timeout: health rpc did not complete within 10s
+kube-system     2m43s       Warning   Unhealthy                pod/hubble-relay-999c5cd6f-nzh2k                    Readiness probe failed: timeout: health rpc did not complete within 3s
+kube-system     2m42s       Warning   Unhealthy                pod/tetragon-6hgpv                                  Liveness probe failed: timeout: failed to connect service "172.18.0.4:6789" within 1m0s: context deadline exceeded
+monitoring      2m40s       Warning   Unhealthy                pod/kube-state-metrics-856b75dfd5-lcrt8             Liveness probe failed: Get "http://10.244.1.214:8080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m40s       Normal    Created                  pod/metrics-server-94d8f7d95-4w7gx                  Container created
+cert-manager    2m40s       Warning   Unhealthy                pod/cert-manager-webhook-5d4dc79c59-ffvjw           Liveness probe failed: Get "http://10.244.3.152:6080/livez": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire           2m38s       Warning   Unhealthy                pod/spire-agent-52lcb                               Readiness probe failed: Get "http://172.18.0.2:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire           2m36s       Warning   Unhealthy                pod/spiffe-csi-driver-r9m4h                         Liveness probe failed: Get "http://10.244.1.183:9809/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m32s       Warning   Unhealthy                pod/coredns-7d764666f9-cvcl9                        Readiness probe failed: Get "http://10.244.1.230:8181/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m26s       Warning   Unhealthy                pod/cilium-envoy-fkrf9                              Liveness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring      2m25s       Warning   Unhealthy                pod/kube-state-metrics-856b75dfd5-lcrt8             Readiness probe failed: Get "http://10.244.1.214:8081/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+vault           2m22s       Warning   Unhealthy                pod/vault-agent-agent-injector-59999f8dd-t42b2      Readiness probe failed: Get "https://10.244.2.243:8080/health/ready": net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+kube-system     2m18s       Warning   Unhealthy                pod/cilium-envoy-ppzs5                              Readiness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m15s       Warning   Unhealthy                pod/cilium-4d9xs                                    Readiness probe failed: Get "http://127.0.0.1:9879/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+ingress-nginx   2m14s       Warning   Unhealthy                pod/ingress-nginx-controller-7fbf5b4d96-qggpn       Readiness probe failed: Get "http://10.244.2.176:10254/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+ingress-nginx   2m13s       Warning   Unhealthy                pod/ingress-nginx-controller-7fbf5b4d96-qggpn       Liveness probe failed: Get "http://10.244.2.176:10254/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     2m13s       Normal    Started                  pod/metrics-server-94d8f7d95-4w7gx                  Container started
+cosign-system   2m11s       Warning   Unhealthy                pod/policy-controller-webhook-76f9d45bf4-hbgcd      Readiness probe failed: Get "https://10.244.2.52:8443/readyz": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+kube-system     2m5s        Warning   Unhealthy                pod/hubble-ui-67d8bff4c4-lpdpk                      Readiness probe failed: Get "http://10.244.1.244:8081/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+security        112s        Warning   Unhealthy                pod/oauth2-proxy-5d5d47ddcd-bkxsj                   Readiness probe failed: Get "http://10.244.3.35:4180/ping": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     110s        Warning   Unhealthy                pod/metrics-server-94d8f7d95-4w7gx                  Readiness probe failed: Get "https://10.244.3.211:10250/readyz": context deadline exceeded
+kube-system     101s        Warning   Unhealthy                pod/tetragon-v4c6l                                  Liveness probe failed: timeout: health rpc did not complete within 1m0s
+kube-system     100s        Warning   Unhealthy                pod/kube-scheduler-job7189-control-plane            Readiness probe failed: Get "https://127.0.0.1:10259/readyz": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+kube-system     100s        Warning   Unhealthy                pod/kube-controller-manager-job7189-control-plane   Liveness probe failed: Get "https://127.0.0.1:10257/healthz": context deadline exceeded
+spire           99s         Normal    LeaderElection           lease/67103523.spiffe.io                            spire-server-0_b492a60b-9f1a-4e29-966f-83a132c9f424 stopped leading
+kube-system     99s         Warning   Unhealthy                pod/cilium-p6qbb                                    Readiness probe failed: Get "http://127.0.0.1:9879/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire           95s         Warning   Unhealthy                pod/spiffe-csi-driver-r9m4h                         Liveness probe failed: HTTP probe failed with statuscode: 500
+kube-system     95s         Warning   Unhealthy                pod/hubble-relay-999c5cd6f-nzh2k                    Readiness probe failed: timeout: failed to connect service "10.244.1.220:4222" within 3s: context deadline exceeded
+kube-system     95s         Warning   Unhealthy                pod/hubble-ui-67d8bff4c4-lpdpk                      Liveness probe failed: Get "http://10.244.1.244:8081/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     95s         Warning   Unhealthy                pod/tetragon-operator-6f8b69c8d5-rgdtl              Readiness probe failed: Get "http://10.244.0.174:8081/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     93s         Warning   Unhealthy                pod/kube-apiserver-job7189-control-plane            Readiness probe failed: HTTP probe failed with statuscode: 500
+kube-system     90s         Warning   Unhealthy                pod/kube-scheduler-job7189-control-plane            Liveness probe failed: Get "https://127.0.0.1:10259/livez": net/http: TLS handshake timeout
+kube-system     86s         Warning   Unhealthy                pod/kube-controller-manager-job7189-control-plane   Liveness probe failed: Get "https://127.0.0.1:10257/healthz": read tcp 127.0.0.1:50926->127.0.0.1:10257: read: connection reset by peer
+kube-system     86s         Warning   Unhealthy                pod/etcd-job7189-control-plane                      Readiness probe failed: Get "http://127.0.0.1:2381/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     80s         Warning   Unhealthy                pod/kube-controller-manager-job7189-control-plane   Liveness probe failed: Get "https://127.0.0.1:10257/healthz": dial tcp 127.0.0.1:10257: connect: connection refused
+spire           79s         Warning   Unhealthy                pod/spire-agent-52lcb                               Liveness probe failed: Get "http://172.18.0.2:9982/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+cert-manager    79s         Warning   Unhealthy                pod/cert-manager-webhook-5d4dc79c59-ffvjw           Readiness probe failed: Get "http://10.244.3.152:6080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system     75s         Warning   Unhealthy                pod/kube-scheduler-job7189-control-plane            Liveness probe failed: Get "https://127.0.0.1:10259/livez": dial tcp 127.0.0.1:10259: connect: connection refused
+kube-system     74s         Normal    LeaderElection           lease/cert-manager-controller                       cert-manager-5779d6596f-5tl7l-external-cert-manager-controller stopped leading
+kube-system     71s         Warning   Unhealthy                pod/kube-scheduler-job7189-control-plane            Readiness probe failed: Get "https://127.0.0.1:10259/readyz": dial tcp 127.0.0.1:10259: connect: connection refused
+
+## Pod describe
+
+### job7189-apps/candidate-service-759b577984-zch4n
+Name:             candidate-service-759b577984-zch4n
+Namespace:        job7189-apps
+Priority:         0
+Service Account:  candidate-service
+Node:             job7189-worker2/172.18.0.5
+Start Time:       Fri, 01 May 2026 15:36:09 +0000
+Labels:           app=candidate-service
+                  pod-template-hash=759b577984
+                  zta.job7189/data-classification=internal
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=api
+                  zta.job7189/team=backend
+                  zta.job7189/tier=T2
+Annotations:      image.zta/key-id: 480722746c0a321b1de4bcfe364eefb59f31c658427e529f97c454f44f0e0c8c
+                  image.zta/signature:
+                    TUVRQ0lEeXBmN3Nib1F4Y0oyYkhUdjhYT28zcGtjd2svVGNwMVBkOW5Fdm4vc2daQWlBb2JxVkkzRnR6SFUwZjdFdXB2bXd5cGhHUmJKek1Wa3ZVN3huVkZma2NUQT09
+                  image.zta/signature-algo: cosign-ecdsa-p256-sha256
+                  image.zta/signed-at: 2026-05-01T15:36:06Z
+                  image.zta/signed-by: zta-platform-team
+                  vault.hashicorp.com/agent-init-first: true
+                  vault.hashicorp.com/agent-inject: true
+                  vault.hashicorp.com/agent-inject-file-common: .env.common
+                  vault.hashicorp.com/agent-inject-file-db: .env.db
+                  vault.hashicorp.com/agent-inject-file-db-lease: .env.db.lease
+                  vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+                  vault.hashicorp.com/agent-inject-secret-db: database/creds/candidate-service
+                  vault.hashicorp.com/agent-inject-status: injected
+                  vault.hashicorp.com/agent-inject-template-common:
+                    {{- with secret "secret/data/laravel-common" -}}
+                    APP_KEY="{{ .Data.data.APP_KEY }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-db:
+                    {{- with secret "database/creds/candidate-service" -}}
+                    DB_USERNAME="{{ .Data.username }}"
+                    DB_PASSWORD="{{ .Data.password }}"
+                    
+                    LEASE_ID="{{ .LeaseID }}"
+                    
+                    {{ end }}
+                  vault.hashicorp.com/agent-inject-template-db-lease:
+                    {{- with secret "database/creds/candidate-service" -}}
+                    LEASE_ID="{{ .LeaseID }}"
+                    {{- end }}
+                  vault.hashicorp.com/role: candidate-service
+                  vault.hashicorp.com/tls-skip-verify: true
+Status:           Pending
+IP:               10.244.1.180
+IPs:
+  IP:           10.244.1.180
+Controlled By:  ReplicaSet/candidate-service-759b577984
+Init Containers:
+  vault-agent-init:
+    Container ID:  containerd://439d78251300a1fb0ae2e4ccf9955ad71f0b4b7613fd722c7644fafc304cd085
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Running
+      Started:      Fri, 01 May 2026 15:36:19 +0000
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiY2FuZGlkYXRlLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6dHJ1ZSwicGlkX2ZpbGUiOiIvaG9tZS92YXVsdC8ucGlkIiwidmF1bHQiOnsiYWRkcmVzcyI6Imh0dHBzOi8vdmF1bHQudmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWw6ODIwMCIsInRsc19za2lwX3ZlcmlmeSI6dHJ1ZX0sInRlbXBsYXRlIjpbeyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIubGVhc2UiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2NhbmRpZGF0ZS1zZXJ2aWNlXCIgLX19XG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcbnt7LSBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5jb21tb24iLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2xhcmF2ZWwtY29tbW9uXCIgLX19XG5BUFBfS0VZPVwie3sgLkRhdGEuZGF0YS5BUFBfS0VZIH19XCJcbnt7LSBlbmQgfX1cbiIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9jYW5kaWRhdGUtc2VydmljZVwiIC19fVxuREJfVVNFUk5BTUU9XCJ7eyAuRGF0YS51c2VybmFtZSB9fVwiXG5EQl9QQVNTV09SRD1cInt7IC5EYXRhLnBhc3N3b3JkIH19XCJcblxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG5cbnt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9XSwidGVtcGxhdGVfY29uZmlnIjp7ImV4aXRfb25fcmV0cnlfZmFpbHVyZSI6dHJ1ZX19
+    Mounts:
+      /home/vault from home-init (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+  wait-for-vault-secrets:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # wait for initial Vault-injected DB secret to appear
+      i=0
+      while [ $i -lt 60 ]; do
+        if [ -f /vault/secrets/.env.db ]; then
+          echo "vault secrets ready"
+          exit 0
+        fi
+        i=$((i+1))
+        sleep 1
+      done
+      echo "timeout waiting for /vault/secrets/.env.db" >&2
+      exit 1
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+  fix-perms:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # ensure app and watcher can write/read mounts
+      chmod 0777 /app-secrets || true
+      chmod 0777 /var/run || true
+      exit 0
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+Containers:
+  env-loader:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # Efficient watcher: only update when DB env content changes
+      LAST=""
+      while true; do
+        if [ -f /vault/secrets/.env.db ]; then
+          SUM=$(md5sum /vault/secrets/.env.db 2>/dev/null | cut -d' ' -f1 || echo "")
+          if [ "$SUM" != "$LAST" ]; then
+            LAST="$SUM"
+            # Merge files
+            cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+            cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+            [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+            # Atomic publish
+            cp /vault/secrets/.env /app-secrets/.env
+            chmod 644 /app-secrets/.env
+            # copy lease sentinel if present
+            if [ -f /vault/secrets/.env.db.lease ]; then
+              cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+              chmod 644 /app-secrets/.env.db.lease || true
+            fi
+            cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+          fi
+        fi
+        sleep 10
+      done
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:        10m
+      memory:     16Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+  env-watcher:
+    Container ID:  
+    Image:         alpine:3.18
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      apk add --no-cache curl coreutils >/dev/null 2>&1 || true
+      chmod +x /usr/local/bin/env-watcher.sh 2>/dev/null || true
+      /usr/local/bin/env-watcher.sh
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:     10m
+      memory:  16Mi
+    Environment:
+      RELOAD_URL:    http://127.0.0.1:8000/api/internal/reload-db
+      RELOAD_TOKEN:  <set to the key 'token' in secret 'candidate-service-internal-reload-token'>  Optional: false
+      APP_PIDFILE:   /var/run/php-fpm.pid
+      VAULT_DIR:     /app-secrets
+      APP_DIR:       /app-secrets
+    Mounts:
+      /app-secrets from app-env (rw)
+      /usr/local/bin/env-watcher.sh from env-watcher-script (ro,path="env-watcher.sh")
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+  app:
+    Container ID:   
+    Image:          172.17.0.1:5000/job7189/candidate-service:v1.0.7
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     600m
+      memory:  640Mi
+    Requests:
+      cpu:      150m
+      memory:   192Mi
+    Readiness:  exec [/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]] delay=5s timeout=1s period=10s #success=1 #failure=6
+    Environment:
+      APP_DEBUG:                     false
+      APP_ENV:                       production
+      APP_FAKER_LOCALE:              en_US
+      APP_FALLBACK_LOCALE:           en
+      APP_LOCALE:                    en
+      APP_MAINTENANCE_DRIVER:        file
+      APP_NAME:                      Job7189 Candidate Service
+      BCRYPT_ROUNDS:                 12
+      BROADCAST_CONNECTION:          log
+      CACHE_PREFIX:                  candidate_
+      CACHE_STORE:                   redis
+      DB_CONNECTION:                 mysql
+      DB_DATABASE:                   job7189_candidate_db
+      DB_HOST:                       mysql.data.svc.cluster.local
+      DB_PORT:                       3306
+      FILESYSTEM_DISK:               local
+      KAFKA_BROKERS:                 kafka-0.kafka-svc.data.svc.cluster.local:9092
+      KEYCLOAK_BASE_URL:             http://keycloak.security.svc.cluster.local:8080
+      KEYCLOAK_CANDIDATE_CLIENT_ID:  candidate-app-dev
+      KEYCLOAK_REALM:                job7189
+      KEYCLOAK_RECRUITER_CLIENT_ID:  recruiter-app-dev
+      LOG_CHANNEL:                   stderr
+      LOG_DEPRECATIONS_CHANNEL:      
+      LOG_LEVEL:                     info
+      LOG_STACK:                     single
+      PAGINATION_SIZE:               10
+      PHP_CLI_SERVER_WORKERS:        1
+      QUEUE_CONNECTION:              redis
+      REDIS_CLIENT:                  phpredis
+      REDIS_HOST:                    candidate-service-redis
+      REDIS_PASSWORD:                
+      REDIS_PORT:                    6379
+      SESSION_DOMAIN:                
+      SESSION_DRIVER:                database
+      SESSION_ENCRYPT:               false
+      SESSION_LIFETIME:              120
+      SESSION_PATH:                  /
+      DOTENV_PATH:                   /app-secrets/.env
+      INTERNAL_RELOAD_TOKEN:         <set to the key 'token' in secret 'candidate-service-internal-reload-token'>  Optional: false
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+  vault-agent:
+    Container ID:  
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiY2FuZGlkYXRlLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6ZmFsc2UsInBpZF9maWxlIjoiL2hvbWUvdmF1bHQvLnBpZCIsInZhdWx0Ijp7ImFkZHJlc3MiOiJodHRwczovL3ZhdWx0LnZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsOjgyMDAiLCJ0bHNfc2tpcF92ZXJpZnkiOnRydWV9LCJ0ZW1wbGF0ZSI6W3siZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiLmxlYXNlIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9jYW5kaWRhdGUtc2VydmljZVwiIC19fVxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG57ey0gZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuY29tbW9uIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9sYXJhdmVsLWNvbW1vblwiIC19fVxuQVBQX0tFWT1cInt7IC5EYXRhLmRhdGEuQVBQX0tFWSB9fVwiXG57ey0gZW5kIH19XG4iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5kYiIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwiZGF0YWJhc2UvY3JlZHMvY2FuZGlkYXRlLXNlcnZpY2VcIiAtfX1cbkRCX1VTRVJOQU1FPVwie3sgLkRhdGEudXNlcm5hbWUgfX1cIlxuREJfUEFTU1dPUkQ9XCJ7eyAuRGF0YS5wYXNzd29yZCB9fVwiXG5cbkxFQVNFX0lEPVwie3sgLkxlYXNlSUQgfX1cIlxuXG57eyBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifV0sInRlbXBsYXRlX2NvbmZpZyI6eyJleGl0X29uX3JldHJ5X2ZhaWx1cmUiOnRydWV9fQ==
+    Mounts:
+      /home/vault from home-sidecar (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7q67k (ro)
+      /vault/secrets from vault-secrets (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  app-env:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  16Mi
+  pid:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  env-watcher-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      candidate-service-env-watcher-script
+    Optional:  false
+  kube-api-access-7q67k:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+  home-init:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  home-sidecar:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  vault-secrets:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:      Memory
+    SizeLimit:   <unset>
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  16m   default-scheduler  Successfully assigned job7189-apps/candidate-service-759b577984-zch4n to job7189-worker2
+  Normal  Pulled     16m   kubelet            spec.initContainers{vault-agent-init}: Container image "hashicorp/vault:1.21.2" already present on machine and can be accessed by the pod
+  Normal  Created    16m   kubelet            spec.initContainers{vault-agent-init}: Container created
+  Normal  Started    16m   kubelet            spec.initContainers{vault-agent-init}: Container started
+
+### job7189-apps/candidate-service-759b577984-zch4n logs (current)
+
+### job7189-apps/candidate-service-759b577984-zch4n logs (--previous)
+
+### job7189-apps/communication-service-67947dd588-8flln
+Name:             communication-service-67947dd588-8flln
+Namespace:        job7189-apps
+Priority:         0
+Service Account:  communication-service
+Node:             job7189-worker/172.18.0.4
+Start Time:       Fri, 01 May 2026 15:36:10 +0000
+Labels:           app=communication-service
+                  pod-template-hash=67947dd588
+                  zta.job7189/data-classification=internal
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=api
+                  zta.job7189/team=backend
+                  zta.job7189/tier=T2
+Annotations:      image.zta/key-id: 480722746c0a321b1de4bcfe364eefb59f31c658427e529f97c454f44f0e0c8c
+                  image.zta/signature:
+                    TUVRQ0lDd1VtTGpjaWloY2s4YzM0VklLREhNUjBIQWsxQU91RFY3MXQyNUVKTkcvQWlBcXpuemlDZkpLeWJPK010VjBvd29XUWFVM2ZBamp2SE9ITkJvWnZSMzlsdz09
+                  image.zta/signature-algo: cosign-ecdsa-p256-sha256
+                  image.zta/signed-at: 2026-05-01T15:36:08Z
+                  image.zta/signed-by: zta-platform-team
+                  vault.hashicorp.com/agent-init-first: true
+                  vault.hashicorp.com/agent-inject: true
+                  vault.hashicorp.com/agent-inject-file-common: .env.common
+                  vault.hashicorp.com/agent-inject-file-db: .env.db
+                  vault.hashicorp.com/agent-inject-file-db-lease: .env.db.lease
+                  vault.hashicorp.com/agent-inject-file-extra: .env.extra
+                  vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+                  vault.hashicorp.com/agent-inject-secret-db: database/creds/communication-service
+                  vault.hashicorp.com/agent-inject-secret-extra: secret/data/communication-service
+                  vault.hashicorp.com/agent-inject-status: injected
+                  vault.hashicorp.com/agent-inject-template-common:
+                    {{- with secret "secret/data/laravel-common" -}}
+                    APP_KEY="{{ .Data.data.APP_KEY }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-db:
+                    {{- with secret "database/creds/communication-service" -}}
+                    DB_USERNAME="{{ .Data.username }}"
+                    DB_PASSWORD="{{ .Data.password }}"
+                    
+                    LEASE_ID="{{ .LeaseID }}"
+                    
+                    {{ end }}
+                  vault.hashicorp.com/agent-inject-template-db-lease:
+                    {{- with secret "database/creds/communication-service" -}}
+                    LEASE_ID="{{ .LeaseID }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-extra:
+                    {{- with secret "secret/data/communication-service" -}}
+                    MAIL_PASSWORD="{{ .Data.data.MAIL_PASSWORD }}"
+                    {{ end }}
+                  vault.hashicorp.com/role: communication-service
+                  vault.hashicorp.com/tls-skip-verify: true
+Status:           Pending
+IP:               10.244.2.248
+IPs:
+  IP:           10.244.2.248
+Controlled By:  ReplicaSet/communication-service-67947dd588
+Init Containers:
+  vault-agent-init:
+    Container ID:  containerd://01f781ef392b504ae507a160ea8462782f116863e161928c0f1f0f6068eee281
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Running
+      Started:      Fri, 01 May 2026 15:36:23 +0000
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiY29tbXVuaWNhdGlvbi1zZXJ2aWNlIiwidG9rZW5fcGF0aCI6Ii92YXIvcnVuL3NlY3JldHMva3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC90b2tlbiJ9fSwic2luayI6W3sidHlwZSI6ImZpbGUiLCJjb25maWciOnsicGF0aCI6Ii9ob21lL3ZhdWx0Ly52YXVsdC10b2tlbiJ9fV19LCJleGl0X2FmdGVyX2F1dGgiOnRydWUsInBpZF9maWxlIjoiL2hvbWUvdmF1bHQvLnBpZCIsInZhdWx0Ijp7ImFkZHJlc3MiOiJodHRwczovL3ZhdWx0LnZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsOjgyMDAiLCJ0bHNfc2tpcF92ZXJpZnkiOnRydWV9LCJ0ZW1wbGF0ZSI6W3siZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmV4dHJhIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9jb21tdW5pY2F0aW9uLXNlcnZpY2VcIiAtfX1cbk1BSUxfUEFTU1dPUkQ9XCJ7eyAuRGF0YS5kYXRhLk1BSUxfUEFTU1dPUkQgfX1cIlxue3sgZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2NvbW11bmljYXRpb24tc2VydmljZVwiIC19fVxuREJfVVNFUk5BTUU9XCJ7eyAuRGF0YS51c2VybmFtZSB9fVwiXG5EQl9QQVNTV09SRD1cInt7IC5EYXRhLnBhc3N3b3JkIH19XCJcblxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG5cbnt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiLmxlYXNlIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9jb21tdW5pY2F0aW9uLXNlcnZpY2VcIiAtfX1cbkxFQVNFX0lEPVwie3sgLkxlYXNlSUQgfX1cIlxue3stIGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmNvbW1vbiIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwic2VjcmV0L2RhdGEvbGFyYXZlbC1jb21tb25cIiAtfX1cbkFQUF9LRVk9XCJ7eyAuRGF0YS5kYXRhLkFQUF9LRVkgfX1cIlxue3stIGVuZCB9fVxuIiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In1dLCJ0ZW1wbGF0ZV9jb25maWciOnsiZXhpdF9vbl9yZXRyeV9mYWlsdXJlIjp0cnVlfX0=
+    Mounts:
+      /home/vault from home-init (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+  wait-for-vault-secrets:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # wait for initial Vault-injected DB secret to appear
+      i=0
+      while [ $i -lt 60 ]; do
+        if [ -f /vault/secrets/.env.db ]; then
+          echo "vault secrets ready"
+          exit 0
+        fi
+        i=$((i+1))
+        sleep 1
+      done
+      echo "timeout waiting for /vault/secrets/.env.db" >&2
+      exit 1
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+  fix-perms:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # ensure app and watcher can write/read mounts
+      chmod 0777 /app-secrets || true
+      chmod 0777 /var/run || true
+      exit 0
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+Containers:
+  env-loader:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # Efficient watcher: only update when DB env content changes
+      LAST=""
+      while true; do
+        if [ -f /vault/secrets/.env.db ]; then
+          SUM=$(md5sum /vault/secrets/.env.db 2>/dev/null | cut -d' ' -f1 || echo "")
+          if [ "$SUM" != "$LAST" ]; then
+            LAST="$SUM"
+            # Merge files
+            cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+            cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+            [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+            # Atomic publish
+            cp /vault/secrets/.env /app-secrets/.env
+            chmod 644 /app-secrets/.env
+            # copy lease sentinel if present
+            if [ -f /vault/secrets/.env.db.lease ]; then
+              cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+              chmod 644 /app-secrets/.env.db.lease || true
+            fi
+            cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+          fi
+        fi
+        sleep 10
+      done
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:        10m
+      memory:     16Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+  env-watcher:
+    Container ID:  
+    Image:         alpine:3.18
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      apk add --no-cache curl coreutils >/dev/null 2>&1 || true
+      chmod +x /usr/local/bin/env-watcher.sh 2>/dev/null || true
+      /usr/local/bin/env-watcher.sh
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:     10m
+      memory:  16Mi
+    Environment:
+      RELOAD_URL:    http://127.0.0.1:8000/api/internal/reload-db
+      RELOAD_TOKEN:  <set to the key 'token' in secret 'communication-service-internal-reload-token'>  Optional: false
+      APP_PIDFILE:   /var/run/php-fpm.pid
+      VAULT_DIR:     /app-secrets
+      APP_DIR:       /app-secrets
+    Mounts:
+      /app-secrets from app-env (rw)
+      /usr/local/bin/env-watcher.sh from env-watcher-script (ro,path="env-watcher.sh")
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+  app:
+    Container ID:   
+    Image:          172.17.0.1:5000/job7189/communication-service:v1.1.13
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     600m
+      memory:  640Mi
+    Requests:
+      cpu:      150m
+      memory:   192Mi
+    Readiness:  exec [/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]] delay=5s timeout=1s period=10s #success=1 #failure=6
+    Environment:
+      APP_DEBUG:                     false
+      APP_ENV:                       production
+      APP_FAKER_LOCALE:              en_US
+      APP_FALLBACK_LOCALE:           en
+      APP_LOCALE:                    en
+      APP_MAINTENANCE_DRIVER:        file
+      APP_NAME:                      Job7189 Communication Service
+      BCRYPT_ROUNDS:                 12
+      BROADCAST_CONNECTION:          log
+      CACHE_PREFIX:                  communication_
+      CACHE_STORE:                   redis
+      DB_CONNECTION:                 mysql
+      DB_DATABASE:                   job7189_communication_db
+      DB_HOST:                       mysql.data.svc.cluster.local
+      DB_PORT:                       3306
+      FILESYSTEM_DISK:               local
+      KAFKA_BROKERS:                 kafka-0.kafka-svc.data.svc.cluster.local:9092
+      KEYCLOAK_BASE_URL:             http://keycloak.security.svc.cluster.local:8080
+      KEYCLOAK_CANDIDATE_CLIENT_ID:  candidate-app-dev
+      KEYCLOAK_REALM:                job7189
+      KEYCLOAK_RECRUITER_CLIENT_ID:  recruiter-app-dev
+      LOG_CHANNEL:                   stderr
+      LOG_DEPRECATIONS_CHANNEL:      
+      LOG_LEVEL:                     info
+      LOG_STACK:                     single
+      MAIL_ENCRYPTION:               tls
+      MAIL_FROM_ADDRESS:             baophungthai2@gmail.com
+      MAIL_FROM_NAME:                Job7189 System
+      MAIL_HOST:                     smtp.gmail.com
+      MAIL_MAILER:                   smtp
+      MAIL_PORT:                     587
+      MAIL_USERNAME:                 baophungthai2@gmail.com
+      PAGINATION_SIZE:               10
+      PHP_CLI_SERVER_WORKERS:        1
+      QUEUE_CONNECTION:              redis
+      REDIS_CLIENT:                  phpredis
+      REDIS_HOST:                    communication-service-redis
+      REDIS_PASSWORD:                
+      REDIS_PORT:                    6379
+      SESSION_DOMAIN:                
+      SESSION_DRIVER:                database
+      SESSION_ENCRYPT:               false
+      SESSION_LIFETIME:              120
+      SESSION_PATH:                  /
+      DOTENV_PATH:                   /app-secrets/.env
+      INTERNAL_RELOAD_TOKEN:         <set to the key 'token' in secret 'communication-service-internal-reload-token'>  Optional: false
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+  vault-agent:
+    Container ID:  
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiY29tbXVuaWNhdGlvbi1zZXJ2aWNlIiwidG9rZW5fcGF0aCI6Ii92YXIvcnVuL3NlY3JldHMva3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC90b2tlbiJ9fSwic2luayI6W3sidHlwZSI6ImZpbGUiLCJjb25maWciOnsicGF0aCI6Ii9ob21lL3ZhdWx0Ly52YXVsdC10b2tlbiJ9fV19LCJleGl0X2FmdGVyX2F1dGgiOmZhbHNlLCJwaWRfZmlsZSI6Ii9ob21lL3ZhdWx0Ly5waWQiLCJ2YXVsdCI6eyJhZGRyZXNzIjoiaHR0cHM6Ly92YXVsdC52YXVsdC5zdmMuY2x1c3Rlci5sb2NhbDo4MjAwIiwidGxzX3NraXBfdmVyaWZ5Ijp0cnVlfSwidGVtcGxhdGUiOlt7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5leHRyYSIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwic2VjcmV0L2RhdGEvY29tbXVuaWNhdGlvbi1zZXJ2aWNlXCIgLX19XG5NQUlMX1BBU1NXT1JEPVwie3sgLkRhdGEuZGF0YS5NQUlMX1BBU1NXT1JEIH19XCJcbnt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9jb21tdW5pY2F0aW9uLXNlcnZpY2VcIiAtfX1cbkRCX1VTRVJOQU1FPVwie3sgLkRhdGEudXNlcm5hbWUgfX1cIlxuREJfUEFTU1dPUkQ9XCJ7eyAuRGF0YS5wYXNzd29yZCB9fVwiXG5cbkxFQVNFX0lEPVwie3sgLkxlYXNlSUQgfX1cIlxuXG57eyBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5kYi5sZWFzZSIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwiZGF0YWJhc2UvY3JlZHMvY29tbXVuaWNhdGlvbi1zZXJ2aWNlXCIgLX19XG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcbnt7LSBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5jb21tb24iLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2xhcmF2ZWwtY29tbW9uXCIgLX19XG5BUFBfS0VZPVwie3sgLkRhdGEuZGF0YS5BUFBfS0VZIH19XCJcbnt7LSBlbmQgfX1cbiIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9XSwidGVtcGxhdGVfY29uZmlnIjp7ImV4aXRfb25fcmV0cnlfZmFpbHVyZSI6dHJ1ZX19
+    Mounts:
+      /home/vault from home-sidecar (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vqzdh (ro)
+      /vault/secrets from vault-secrets (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  app-env:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  16Mi
+  pid:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  env-watcher-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      communication-service-env-watcher-script
+    Optional:  false
+  kube-api-access-vqzdh:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+  home-init:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  home-sidecar:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  vault-secrets:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:      Memory
+    SizeLimit:   <unset>
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  17m   default-scheduler  Successfully assigned job7189-apps/communication-service-67947dd588-8flln to job7189-worker
+  Normal  Pulled     17m   kubelet            spec.initContainers{vault-agent-init}: Container image "hashicorp/vault:1.21.2" already present on machine and can be accessed by the pod
+  Normal  Created    17m   kubelet            spec.initContainers{vault-agent-init}: Container created
+  Normal  Started    17m   kubelet            spec.initContainers{vault-agent-init}: Container started
+
+### job7189-apps/communication-service-67947dd588-8flln logs (current)
+
+### job7189-apps/communication-service-67947dd588-8flln logs (--previous)
+
+### job7189-apps/hiring-service-59dbffb9c5-tzxss
+Name:             hiring-service-59dbffb9c5-tzxss
+Namespace:        job7189-apps
+Priority:         0
+Service Account:  hiring-service
+Node:             job7189-worker3/172.18.0.2
+Start Time:       Fri, 01 May 2026 15:36:15 +0000
+Labels:           app=hiring-service
+                  pod-template-hash=59dbffb9c5
+                  zta.job7189/data-classification=internal
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=api
+                  zta.job7189/team=backend
+                  zta.job7189/tier=T2
+Annotations:      image.zta/key-id: 480722746c0a321b1de4bcfe364eefb59f31c658427e529f97c454f44f0e0c8c
+                  image.zta/signature:
+                    TUVRQ0lFV3ZyN1ZRR2JTQTJRMmlHTlROaEttcTVBcnJLTEdFMHJ4NDB5WHl5aVRLQWlBTlloakszaDAxWHJNYjZUTXRWMkNRck84UkhBTFZoTUsxT2x5Y1pDN213UT09
+                  image.zta/signature-algo: cosign-ecdsa-p256-sha256
+                  image.zta/signed-at: 2026-05-01T15:36:12Z
+                  image.zta/signed-by: zta-platform-team
+                  vault.hashicorp.com/agent-init-first: true
+                  vault.hashicorp.com/agent-inject: true
+                  vault.hashicorp.com/agent-inject-file-common: .env.common
+                  vault.hashicorp.com/agent-inject-file-db: .env.db
+                  vault.hashicorp.com/agent-inject-file-db-lease: .env.db.lease
+                  vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+                  vault.hashicorp.com/agent-inject-secret-db: database/creds/hiring-service
+                  vault.hashicorp.com/agent-inject-status: injected
+                  vault.hashicorp.com/agent-inject-template-common:
+                    {{- with secret "secret/data/laravel-common" -}}
+                    APP_KEY="{{ .Data.data.APP_KEY }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-db:
+                    {{- with secret "database/creds/hiring-service" -}}
+                    DB_USERNAME="{{ .Data.username }}"
+                    DB_PASSWORD="{{ .Data.password }}"
+                    
+                    LEASE_ID="{{ .LeaseID }}"
+                    
+                    {{ end }}
+                  vault.hashicorp.com/agent-inject-template-db-lease:
+                    {{- with secret "database/creds/hiring-service" -}}
+                    LEASE_ID="{{ .LeaseID }}"
+                    {{- end }}
+                  vault.hashicorp.com/role: hiring-service
+                  vault.hashicorp.com/tls-skip-verify: true
+Status:           Pending
+IP:               10.244.3.239
+IPs:
+  IP:           10.244.3.239
+Controlled By:  ReplicaSet/hiring-service-59dbffb9c5
+Init Containers:
+  vault-agent-init:
+    Container ID:  containerd://6c1f3fffd6f9b5454795ca8caf653941dd8d5bd530ef8be95f7b78dcdb8bfb76
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Running
+      Started:      Fri, 01 May 2026 15:36:38 +0000
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiaGlyaW5nLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6dHJ1ZSwicGlkX2ZpbGUiOiIvaG9tZS92YXVsdC8ucGlkIiwidmF1bHQiOnsiYWRkcmVzcyI6Imh0dHBzOi8vdmF1bHQudmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWw6ODIwMCIsInRsc19za2lwX3ZlcmlmeSI6dHJ1ZX0sInRlbXBsYXRlIjpbeyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIubGVhc2UiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2hpcmluZy1zZXJ2aWNlXCIgLX19XG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcbnt7LSBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5kYiIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwiZGF0YWJhc2UvY3JlZHMvaGlyaW5nLXNlcnZpY2VcIiAtfX1cbkRCX1VTRVJOQU1FPVwie3sgLkRhdGEudXNlcm5hbWUgfX1cIlxuREJfUEFTU1dPUkQ9XCJ7eyAuRGF0YS5wYXNzd29yZCB9fVwiXG5cbkxFQVNFX0lEPVwie3sgLkxlYXNlSUQgfX1cIlxuXG57eyBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5jb21tb24iLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2xhcmF2ZWwtY29tbW9uXCIgLX19XG5BUFBfS0VZPVwie3sgLkRhdGEuZGF0YS5BUFBfS0VZIH19XCJcbnt7LSBlbmQgfX1cbiIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9XSwidGVtcGxhdGVfY29uZmlnIjp7ImV4aXRfb25fcmV0cnlfZmFpbHVyZSI6dHJ1ZX19
+    Mounts:
+      /home/vault from home-init (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+  wait-for-vault-secrets:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # wait for initial Vault-injected DB secret to appear
+      i=0
+      while [ $i -lt 60 ]; do
+        if [ -f /vault/secrets/.env.db ]; then
+          echo "vault secrets ready"
+          exit 0
+        fi
+        i=$((i+1))
+        sleep 1
+      done
+      echo "timeout waiting for /vault/secrets/.env.db" >&2
+      exit 1
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+  fix-perms:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # ensure app and watcher can write/read mounts
+      chmod 0777 /app-secrets || true
+      chmod 0777 /var/run || true
+      exit 0
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+Containers:
+  env-loader:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # Efficient watcher: only update when DB env content changes
+      LAST=""
+      while true; do
+        if [ -f /vault/secrets/.env.db ]; then
+          SUM=$(md5sum /vault/secrets/.env.db 2>/dev/null | cut -d' ' -f1 || echo "")
+          if [ "$SUM" != "$LAST" ]; then
+            LAST="$SUM"
+            # Merge files
+            cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+            cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+            [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+            # Atomic publish
+            cp /vault/secrets/.env /app-secrets/.env
+            chmod 644 /app-secrets/.env
+            # copy lease sentinel if present
+            if [ -f /vault/secrets/.env.db.lease ]; then
+              cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+              chmod 644 /app-secrets/.env.db.lease || true
+            fi
+            cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+          fi
+        fi
+        sleep 10
+      done
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:        10m
+      memory:     16Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+  env-watcher:
+    Container ID:  
+    Image:         alpine:3.18
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      apk add --no-cache curl coreutils >/dev/null 2>&1 || true
+      chmod +x /usr/local/bin/env-watcher.sh 2>/dev/null || true
+      /usr/local/bin/env-watcher.sh
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:     10m
+      memory:  16Mi
+    Environment:
+      RELOAD_URL:    http://127.0.0.1:8000/api/internal/reload-db
+      RELOAD_TOKEN:  <set to the key 'token' in secret 'hiring-service-internal-reload-token'>  Optional: false
+      APP_PIDFILE:   /var/run/php-fpm.pid
+      VAULT_DIR:     /app-secrets
+      APP_DIR:       /app-secrets
+    Mounts:
+      /app-secrets from app-env (rw)
+      /usr/local/bin/env-watcher.sh from env-watcher-script (ro,path="env-watcher.sh")
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+  app:
+    Container ID:   
+    Image:          172.17.0.1:5000/job7189/hiring-service:v1.7.11
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     600m
+      memory:  640Mi
+    Requests:
+      cpu:      150m
+      memory:   192Mi
+    Readiness:  exec [/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]] delay=5s timeout=1s period=10s #success=1 #failure=6
+    Environment:
+      APP_DEBUG:                     false
+      APP_ENV:                       production
+      APP_FAKER_LOCALE:              en_US
+      APP_FALLBACK_LOCALE:           en
+      APP_LOCALE:                    en
+      APP_MAINTENANCE_DRIVER:        file
+      APP_NAME:                      Job7189 Hiring Service
+      BCRYPT_ROUNDS:                 12
+      BROADCAST_CONNECTION:          log
+      CACHE_PREFIX:                  hiring_
+      CACHE_STORE:                   redis
+      DB_CONNECTION:                 mysql
+      DB_DATABASE:                   job7189_hiring_db
+      DB_HOST:                       mysql.data.svc.cluster.local
+      DB_PORT:                       3306
+      FILESYSTEM_DISK:               local
+      IDENTITY_SERVICE_URL:          http://identity-service
+      JOB_SERVICE_URL:               http://job-service
+      KAFKA_BROKERS:                 kafka-0.kafka-svc.data.svc.cluster.local:9092
+      KEYCLOAK_BASE_URL:             http://keycloak.security.svc.cluster.local:8080
+      KEYCLOAK_CANDIDATE_CLIENT_ID:  candidate-app-dev
+      KEYCLOAK_REALM:                job7189
+      KEYCLOAK_RECRUITER_CLIENT_ID:  recruiter-app-dev
+      LOG_CHANNEL:                   stderr
+      LOG_DEPRECATIONS_CHANNEL:      
+      LOG_LEVEL:                     info
+      LOG_STACK:                     single
+      PAGINATION_SIZE:               10
+      PHP_CLI_SERVER_WORKERS:        1
+      QUEUE_CONNECTION:              redis
+      REDIS_CLIENT:                  phpredis
+      REDIS_HOST:                    hiring-service-redis
+      REDIS_PASSWORD:                
+      REDIS_PORT:                    6379
+      SESSION_DOMAIN:                
+      SESSION_DRIVER:                database
+      SESSION_ENCRYPT:               false
+      SESSION_LIFETIME:              120
+      SESSION_PATH:                  /
+      SUPER_ADMIN_WORKSPACE_ID:      019bb56a-58cf-7241-b150-4e6c39f8ce4c
+      WORKSPACE_SERVICE_URL:         http://workspace-service
+      DOTENV_PATH:                   /app-secrets/.env
+      INTERNAL_RELOAD_TOKEN:         <set to the key 'token' in secret 'hiring-service-internal-reload-token'>  Optional: false
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+  vault-agent:
+    Container ID:  
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiaGlyaW5nLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6ZmFsc2UsInBpZF9maWxlIjoiL2hvbWUvdmF1bHQvLnBpZCIsInZhdWx0Ijp7ImFkZHJlc3MiOiJodHRwczovL3ZhdWx0LnZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsOjgyMDAiLCJ0bHNfc2tpcF92ZXJpZnkiOnRydWV9LCJ0ZW1wbGF0ZSI6W3siZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiLmxlYXNlIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9oaXJpbmctc2VydmljZVwiIC19fVxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG57ey0gZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2hpcmluZy1zZXJ2aWNlXCIgLX19XG5EQl9VU0VSTkFNRT1cInt7IC5EYXRhLnVzZXJuYW1lIH19XCJcbkRCX1BBU1NXT1JEPVwie3sgLkRhdGEucGFzc3dvcmQgfX1cIlxuXG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcblxue3sgZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuY29tbW9uIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9sYXJhdmVsLWNvbW1vblwiIC19fVxuQVBQX0tFWT1cInt7IC5EYXRhLmRhdGEuQVBQX0tFWSB9fVwiXG57ey0gZW5kIH19XG4iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifV0sInRlbXBsYXRlX2NvbmZpZyI6eyJleGl0X29uX3JldHJ5X2ZhaWx1cmUiOnRydWV9fQ==
+    Mounts:
+      /home/vault from home-sidecar (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fjs9g (ro)
+      /vault/secrets from vault-secrets (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  app-env:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  16Mi
+  pid:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  env-watcher-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      hiring-service-env-watcher-script
+    Optional:  false
+  kube-api-access-fjs9g:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+  home-init:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  home-sidecar:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  vault-secrets:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:      Memory
+    SizeLimit:   <unset>
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  18m   default-scheduler  Successfully assigned job7189-apps/hiring-service-59dbffb9c5-tzxss to job7189-worker3
+  Normal  Pulled     18m   kubelet            spec.initContainers{vault-agent-init}: Container image "hashicorp/vault:1.21.2" already present on machine and can be accessed by the pod
+  Normal  Created    18m   kubelet            spec.initContainers{vault-agent-init}: Container created
+  Normal  Started    17m   kubelet            spec.initContainers{vault-agent-init}: Container started
+
+### job7189-apps/hiring-service-59dbffb9c5-tzxss logs (current)
+
+### job7189-apps/hiring-service-59dbffb9c5-tzxss logs (--previous)
+
+### job7189-apps/identity-service-5ddbc9cf66-s57wp
+Name:             identity-service-5ddbc9cf66-s57wp
+Namespace:        job7189-apps
+Priority:         0
+Service Account:  identity-service
+Node:             job7189-worker2/172.18.0.5
+Start Time:       Fri, 01 May 2026 15:36:18 +0000
+Labels:           app=identity-service
+                  pod-template-hash=5ddbc9cf66
+                  zta.job7189/data-classification=confidential
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=api
+                  zta.job7189/team=backend
+                  zta.job7189/tier=T1
+Annotations:      image.zta/key-id: 480722746c0a321b1de4bcfe364eefb59f31c658427e529f97c454f44f0e0c8c
+                  image.zta/signature:
+                    TUVZQ0lRRHR1eEY5WjY1WldQYXpaSXZWMmU4c3N4d2V6a2Z1TWhjL1ZSNllObTh5emdJaEFQWElJckFSRllGQkViNStMazlhTUNRT3ZhZlpEQkZETURrQVRXSFBIbkRz
+                  image.zta/signature-algo: cosign-ecdsa-p256-sha256
+                  image.zta/signed-at: 2026-05-01T15:36:16Z
+                  image.zta/signed-by: zta-platform-team
+                  vault.hashicorp.com/agent-init-first: true
+                  vault.hashicorp.com/agent-inject: true
+                  vault.hashicorp.com/agent-inject-file-common: .env.common
+                  vault.hashicorp.com/agent-inject-file-db: .env.db
+                  vault.hashicorp.com/agent-inject-file-db-lease: .env.db.lease
+                  vault.hashicorp.com/agent-inject-file-extra: .env.extra
+                  vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+                  vault.hashicorp.com/agent-inject-secret-db: database/creds/identity-service
+                  vault.hashicorp.com/agent-inject-secret-extra: secret/data/identity-service
+                  vault.hashicorp.com/agent-inject-status: injected
+                  vault.hashicorp.com/agent-inject-template-common:
+                    {{- with secret "secret/data/laravel-common" -}}
+                    APP_KEY="{{ .Data.data.APP_KEY }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-db:
+                    {{- with secret "database/creds/identity-service" -}}
+                    DB_USERNAME="{{ .Data.username }}"
+                    DB_PASSWORD="{{ .Data.password }}"
+                    
+                    LEASE_ID="{{ .LeaseID }}"
+                    
+                    {{ end }}
+                  vault.hashicorp.com/agent-inject-template-db-lease:
+                    {{- with secret "database/creds/identity-service" -}}
+                    LEASE_ID="{{ .LeaseID }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-extra:
+                    {{- with secret "secret/data/identity-service" -}}
+                    LARAVEL_INTERNAL_API_SECRET="{{ .Data.data.LARAVEL_INTERNAL_API_SECRET }}"
+                    {{ end }}
+                  vault.hashicorp.com/role: identity-service
+                  vault.hashicorp.com/tls-skip-verify: true
+Status:           Pending
+IP:               10.244.1.153
+IPs:
+  IP:           10.244.1.153
+Controlled By:  ReplicaSet/identity-service-5ddbc9cf66
+Init Containers:
+  vault-agent-init:
+    Container ID:  containerd://df94c6344057c8281b8eae1fb2f60c11bf69499f0f98c6ed0f29b2b8006bc7ca
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Running
+      Started:      Fri, 01 May 2026 15:36:35 +0000
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiaWRlbnRpdHktc2VydmljZSIsInRva2VuX3BhdGgiOiIvdmFyL3J1bi9zZWNyZXRzL2t1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvdG9rZW4ifX0sInNpbmsiOlt7InR5cGUiOiJmaWxlIiwiY29uZmlnIjp7InBhdGgiOiIvaG9tZS92YXVsdC8udmF1bHQtdG9rZW4ifX1dfSwiZXhpdF9hZnRlcl9hdXRoIjp0cnVlLCJwaWRfZmlsZSI6Ii9ob21lL3ZhdWx0Ly5waWQiLCJ2YXVsdCI6eyJhZGRyZXNzIjoiaHR0cHM6Ly92YXVsdC52YXVsdC5zdmMuY2x1c3Rlci5sb2NhbDo4MjAwIiwidGxzX3NraXBfdmVyaWZ5Ijp0cnVlfSwidGVtcGxhdGUiOlt7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5leHRyYSIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwic2VjcmV0L2RhdGEvaWRlbnRpdHktc2VydmljZVwiIC19fVxuTEFSQVZFTF9JTlRFUk5BTF9BUElfU0VDUkVUPVwie3sgLkRhdGEuZGF0YS5MQVJBVkVMX0lOVEVSTkFMX0FQSV9TRUNSRVQgfX1cIlxue3sgZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2lkZW50aXR5LXNlcnZpY2VcIiAtfX1cbkRCX1VTRVJOQU1FPVwie3sgLkRhdGEudXNlcm5hbWUgfX1cIlxuREJfUEFTU1dPUkQ9XCJ7eyAuRGF0YS5wYXNzd29yZCB9fVwiXG5cbkxFQVNFX0lEPVwie3sgLkxlYXNlSUQgfX1cIlxuXG57eyBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5jb21tb24iLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2xhcmF2ZWwtY29tbW9uXCIgLX19XG5BUFBfS0VZPVwie3sgLkRhdGEuZGF0YS5BUFBfS0VZIH19XCJcbnt7LSBlbmQgfX1cbiIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiLmxlYXNlIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9pZGVudGl0eS1zZXJ2aWNlXCIgLX19XG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcbnt7LSBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifV0sInRlbXBsYXRlX2NvbmZpZyI6eyJleGl0X29uX3JldHJ5X2ZhaWx1cmUiOnRydWV9fQ==
+    Mounts:
+      /home/vault from home-init (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+  wait-for-vault-secrets:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # wait for initial Vault-injected DB secret to appear
+      i=0
+      while [ $i -lt 60 ]; do
+        if [ -f /vault/secrets/.env.db ]; then
+          echo "vault secrets ready"
+          exit 0
+        fi
+        i=$((i+1))
+        sleep 1
+      done
+      echo "timeout waiting for /vault/secrets/.env.db" >&2
+      exit 1
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+  fix-perms:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # ensure app and watcher can write/read mounts
+      chmod 0777 /app-secrets || true
+      chmod 0777 /var/run || true
+      exit 0
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+Containers:
+  env-loader:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # Efficient watcher: only update when DB env content changes
+      LAST=""
+      while true; do
+        if [ -f /vault/secrets/.env.db ]; then
+          SUM=$(md5sum /vault/secrets/.env.db 2>/dev/null | cut -d' ' -f1 || echo "")
+          if [ "$SUM" != "$LAST" ]; then
+            LAST="$SUM"
+            # Merge files
+            cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+            cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+            [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+            # Atomic publish
+            cp /vault/secrets/.env /app-secrets/.env
+            chmod 644 /app-secrets/.env
+            # copy lease sentinel if present
+            if [ -f /vault/secrets/.env.db.lease ]; then
+              cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+              chmod 644 /app-secrets/.env.db.lease || true
+            fi
+            cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+          fi
+        fi
+        sleep 10
+      done
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:        10m
+      memory:     16Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+  env-watcher:
+    Container ID:  
+    Image:         alpine:3.18
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      apk add --no-cache curl coreutils >/dev/null 2>&1 || true
+      chmod +x /usr/local/bin/env-watcher.sh 2>/dev/null || true
+      /usr/local/bin/env-watcher.sh
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:     10m
+      memory:  16Mi
+    Environment:
+      RELOAD_URL:    http://127.0.0.1:8000/api/internal/reload-db
+      RELOAD_TOKEN:  <set to the key 'token' in secret 'identity-service-internal-reload-token'>  Optional: false
+      APP_PIDFILE:   /var/run/php-fpm.pid
+      VAULT_DIR:     /app-secrets
+      APP_DIR:       /app-secrets
+    Mounts:
+      /app-secrets from app-env (rw)
+      /usr/local/bin/env-watcher.sh from env-watcher-script (ro,path="env-watcher.sh")
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+  app:
+    Container ID:   
+    Image:          172.17.0.1:5000/job7189/identity-service:v2.8.16
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     600m
+      memory:  640Mi
+    Requests:
+      cpu:      150m
+      memory:   192Mi
+    Readiness:  exec [/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]] delay=5s timeout=1s period=10s #success=1 #failure=6
+    Environment:
+      APP_DEBUG:                     false
+      APP_ENV:                       production
+      APP_FAKER_LOCALE:              en_US
+      APP_FALLBACK_LOCALE:           en
+      APP_LOCALE:                    en
+      APP_MAINTENANCE_DRIVER:        file
+      APP_NAME:                      Job7189 Identity Service
+      BCRYPT_ROUNDS:                 12
+      BROADCAST_CONNECTION:          log
+      CACHE_PREFIX:                  identity_
+      CACHE_STORE:                   redis
+      DB_CONNECTION:                 mysql
+      DB_DATABASE:                   job7189_identity_db
+      DB_HOST:                       mysql.data.svc.cluster.local
+      DB_PORT:                       3306
+      FILESYSTEM_DISK:               local
+      IDENTITY_SERVICE_URL:          http://identity-service
+      KAFKA_BROKERS:                 kafka-0.kafka-svc.data.svc.cluster.local:9092
+      KEYCLOAK_BASE_URL:             http://keycloak.security.svc.cluster.local:8080
+      KEYCLOAK_CANDIDATE_CLIENT_ID:  candidate-app-dev
+      KEYCLOAK_REALM:                job7189
+      KEYCLOAK_RECRUITER_CLIENT_ID:  recruiter-app-dev
+      LOG_CHANNEL:                   stderr
+      LOG_DEPRECATIONS_CHANNEL:      
+      LOG_LEVEL:                     debug
+      LOG_STACK:                     single
+      PAGINATION_SIZE:               10
+      PHP_CLI_SERVER_WORKERS:        1
+      QUEUE_CONNECTION:              redis
+      REDIS_CLIENT:                  phpredis
+      REDIS_HOST:                    identity-service-redis
+      REDIS_PASSWORD:                
+      REDIS_PORT:                    6379
+      SESSION_DOMAIN:                
+      SESSION_DRIVER:                database
+      SESSION_ENCRYPT:               false
+      SESSION_LIFETIME:              120
+      SESSION_PATH:                  /
+      WORKSPACE_SERVICE_URL:         http://workspace-service
+      DOTENV_PATH:                   /app-secrets/.env
+      INTERNAL_RELOAD_TOKEN:         <set to the key 'token' in secret 'identity-service-internal-reload-token'>  Optional: false
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+  vault-agent:
+    Container ID:  
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiaWRlbnRpdHktc2VydmljZSIsInRva2VuX3BhdGgiOiIvdmFyL3J1bi9zZWNyZXRzL2t1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvdG9rZW4ifX0sInNpbmsiOlt7InR5cGUiOiJmaWxlIiwiY29uZmlnIjp7InBhdGgiOiIvaG9tZS92YXVsdC8udmF1bHQtdG9rZW4ifX1dfSwiZXhpdF9hZnRlcl9hdXRoIjpmYWxzZSwicGlkX2ZpbGUiOiIvaG9tZS92YXVsdC8ucGlkIiwidmF1bHQiOnsiYWRkcmVzcyI6Imh0dHBzOi8vdmF1bHQudmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWw6ODIwMCIsInRsc19za2lwX3ZlcmlmeSI6dHJ1ZX0sInRlbXBsYXRlIjpbeyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZXh0cmEiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2lkZW50aXR5LXNlcnZpY2VcIiAtfX1cbkxBUkFWRUxfSU5URVJOQUxfQVBJX1NFQ1JFVD1cInt7IC5EYXRhLmRhdGEuTEFSQVZFTF9JTlRFUk5BTF9BUElfU0VDUkVUIH19XCJcbnt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9pZGVudGl0eS1zZXJ2aWNlXCIgLX19XG5EQl9VU0VSTkFNRT1cInt7IC5EYXRhLnVzZXJuYW1lIH19XCJcbkRCX1BBU1NXT1JEPVwie3sgLkRhdGEucGFzc3dvcmQgfX1cIlxuXG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcblxue3sgZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuY29tbW9uIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9sYXJhdmVsLWNvbW1vblwiIC19fVxuQVBQX0tFWT1cInt7IC5EYXRhLmRhdGEuQVBQX0tFWSB9fVwiXG57ey0gZW5kIH19XG4iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5kYi5sZWFzZSIsImNvbnRlbnRzIjoie3stIHdpdGggc2VjcmV0IFwiZGF0YWJhc2UvY3JlZHMvaWRlbnRpdHktc2VydmljZVwiIC19fVxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG57ey0gZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In1dLCJ0ZW1wbGF0ZV9jb25maWciOnsiZXhpdF9vbl9yZXRyeV9mYWlsdXJlIjp0cnVlfX0=
+    Mounts:
+      /home/vault from home-sidecar (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-r4vk5 (ro)
+      /vault/secrets from vault-secrets (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  app-env:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  16Mi
+  pid:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  env-watcher-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      identity-service-env-watcher-script
+    Optional:  false
+  kube-api-access-r4vk5:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+  home-init:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  home-sidecar:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  vault-secrets:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:      Memory
+    SizeLimit:   <unset>
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  20m   default-scheduler  Successfully assigned job7189-apps/identity-service-5ddbc9cf66-s57wp to job7189-worker2
+  Normal  Pulled     19m   kubelet            spec.initContainers{vault-agent-init}: Container image "hashicorp/vault:1.21.2" already present on machine and can be accessed by the pod
+  Normal  Created    19m   kubelet            spec.initContainers{vault-agent-init}: Container created
+  Normal  Started    19m   kubelet            spec.initContainers{vault-agent-init}: Container started
+
+### job7189-apps/identity-service-5ddbc9cf66-s57wp logs (current)
+
+### job7189-apps/identity-service-5ddbc9cf66-s57wp logs (--previous)
+
+### job7189-apps/job-service-54b4c6db8c-rmrz7
+Name:             job-service-54b4c6db8c-rmrz7
+Namespace:        job7189-apps
+Priority:         0
+Service Account:  job-service
+Node:             job7189-worker/172.18.0.4
+Start Time:       Fri, 01 May 2026 15:36:28 +0000
+Labels:           app=job-service
+                  pod-template-hash=54b4c6db8c
+                  zta.job7189/data-classification=internal
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=api
+                  zta.job7189/team=backend
+                  zta.job7189/tier=T2
+Annotations:      image.zta/key-id: 480722746c0a321b1de4bcfe364eefb59f31c658427e529f97c454f44f0e0c8c
+                  image.zta/signature:
+                    TUVVQ0lBM1l2VXJ0ZGFqQTVsa0RQcFdnbTdmQmd0cVMraElHbVZTZE12SXhxMDUyQWlFQW5FYldsaVdrcTZiL2JhcHB5azg1emFUNEkvWVQrZ3VMYy9uNUx4eW85dXM9
+                  image.zta/signature-algo: cosign-ecdsa-p256-sha256
+                  image.zta/signed-at: 2026-05-01T15:36:21Z
+                  image.zta/signed-by: zta-platform-team
+                  vault.hashicorp.com/agent-init-first: true
+                  vault.hashicorp.com/agent-inject: true
+                  vault.hashicorp.com/agent-inject-file-common: .env.common
+                  vault.hashicorp.com/agent-inject-file-db: .env.db
+                  vault.hashicorp.com/agent-inject-file-db-lease: .env.db.lease
+                  vault.hashicorp.com/agent-inject-secret-common: secret/data/laravel-common
+                  vault.hashicorp.com/agent-inject-secret-db: database/creds/job-service
+                  vault.hashicorp.com/agent-inject-status: injected
+                  vault.hashicorp.com/agent-inject-template-common:
+                    {{- with secret "secret/data/laravel-common" -}}
+                    APP_KEY="{{ .Data.data.APP_KEY }}"
+                    {{- end }}
+                  vault.hashicorp.com/agent-inject-template-db:
+                    {{- with secret "database/creds/job-service" -}}
+                    DB_USERNAME="{{ .Data.username }}"
+                    DB_PASSWORD="{{ .Data.password }}"
+                    
+                    LEASE_ID="{{ .LeaseID }}"
+                    
+                    {{ end }}
+                  vault.hashicorp.com/agent-inject-template-db-lease:
+                    {{- with secret "database/creds/job-service" -}}
+                    LEASE_ID="{{ .LeaseID }}"
+                    {{- end }}
+                  vault.hashicorp.com/role: job-service
+                  vault.hashicorp.com/tls-skip-verify: true
+Status:           Pending
+IP:               10.244.2.102
+IPs:
+  IP:           10.244.2.102
+Controlled By:  ReplicaSet/job-service-54b4c6db8c
+Init Containers:
+  vault-agent-init:
+    Container ID:  containerd://9c607c1b0dad7fd11d7652161c95daa3ca527c94fa13bee978b2d475cbd96561
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Running
+      Started:      Fri, 01 May 2026 15:37:00 +0000
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiam9iLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6dHJ1ZSwicGlkX2ZpbGUiOiIvaG9tZS92YXVsdC8ucGlkIiwidmF1bHQiOnsiYWRkcmVzcyI6Imh0dHBzOi8vdmF1bHQudmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWw6ODIwMCIsInRsc19za2lwX3ZlcmlmeSI6dHJ1ZX0sInRlbXBsYXRlIjpbeyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2pvYi1zZXJ2aWNlXCIgLX19XG5EQl9VU0VSTkFNRT1cInt7IC5EYXRhLnVzZXJuYW1lIH19XCJcbkRCX1BBU1NXT1JEPVwie3sgLkRhdGEucGFzc3dvcmQgfX1cIlxuXG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcblxue3sgZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuZGIubGVhc2UiLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcImRhdGFiYXNlL2NyZWRzL2pvYi1zZXJ2aWNlXCIgLX19XG5MRUFTRV9JRD1cInt7IC5MZWFzZUlEIH19XCJcbnt7LSBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifSx7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvLmVudi5jb21tb24iLCJjb250ZW50cyI6Int7LSB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL2xhcmF2ZWwtY29tbW9uXCIgLX19XG5BUFBfS0VZPVwie3sgLkRhdGEuZGF0YS5BUFBfS0VZIH19XCJcbnt7LSBlbmQgfX1cbiIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9XSwidGVtcGxhdGVfY29uZmlnIjp7ImV4aXRfb25fcmV0cnlfZmFpbHVyZSI6dHJ1ZX19
+    Mounts:
+      /home/vault from home-init (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+  wait-for-vault-secrets:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # wait for initial Vault-injected DB secret to appear
+      i=0
+      while [ $i -lt 60 ]; do
+        if [ -f /vault/secrets/.env.db ]; then
+          echo "vault secrets ready"
+          exit 0
+        fi
+        i=$((i+1))
+        sleep 1
+      done
+      echo "timeout waiting for /vault/secrets/.env.db" >&2
+      exit 1
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+  fix-perms:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # ensure app and watcher can write/read mounts
+      chmod 0777 /app-secrets || true
+      chmod 0777 /var/run || true
+      exit 0
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     40m
+      memory:  32Mi
+    Requests:
+      cpu:        5m
+      memory:     8Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+Containers:
+  env-loader:
+    Container ID:  
+    Image:         busybox:1.36
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      # Efficient watcher: only update when DB env content changes
+      LAST=""
+      while true; do
+        if [ -f /vault/secrets/.env.db ]; then
+          SUM=$(md5sum /vault/secrets/.env.db 2>/dev/null | cut -d' ' -f1 || echo "")
+          if [ "$SUM" != "$LAST" ]; then
+            LAST="$SUM"
+            # Merge files
+            cat /vault/secrets/.env.common > /vault/secrets/.env 2>/dev/null || true
+            cat /vault/secrets/.env.db >> /vault/secrets/.env 2>/dev/null || true
+            [ -f /vault/secrets/.env.extra ] && cat /vault/secrets/.env.extra >> /vault/secrets/.env || true
+            # Atomic publish
+            cp /vault/secrets/.env /app-secrets/.env
+            chmod 644 /app-secrets/.env
+            # copy lease sentinel if present
+            if [ -f /vault/secrets/.env.db.lease ]; then
+              cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
+              chmod 644 /app-secrets/.env.db.lease || true
+            fi
+            cp /app-secrets/.env /var/www/.env 2>/dev/null || true
+          fi
+        fi
+        sleep 10
+      done
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:        10m
+      memory:     16Mi
+    Environment:  <none>
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+  env-watcher:
+    Container ID:  
+    Image:         alpine:3.18
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      apk add --no-cache curl coreutils >/dev/null 2>&1 || true
+      chmod +x /usr/local/bin/env-watcher.sh 2>/dev/null || true
+      /usr/local/bin/env-watcher.sh
+      
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     80m
+      memory:  64Mi
+    Requests:
+      cpu:     10m
+      memory:  16Mi
+    Environment:
+      RELOAD_URL:    http://127.0.0.1:8000/api/internal/reload-db
+      RELOAD_TOKEN:  <set to the key 'token' in secret 'job-service-internal-reload-token'>  Optional: false
+      APP_PIDFILE:   /var/run/php-fpm.pid
+      VAULT_DIR:     /app-secrets
+      APP_DIR:       /app-secrets
+    Mounts:
+      /app-secrets from app-env (rw)
+      /usr/local/bin/env-watcher.sh from env-watcher-script (ro,path="env-watcher.sh")
+      /var/run from pid (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+  app:
+    Container ID:   
+    Image:          172.17.0.1:5000/job7189/job-service:v1.0.4
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     600m
+      memory:  640Mi
+    Requests:
+      cpu:      150m
+      memory:   192Mi
+    Readiness:  exec [/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]] delay=5s timeout=1s period=10s #success=1 #failure=6
+    Environment:
+      APP_DEBUG:                     false
+      APP_ENV:                       production
+      APP_FAKER_LOCALE:              en_US
+      APP_FALLBACK_LOCALE:           en
+      APP_LOCALE:                    en
+      APP_MAINTENANCE_DRIVER:        file
+      APP_NAME:                      Job7189 Job Service
+      BCRYPT_ROUNDS:                 12
+      BROADCAST_CONNECTION:          log
+      CACHE_PREFIX:                  job_
+      CACHE_STORE:                   redis
+      DB_CONNECTION:                 mysql
+      DB_DATABASE:                   job7189_job_db
+      DB_HOST:                       mysql.data.svc.cluster.local
+      DB_PORT:                       3306
+      FILESYSTEM_DISK:               local
+      IDENTITY_SERVICE_URL:          http://identity-service
+      KAFKA_BROKERS:                 kafka-0.kafka-svc.data.svc.cluster.local:9092
+      KEYCLOAK_BASE_URL:             http://keycloak.security.svc.cluster.local:8080
+      KEYCLOAK_CANDIDATE_CLIENT_ID:  candidate-app-dev
+      KEYCLOAK_REALM:                job7189
+      KEYCLOAK_RECRUITER_CLIENT_ID:  recruiter-app-dev
+      LOG_CHANNEL:                   stderr
+      LOG_DEPRECATIONS_CHANNEL:      
+      LOG_LEVEL:                     debug
+      LOG_STACK:                     single
+      PAGINATION_SIZE:               10
+      PHP_CLI_SERVER_WORKERS:        1
+      QUEUE_CONNECTION:              redis
+      REDIS_CLIENT:                  phpredis
+      REDIS_HOST:                    job-service-redis
+      REDIS_PASSWORD:                
+      REDIS_PORT:                    6379
+      SESSION_DOMAIN:                
+      SESSION_DRIVER:                database
+      SESSION_ENCRYPT:               false
+      SESSION_LIFETIME:              120
+      SESSION_PATH:                  /
+      SUPER_ADMIN_WORKSPACE_ID:      019bb56a-58cf-7241-b150-4e6c39f8ce4c
+      WORKSPACE_SERVICE_URL:         http://workspace-service
+      DOTENV_PATH:                   /app-secrets/.env
+      INTERNAL_RELOAD_TOKEN:         <set to the key 'token' in secret 'job-service-internal-reload-token'>  Optional: false
+    Mounts:
+      /app-secrets from app-env (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+  vault-agent:
+    Container ID:  
+    Image:         hashicorp/vault:1.21.2
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      /bin/sh
+      -ec
+    Args:
+      echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+    Environment:
+      NAMESPACE:         job7189-apps (v1:metadata.namespace)
+      HOST_IP:            (v1:status.hostIP)
+      POD_IP:             (v1:status.podIP)
+      VAULT_LOG_LEVEL:   info
+      VAULT_LOG_FORMAT:  standard
+      VAULT_CONFIG:      eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoiam9iLXNlcnZpY2UiLCJ0b2tlbl9wYXRoIjoiL3Zhci9ydW4vc2VjcmV0cy9rdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3Rva2VuIn19LCJzaW5rIjpbeyJ0eXBlIjoiZmlsZSIsImNvbmZpZyI6eyJwYXRoIjoiL2hvbWUvdmF1bHQvLnZhdWx0LXRva2VuIn19XX0sImV4aXRfYWZ0ZXJfYXV0aCI6ZmFsc2UsInBpZF9maWxlIjoiL2hvbWUvdmF1bHQvLnBpZCIsInZhdWx0Ijp7ImFkZHJlc3MiOiJodHRwczovL3ZhdWx0LnZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsOjgyMDAiLCJ0bHNfc2tpcF92ZXJpZnkiOnRydWV9LCJ0ZW1wbGF0ZSI6W3siZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9qb2Itc2VydmljZVwiIC19fVxuREJfVVNFUk5BTUU9XCJ7eyAuRGF0YS51c2VybmFtZSB9fVwiXG5EQl9QQVNTV09SRD1cInt7IC5EYXRhLnBhc3N3b3JkIH19XCJcblxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG5cbnt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9LHsiZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy8uZW52LmRiLmxlYXNlIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJkYXRhYmFzZS9jcmVkcy9qb2Itc2VydmljZVwiIC19fVxuTEVBU0VfSUQ9XCJ7eyAuTGVhc2VJRCB9fVwiXG57ey0gZW5kIH19IiwibGVmdF9kZWxpbWl0ZXIiOiJ7eyIsInJpZ2h0X2RlbGltaXRlciI6In19In0seyJkZXN0aW5hdGlvbiI6Ii92YXVsdC9zZWNyZXRzLy5lbnYuY29tbW9uIiwiY29udGVudHMiOiJ7ey0gd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9sYXJhdmVsLWNvbW1vblwiIC19fVxuQVBQX0tFWT1cInt7IC5EYXRhLmRhdGEuQVBQX0tFWSB9fVwiXG57ey0gZW5kIH19XG4iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifV0sInRlbXBsYXRlX2NvbmZpZyI6eyJleGl0X29uX3JldHJ5X2ZhaWx1cmUiOnRydWV9fQ==
+    Mounts:
+      /home/vault from home-sidecar (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-hmmhq (ro)
+      /vault/secrets from vault-secrets (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  app-env:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  16Mi
+  pid:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  env-watcher-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      job-service-env-watcher-script
+    Optional:  false
+  kube-api-access-hmmhq:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+  home-init:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  home-sidecar:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  <unset>
+  vault-secrets:
+    Type:        EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:      Memory
+    SizeLimit:   <unset>
+QoS Class:       Burstable
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  20m   default-scheduler  Successfully assigned job7189-apps/job-service-54b4c6db8c-rmrz7 to job7189-worker
+  Normal  Pulled     19m   kubelet            spec.initContainers{vault-agent-init}: Container image "hashicorp/vault:1.21.2" already present on machine and can be accessed by the pod
+  Normal  Created    19m   kubelet            spec.initContainers{vault-agent-init}: Container created
+  Normal  Started    19m   kubelet            spec.initContainers{vault-agent-init}: Container started
+
+### job7189-apps/job-service-54b4c6db8c-rmrz7 logs (current)
+
+### job7189-apps/job-service-54b4c6db8c-rmrz7 logs (--previous)

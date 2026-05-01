@@ -1,0 +1,77 @@
+NAMESPACE            NAME                                            READY   STATUS             RESTARTS         AGE     IP             NODE                    NOMINATED NODE   READINESS GATES
+cert-manager         cert-manager-5779d6596f-bgmtn                   1/1     Running            0                5h49m   10.244.2.126   job7189-worker3         <none>           <none>
+cert-manager         cert-manager-cainjector-5ddf6799cc-pnqhl        1/1     Running            0                5h49m   10.244.2.177   job7189-worker3         <none>           <none>
+cert-manager         cert-manager-webhook-5d4dc79c59-knvh6           1/1     Running            0                5h49m   10.244.3.147   job7189-worker2         <none>           <none>
+data                 kafka-0                                         1/1     Running            0                15m     10.244.1.2     job7189-worker          <none>           <none>
+data                 mysql-668fc484f9-9nbvw                          1/1     Running            0                15m     10.244.3.194   job7189-worker2         <none>           <none>
+default              jwt-test-578253                                 0/1     Completed          0                10m     10.244.1.142   job7189-worker          <none>           <none>
+gateway              kong-gateway-5fb8847568-88btd                   1/1     Running            0                15m     10.244.3.202   job7189-worker2         <none>           <none>
+ingress-nginx        ingress-nginx-controller-7fbf5b4d96-6jl24       1/1     Running            0                5h49m   10.244.2.2     job7189-worker3         <none>           <none>
+job7189-apps         candidate-service-679f888588-ng84h              4/4     Running            1 (9m38s ago)    5h35m   10.244.2.171   job7189-worker3         <none>           <none>
+job7189-apps         candidate-service-6c5997647f-7f7s4              0/3     Init:Error         6 (4m48s ago)    14m     10.244.2.119   job7189-worker3         <none>           <none>
+job7189-apps         candidate-service-redis-8dbc4444-pl8bx          1/1     Running            0                13m     10.244.3.150   job7189-worker2         <none>           <none>
+job7189-apps         communication-service-5bfbb46df5-9sjrz          4/4     Running            5 (13m ago)      5h35m   10.244.3.225   job7189-worker2         <none>           <none>
+job7189-apps         communication-service-66d8884964-gmqtt          0/3     Init:Error         6 (4m3s ago)     14m     10.244.2.210   job7189-worker3         <none>           <none>
+job7189-apps         communication-service-redis-848bb44985-nwq72    1/1     Running            0                13m     10.244.3.230   job7189-worker2         <none>           <none>
+job7189-apps         hiring-service-5f4765cb86-zlcpv                 4/4     Running            1 (6m19s ago)    5h35m   10.244.1.167   job7189-worker          <none>           <none>
+job7189-apps         hiring-service-6d7c84bbc7-8gjrn                 0/3     Init:Error         6 (4m36s ago)    14m     10.244.1.16    job7189-worker          <none>           <none>
+job7189-apps         hiring-service-redis-66467986cb-5plcn           1/1     Running            0                14m     10.244.3.220   job7189-worker2         <none>           <none>
+job7189-apps         identity-service-6b6786795b-r24vg               4/4     Running            1 (7m14s ago)    5h35m   10.244.3.143   job7189-worker2         <none>           <none>
+job7189-apps         identity-service-84dd5f9c9f-mbn8l               0/3     Init:Error         6 (4m40s ago)    14m     10.244.2.24    job7189-worker3         <none>           <none>
+job7189-apps         identity-service-redis-58bc5b5fdf-w6fd4         1/1     Running            0                14m     10.244.3.45    job7189-worker2         <none>           <none>
+job7189-apps         job-service-7f7d9b7595-phl85                    4/4     Running            1 (5m57s ago)    5h35m   10.244.2.206   job7189-worker3         <none>           <none>
+job7189-apps         job-service-d9f8fbd4d-fddj9                     0/3     Init:Error         6 (4m40s ago)    14m     10.244.1.154   job7189-worker          <none>           <none>
+job7189-apps         job-service-redis-7d978bf878-dqxvb              1/1     Running            0                13m     10.244.3.99    job7189-worker2         <none>           <none>
+job7189-apps         storage-service-57fccf846f-h4w9j                0/3     Init:Error         6 (4m5s ago)     14m     10.244.2.71    job7189-worker3         <none>           <none>
+job7189-apps         storage-service-589b454764-f4qqm                4/4     Running            1 (6m30s ago)    5h35m   10.244.1.68    job7189-worker          <none>           <none>
+job7189-apps         storage-service-redis-67999f7dd-ffg9q           1/1     Running            0                13m     10.244.1.186   job7189-worker          <none>           <none>
+job7189-apps         workspace-service-56bd669975-w48d2              0/3     Init:Error         6 (3m56s ago)    14m     10.244.3.98    job7189-worker2         <none>           <none>
+job7189-apps         workspace-service-7bccfb9cd6-4twwn              4/4     Running            1 (6m59s ago)    5h35m   10.244.2.240   job7189-worker3         <none>           <none>
+job7189-apps         workspace-service-redis-76b9bf6b4d-fm46d        1/1     Running            0                13m     10.244.1.174   job7189-worker          <none>           <none>
+kube-system          cilium-8wgpw                                    1/1     Running            0                4h51m   172.18.0.4     job7189-worker          <none>           <none>
+kube-system          cilium-9fbfw                                    1/1     Running            0                4h51m   172.18.0.3     job7189-worker3         <none>           <none>
+kube-system          cilium-9fslc                                    1/1     Running            0                4h51m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          cilium-bshwt                                    1/1     Running            0                4h51m   172.18.0.5     job7189-worker2         <none>           <none>
+kube-system          cilium-envoy-7cq26                              1/1     Running            0                5h52m   172.18.0.5     job7189-worker2         <none>           <none>
+kube-system          cilium-envoy-9jrws                              1/1     Running            0                5h52m   172.18.0.3     job7189-worker3         <none>           <none>
+kube-system          cilium-envoy-mxtf7                              1/1     Running            0                5h52m   172.18.0.4     job7189-worker          <none>           <none>
+kube-system          cilium-envoy-ptkxc                              1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          cilium-operator-d5845585d-nv676                 1/1     Running            0                5h52m   172.18.0.5     job7189-worker2         <none>           <none>
+kube-system          coredns-7d764666f9-876mq                        1/1     Running            0                5h52m   10.244.1.205   job7189-worker          <none>           <none>
+kube-system          coredns-7d764666f9-tgp8w                        1/1     Running            0                5h52m   10.244.1.65    job7189-worker          <none>           <none>
+kube-system          etcd-job7189-control-plane                      1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          hubble-relay-999c5cd6f-t5hbb                    1/1     Running            0                5h52m   10.244.1.116   job7189-worker          <none>           <none>
+kube-system          hubble-ui-67d8bff4c4-d2rds                      2/2     Running            0                5h52m   10.244.1.66    job7189-worker          <none>           <none>
+kube-system          kube-apiserver-job7189-control-plane            1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          kube-controller-manager-job7189-control-plane   1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          kube-proxy-8zdfl                                1/1     Running            0                5h52m   172.18.0.4     job7189-worker          <none>           <none>
+kube-system          kube-proxy-98dnc                                1/1     Running            0                5h52m   172.18.0.3     job7189-worker3         <none>           <none>
+kube-system          kube-proxy-xx7th                                1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          kube-proxy-z7577                                1/1     Running            0                5h52m   172.18.0.5     job7189-worker2         <none>           <none>
+kube-system          kube-scheduler-job7189-control-plane            1/1     Running            0                5h52m   172.18.0.2     job7189-control-plane   <none>           <none>
+kube-system          tetragon-5s2dm                                  2/2     Running            11 (32s ago)     3h57m   172.18.0.3     job7189-worker3         <none>           <none>
+kube-system          tetragon-8sh4f                                  2/2     Running            12 (15m ago)     3h57m   172.18.0.4     job7189-worker          <none>           <none>
+kube-system          tetragon-crphj                                  2/2     Running            13 (4m42s ago)   3h57m   172.18.0.5     job7189-worker2         <none>           <none>
+kube-system          tetragon-operator-6f8b69c8d5-rhc6j              1/1     Running            0                3h57m   10.244.0.106   job7189-control-plane   <none>           <none>
+local-path-storage   local-path-provisioner-67b8995b4b-jb4nj         1/1     Running            0                5h52m   10.244.1.237   job7189-worker          <none>           <none>
+management           kafbat-7c6bd7577d-svd66                         1/1     Running            0                15m     10.244.2.154   job7189-worker3         <none>           <none>
+management           phpmyadmin-68d5df54bd-rt9xq                     1/1     Running            0                15m     10.244.1.85    job7189-worker          <none>           <none>
+monitoring           es-0                                            1/1     Running            0                15m     10.244.2.174   job7189-worker3         <none>           <none>
+monitoring           filebeat-86g69                                  1/1     Running            0                12m     172.18.0.5     job7189-worker2         <none>           <none>
+monitoring           filebeat-94qbt                                  1/1     Running            0                14m     172.18.0.3     job7189-worker3         <none>           <none>
+monitoring           filebeat-c4t9j                                  1/1     Running            0                14m     172.18.0.4     job7189-worker          <none>           <none>
+monitoring           grafana-77fcc4b588-ldrms                        1/1     Running            0                15m     10.244.2.232   job7189-worker3         <none>           <none>
+monitoring           kibana-55f7f8646d-vcgg4                         1/1     Running            0                15m     10.244.3.144   job7189-worker2         <none>           <none>
+monitoring           kube-state-metrics-68ffbf7df-d5rqp              1/1     Running            0                4h54m   10.244.1.27    job7189-worker          <none>           <none>
+monitoring           kube-state-metrics-6b448bf5f6-7k8pk             0/1     Running            9 (14s ago)      14m     10.244.2.203   job7189-worker3         <none>           <none>
+monitoring           node-exporter-7whtb                             1/1     Running            0                12m     172.18.0.5     job7189-worker2         <none>           <none>
+monitoring           node-exporter-rg92b                             1/1     Running            0                14m     172.18.0.2     job7189-control-plane   <none>           <none>
+monitoring           node-exporter-vnjsg                             1/1     Running            0                13m     172.18.0.4     job7189-worker          <none>           <none>
+monitoring           node-exporter-wfzjm                             1/1     Running            0                15m     172.18.0.3     job7189-worker3         <none>           <none>
+monitoring           prometheus-5d7cfdfd4b-5h7m4                     1/1     Running            4 (13m ago)      15m     10.244.3.64    job7189-worker2         <none>           <none>
+security             keycloak-67c5bdcbf9-tx6zw                       1/1     Running            2 (8m7s ago)     15m     10.244.3.219   job7189-worker2         <none>           <none>
+security             oauth2-proxy-764b9c564d-5kpbc                   1/1     Running            0                15m     10.244.1.189   job7189-worker          <none>           <none>
+vault                vault-0                                         0/1     Running            0                15m     10.244.3.21    job7189-worker2         <none>           <none>
+vault                vault-agent-agent-injector-59999f8dd-25wtq      0/1     CrashLoopBackOff   7 (52s ago)      15m     10.244.1.126   job7189-worker          <none>           <none>
+vault                vault-agent-agent-injector-c88f5b9bf-5jj6l      1/1     Running            0                129m    10.244.2.54    job7189-worker3         <none>           <none>
+vault                vault-dev-858fd5cd6b-j847f                      1/1     Running            0                15m     10.244.1.149   job7189-worker          <none>           <none>

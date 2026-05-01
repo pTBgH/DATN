@@ -1,0 +1,123 @@
+
+=== describe security/keycloak-67c5bdcbf9-c7gbj ===
+
+$ kubectl -n security describe pod keycloak-67c5bdcbf9-c7gbj
+Name:             keycloak-67c5bdcbf9-c7gbj
+Namespace:        security
+Priority:         0
+Service Account:  keycloak
+Node:             job7189-worker3/172.18.0.2
+Start Time:       Thu, 30 Apr 2026 11:18:55 +0000
+Labels:           app=keycloak
+                  pod-template-hash=67c5bdcbf9
+                  zta.job7189/data-classification=confidential
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=sso
+                  zta.job7189/team=security
+                  zta.job7189/tier=T1
+Annotations:      cilium.zta/trust-score: 0
+                  kopf.zalando.org/last-handled-configuration:
+                    {"spec":{"volumes":[{"name":"kube-api-access-fc96q","projected":{"sources":[{"serviceAccountToken":{"expirationSeconds":3607,"path":"token...
+Status:           Running
+IP:               10.244.1.185
+IPs:
+  IP:           10.244.1.185
+Controlled By:  ReplicaSet/keycloak-67c5bdcbf9
+Init Containers:
+  wait-for-mysql:
+    Container ID:  containerd://df1d7389ca7f832df38a31f2b9235234cf96bd44b319c1f630aaff8ea3224a6d
+    Image:         busybox:1.36
+    Image ID:      docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      MAX_TRIES=60
+      TRY=0
+      echo "Waiting for MySQL..."
+      until nc -z mysql.data.svc.cluster.local 3306; do
+        TRY=$((TRY+1))
+        if [ "$TRY" -ge "$MAX_TRIES" ]; then
+          echo "ERROR: MySQL did not become reachable within $((MAX_TRIES*3))s" >&2
+          exit 1
+        fi
+        echo "MySQL not ready, retrying in 3s..."
+        sleep 3
+      done
+      echo "MySQL is ready!"
+      
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Thu, 30 Apr 2026 11:18:56 +0000
+      Finished:     Thu, 30 Apr 2026 11:19:08 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fc96q (ro)
+Containers:
+  keycloak:
+    Container ID:  containerd://bb863fab1ab1c40a190761acead5ade83412659570c39615cd4de899ea60ad76
+    Image:         172.17.0.1:5000/job7189/keycloak-custom:v1.0
+    Image ID:      172.17.0.1:5000/job7189/keycloak-custom@sha256:368059c7b6bcd0b1c64d7d876632650cfa87e10f161eeeb979701fe97668043f
+    Port:          8080/TCP
+    Host Port:     0/TCP
+    Command:
+      /opt/keycloak/bin/kc.sh
+      start-dev
+      --import-realm
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    137
+      Started:      Thu, 30 Apr 2026 14:14:53 +0000
+      Finished:     Thu, 30 Apr 2026 14:20:13 +0000
+    Ready:          False
+    Restart Count:  25
+    Liveness:       http-get http://:8080/health/live delay=60s timeout=1s period=30s #success=1 #failure=5
+    Readiness:      http-get http://:8080/health/ready delay=30s timeout=1s period=10s #success=1 #failure=20
+    Environment:
+      KC_DB:                     mysql
+      KC_DB_URL:                 jdbc:mysql://mysql.data.svc.cluster.local:3306/job7189keycloak
+      KC_DB_USERNAME:            root
+      KC_DB_PASSWORD:            <set to the key 'mysql-root-password' in secret 'app-secrets'>  Optional: false
+      KEYCLOAK_ADMIN:            admin
+      KEYCLOAK_ADMIN_PASSWORD:   <set to the key 'keycloak-admin-password' in secret 'app-secrets'>  Optional: false
+      KC_HTTP_ENABLED:           true
+      KC_HOSTNAME_STRICT:        false
+      KC_HOSTNAME_STRICT_HTTPS:  false
+      KC_HEALTH_ENABLED:         true
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-fc96q (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-fc96q:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                     From     Message
+  ----     ------     ----                    ----     -------
+  Warning  Unhealthy  42m (x50 over 156m)     kubelet  spec.containers{keycloak}: Liveness probe failed: Get "http://10.244.1.185:8080/health/live": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  37m (x64 over 134m)     kubelet  spec.containers{keycloak}: Liveness probe failed: HTTP probe failed with statuscode: 503
+  Warning  BackOff    12m (x26 over 106m)     kubelet  spec.containers{keycloak}: Back-off restarting failed container keycloak in pod keycloak-67c5bdcbf9-c7gbj_security(36f6a4f4-302c-4e7f-b2a0-632363e60bef)
+  Normal   Pulling    8m59s (x26 over 3h3m)   kubelet  spec.containers{keycloak}: Pulling image "172.17.0.1:5000/job7189/keycloak-custom:v1.0"
+  Warning  Unhealthy  6m59s (x339 over 158m)  kubelet  spec.containers{keycloak}: Readiness probe failed: Get "http://10.244.1.185:8080/health/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  5m57s (x312 over 135m)  kubelet  spec.containers{keycloak}: Readiness probe failed: HTTP probe failed with statuscode: 503
+  Normal   Killing    2m49s (x26 over 136m)   kubelet  spec.containers{keycloak}: Container keycloak failed liveness probe, will be restarted

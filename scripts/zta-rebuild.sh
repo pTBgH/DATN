@@ -277,6 +277,7 @@ do_harden_full() {
 do_cosign_sign_workloads() {
   set -e
   export COSIGN_TLOG_UPLOAD="${COSIGN_TLOG_UPLOAD:-false}"
+  export COSIGN_PASSWORD="${COSIGN_PASSWORD:-}"
 
   # Defensive: this function runs in a `bash -c` subshell via run_step, so
   # only EXPORTED variables from the parent reach it. APPS_NS is exported

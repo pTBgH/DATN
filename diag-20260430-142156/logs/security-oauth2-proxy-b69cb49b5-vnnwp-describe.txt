@@ -1,0 +1,120 @@
+
+=== describe security/oauth2-proxy-b69cb49b5-vnnwp ===
+
+$ kubectl -n security describe pod oauth2-proxy-b69cb49b5-vnnwp
+Name:             oauth2-proxy-b69cb49b5-vnnwp
+Namespace:        security
+Priority:         0
+Service Account:  oauth2-proxy
+Node:             job7189-worker/172.18.0.5
+Start Time:       Thu, 30 Apr 2026 11:22:40 +0000
+Labels:           app=oauth2-proxy
+                  pod-template-hash=b69cb49b5
+                  zta.job7189/data-classification=confidential
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=internal
+                  zta.job7189/role=proxy
+                  zta.job7189/team=security
+                  zta.job7189/tier=T1
+Annotations:      cilium.zta/trust-score: 0
+                  kopf.zalando.org/last-handled-configuration:
+                    {"spec":{"volumes":[{"name":"config","configMap":{"name":"oauth2-proxy-config","defaultMode":420}},{"name":"kube-api-access-cp7kw","projec...
+Status:           Running
+IP:               10.244.2.5
+IPs:
+  IP:           10.244.2.5
+Controlled By:  ReplicaSet/oauth2-proxy-b69cb49b5
+Init Containers:
+  wait-for-keycloak:
+    Container ID:  containerd://7d167556db36d995ec04b2b1796afdc8e8f609d134ba4c79f2bc5d7cc7591ba9
+    Image:         busybox:1.36
+    Image ID:      docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      MAX_TRIES=60
+      TRY=0
+      echo "Waiting for Keycloak..."
+      until wget -qO- http://auth.job7189.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+        TRY=$((TRY+1))
+        if [ "$TRY" -ge "$MAX_TRIES" ]; then
+          echo "ERROR: Keycloak endpoint not reachable after $((MAX_TRIES*5))s" >&2
+          exit 1
+        fi
+        echo "Keycloak not ready, retrying in 5s..."
+        sleep 5
+      done
+      echo "Keycloak is ready!"
+      
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Thu, 30 Apr 2026 11:22:42 +0000
+      Finished:     Thu, 30 Apr 2026 11:22:42 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-cp7kw (ro)
+Containers:
+  oauth2-proxy:
+    Container ID:  containerd://5606aef8234b0c01e6484772f8c95a2da94462858237cab01ed64c535fea36c0
+    Image:         quay.io/oauth2-proxy/oauth2-proxy:latest
+    Image ID:      quay.io/oauth2-proxy/oauth2-proxy@sha256:aa0bd8dd5ab0c78e4c91c92755ad573a5f92241f88138b4141b8ec803463b4fd
+    Port:          4180/TCP
+    Host Port:     0/TCP
+    Args:
+      --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 30 Apr 2026 14:21:15 +0000
+      Finished:     Thu, 30 Apr 2026 14:21:19 +0000
+    Ready:          False
+    Restart Count:  29
+    Liveness:       http-get http://:4180/ping delay=10s timeout=1s period=30s #success=1 #failure=3
+    Readiness:      http-get http://:4180/ping delay=5s timeout=1s period=10s #success=1 #failure=3
+    Startup:        http-get http://:4180/ping delay=0s timeout=1s period=5s #success=1 #failure=60
+    Environment:
+      OAUTH2_PROXY_CLIENT_SECRET:  <set to the key 'client-secret' in secret 'oauth2-proxy-secret'>  Optional: false
+      OAUTH2_PROXY_COOKIE_SECRET:  <set to the key 'cookie-secret' in secret 'oauth2-proxy-secret'>  Optional: false
+    Mounts:
+      /etc/oauth2-proxy from config (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-cp7kw (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      oauth2-proxy-config
+    Optional:  false
+  kube-api-access-cp7kw:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                     From     Message
+  ----     ------     ----                    ----     -------
+  Normal   Killing    51m                     kubelet  spec.containers{oauth2-proxy}: Container oauth2-proxy failed startup probe, will be restarted
+  Warning  Failed     44m                     kubelet  spec.containers{oauth2-proxy}: Error: failed to sync secret cache: timed out waiting for the condition
+  Normal   Pulled     20m (x18 over 110m)     kubelet  spec.containers{oauth2-proxy}: (combined from similar events): Successfully pulled image "quay.io/oauth2-proxy/oauth2-proxy:latest" in 39.484s (39.484s including waiting). Image size: 19211054 bytes.
+  Warning  Unhealthy  20m (x2 over 83m)       kubelet  spec.containers{oauth2-proxy}: Startup probe failed: Get "http://10.244.2.5:4180/ping": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  14m (x84 over 141m)     kubelet  spec.containers{oauth2-proxy}: Startup probe failed: Get "http://10.244.2.5:4180/ping": dial tcp 10.244.2.5:4180: connect: connection refused
+  Warning  Failed     8m32s                   kubelet  spec.containers{oauth2-proxy}: Failed to pull image "quay.io/oauth2-proxy/oauth2-proxy:latest": failed to pull and unpack image "quay.io/oauth2-proxy/oauth2-proxy:latest": failed to resolve reference "quay.io/oauth2-proxy/oauth2-proxy:latest": failed to do request: Head "https://quay.io/v2/oauth2-proxy/oauth2-proxy/manifests/latest": net/http: TLS handshake timeout
+  Warning  BackOff    4m38s (x140 over 135m)  kubelet  spec.containers{oauth2-proxy}: Back-off restarting failed container oauth2-proxy in pod oauth2-proxy-b69cb49b5-vnnwp_security(1f635575-8dc3-4b80-b642-3750cfb683d3)
+  Normal   Pulling    109s (x33 over 179m)    kubelet  spec.containers{oauth2-proxy}: Pulling image "quay.io/oauth2-proxy/oauth2-proxy:latest"

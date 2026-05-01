@@ -1,0 +1,92 @@
+
+=== describe cosign-system/policy-controller-webhook-76f9d45bf4-wxfsx ===
+
+$ kubectl -n cosign-system describe pod policy-controller-webhook-76f9d45bf4-wxfsx
+Name:             policy-controller-webhook-76f9d45bf4-wxfsx
+Namespace:        cosign-system
+Priority:         0
+Service Account:  policy-controller-webhook
+Node:             job7189-worker/172.18.0.5
+Start Time:       Thu, 30 Apr 2026 11:39:04 +0000
+Labels:           app.kubernetes.io/instance=policy-controller
+                  app.kubernetes.io/managed-by=Helm
+                  app.kubernetes.io/name=policy-controller
+                  app.kubernetes.io/version=0.13.1
+                  control-plane=policy-controller-webhook
+                  helm.sh/chart=policy-controller-0.10.6
+                  pod-template-hash=76f9d45bf4
+Annotations:      kopf.zalando.org/last-handled-configuration:
+                    {"spec":{"volumes":[{"name":"writable-home-dir","emptyDir":{}},{"name":"kube-api-access-4f8lh","projected":{"sources":[{"serviceAccountTok...
+Status:           Running
+IP:               10.244.2.92
+IPs:
+  IP:           10.244.2.92
+Controlled By:  ReplicaSet/policy-controller-webhook-76f9d45bf4
+Containers:
+  policy-controller-webhook:
+    Container ID:   containerd://6b67bfa99908efcfe48b6d4bc7e0928fa2822d28709c84bf7f8b15926a676b4b
+    Image:          ghcr.io/sigstore/policy-controller/policy-controller@sha256:0bcd60beb93f4427c29cf3a669743caf58490e98ded4380c33c09f092734a6ab
+    Image ID:       ghcr.io/sigstore/policy-controller/policy-controller@sha256:0bcd60beb93f4427c29cf3a669743caf58490e98ded4380c33c09f092734a6ab
+    Ports:          8443/TCP (https), 9090/TCP (metrics)
+    Host Ports:     0/TCP (https), 0/TCP (metrics)
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 30 Apr 2026 14:19:53 +0000
+      Finished:     Thu, 30 Apr 2026 14:20:24 +0000
+    Ready:          False
+    Restart Count:  33
+    Limits:
+      cpu:     200m
+      memory:  512Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get https://:8443/healthz delay=30s timeout=1s period=1s #success=1 #failure=6
+    Readiness:  http-get https://:8443/readyz delay=20s timeout=1s period=1s #success=1 #failure=6
+    Environment:
+      SYSTEM_NAMESPACE:           cosign-system (v1:metadata.namespace)
+      CONFIG_LOGGING_NAME:        policy-controller-webhook-logging
+      CONFIG_OBSERVABILITY_NAME:  policy-controller-webhook-observability
+      METRICS_DOMAIN:             sigstore.dev/policy
+      WEBHOOK_NAME:               webhook
+      HOME:                       /home/nonroot
+      GOGC:                       75
+      GOMEMLIMIT:                 384MiB
+    Mounts:
+      /home/nonroot from writable-home-dir (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4f8lh (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  writable-home-dir:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  kube-api-access-4f8lh:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                    From     Message
+  ----     ------     ----                   ----     -------
+  Warning  Unhealthy  55m (x124 over 153m)   kubelet  spec.containers{policy-controller-webhook}: Readiness probe failed: Get "https://10.244.2.92:8443/readyz": net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+  Normal   Killing    28m (x27 over 149m)    kubelet  spec.containers{policy-controller-webhook}: Container policy-controller-webhook failed liveness probe, will be restarted
+  Warning  Unhealthy  20m (x1071 over 148m)  kubelet  spec.containers{policy-controller-webhook}: Readiness probe failed: Get "https://10.244.2.92:8443/readyz": dial tcp 10.244.2.92:8443: connect: connection refused
+  Warning  Unhealthy  10m (x262 over 155m)   kubelet  spec.containers{policy-controller-webhook}: Readiness probe failed: Get "https://10.244.2.92:8443/readyz": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+  Warning  BackOff    5m41s (x50 over 76m)   kubelet  spec.containers{policy-controller-webhook}: Back-off restarting failed container policy-controller-webhook in pod policy-controller-webhook-76f9d45bf4-wxfsx_cosign-system(3abe841d-4072-4970-8d62-d6399d420b3a)
+  Normal   Pulled     3m11s (x33 over 147m)  kubelet  spec.containers{policy-controller-webhook}: Container image "ghcr.io/sigstore/policy-controller/policy-controller@sha256:0bcd60beb93f4427c29cf3a669743caf58490e98ded4380c33c09f092734a6ab" already present on machine and can be accessed by the pod
+  Normal   Created    2m58s (x34 over 163m)  kubelet  spec.containers{policy-controller-webhook}: Container created

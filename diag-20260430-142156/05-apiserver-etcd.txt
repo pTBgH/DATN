@@ -1,0 +1,173 @@
+
+=== etcd health endpoint ===
+
+$ kubectl get --raw='/readyz?verbose'
+[+]ping ok
+[+]log ok
+[+]etcd ok
+[+]etcd-readiness ok
+[+]informer-sync ok
+[+]poststarthook/start-apiserver-admission-initializer ok
+[+]poststarthook/generic-apiserver-start-informers ok
+[+]poststarthook/priority-and-fairness-config-consumer ok
+[+]poststarthook/priority-and-fairness-filter ok
+[+]poststarthook/storage-object-count-tracker-hook ok
+[+]poststarthook/start-apiextensions-informers ok
+[+]poststarthook/start-apiextensions-controllers ok
+[+]poststarthook/crd-informer-synced ok
+[+]poststarthook/start-system-namespaces-controller ok
+[+]poststarthook/start-cluster-authentication-info-controller ok
+[+]poststarthook/start-kube-apiserver-identity-lease-controller ok
+[+]poststarthook/start-kube-apiserver-identity-lease-garbage-collector ok
+[+]poststarthook/start-legacy-token-tracking-controller ok
+[+]poststarthook/start-service-ip-repair-controllers ok
+[+]poststarthook/rbac/bootstrap-roles ok
+[+]poststarthook/scheduling/bootstrap-system-priority-classes ok
+[+]poststarthook/priority-and-fairness-config-producer ok
+[+]poststarthook/bootstrap-controller ok
+[+]poststarthook/start-kubernetes-service-cidr-controller ok
+[+]poststarthook/aggregator-reload-proxy-client-cert ok
+[+]poststarthook/start-kube-aggregator-informers ok
+[+]poststarthook/apiservice-status-local-available-controller ok
+[+]poststarthook/apiservice-status-remote-available-controller ok
+[+]poststarthook/apiservice-registration-controller ok
+[+]poststarthook/apiservice-discovery-controller ok
+[+]poststarthook/kube-apiserver-autoregistration ok
+[+]autoregister-completion ok
+[+]poststarthook/apiservice-openapi-controller ok
+[+]poststarthook/apiservice-openapiv3-controller ok
+[+]shutdown ok
+readyz check passed
+
+$ kubectl get --raw='/livez?verbose'
+[+]ping ok
+[+]log ok
+[+]etcd ok
+[+]poststarthook/start-apiserver-admission-initializer ok
+[+]poststarthook/generic-apiserver-start-informers ok
+[+]poststarthook/priority-and-fairness-config-consumer ok
+[+]poststarthook/priority-and-fairness-filter ok
+[+]poststarthook/storage-object-count-tracker-hook ok
+[+]poststarthook/start-apiextensions-informers ok
+[+]poststarthook/start-apiextensions-controllers ok
+[+]poststarthook/crd-informer-synced ok
+[+]poststarthook/start-system-namespaces-controller ok
+[+]poststarthook/start-cluster-authentication-info-controller ok
+[+]poststarthook/start-kube-apiserver-identity-lease-controller ok
+[+]poststarthook/start-kube-apiserver-identity-lease-garbage-collector ok
+[+]poststarthook/start-legacy-token-tracking-controller ok
+[+]poststarthook/start-service-ip-repair-controllers ok
+[+]poststarthook/rbac/bootstrap-roles ok
+[+]poststarthook/scheduling/bootstrap-system-priority-classes ok
+[+]poststarthook/priority-and-fairness-config-producer ok
+[+]poststarthook/bootstrap-controller ok
+[+]poststarthook/start-kubernetes-service-cidr-controller ok
+[+]poststarthook/aggregator-reload-proxy-client-cert ok
+[+]poststarthook/start-kube-aggregator-informers ok
+[+]poststarthook/apiservice-status-local-available-controller ok
+[+]poststarthook/apiservice-status-remote-available-controller ok
+[+]poststarthook/apiservice-registration-controller ok
+[+]poststarthook/apiservice-discovery-controller ok
+[+]poststarthook/kube-apiserver-autoregistration ok
+[+]autoregister-completion ok
+[+]poststarthook/apiservice-openapi-controller ok
+[+]poststarthook/apiservice-openapiv3-controller ok
+livez check passed
+
+=== API request duration p99 (top 20 verbs) ===
+
+$ kubectl get --raw='/metrics' | grep -E 'apiserver_request_duration_seconds_bucket{.*le="1"}|apiserver_request_duration_seconds_bucket{.*le="5"}' | head -40
+apiserver_request_duration_seconds_bucket{component="",dry_run="",group="",resource="",scope="",subresource="/livez",verb="GET",version="",le="1"} 12
+apiserver_request_duration_seconds_bucket{component="",dry_run="",group="",resource="",scope="",subresource="/livez",verb="GET",version="",le="5"} 12
+apiserver_request_duration_seconds_bucket{component="",dry_run="",group="",resource="",scope="",subresource="/readyz",verb="GET",version="",le="1"} 228
+apiserver_request_duration_seconds_bucket{component="",dry_run="",group="",resource="",scope="",subresource="/readyz",verb="GET",version="",le="5"} 229
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="",scope="",subresource="api",verb="GET",version="",le="1"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="",scope="",subresource="api",verb="GET",version="",le="5"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="",scope="",subresource="apis",verb="GET",version="",le="1"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="",scope="",subresource="apis",verb="GET",version="",le="5"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="endpoints",scope="resource",subresource="",verb="GET",version="v1",le="1"} 8
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="endpoints",scope="resource",subresource="",verb="GET",version="v1",le="5"} 8
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="endpoints",scope="resource",subresource="",verb="PUT",version="v1",le="1"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="endpoints",scope="resource",subresource="",verb="PUT",version="v1",le="5"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="cluster",subresource="",verb="LIST",version="v1",le="1"} 20
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="cluster",subresource="",verb="LIST",version="v1",le="5"} 20
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="resource",subresource="",verb="PATCH",version="v1",le="1"} 159
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="resource",subresource="",verb="PATCH",version="v1",le="5"} 177
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="resource",subresource="",verb="POST",version="v1",le="1"} 38
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="events",scope="resource",subresource="",verb="POST",version="v1",le="5"} 39
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="namespaces",scope="resource",subresource="",verb="GET",version="v1",le="1"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="namespaces",scope="resource",subresource="",verb="GET",version="v1",le="5"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="cluster",subresource="",verb="LIST",version="v1",le="1"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="cluster",subresource="",verb="LIST",version="v1",le="5"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="cluster",subresource="",verb="WATCH",version="v1",le="1"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="cluster",subresource="",verb="WATCH",version="v1",le="5"} 2
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="resource",subresource="",verb="GET",version="v1",le="1"} 11
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="resource",subresource="",verb="GET",version="v1",le="5"} 15
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="resource",subresource="status",verb="PATCH",version="v1",le="1"} 3
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="nodes",scope="resource",subresource="status",verb="PATCH",version="v1",le="5"} 6
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="persistentvolumeclaims",scope="resource",subresource="",verb="GET",version="v1",le="1"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="persistentvolumeclaims",scope="resource",subresource="",verb="GET",version="v1",le="5"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="persistentvolumes",scope="resource",subresource="",verb="GET",version="v1",le="1"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="persistentvolumes",scope="resource",subresource="",verb="GET",version="v1",le="5"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="cluster",subresource="",verb="LIST",version="v1",le="1"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="cluster",subresource="",verb="LIST",version="v1",le="5"} 9
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="cluster",subresource="",verb="WATCH",version="v1",le="1"} 1
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="cluster",subresource="",verb="WATCH",version="v1",le="5"} 4
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="resource",subresource="",verb="GET",version="v1",le="1"} 84
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="resource",subresource="",verb="GET",version="v1",le="5"} 87
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="resource",subresource="status",verb="PATCH",version="v1",le="1"} 57
+apiserver_request_duration_seconds_bucket{component="apiserver",dry_run="",group="",resource="pods",scope="resource",subresource="status",verb="PATCH",version="v1",le="5"} 71
+
+=== etcd request slowness — server side ===
+
+$ kubectl -n kube-system logs etcd-job7189-control-plane --tail=200 | grep -Ei 'slow|took|timeout' | tail -50
+{"level":"warn","ts":"2026-04-30T14:20:00.942843Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"284.745877ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/\" range_end:\"/registry/clusterroles0\" limit:10000 ","response":"range_response_count:103 size:118910"}
+{"level":"warn","ts":"2026-04-30T14:20:03.152185Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"134.384488ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/flowschemas/\" range_end:\"/registry/flowschemas0\" limit:10000 ","response":"range_response_count:11 size:11973"}
+{"level":"warn","ts":"2026-04-30T14:20:03.414473Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"116.103582ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/prioritylevelconfigurations/\" range_end:\"/registry/prioritylevelconfigurations0\" limit:10000 ","response":"range_response_count:8 size:5420"}
+{"level":"warn","ts":"2026-04-30T14:20:03.885627Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"343.153302ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/deployments/\" range_end:\"/registry/deployments0\" limit:10000 ","response":"range_response_count:41 size:284429"}
+{"level":"warn","ts":"2026-04-30T14:20:04.578480Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"126.56843ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/controllerrevisions/\" range_end:\"/registry/controllerrevisions0\" limit:10000 ","response":"range_response_count:17 size:104998"}
+{"level":"warn","ts":"2026-04-30T14:20:04.630462Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"443.953341ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/replicasets/\" range_end:\"/registry/replicasets0\" limit:10000 ","response":"range_response_count:44 size:267868"}
+{"level":"warn","ts":"2026-04-30T14:20:04.694778Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"117.050385ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/validatingwebhookconfigurations/\" range_end:\"/registry/validatingwebhookconfigurations0\" limit:10000 ","response":"range_response_count:6 size:21442"}
+{"level":"warn","ts":"2026-04-30T14:20:05.013988Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"102.220157ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/mutatingwebhookconfigurations/\" range_end:\"/registry/mutatingwebhookconfigurations0\" limit:10000 ","response":"range_response_count:5 size:14643"}
+{"level":"warn","ts":"2026-04-30T14:20:28.010479Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"263.850313ms","expected-duration":"100ms","prefix":"","request":"header:<ID:13686049894798090567 username:\"kube-apiserver-etcd-client\" auth_revision:1 > txn:<compare:<target:MOD key:\"/registry/events/cert-manager/cert-manager-webhook-5d4dc79c59-vjq2g.18ab207c10f8cb00\" mod_revision:0 > success:<request_put:<key:\"/registry/events/cert-manager/cert-manager-webhook-5d4dc79c59-vjq2g.18ab207c10f8cb00\" value_size:786 lease:4462677857943314753 >> failure:<>>","response":"size:18"}
+{"level":"warn","ts":"2026-04-30T14:20:28.190952Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"291.132785ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/spire/spire-agent-qrqt2.18ab200ef0e42142\" limit:1 ","response":"range_response_count:1 size:844"}
+{"level":"warn","ts":"2026-04-30T14:20:28.401613Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"385.149205ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/minions/job7189-worker2\" limit:1 ","response":"range_response_count:1 size:7232"}
+{"level":"warn","ts":"2026-04-30T14:20:28.406572Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"171.898706ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/kube-system/tetragon-lmbkq.18ab21ce0f2651df\" limit:1 ","response":"range_response_count:1 size:816"}
+{"level":"warn","ts":"2026-04-30T14:20:28.407319Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"168.947788ms","expected-duration":"100ms","prefix":"read-only range ","request":"limit:1 keys_only:true ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:29.516900Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"147.427972ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/cosign-system/policy-controller-webhook-76f9d45bf4-wxfsx.18ab2064647f49bc\" limit:1 ","response":"range_response_count:1 size:1006"}
+{"level":"warn","ts":"2026-04-30T14:20:30.015665Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"123.459646ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/spire/spire-agent-qrqt2.18ab1ff9eb02aeaf\" limit:1 ","response":"range_response_count:1 size:842"}
+{"level":"warn","ts":"2026-04-30T14:20:30.067725Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"100.609511ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/health\" ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:30.341336Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"118.781248ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/vault/vault-0.18ab1fb8f806aba9\" limit:1 ","response":"range_response_count:1 size:1012"}
+{"level":"warn","ts":"2026-04-30T14:20:30.368345Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"149.832278ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterrolebindings/system:public-info-viewer\" limit:1 ","response":"range_response_count:1 size:784"}
+{"level":"warn","ts":"2026-04-30T14:20:31.140992Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"129.909362ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/health\" ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:31.460722Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"182.812144ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/vault/vault-agent-agent-injector-59999f8dd-gb4xf.18ab1f4d7dcd42a0\" limit:1 ","response":"range_response_count:1 size:790"}
+{"level":"warn","ts":"2026-04-30T14:20:35.489467Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"184.338903ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/security/keycloak-67c5bdcbf9-c7gbj\" limit:1 ","response":"range_response_count:1 size:10678"}
+{"level":"warn","ts":"2026-04-30T14:20:37.756677Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"233.634017ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/vault/vault-agent-agent-injector-59999f8dd-gb4xf\" limit:1 ","response":"range_response_count:1 size:11975"}
+{"level":"warn","ts":"2026-04-30T14:20:38.318246Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"166.171272ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/spire/spire-agent-zl9r9\" limit:1 ","response":"range_response_count:1 size:14481"}
+{"level":"warn","ts":"2026-04-30T14:20:38.398708Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"111.083296ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/kube-system/kube-apiserver-job7189-control-plane\" limit:1 ","response":"range_response_count:1 size:12191"}
+{"level":"warn","ts":"2026-04-30T14:20:43.190421Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"148.616816ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/cert-manager/cert-manager-webhook-5d4dc79c59-vjq2g\" limit:1 ","response":"range_response_count:1 size:8404"}
+{"level":"warn","ts":"2026-04-30T14:20:43.531644Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"110.538643ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:certificates.k8s.io:kube-apiserver-client-kubelet-approver\" limit:1 ","response":"range_response_count:1 size:727"}
+{"level":"warn","ts":"2026-04-30T14:20:44.179801Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"120.196122ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:node-proxier\" limit:1 ","response":"range_response_count:1 size:763"}
+{"level":"warn","ts":"2026-04-30T14:20:44.191990Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"241.247423ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/job7189-apps/hiring-service-6d7c84bbc7-g9phk.18ab1faa7a89edca\" limit:1 ","response":"range_response_count:1 size:907"}
+{"level":"warn","ts":"2026-04-30T14:20:44.513001Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"112.008735ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/security/oauth2-proxy-b69cb49b5-vnnwp\" limit:1 ","response":"range_response_count:1 size:10912"}
+{"level":"warn","ts":"2026-04-30T14:20:44.532610Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"307.564062ms","expected-duration":"100ms","prefix":"read-only range ","request":"limit:1 serializable:true keys_only:true ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:45.022587Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"105.635047ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/spire/spiffe-csi-driver-kr9fs.18ab1ff7fad3cbb7\" limit:1 ","response":"range_response_count:1 size:862"}
+{"level":"warn","ts":"2026-04-30T14:20:45.772480Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"125.135028ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/cert-manager/cert-manager-5779d6596f-jktlk.18ab23e6d15f244d\" limit:1 ","response":"range_response_count:1 size:837"}
+{"level":"warn","ts":"2026-04-30T14:20:45.774513Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"118.657474ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:controller:attachdetach-controller\" limit:1 ","response":"range_response_count:1 size:953"}
+{"level":"warn","ts":"2026-04-30T14:20:47.934217Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"160.773984ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/spire/spiffe-csi-driver-7n9cz\" limit:1 ","response":"range_response_count:1 size:12059"}
+{"level":"warn","ts":"2026-04-30T14:20:48.040690Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"148.587024ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:controller:endpointslice-controller\" limit:1 ","response":"range_response_count:1 size:801"}
+{"level":"warn","ts":"2026-04-30T14:20:48.774327Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"122.739067ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:controller:ephemeral-volume-controller\" limit:1 ","response":"range_response_count:1 size:762"}
+{"level":"warn","ts":"2026-04-30T14:20:48.779352Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"127.414175ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/health\" ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:48.779565Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"127.565599ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/monitoring/kube-state-metrics-856b75dfd5-msbqb.18ab1fd06aaaa54b\" limit:1 ","response":"range_response_count:1 size:905"}
+{"level":"warn","ts":"2026-04-30T14:20:51.237184Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"112.334191ms","expected-duration":"100ms","prefix":"","request":"header:<ID:13686049894798090902 username:\"kube-apiserver-etcd-client\" auth_revision:1 > txn:<compare:<target:MOD key:\"/registry/events/monitoring/kube-state-metrics-856b75dfd5-msbqb.18ab1fcf34d560fd\" mod_revision:30199 > success:<request_put:<key:\"/registry/events/monitoring/kube-state-metrics-856b75dfd5-msbqb.18ab1fcf34d560fd\" value_size:796 lease:4462677857943314753 >> failure:<request_range:<key:\"/registry/events/monitoring/kube-state-metrics-856b75dfd5-msbqb.18ab1fcf34d560fd\" > >>","response":"size:18"}
+{"level":"warn","ts":"2026-04-30T14:20:51.473726Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"176.91988ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterroles/system:controller:service-account-controller\" limit:1 ","response":"range_response_count:1 size:678"}
+{"level":"warn","ts":"2026-04-30T14:20:53.037925Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"102.250399ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/kube-system/coredns-7d764666f9-9vp9m.18ab205c2358bf69\" limit:1 ","response":"range_response_count:1 size:868"}
+{"level":"warn","ts":"2026-04-30T14:20:53.039067Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"103.205288ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/cert-manager/cert-manager-webhook-5d4dc79c59-vjq2g.18ab2079fe380bd7\" limit:1 ","response":"range_response_count:1 size:857"}
+{"level":"warn","ts":"2026-04-30T14:20:53.077566Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"185.78056ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/health\" ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:54.023526Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"116.719786ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/gatekeeper-system/gatekeeper-audit-86f795777f-wtz5h\" limit:1 ","response":"range_response_count:1 size:11893"}
+{"level":"warn","ts":"2026-04-30T14:20:54.452399Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"105.770893ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterrolebindings/system:kube-controller-manager\" limit:1 ","response":"range_response_count:1 size:746"}
+{"level":"warn","ts":"2026-04-30T14:20:56.569900Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"111.638078ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/pods/kube-system/kube-apiserver-job7189-control-plane\" limit:1 ","response":"range_response_count:1 size:12306"}
+{"level":"warn","ts":"2026-04-30T14:20:56.671577Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"122.427758ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/health\" ","response":"range_response_count:0 size:6"}
+{"level":"warn","ts":"2026-04-30T14:20:56.677239Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"102.327474ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/clusterrolebindings/system:controller:route-controller\" limit:1 ","response":"range_response_count:1 size:740"}
+{"level":"warn","ts":"2026-04-30T14:22:00.012506Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"226.187549ms","expected-duration":"100ms","prefix":"read-only range ","request":"key:\"/registry/events/\" range_end:\"/registry/events0\" limit:500 ","response":"range_response_count:251 size:207064"}
+{"level":"warn","ts":"2026-04-30T14:22:04.359880Z","caller":"txn/util.go:93","msg":"apply request took too long","took":"113.960337ms","expected-duration":"100ms","prefix":"","request":"header:<ID:13686049894798091700 > lease_revoke:<id:3dee9dde15b66538>","response":"size:29"}

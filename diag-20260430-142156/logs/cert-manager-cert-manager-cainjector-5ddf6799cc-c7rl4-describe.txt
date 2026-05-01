@@ -1,0 +1,75 @@
+
+=== describe cert-manager/cert-manager-cainjector-5ddf6799cc-c7rl4 ===
+
+$ kubectl -n cert-manager describe pod cert-manager-cainjector-5ddf6799cc-c7rl4
+Name:             cert-manager-cainjector-5ddf6799cc-c7rl4
+Namespace:        cert-manager
+Priority:         0
+Service Account:  cert-manager-cainjector
+Node:             job7189-worker3/172.18.0.2
+Start Time:       Thu, 30 Apr 2026 11:13:50 +0000
+Labels:           app=cainjector
+                  app.kubernetes.io/component=cainjector
+                  app.kubernetes.io/instance=cert-manager
+                  app.kubernetes.io/name=cainjector
+                  app.kubernetes.io/version=v1.14.7
+                  pod-template-hash=5ddf6799cc
+Annotations:      kopf.zalando.org/last-handled-configuration:
+                    {"spec":{"volumes":[{"name":"kube-api-access-wttt7","projected":{"sources":[{"serviceAccountToken":{"expirationSeconds":3607,"path":"token...
+Status:           Running
+SeccompProfile:   RuntimeDefault
+IP:               10.244.1.59
+IPs:
+  IP:           10.244.1.59
+Controlled By:  ReplicaSet/cert-manager-cainjector-5ddf6799cc
+Containers:
+  cert-manager-cainjector:
+    Container ID:  containerd://1cc410ddebd5bd3f0919685b927de62b284e20a4a0012d809bb0bde6eda6a28b
+    Image:         quay.io/jetstack/cert-manager-cainjector:v1.14.7
+    Image ID:      quay.io/jetstack/cert-manager-cainjector@sha256:ecf0a3e7997f17784e061e49e1f53fc299812b329ec768bd601f1c521cea2658
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      --v=2
+      --leader-election-namespace=kube-system
+    State:          Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 30 Apr 2026 14:22:31 +0000
+      Finished:     Thu, 30 Apr 2026 14:22:31 +0000
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 30 Apr 2026 14:21:46 +0000
+      Finished:     Thu, 30 Apr 2026 14:21:47 +0000
+    Ready:          False
+    Restart Count:  7
+    Environment:
+      POD_NAMESPACE:  cert-manager (v1:metadata.namespace)
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-wttt7 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-wttt7:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              kubernetes.io/os=linux
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason   Age                From     Message
+  ----     ------   ----               ----     -------
+  Normal   Created  8s (x8 over 3h8m)  kubelet  spec.containers{cert-manager-cainjector}: Container created
+  Normal   Pulled   8s (x7 over 143m)  kubelet  spec.containers{cert-manager-cainjector}: Container image "quay.io/jetstack/cert-manager-cainjector:v1.14.7" already present on machine and can be accessed by the pod
+  Normal   Started  7s (x8 over 3h8m)  kubelet  spec.containers{cert-manager-cainjector}: Container started
+  Warning  BackOff  6s (x4 over 98s)   kubelet  spec.containers{cert-manager-cainjector}: Back-off restarting failed container cert-manager-cainjector in pod cert-manager-cainjector-5ddf6799cc-c7rl4_cert-manager(315e7af3-f7c7-4635-8b32-1f35885f12b6)

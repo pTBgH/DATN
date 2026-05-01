@@ -1,0 +1,120 @@
+
+=== kubectl + cluster versions ===
+
+$ kubectl version
+Client Version: v1.35.3
+Kustomize Version: v5.7.1
+Server Version: v1.35.0
+
+$ kubectl get nodes -o wide
+NAME                    STATUS   ROLES           AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION      CONTAINER-RUNTIME
+job7189-control-plane   Ready    control-plane   3h10m   v1.35.0   172.18.0.4    <none>        Debian GNU/Linux 12 (bookworm)   6.8.0-110-generic   containerd://2.2.0
+job7189-worker          Ready    <none>          3h10m   v1.35.0   172.18.0.5    <none>        Debian GNU/Linux 12 (bookworm)   6.8.0-110-generic   containerd://2.2.0
+job7189-worker2         Ready    <none>          3h10m   v1.35.0   172.18.0.3    <none>        Debian GNU/Linux 12 (bookworm)   6.8.0-110-generic   containerd://2.2.0
+job7189-worker3         Ready    <none>          3h10m   v1.35.0   172.18.0.2    <none>        Debian GNU/Linux 12 (bookworm)   6.8.0-110-generic   containerd://2.2.0
+
+$ kubectl describe nodes | sed -n '/Capacity:/,/System Info:/p'
+Capacity:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+Allocatable:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+System Info:
+Capacity:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+Allocatable:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+System Info:
+Capacity:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+Allocatable:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+System Info:
+Capacity:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+Allocatable:
+  cpu:                6
+  ephemeral-storage:  121462884Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             12200016Ki
+  pods:               110
+System Info:
+
+=== Node-level Allocated resources (gives 'Requests vs Capacity') ===
+
+$ kubectl describe nodes | sed -n '/Allocated resources/,/Events/p'
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                850m (14%)  2 (33%)
+  memory             366Mi (3%)  1536Mi (12%)
+  ephemeral-storage  0 (0%)      0 (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+Events:
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                1680m (28%)   5740m (95%)
+  memory             2176Mi (18%)  6024Mi (50%)
+  ephemeral-storage  0 (0%)        0 (0%)
+  hugepages-1Gi      0 (0%)        0 (0%)
+  hugepages-2Mi      0 (0%)        0 (0%)
+Events:
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                1715m (28%)   5260m (87%)
+  memory             1786Mi (14%)  5180Mi (43%)
+  ephemeral-storage  0 (0%)        0 (0%)
+  hugepages-1Gi      0 (0%)        0 (0%)
+  hugepages-2Mi      0 (0%)        0 (0%)
+Events:
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                1705m (28%)   5540m (92%)
+  memory             2094Mi (17%)  5768Mi (48%)
+  ephemeral-storage  0 (0%)        0 (0%)
+  hugepages-1Gi      0 (0%)        0 (0%)
+  hugepages-2Mi      0 (0%)        0 (0%)
+Events:

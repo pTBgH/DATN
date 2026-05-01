@@ -1,0 +1,13 @@
+NAME                                  AGE     VALID
+allow-apps-egress-kafka               73m     True
+allow-apps-intra-ns-services          61m     True
+allow-dns-egress                      5h38m   True
+allow-egress-vault-db                 5h38m   True
+allow-identity-to-mysql               104m    True
+allow-identity-to-vault               104m    True
+allow-internal-identity               5h38m   True
+allow-internal-job-to-workspace       5h38m   True
+allow-kong-ingress                    5h38m   True
+allow-testclient-egress-to-identity   104m    True
+default-deny-job7189-apps             101m    True
+restrict-identity-api-l7              104m    True

@@ -1,0 +1,15 @@
+
+=== Top nodes (CPU/RAM) ===
+
+$ kubectl top nodes
+error: Metrics API not available
+
+=== Top pods across all namespaces, by CPU ===
+
+$ kubectl top pods -A --sort-by=cpu | head -30
+error: Metrics API not available
+
+=== Top pods by memory ===
+
+$ kubectl top pods -A --sort-by=memory | head -30
+error: Metrics API not available

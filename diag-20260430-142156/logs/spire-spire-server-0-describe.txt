@@ -1,0 +1,171 @@
+
+=== describe spire/spire-server-0 ===
+
+$ kubectl -n spire describe pod spire-server-0
+Name:             spire-server-0
+Namespace:        spire
+Priority:         0
+Service Account:  spire-server
+Node:             job7189-worker3/172.18.0.2
+Start Time:       Thu, 30 Apr 2026 11:40:19 +0000
+Labels:           app.kubernetes.io/component=server
+                  app.kubernetes.io/instance=spire
+                  app.kubernetes.io/name=spire-server
+                  apps.kubernetes.io/pod-index=0
+                  component=server
+                  controller-revision-hash=spire-server-56d54958d6
+                  release=spire
+                  release-namespace=spire
+                  statefulset.kubernetes.io/pod-name=spire-server-0
+Annotations:      checksum/config: c051d3aec9d1f826e217a3de3dc5d529cc09434f502df86ceef0540e0c7cb586
+                  checksum/config2: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+                  checksum/config3: d7d5da40b43a4ad4076310d017061efd273507161a0e55c895652df5485bd26b
+                  checksum/configTornjak: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+                  kopf.zalando.org/last-handled-configuration:
+                    {"spec":{"volumes":[{"name":"spire-data","persistentVolumeClaim":{"claimName":"spire-data-spire-server-0"}},{"name":"server-tmp","emptyDir...
+                  kubectl.kubernetes.io/default-container: spire-server
+Status:           Running
+IP:               10.244.1.6
+IPs:
+  IP:           10.244.1.6
+Controlled By:  StatefulSet/spire-server
+Init Containers:
+  chown:
+    Container ID:  containerd://ff3bf37f6beec570a7fad1df189044561695ebf3f1a963acb9d0c7b351312117
+    Image:         busybox:1.37.0-uclibc
+    Image ID:      docker.io/library/busybox@sha256:e3a499df044f0129fd2e82a63177e7affe66ba6fd73acc9e231fd7695f06e5e2
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+    Args:
+      chown -R 1000:1000 /var/lib/spire
+      
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Thu, 30 Apr 2026 11:40:29 +0000
+      Finished:     Thu, 30 Apr 2026 11:40:29 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/lib/spire from spire-data (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4zrkc (ro)
+Containers:
+  spire-server:
+    Container ID:  containerd://c0c862732f441568d79af5cdfad75f7b690c6e05bf06e1d3385987ff7775d512
+    Image:         ghcr.io/spiffe/spire-server:1.14.5
+    Image ID:      ghcr.io/spiffe/spire-server@sha256:295af37293ffef6530ba0cafce055c41fd4d26dbabaca24944c029bbc8291214
+    Ports:         8081/TCP (grpc), 8080/TCP (healthz)
+    Host Ports:    0/TCP (grpc), 0/TCP (healthz)
+    Args:
+      -expandEnv
+      -config
+      /run/spire/config/server.conf
+    State:          Running
+      Started:      Thu, 30 Apr 2026 11:40:48 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     300m
+      memory:  384Mi
+    Requests:
+      cpu:      100m
+      memory:   192Mi
+    Liveness:   http-get http://:healthz/live delay=30s timeout=5s period=60s #success=1 #failure=6
+    Readiness:  http-get http://:healthz/ready delay=10s timeout=1s period=10s #success=1 #failure=3
+    Environment:
+      PATH:  /opt/spire/bin:/bin
+    Mounts:
+      /run/spire/config from spire-config (ro)
+      /run/spire/data from spire-data (rw)
+      /tmp from server-tmp (rw)
+      /tmp/spire-server/private from spire-server-socket (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4zrkc (ro)
+  spire-controller-manager:
+    Container ID:  containerd://29e60507774dddeeec0554aeaef808f6a8c5654e9cc9fcf169f1d3344e2097e2
+    Image:         ghcr.io/spiffe/spire-controller-manager:0.6.4
+    Image ID:      ghcr.io/spiffe/spire-controller-manager@sha256:f8fd8e6637f4d4fa21a46fb6a285a5166f5adc812dbe1f9f6ebe48c09dfda9bf
+    Ports:         9443/TCP (https), 8083/TCP (hp-cm)
+    Host Ports:    0/TCP (https), 0/TCP (hp-cm)
+    Args:
+      --config=controller-manager-config.yaml
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 30 Apr 2026 14:19:39 +0000
+      Finished:     Thu, 30 Apr 2026 14:19:54 +0000
+    Ready:          False
+    Restart Count:  25
+    Limits:
+      cpu:     200m
+      memory:  192Mi
+    Requests:
+      cpu:      50m
+      memory:   96Mi
+    Liveness:   http-get http://:hp-cm/healthz delay=30s timeout=5s period=20s #success=1 #failure=6
+    Readiness:  http-get http://:hp-cm/readyz delay=10s timeout=5s period=20s #success=1 #failure=6
+    Environment:
+      ENABLE_WEBHOOKS:  true
+    Mounts:
+      /controller-manager-config.yaml from controller-manager-config (ro,path="controller-manager-config.yaml")
+      /tmp from spire-controller-manager-tmp (rw,path="spire-controller-manager")
+      /tmp/spire-server/private from spire-server-socket (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4zrkc (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  spire-data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  spire-data-spire-server-0
+    ReadOnly:   false
+  server-tmp:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  spire-config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      spire-server
+    Optional:  false
+  spire-server-socket:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  spire-controller-manager-tmp:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  controller-manager-config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      spire-controller-manager
+    Optional:  false
+  kube-api-access-4zrkc:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                    From     Message
+  ----     ------     ----                   ----     -------
+  Normal   Started    31m (x22 over 161m)    kubelet  spec.containers{spire-controller-manager}: Container started
+  Warning  Unhealthy  21m (x28 over 145m)    kubelet  spec.containers{spire-controller-manager}: Readiness probe failed: Get "http://10.244.1.6:8083/readyz": dial tcp 10.244.1.6:8083: connect: connection refused
+  Normal   Created    16m (x24 over 161m)    kubelet  spec.containers{spire-controller-manager}: Container created
+  Warning  Unhealthy  13m (x26 over 151m)    kubelet  spec.containers{spire-controller-manager}: Liveness probe failed: Get "http://10.244.1.6:8083/healthz": dial tcp 10.244.1.6:8083: connect: connection refused
+  Warning  BackOff    9m32s (x68 over 140m)  kubelet  spec.containers{spire-controller-manager}: Back-off restarting failed container spire-controller-manager in pod spire-server-0_spire(4bfc7c3c-078e-46fb-ad83-acd0002f63ad)
+  Warning  Unhealthy  6m4s (x60 over 149m)   kubelet  spec.containers{spire-server}: Readiness probe failed: Get "http://10.244.1.6:8080/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Normal   Killing    4m35s                  kubelet  spec.containers{spire-controller-manager}: Container spire-controller-manager failed liveness probe, will be restarted
+  Normal   Pulled     4m21s (x25 over 150m)  kubelet  spec.containers{spire-controller-manager}: Container image "ghcr.io/spiffe/spire-controller-manager:0.6.4" already present on machine and can be accessed by the pod

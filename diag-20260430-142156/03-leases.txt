@@ -1,0 +1,110 @@
+
+=== All leases — holder + renewTime + leaseDurationSeconds ===
+
+$ kubectl get leases -A -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,HOLDER:.spec.holderIdentity,RENEW:.spec.renewTime,DURATION:.spec.leaseDurationSeconds,TRANSITIONS:.spec.leaseTransitions'
+NS                NAME                                                                                                            HOLDER                                                                            RENEW                         DURATION   TRANSITIONS
+cosign-system     policy-controller.defaulting.clusterimagepolicy.sigstore.dev.00-of-01                                           policy-controller-webhook-76f9d45bf4-wxfsx_f056fcbf-b658-4ca0-9073-b7f561593270   2026-04-30T13:45:27.303332Z   60         10
+cosign-system     policy-controller.github.com.sigstore.policy-controller.pkg.reconciler.clusterimagepolicy.reconciler.00-of-01   policy-controller-webhook-76f9d45bf4-wxfsx_28424ef5-02fa-498b-8e49-48c0eac40a51   2026-04-30T13:45:26.439394Z   60         10
+cosign-system     policy-controller.github.com.sigstore.policy-controller.pkg.reconciler.trustroot.reconciler.00-of-01            policy-controller-webhook-76f9d45bf4-wxfsx_62ee7937-0a6d-47fa-94bd-6eb57d46bdee   2026-04-30T13:45:16.864835Z   60         10
+cosign-system     policy-controller.policy.sigstore.dev-mutating.00-of-01                                                         policy-controller-webhook-76f9d45bf4-wxfsx_174827ee-500e-4d2b-bab8-82187a5c0506   2026-04-30T13:45:26.443308Z   60         10
+cosign-system     policy-controller.policy.sigstore.dev-validating.00-of-01                                                       policy-controller-webhook-76f9d45bf4-wxfsx_dcc25ae1-155c-461f-9c27-cc5b9557752a   2026-04-30T13:45:26.443126Z   60         10
+cosign-system     policy-controller.resource-conversion.00-of-01                                                                  policy-controller-webhook-76f9d45bf4-wxfsx_3c19cb4a-9f84-40d7-9a37-6c14a4bec687   2026-04-30T13:45:26.349352Z   60         10
+cosign-system     policy-controller.validating.clusterimagepolicy.sigstore.dev.00-of-01                                           policy-controller-webhook-76f9d45bf4-wxfsx_0c94885e-e4b0-4cf7-bdd1-da7b5768cc5d   2026-04-30T13:45:26.442426Z   60         10
+cosign-system     policy-controller.webhookcertificates.00-of-01                                                                  policy-controller-webhook-76f9d45bf4-wxfsx_835a5724-8a34-4301-870d-036983d09416   2026-04-30T13:45:26.443249Z   60         10
+ingress-nginx     ingress-nginx-leader                                                                                            ingress-nginx-controller-7fbf5b4d96-4lv4b                                         2026-04-30T14:19:00.469787Z   30         0
+kube-node-lease   job7189-control-plane                                                                                           job7189-control-plane                                                             2026-04-30T14:22:03.184561Z   40         <none>
+kube-node-lease   job7189-worker                                                                                                  job7189-worker                                                                    2026-04-30T14:22:03.057469Z   40         <none>
+kube-node-lease   job7189-worker2                                                                                                 job7189-worker2                                                                   2026-04-30T14:22:05.525810Z   40         <none>
+kube-node-lease   job7189-worker3                                                                                                 job7189-worker3                                                                   2026-04-30T14:22:04.036265Z   40         <none>
+kube-system       apiserver-zilsrfx2ekxgsrtjio7oygs7ze                                                                            apiserver-zilsrfx2ekxgsrtjio7oygs7ze_b5f4c138-f88d-4efc-9151-c0bfede9d046         2026-04-30T14:22:04.823594Z   3600       <none>
+kube-system       cert-manager-cainjector-leader-election                                                                                                                                                           2026-04-30T14:18:11.885723Z   1          3
+kube-system       cert-manager-controller                                                                                                                                                                           2026-04-30T14:18:24.169430Z   1          3
+kube-system       cilium-operator-resource-lock                                                                                                                                                                     2026-04-30T14:08:54.768293Z   1          17
+kube-system       kube-controller-manager                                                                                         job7189-control-plane_ca4249e6-01cf-4e38-90f5-9854ec7d12de                        2026-04-30T14:17:01.712321Z   15         24
+kube-system       kube-scheduler                                                                                                  job7189-control-plane_a2078795-3f04-4065-9d66-6f914abae26f                        2026-04-30T14:19:00.713810Z   15         24
+spire             67103523.spiffe.io                                                                                              spire-server-0_d1f90363-00f0-444a-8d7d-0b5832afe2f5                               2026-04-30T14:15:41.710775Z   15         24
+
+=== Leader-election relevant leases (kube-cm, scheduler, cilium-operator, spire-controller-manager) ===
+
+=== lease kube-system/kube-controller-manager ===
+
+$ kubectl -n kube-system get lease kube-controller-manager -o yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  creationTimestamp: "2026-04-30T11:11:06Z"
+  name: kube-controller-manager
+  namespace: kube-system
+  resourceVersion: "30016"
+  uid: 69494739-5d28-47f2-ae8f-a2f19508268c
+spec:
+  acquireTime: "2026-04-30T14:15:05.343041Z"
+  holderIdentity: job7189-control-plane_ca4249e6-01cf-4e38-90f5-9854ec7d12de
+  leaseDurationSeconds: 15
+  leaseTransitions: 24
+  renewTime: "2026-04-30T14:17:01.712321Z"
+
+=== lease kube-system/kube-scheduler ===
+
+$ kubectl -n kube-system get lease kube-scheduler -o yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  creationTimestamp: "2026-04-30T11:11:08Z"
+  name: kube-scheduler
+  namespace: kube-system
+  resourceVersion: "30084"
+  uid: f01b620f-25a6-429c-a78a-afdc8e713f3f
+spec:
+  acquireTime: "2026-04-30T14:18:52.793689Z"
+  holderIdentity: job7189-control-plane_a2078795-3f04-4065-9d66-6f914abae26f
+  leaseDurationSeconds: 15
+  leaseTransitions: 24
+  renewTime: "2026-04-30T14:19:00.713810Z"
+
+=== lease kube-system/cilium-operator-resource-lock ===
+
+$ kubectl -n kube-system get lease cilium-operator-resource-lock -o yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  creationTimestamp: "2026-04-30T11:12:31Z"
+  name: cilium-operator-resource-lock
+  namespace: kube-system
+  resourceVersion: "29460"
+  uid: 5001b3e1-0c6d-49bb-b3ea-29cf114abc14
+spec:
+  acquireTime: "2026-04-30T14:08:54.768293Z"
+  holderIdentity: ""
+  leaseDurationSeconds: 1
+  leaseTransitions: 17
+  renewTime: "2026-04-30T14:08:54.768293Z"
+
+=== lease spire/spire-controller-manager ===
+
+$ kubectl -n spire get lease spire-controller-manager -o yaml
+Error from server (NotFound): leases.coordination.k8s.io "spire-controller-manager" not found
+
+=== Lease transition rate (high = thrashing) ===
+
+$ kubectl get leases -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}\t{.spec.leaseTransitions}{"\n"}{end}' | sort -k2 -n -r | head -20
+spire/67103523.spiffe.io\t24
+kube-system/kube-scheduler\t24
+kube-system/kube-controller-manager\t24
+kube-system/cilium-operator-resource-lock\t17
+kube-system/cert-manager-controller\t3
+kube-system/cert-manager-cainjector-leader-election\t3
+kube-system/apiserver-zilsrfx2ekxgsrtjio7oygs7ze\t
+kube-node-lease/job7189-worker\t
+kube-node-lease/job7189-worker3\t
+kube-node-lease/job7189-worker2\t
+kube-node-lease/job7189-control-plane\t
+ingress-nginx/ingress-nginx-leader\t0
+cosign-system/policy-controller.webhookcertificates.00-of-01\t10
+cosign-system/policy-controller.validating.clusterimagepolicy.sigstore.dev.00-of-01\t10
+cosign-system/policy-controller.resource-conversion.00-of-01\t10
+cosign-system/policy-controller.policy.sigstore.dev-validating.00-of-01\t10
+cosign-system/policy-controller.policy.sigstore.dev-mutating.00-of-01\t10
+cosign-system/policy-controller.github.com.sigstore.policy-controller.pkg.reconciler.trustroot.reconciler.00-of-01\t10
+cosign-system/policy-controller.github.com.sigstore.policy-controller.pkg.reconciler.clusterimagepolicy.reconciler.00-of-01\t10
+cosign-system/policy-controller.defaulting.clusterimagepolicy.sigstore.dev.00-of-01\t10

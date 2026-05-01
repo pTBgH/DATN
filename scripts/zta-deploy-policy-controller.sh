@@ -196,8 +196,33 @@ kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 # producing:
 #   "conflict with \"webhook\" using admissionregistration.k8s.io/v1:
 #    .webhooks[name=\"policy.sigstore.dev\"].namespaceSelector"
-PC_RELEASE_STATUS=$(helm list -n "$NAMESPACE" --all 2>/dev/null \
-  | awk -v r="$HELM_RELEASE" 'NR>1 && $1==r {print $8}' | head -1)
+#
+# We use 'helm status' instead of 'helm list -a' for cross-version compat:
+# helm v3 supported '-a, --all' to also list failed/pending releases, but
+# helm v4 (observed v4.1.3 in the field) removed both flags entirely. The
+# old call printed "Error: unknown flag: --all" to stderr, but that stderr
+# was redirected to /dev/null which combined with set -euo pipefail caused
+# the script to exit 1 silently right after the previous helm command.
+# 'helm status RELEASE -o json' is stable from v3.0 through v4.x and
+# returns the full release object regardless of state.
+if ! command -v jq >/dev/null 2>&1; then
+  red "ERROR: jq is required (used to parse 'helm status -o json')"
+  red "       install with: sudo apt-get install -y jq"
+  exit 1
+fi
+PC_RELEASE_STATUS=""
+PC_STATUS_TMP="$(mktemp /tmp/zta-policy-controller-status.XXXXXX)"
+if helm status "$HELM_RELEASE" -n "$NAMESPACE" -o json > "$PC_STATUS_TMP" 2>&1; then
+  PC_RELEASE_STATUS=$(jq -r '.info.status // empty' < "$PC_STATUS_TMP")
+elif grep -qE 'release: not found|not found' "$PC_STATUS_TMP"; then
+  : # release does not exist → fresh install path
+else
+  red "ERROR: 'helm status $HELM_RELEASE -n $NAMESPACE -o json' failed unexpectedly:"
+  cat "$PC_STATUS_TMP" >&2
+  rm -f "$PC_STATUS_TMP"
+  exit 1
+fi
+rm -f "$PC_STATUS_TMP"
 PC_WEBHOOK_UNHEALTHY=0
 if kubectl -n "$NAMESPACE" get deploy policy-controller-webhook >/dev/null 2>&1; then
   PC_RESTARTS=$(kubectl -n "$NAMESPACE" get pod \

@@ -120,7 +120,7 @@ if ! helm upgrade --install "$RELEASE" "$HELM_REPO_NAME/falco" \
      --timeout "${FALCO_HELM_TIMEOUT:-15m}" 2>&1 | tail -10; then
   red "  ✗ helm install/upgrade failed"
   red "    Diagnose:"
-  red "      helm list -n $NAMESPACE --all"
+  red "      helm status falco -n $NAMESPACE -o json | jq .info.status"
   red "      kubectl -n $NAMESPACE describe ds falco | tail -30"
   red "      kubectl -n $NAMESPACE logs ds/falco --tail=40 -c falco"
   exit 1

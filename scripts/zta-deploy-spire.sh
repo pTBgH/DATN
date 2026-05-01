@@ -186,25 +186,32 @@ helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
 # "release: failed" status. Uninstall stale release before re-install.
 #
-# Use `helm list -o json` + jq for robust parsing — the human-readable table
-# format has a multi-word UPDATED column ("2026-05-01 14:13:47.000 +0000 UTC")
-# which fooled the previous awk-based parser. Also `helm list -o json` is
-# stable across helm v3.x while the long-form `--all` flag has been observed
-# to be rejected on some helm builds with "Error: unknown flag: --all" — use
-# the short form `-a` which has been valid since helm v3.0.
-#
-# We do NOT redirect stderr to /dev/null on this command. If helm itself
-# fails (network, kubeconfig, RBAC), set -euo pipefail will halt the script
-# AND the error will be visible in the caller's log instead of being silently
-# swallowed (which is what hid the real failure during the 2026-05-01 rebuild).
+# We can't rely on `helm list -a` here. helm v3 used `-a, --all` to also list
+# failed/pending releases; helm v4 removed both `-a` and `--all` and replaced
+# them with explicit `--deployed --failed --pending --uninstalled --uninstalling`
+# flags. To stay portable across the v3↔v4 boundary, use `helm status RELEASE
+# -n NS -o json`, which has been stable since v3.0 and works in v4. It returns
+# the release info (any state) when the release exists, and exits non-zero
+# with a "release: not found" stderr when it doesn't.
 if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq is required for SPIRE deploy (used to parse 'helm list -o json')" >&2
+  echo "ERROR: jq is required for SPIRE deploy (used to parse 'helm status -o json')" >&2
   echo "       install with: sudo apt-get install -y jq" >&2
   exit 1
 fi
-SPIRE_RELEASE_STATUS=$(helm list -n "$NAMESPACE" -a -o json \
-  | jq -r '.[] | select(.name=="spire") | .status' \
-  | head -1)
+SPIRE_RELEASE_STATUS=""
+SPIRE_STATUS_TMP="$(mktemp /tmp/zta-spire-status.XXXXXX)"
+if helm status spire -n "$NAMESPACE" -o json > "$SPIRE_STATUS_TMP" 2>&1; then
+  SPIRE_RELEASE_STATUS=$(jq -r '.info.status // empty' < "$SPIRE_STATUS_TMP")
+elif grep -qE 'release: not found|release.*: not found|not found' "$SPIRE_STATUS_TMP"; then
+  # release does not exist → fresh install path, leave SPIRE_RELEASE_STATUS empty
+  :
+else
+  echo "ERROR: 'helm status spire -n $NAMESPACE -o json' failed unexpectedly:" >&2
+  cat "$SPIRE_STATUS_TMP" >&2
+  rm -f "$SPIRE_STATUS_TMP"
+  exit 1
+fi
+rm -f "$SPIRE_STATUS_TMP"
 SPIRE_SERVER_HEALTHY=1
 if kubectl -n "$NAMESPACE" get statefulset spire-server >/dev/null 2>&1; then
   SPIRE_SERVER_READY=$(kubectl -n "$NAMESPACE" get statefulset spire-server \

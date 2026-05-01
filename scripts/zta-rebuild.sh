@@ -374,8 +374,24 @@ run_step() {
   local t0; t0=$(date +%s)
   # Use bash -c so multi-token commands and helper functions both work.
   # `set -o pipefail` keeps tee-style output if the user pipes inside cmd.
-  if bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1; then
-    local dt=$(( $(date +%s) - t0 ))
+  #
+  # IMPORTANT: capture $? BEFORE any other command. Bash's `if cmd; then ...; fi`
+  # construct sets the if-statement's exit status to ZERO when the test fails
+  # and there is no else branch (POSIX: "exit status of an if construct is the
+  # exit status of the executed compound list, or zero if no condition tested
+  # true"). So reading $? after `fi` reports 0 even if the test command failed,
+  # which would falsely report exit=0 on every failed step. We avoid this by
+  # running bash -c outside any `if`, capturing $? immediately, then branching
+  # on the captured value.
+  # Clear BASH_ENV/ENV so we don't drag the user's interactive shell init
+  # (e.g. /etc/environment, ~/environment) into every step's subshell. We've
+  # seen `environment: line 26: [: : integer expression expected` warnings
+  # from one user's init file leak into 00-prep.log; harmless but noisy.
+  env -u BASH_ENV -u ENV bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1
+  local exit_code=$?
+  local dt=$(( $(date +%s) - t0 ))
+
+  if [ "$exit_code" -eq 0 ]; then
     green "  ✓ $id OK (${dt}s)"
     RESULTS+=("$id|OK|$dt|$logfile")
     # Brief tail so the user sees something happened
@@ -383,8 +399,6 @@ run_step() {
     return 0
   fi
 
-  local exit_code=$?
-  local dt=$(( $(date +%s) - t0 ))
   red "  ✗ $id FAILED (exit=$exit_code, ${dt}s)"
   RESULTS+=("$id|FAIL($exit_code)|$dt|$logfile")
   dump_failure_context "$id" "$logfile"

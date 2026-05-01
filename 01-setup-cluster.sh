@@ -298,7 +298,28 @@ helm upgrade --install metrics-server metrics-server/metrics-server \
   --set 'resources.requests.memory=64Mi' \
   --set 'resources.limits.cpu=200m' \
   --set 'resources.limits.memory=200Mi' \
-  --wait --timeout=180s || echo "    ! WARNING: metrics-server install failed (non-blocking)"
+  --wait --timeout=300s || echo "    ! WARNING: metrics-server install failed (non-blocking)"
+
+# After helm install --wait returns, the metrics-server pod is Ready but its
+# scrape loop hasn't populated samples yet. zta-deploy-*.sh pre-flight checks
+# call `kubectl top node` early in the next phase and silently fall back to
+# "kubectl top node unavailable" → masks a working cluster as unverifiable.
+# Poll until we get at least one row, up to 120s.
+echo "    waiting for metrics-server to populate samples..."
+metrics_ready=0
+for i in $(seq 1 24); do
+  if kubectl top node --no-headers 2>/dev/null | grep -q .; then
+    echo "    ✓ kubectl top nodes returns data (after $((i*5))s)"
+    metrics_ready=1
+    break
+  fi
+  sleep 5
+done
+if [ "$metrics_ready" -eq 0 ]; then
+  echo "    ! WARNING: kubectl top nodes still empty after 120s"
+  echo "    Diagnose: kubectl -n kube-system logs deploy/metrics-server --tail=40"
+  kubectl -n kube-system get pod -l app.kubernetes.io/name=metrics-server -o wide 2>/dev/null || true
+fi
 log_time "9. Install metrics-server"
 
 # ========================

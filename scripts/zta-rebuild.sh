@@ -1,126 +1,461 @@
 #!/usr/bin/env bash
 # scripts/zta-rebuild.sh
 #
-# Full ZTA rebuild orchestrator: từ cluster trắng → cluster fully ZTA-enforced.
-# Idempotent: chạy lại sau lỗi sẽ tiếp tục từ bước hiện tại.
+# End-to-end ZTA cluster rebuild orchestrator. Runs the entire pipeline from
+# `kind delete` (phase 0) through `09-verify-zta.sh` (phase 90), capturing
+# every step's stdout+stderr to a per-step log file. On any failure it dumps:
+#   1. last 80 lines of the failed step's log file
+#   2. `kubectl get pod -A` filtered to non-Running / restarting pods
+#   3. `kubectl get events -A --sort-by=.lastTimestamp` last 20 entries
+#   4. `kubectl describe` for any pod in CrashLoopBackOff / Error / Pending
+#   5. recent kubelet/api server logs if relevant
+# This gives concrete evidence of what went wrong instead of guesses.
 #
 # Usage:
-#   bash scripts/zta-rebuild.sh                  # full rebuild, prompt confirm
-#   bash scripts/zta-rebuild.sh --yes            # no prompt
-#   bash scripts/zta-rebuild.sh --skip-cluster   # cluster đã có, chỉ deploy lại
-#   bash scripts/zta-rebuild.sh --skip-frontend  # bỏ qua build FE images (fast)
-#   bash scripts/zta-rebuild.sh --full-enforcement # chạy thêm Tetragon/SPIRE/Cosign/Hubble
-#   bash scripts/zta-rebuild.sh --until=phase    # dừng sau 1 phase: cluster | infra | apps | exporters | harden | zta | verify
-#   bash scripts/zta-rebuild.sh --from=phase     # resume từ 1 phase (skip các phase trước đó)
+#   bash scripts/zta-rebuild.sh                    # full rebuild from kind delete
+#   bash scripts/zta-rebuild.sh --yes              # skip confirmation prompt
+#   bash scripts/zta-rebuild.sh --skip-cluster     # keep existing cluster
+#   bash scripts/zta-rebuild.sh --from=08-harden   # resume from step
+#   bash scripts/zta-rebuild.sh --to=10-tetragon   # stop after step
+#   bash scripts/zta-rebuild.sh --list             # print all steps + exit
+#   bash scripts/zta-rebuild.sh --dry-run          # show plan, run nothing
 #
-# Phases (theo thứ tự):
-#   1. cluster   — 01-setup-cluster.sh           (Kind + Cilium + cert-manager + ingress-nginx)
-#   2. infra     — 02-deploy-infrastructure.sh   (Vault + MySQL + Keycloak + Kafka + Kong + ELK)
-#   3. apps      — 03-deploy-microservices.sh    (8 microservices + Redis sidecars)
-#   4. exporters — 07-deploy-monitoring-exporters.sh (node-exporter + kube-state-metrics)
-#   5. harden    — 08-harden-security.sh         (mesh-auth + WireGuard)
-#   6. zta       — namespace CNPs (PR #8) + workload labels (PR #9) + L7 (PR #10)
-#   7. verify    — 09-verify-zta.sh + observability baseline
-set -euo pipefail
+# Env vars:
+#   ZTA_REBUILD_HALT_ON_FAIL=0   # continue on step failure (default 1, halt)
+#   ZTA_REBUILD_SKIP=             # comma-separated step names to skip
+#                                 # e.g. ZTA_REBUILD_SKIP=25-falco,27-pdp
+#   COSIGN_TLOG_UPLOAD=true       # opt-in to public Rekor log upload
+#                                 # (requires PR #4 merged; default false)
+#
+# Logs (per run):
+#   evidence/rebuild_<timestamp>/00-prep.log
+#   evidence/rebuild_<timestamp>/01-cluster.log
+#   ...
+#   evidence/rebuild_<timestamp>/SUMMARY.md     # generated at end
+#
+set -uo pipefail   # NOT -e: each step's failure is handled by run_step
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-# shellcheck source=scripts/utils/zta-common.sh
-source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
+CLUSTER_NAME="${CLUSTER_NAME:-job7189}"
+APPS_NS="${APPS_NS:-job7189-apps}"
+TS="$(date +%Y%m%d_%H%M%S)"
+LOG_DIR="${REPO_ROOT}/evidence/rebuild_${TS}"
+mkdir -p "$LOG_DIR"
+SUMMARY_FILE="${LOG_DIR}/SUMMARY.md"
 
-NO_PROMPT=0
-SKIP_CLUSTER=0
-SKIP_FRONTEND=0
-UNTIL=""
-FROM=""
-FULL_ENFORCEMENT=0
-# Cho phép phase 'apps' báo OK nếu pods eventually Ready (mặc dù 03-deploy báo non-zero)
-APPS_TOLERATE_TIMEOUT=1
-
-for arg in "$@"; do
-  case "$arg" in
-    --yes|-y) NO_PROMPT=1 ;;
-    --skip-cluster)  SKIP_CLUSTER=1 ;;
-    --skip-frontend) SKIP_FRONTEND=1 ;;
-    --full-enforcement) FULL_ENFORCEMENT=1 ;;
-    --until=*)       UNTIL="${arg#*=}" ;;
-    --from=*)        FROM="${arg#*=}" ;;
-    --strict-apps)   APPS_TOLERATE_TIMEOUT=0 ;;
-    -h|--help)
-      sed -n '2,24p' "$0" | sed 's/^# \?//'
-      echo
-      echo "Options:"
-      echo "  --full-enforcement  also deploy heavy optional modules: Tetragon, Cosign policy-controller, SPIRE, Hubble export"
-      echo "  --strict-apps       do not tolerate eventually-Ready app rollout timeouts"
-      exit 0 ;;
-    *) echo "Unknown flag: $arg" >&2; exit 1 ;;
-  esac
-done
-
-# Phase ordering for --from gating
-PHASE_ORDER=(cluster infra apps exporters harden zta verify)
-phase_idx() {
-  local p=$1 i=0
-  for x in "${PHASE_ORDER[@]}"; do
-    [ "$x" = "$p" ] && { echo "$i"; return 0; }
-    i=$((i+1))
-  done
-  echo "-1"
-}
-FROM_IDX=$(phase_idx "${FROM:-cluster}")
-if [ "$FROM_IDX" -lt 0 ]; then
-  echo "Unknown --from phase: $FROM (must be one of: ${PHASE_ORDER[*]})" >&2
-  exit 1
-fi
-should_run() {
-  local p=$1
-  local idx; idx=$(phase_idx "$p")
-  [ "$idx" -ge "$FROM_IDX" ]
-}
-
-red()    { printf '\033[0;31m%s\033[0m\n' "$*"; }
+red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green()  { printf '\033[0;32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[1;33m%s\033[0m\n' "$*"; }
 blue()   { printf '\033[0;34m%s\033[0m\n' "$*"; }
+bold()   { printf '\033[1m%s\033[0m\n'   "$*"; }
 
-run_phase() {
-  local phase=$1; shift
-  local title=$1; shift
-  local cmd=("$@")
+# ============================================================================
+# Step registry
+# ============================================================================
+# Format: "<id>|<title>|<command>"
+# Steps run in array order. Each row's <command> is invoked via `bash -c`,
+# so feel free to chain with && / set env vars / call helper functions.
+STEPS=(
+  "00-prep|Pre-flight checks (tools, host RAM, repo state)|do_preflight"
+  "01-cluster|Setup Kind cluster + Cilium + cert-manager + ingress + metrics-server|bash 01-setup-cluster.sh"
+  "02-infra|Deploy Vault + Keycloak + MySQL + Kafka + Kong + ELK + Prometheus + Grafana|bash 02-deploy-infrastructure.sh"
+  "03-microservices|Deploy 7 Laravel microservices (builds images via 04 internally)|bash 03-deploy-microservices.sh"
+  "05-seed|Seed MySQL databases|bash 05-seed-databases.sh"
+  "07-monitoring|Deploy node-exporter + kube-state-metrics|bash 07-deploy-monitoring-exporters.sh"
+  "08-harden|Enable Cilium mesh-auth + WireGuard + apply namespace CNPs + workload labels + L7|do_harden_full"
+  "10-tetragon|Deploy Tetragon eBPF runtime security|bash 10-deploy-tetragon.sh"
+  "20-spire|Deploy SPIRE workload attestation (server + agent + controller-manager)|bash scripts/zta-deploy-spire.sh"
+  "21-cosign-keygen|Generate Cosign keypair + publish public key ConfigMap|bash scripts/zta-cosign-keygen.sh"
+  "22-cosign-sign|Sign all 7 microservice Deployments with offline Cosign|do_cosign_sign_workloads"
+  "23-policy-controller|Deploy sigstore policy-controller (image admission)|bash scripts/zta-deploy-policy-controller.sh"
+  "24-hubble-export|Enable Hubble flow export to Elasticsearch|bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export"
+  "25-falco|Deploy Falco runtime detection (modern_ebpf)|bash scripts/zta-deploy-falco.sh"
+  "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
+  "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
+  "90-verify|Run 09-verify-zta.sh (final assessment)|bash 09-verify-zta.sh"
+)
+
+# ============================================================================
+# CLI parsing
+# ============================================================================
+NO_PROMPT=0
+SKIP_CLUSTER=0
+FROM_STEP=""
+TO_STEP=""
+DRY_RUN=0
+LIST_ONLY=0
+
+usage() {
+  sed -n '2,32p' "$0" | sed 's/^# \?//'
+  exit "${1:-0}"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --yes|-y)         NO_PROMPT=1 ;;
+    --skip-cluster)   SKIP_CLUSTER=1 ;;
+    --from=*)         FROM_STEP="${arg#--from=}" ;;
+    --to=*)           TO_STEP="${arg#--to=}" ;;
+    --dry-run)        DRY_RUN=1 ;;
+    --list)           LIST_ONLY=1 ;;
+    -h|--help)        usage 0 ;;
+    *) red "Unknown flag: $arg"; usage 1 ;;
+  esac
+done
+
+if [ "$LIST_ONLY" -eq 1 ]; then
+  bold "Steps in execution order:"
+  for entry in "${STEPS[@]}"; do
+    IFS='|' read -r id title cmd <<<"$entry"
+    printf "  %-22s  %s\n" "$id" "$title"
+  done
+  exit 0
+fi
+
+# Validate --from / --to step names
+all_step_ids=()
+for entry in "${STEPS[@]}"; do
+  IFS='|' read -r id _ _ <<<"$entry"
+  all_step_ids+=("$id")
+done
+validate_step() {
+  local step=$1 label=$2
+  [ -z "$step" ] && return 0
+  for id in "${all_step_ids[@]}"; do
+    [ "$id" = "$step" ] && return 0
+  done
+  red "Unknown $label step: $step"
+  red "Valid steps: ${all_step_ids[*]}"
+  exit 1
+}
+validate_step "$FROM_STEP" "--from"
+validate_step "$TO_STEP" "--to"
+
+IFS=',' read -r -a SKIP_LIST <<<"${ZTA_REBUILD_SKIP:-}"
+should_skip_step() {
+  local id=$1
+  for s in "${SKIP_LIST[@]:-}"; do
+    [ "$s" = "$id" ] && return 0
+  done
+  return 1
+}
+
+# ============================================================================
+# Step helpers (defined in subshell scope, used by STEPS rows)
+# ============================================================================
+
+# do_preflight: cheap fail-fast checks before we even touch the cluster.
+do_preflight() {
+  echo "Tools required: docker, kind, kubectl, helm, jq, python3"
+  for tool in docker kind kubectl helm jq python3; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      red "  MISSING: $tool not in PATH"
+      return 2
+    fi
+    printf "  ✓ %-10s %s\n" "$tool" "$(command -v "$tool")"
+  done
+  echo
+  echo "Host VM stats:"
+  echo "  uname -a: $(uname -a)"
+  echo "  CPU cores: $(nproc)"
+  echo "  RAM (MiB): $(awk '/MemTotal/ {printf "%d\n", $2/1024}' /proc/meminfo)"
+  echo "  Disk free / : $(df -h / | awk 'NR==2 {print $4}')"
+  echo
+  echo "Docker daemon:"
+  docker info --format 'Containers={{.Containers}} Images={{.Images}} ServerVer={{.ServerVersion}}' 2>/dev/null || {
+    red "  docker daemon not reachable"
+    return 3
+  }
+  echo
+  echo "Repo state:"
+  echo "  pwd: $(pwd)"
+  echo "  branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+  echo "  HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+  if [ "$SKIP_CLUSTER" -eq 0 ]; then
+    if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
+      yellow "  existing kind cluster '$CLUSTER_NAME' WILL BE DELETED by step 01"
+    fi
+  fi
+}
+
+# do_harden_full: 08-harden-security.sh only flips Cilium mesh-auth + WireGuard.
+# The full ZTA enforcement (namespace default-deny, workload labels, L7 policies)
+# lives in separate scripts that 08 doesn't call. We invoke them here so a
+# single rebuild gets the full policy surface.
+do_harden_full() {
+  set -e
+  echo "--- 08a. mesh-auth + WireGuard ---"
+  bash 08-harden-security.sh
+
+  echo "--- 08b. Foundational namespace CNPs (20-security-policies.yaml) ---"
+  if [ -f infras/k8s-yaml/20-security-policies.yaml ]; then
+    kubectl apply -f infras/k8s-yaml/20-security-policies.yaml
+  else
+    yellow "  20-security-policies.yaml missing — skipped"
+  fi
+
+  echo "--- 08c. job7189-apps microsegmentation (5 CNPs) ---"
+  local microseg=infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh
+  if [ -x "$microseg" ]; then
+    bash "$microseg"
+  else
+    yellow "  $microseg missing — skipped"
+  fi
+
+  echo "--- 08d. Per-namespace CNPs (default-deny + per-flow allows) ---"
+  local ns_apply=infras/k8s-yaml/cilium-policies/namespaces/apply-zta-namespace-policies.sh
+  if [ -x "$ns_apply" ]; then
+    for ns in monitoring data vault security gateway management; do
+      bash "$ns_apply" "--namespace=$ns" --apply
+    done
+  else
+    yellow "  $ns_apply missing — skipped"
+  fi
+
+  echo "--- 08e. Workload labels (ZTA 5W1H schema) ---"
+  if [ -x scripts/zta-apply-workload-labels.sh ]; then
+    bash scripts/zta-apply-workload-labels.sh --apply
+  else
+    yellow "  scripts/zta-apply-workload-labels.sh missing — skipped"
+  fi
+
+  echo "--- 08f. L7 policies ---"
+  if [ -x scripts/zta-apply-l7-policies.sh ]; then
+    bash scripts/zta-apply-l7-policies.sh --apply
+  else
+    yellow "  scripts/zta-apply-l7-policies.sh missing — skipped"
+  fi
+}
+
+# do_cosign_sign_workloads: live-export each Deployment, sign in place,
+# re-apply with embedded annotations. Bypasses the helm template signing
+# pitfall (templates contain {{ }} and are not valid YAML).
+#
+# Requires PR #4 merged so cosign sign-blob runs --tlog-upload=false by
+# default; we set the env var here as belt-and-suspenders for older script
+# versions that read it explicitly.
+do_cosign_sign_workloads() {
+  set -e
+  export COSIGN_TLOG_UPLOAD="${COSIGN_TLOG_UPLOAD:-false}"
+  local sign_dir
+  sign_dir="$(mktemp -d /tmp/zta-sign.XXXXXX)"
+  echo "  staging dir: $sign_dir"
+
+  local services=(
+    candidate-service communication-service hiring-service identity-service
+    job-service storage-service workspace-service
+  )
+
+  for svc in "${services[@]}"; do
+    echo "--- signing $svc ---"
+    if ! kubectl -n "$APPS_NS" get deploy "$svc" >/dev/null 2>&1; then
+      yellow "  deploy/$svc not present in ns $APPS_NS — skipping"
+      continue
+    fi
+    kubectl -n "$APPS_NS" get deploy "$svc" -o yaml > "$sign_dir/${svc}.yaml"
+    bash scripts/zta-cosign-sign-deployment.sh "$sign_dir/${svc}.yaml"
+    kubectl apply -f "$sign_dir/${svc}.yaml"
+  done
+
+  echo
+  echo "  signed-by annotations:"
+  for svc in "${services[@]}"; do
+    local ann
+    ann=$(kubectl -n "$APPS_NS" get deploy "$svc" \
+            -o jsonpath='{.spec.template.metadata.annotations.image\.zta/signed-by}' 2>/dev/null || true)
+    printf "    %-25s %s\n" "$svc" "${ann:-<missing>}"
+  done
+  rm -rf "$sign_dir"
+}
+
+export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_workloads
+
+# ============================================================================
+# Failure diagnostics — dump everything we know about cluster state right now
+# ============================================================================
+dump_failure_context() {
+  local step_id=$1
+  local logfile=$2
+
+  red "  ──── DIAGNOSTICS for failed step '$step_id' ────"
+  if [ -s "$logfile" ]; then
+    red "  >>> last 80 lines of $logfile <<<"
+    tail -80 "$logfile" | sed 's/^/    | /' >&2
+  else
+    red "  (log file empty)"
+  fi
+
+  if ! command -v kubectl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo >&2
+  red "  >>> non-Running / restarting pods <<<"
+  kubectl get pod -A 2>/dev/null \
+    | awk 'NR==1 || $4 != "Running" || $5+0 > 0 {print}' \
+    | sed 's/^/    | /' >&2 || true
+
+  echo >&2
+  red "  >>> recent events (last 20, all namespaces) <<<"
+  kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null \
+    | tail -20 \
+    | sed 's/^/    | /' >&2 || true
+
+  # Describe any pod that's NOT Running — capture exit codes, probe failures, image pull errors
+  local sick_pods
+  sick_pods=$(kubectl get pod -A --no-headers 2>/dev/null \
+    | awk '$4 != "Running" && $4 != "Completed" {print $1"\t"$2}' \
+    | head -5 || true)
+  if [ -n "$sick_pods" ]; then
+    echo >&2
+    red "  >>> kubectl describe for sick pods (first 5) <<<"
+    while IFS=$'\t' read -r ns name; do
+      [ -z "$ns" ] && continue
+      printf '    --- %s/%s ---\n' "$ns" "$name" >&2
+      kubectl -n "$ns" describe pod "$name" 2>/dev/null \
+        | sed -n '/Events:/,$p' | head -25 | sed 's/^/    | /' >&2 || true
+    done <<<"$sick_pods"
+  fi
+
+  # Save the full describe output for offline review
+  if [ -n "$sick_pods" ]; then
+    {
+      echo "# Failure diagnostic dump for step $step_id at $(date -u +%FT%TZ)"
+      echo
+      echo "## Sick pods"
+      kubectl get pod -A 2>/dev/null | awk 'NR==1 || $4 != "Running" || $5+0 > 0'
+      echo
+      echo "## Events (last 50)"
+      kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null | tail -50
+      echo
+      echo "## Pod describe"
+      while IFS=$'\t' read -r ns name; do
+        [ -z "$ns" ] && continue
+        echo
+        echo "### $ns/$name"
+        kubectl -n "$ns" describe pod "$name" 2>/dev/null || true
+        echo
+        echo "### $ns/$name logs (current)"
+        kubectl -n "$ns" logs "$name" --all-containers --tail=80 2>/dev/null || true
+        echo
+        echo "### $ns/$name logs (--previous)"
+        kubectl -n "$ns" logs "$name" --all-containers --previous --tail=80 2>/dev/null || true
+      done <<<"$sick_pods"
+    } > "$LOG_DIR/${step_id}.diag.txt" 2>&1 || true
+    red "  Full diagnostic written to $LOG_DIR/${step_id}.diag.txt"
+  fi
+
+  red "  ──── END DIAGNOSTICS ────"
+}
+
+# ============================================================================
+# run_step: the try/catch wrapper
+# ============================================================================
+RESULTS=()  # "id|status|elapsed|logfile"
+run_step() {
+  local id=$1 title=$2 cmd=$3
+  local logfile="$LOG_DIR/${id}.log"
+
   echo
   blue "════════════════════════════════════════════════════════"
-  blue " PHASE $phase: $title"
+  blue "▶ $id — $title"
+  blue "  cmd: $cmd"
+  blue "  log: $logfile"
   blue "════════════════════════════════════════════════════════"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    yellow "  [dry-run] not executing"
+    RESULTS+=("$id|DRY|0|-")
+    return 0
+  fi
+
   local t0; t0=$(date +%s)
-  if "${cmd[@]}"; then
+  # Use bash -c so multi-token commands and helper functions both work.
+  # `set -o pipefail` keeps tee-style output if the user pipes inside cmd.
+  if bash -c "set -o pipefail; $cmd" > "$logfile" 2>&1; then
     local dt=$(( $(date +%s) - t0 ))
-    green "  ✓ phase '$phase' ok (${dt}s)"
-  else
-    local dt=$(( $(date +%s) - t0 ))
-    red "  ✗ phase '$phase' FAILED (${dt}s)"
-    return 1
+    green "  ✓ $id OK (${dt}s)"
+    RESULTS+=("$id|OK|$dt|$logfile")
+    # Brief tail so the user sees something happened
+    tail -5 "$logfile" 2>/dev/null | sed 's/^/    /'
+    return 0
   fi
+
+  local exit_code=$?
+  local dt=$(( $(date +%s) - t0 ))
+  red "  ✗ $id FAILED (exit=$exit_code, ${dt}s)"
+  RESULTS+=("$id|FAIL($exit_code)|$dt|$logfile")
+  dump_failure_context "$id" "$logfile"
+
+  if [ "${ZTA_REBUILD_HALT_ON_FAIL:-1}" = "1" ]; then
+    red "  Halting (ZTA_REBUILD_HALT_ON_FAIL=1; set =0 to continue past failures)."
+    write_summary
+    exit "$exit_code"
+  fi
+  return "$exit_code"
 }
 
-stop_after() {
-  local phase=$1
-  if [ -n "$UNTIL" ] && [ "$UNTIL" = "$phase" ]; then
-    yellow "  Stopping after phase '$phase' (--until=$UNTIL)."
-    exit 0
-  fi
+# ============================================================================
+# Summary — one place to check what passed/failed
+# ============================================================================
+write_summary() {
+  {
+    echo "# ZTA Rebuild Summary — $TS"
+    echo
+    echo "Cluster: $(kubectl config current-context 2>/dev/null || echo '?')"
+    echo "Started: $(date -d "@$T_START" -u +%FT%TZ 2>/dev/null || echo '?')"
+    echo "Ended:   $(date -u +%FT%TZ)"
+    echo "Total:   $(( $(date +%s) - T_START )) seconds"
+    echo
+    echo "| Step | Status | Elapsed | Log |"
+    echo "|------|--------|---------|-----|"
+    for r in "${RESULTS[@]}"; do
+      IFS='|' read -r id st dt log <<<"$r"
+      echo "| $id | $st | ${dt}s | $(basename "$log") |"
+    done
+    echo
+    if command -v kubectl >/dev/null 2>&1; then
+      echo "## Cluster snapshot at end"
+      echo
+      echo '```'
+      kubectl get pod -A --no-headers 2>/dev/null | wc -l | xargs -I{} echo "Total pods: {}"
+      kubectl get pod -A --no-headers 2>/dev/null \
+        | awk '$4 != "Running" || $5+0 > 0' | head -20 || true
+      echo
+      echo "Lease transitions (control-plane):"
+      kubectl get lease -n kube-system kube-controller-manager kube-scheduler cilium-operator-resource-lock \
+        -o custom-columns=NAME:.metadata.name,T:.spec.leaseTransitions 2>/dev/null || true
+      echo '```'
+    fi
+  } > "$SUMMARY_FILE"
+  green "  Summary written to $SUMMARY_FILE"
 }
 
-blue "============================================================"
-blue " ZTA Rebuild — fresh deploy with full Phase 4 enforcement"
-blue " Skip cluster:  $([ "$SKIP_CLUSTER" -eq 1 ] && echo YES || echo NO)"
-blue " Skip frontend: $([ "$SKIP_FRONTEND" -eq 1 ] && echo YES || echo NO)"
-blue " Full enforce:  $([ "$FULL_ENFORCEMENT" -eq 1 ] && echo YES || echo NO)"
-blue " From phase:    ${FROM:-(start)}"
-blue " Until phase:   ${UNTIL:-(all)}"
-blue "============================================================"
+# ============================================================================
+# Main loop
+# ============================================================================
+bold "============================================================"
+bold " ZTA Rebuild Orchestrator"
+bold " Cluster:   $CLUSTER_NAME"
+bold " Apps NS:   $APPS_NS"
+bold " Log dir:   $LOG_DIR"
+bold " Halt:      ${ZTA_REBUILD_HALT_ON_FAIL:-1} (1=halt, 0=continue)"
+bold " From:      ${FROM_STEP:-(start)}"
+bold " To:        ${TO_STEP:-(end)}"
+bold " Skip:      ${ZTA_REBUILD_SKIP:-(none)}"
+bold " Dry-run:   $DRY_RUN"
+bold "============================================================"
 
-if [ "$NO_PROMPT" -ne 1 ]; then
+if [ "$SKIP_CLUSTER" -eq 1 ]; then
+  yellow "  --skip-cluster: removing 01-cluster from plan"
+fi
+
+if [ "$NO_PROMPT" -ne 1 ] && [ "$DRY_RUN" -ne 1 ]; then
+  echo
+  yellow "  This will DELETE kind cluster '$CLUSTER_NAME' and rebuild it from scratch (~30-50 min)."
+  yellow "  All existing data in the cluster will be lost."
   read -r -p "  Continue? (yes/NO) " ans
   if [ "${ans,,}" != "yes" ]; then
     yellow "  Cancelled."
@@ -128,260 +463,56 @@ if [ "$NO_PROMPT" -ne 1 ]; then
   fi
 fi
 
-T0=$(date +%s)
+T_START=$(date +%s)
 
-# ============================================================
-# PHASE 1 — cluster
-# ============================================================
-if should_run cluster && [ "$SKIP_CLUSTER" -ne 1 ]; then
-  run_phase "cluster" "Setup Kind + Cilium + cert-manager + ingress-nginx" \
-    bash 01-setup-cluster.sh
-  stop_after cluster
-fi
+# Compute which steps to run
+in_window=0
+[ -z "$FROM_STEP" ] && in_window=1
 
-# ============================================================
-# PHASE 2 — infrastructure
-# Set ZTA_ENABLE_POLICIES=0 để bỏ qua step 9c của 02-deploy
-# (chúng ta apply CNP namespace ở phase 'zta' bên dưới, không dùng monolithic)
-# ============================================================
-if should_run infra; then
-  export ZTA_ENABLE_POLICIES=0
-  run_phase "infra" "Deploy infrastructure (Vault, MySQL, Keycloak, Kafka, Kong, ELK)" \
-    bash 02-deploy-infrastructure.sh
-  stop_after infra
-fi
+for entry in "${STEPS[@]}"; do
+  IFS='|' read -r id title cmd <<<"$entry"
 
-# ============================================================
-# PHASE 3 — microservices
-#   Apps phase: 03-deploy-microservices.sh có thể timeout chờ Ready khi cluster
-#   buộc phải pull image lâu, nhưng pods sau đó vẫn Ready. T´olặt: nếu script
-#   exit non-zero, chờ thêm ~120s rồi kiểm kubectl wait đê xem pods có
-#   eventually Ready không (trừ khi --strict-apps).
-# ============================================================
-if should_run apps; then
-  if [ "$SKIP_FRONTEND" -eq 1 ]; then
-    export DEPLOY_SKIP_FRONTEND=1
+  # --from gate
+  if [ "$in_window" -eq 0 ] && [ "$id" = "$FROM_STEP" ]; then
+    in_window=1
   fi
-  if ! run_phase "apps" "Deploy 8 microservices + Redis sidecars" \
-        bash 03-deploy-microservices.sh; then
-    if [ "$APPS_TOLERATE_TIMEOUT" -eq 1 ]; then
-      yellow "  apps deploy script exited non-zero — checking eventual Ready (tolerant mode)"
-      sleep 30
-      if kubectl -n job7189-apps wait --for=condition=Ready pods --all --timeout=180s >/dev/null 2>&1; then
-        green "  ! apps eventually Ready — continuing (use --strict-apps to disable tolerance)"
-      else
-        red "  ✗ apps NOT Ready after extra 180s — aborting"
-        kubectl -n job7189-apps get pods
-        exit 1
-      fi
-    else
-      exit 1
-    fi
+  if [ "$in_window" -eq 0 ]; then
+    yellow "  · skip (before --from): $id"
+    continue
   fi
-  stop_after apps
-fi
 
-# ============================================================
-# PHASE 4 — monitoring exporters (node-exporter + kube-state-metrics)
-#   Yêu cầu bởi 09-verify-zta.sh Test 6 + ZTA L7 policies (l7-prom-scrape).
-# ============================================================
-if should_run exporters; then
-  if [ -f "$SCRIPT_DIR/07-deploy-monitoring-exporters.sh" ]; then
-    run_phase "exporters" "Deploy node-exporter + kube-state-metrics" \
-      bash 07-deploy-monitoring-exporters.sh \
-      || yellow "  exporters phase non-fatal — continuing"
-  else
-    yellow "  skip: 07-deploy-monitoring-exporters.sh not found"
+  # explicit skip via env or flag
+  if [ "$SKIP_CLUSTER" -eq 1 ] && [ "$id" = "01-cluster" ]; then
+    yellow "  · skip (--skip-cluster): $id"
+    continue
   fi
-  stop_after exporters
-fi
+  if should_skip_step "$id"; then
+    yellow "  · skip (ZTA_REBUILD_SKIP): $id"
+    continue
+  fi
 
-# ============================================================
-# PHASE 5 — harden (mesh-auth + WireGuard)
-# ============================================================
-if should_run harden; then
-  export ZTA_HARDEN_WIREGUARD="${ZTA_HARDEN_WIREGUARD:-1}"
-  run_phase "harden" "Enable Cilium mesh-auth + WireGuard transparent encryption" \
-    bash 08-harden-security.sh
-  stop_after harden
-fi
+  run_step "$id" "$title" "$cmd"
 
-# ============================================================
-# PHASE 6 — ZTA enforcement (PR #8 + PR #9 + PR #10)
-# ============================================================
-if should_run zta; then
-echo
-blue "════════════════════════════════════════════════════════"
-blue " PHASE zta: Apply ZTA policies (PR #8 + #9 + #10 + #12)"
-blue "════════════════════════════════════════════════════════"
+  # --to gate (after running)
+  if [ -n "$TO_STEP" ] && [ "$id" = "$TO_STEP" ]; then
+    yellow "  Reached --to=$TO_STEP — stopping."
+    break
+  fi
+done
 
-NS_APPLY="$SCRIPT_DIR/infras/k8s-yaml/cilium-policies/namespaces/apply-zta-namespace-policies.sh"
-LABEL_APPLY="$SCRIPT_DIR/scripts/zta-apply-workload-labels.sh"
-L7_APPLY="$SCRIPT_DIR/scripts/zta-apply-l7-policies.sh"
-GK_DEPLOY="$SCRIPT_DIR/scripts/zta-deploy-gatekeeper.sh"
-TRACING_APPLY="$SCRIPT_DIR/scripts/zta-apply-tracing-policies.sh"
+write_summary
 
-# 5a. Namespace default-deny + per-flow allows (PR #8)
-#     Bao gồm 3 nguồn:
-#       (i) infras/k8s-yaml/20-security-policies.yaml — default-deny-job7189-apps
-#           + default-deny-data + identity→mysql + ingress→kong (KHÔNG được
-#           script nào khác auto-apply trong rebuild flow → phải apply thủ công)
-#       (ii) cilium-policies/apply-zta-microsegmentation.sh — 5 file CNP
-#            cho job7189-apps (allow-egress-dns/data + ingress-kong + internal-api)
-#       (iii) namespaces/apply-zta-namespace-policies.sh — per-ns CNP cho 6 ns
-#             non-app (monitoring/data/vault/security/gateway/management)
-echo "--- 5a. Namespace CNPs (PR #8) ---"
-
-# (i) Foundational CNPs (default-deny + SA-based microseg) — bắt buộc
-if [ -f "$SCRIPT_DIR/infras/k8s-yaml/20-security-policies.yaml" ]; then
-  echo "    [i] Apply 20-security-policies.yaml (default-deny-data + default-deny-job7189-apps + SA microseg)"
-  kubectl apply -f "$SCRIPT_DIR/infras/k8s-yaml/20-security-policies.yaml" || yellow "    (20-security-policies apply failed — continuing)"
-fi
-
-# (ii) job7189-apps microsegmentation (5 CNPs)
-APPS_MICROSEG="$SCRIPT_DIR/infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh"
-if [ -x "$APPS_MICROSEG" ]; then
-  echo "    [ii] Apply job7189-apps microsegmentation (5 CNPs)"
-  bash "$APPS_MICROSEG" || yellow "    (job7189-apps microseg failed — continuing)"
-else
-  yellow "    skip: $APPS_MICROSEG not found"
-fi
-
-# (iii) Per-namespace CNPs (skip job7189-apps — already covered by ii)
-if [ -x "$NS_APPLY" ]; then
-  echo "    [iii] Per-namespace CNPs"
-  for ns in monitoring data vault security gateway management; do
-    bash "$NS_APPLY" "--namespace=$ns" --apply || yellow "    (ns=$ns skipped/failed — continuing)"
-  done
-  green "    ✓ namespace CNPs applied"
-else
-  yellow "    skip: $NS_APPLY not found"
-fi
-
-# 5b. Workload labels (PR #9)
-if [ -x "$LABEL_APPLY" ]; then
-  echo "--- 5b. Workload labels (PR #9) ---"
-  bash "$LABEL_APPLY" --apply
-  green "    ✓ workload labels applied (deployment + live pods)"
-else
-  yellow "    skip: $LABEL_APPLY not found"
-fi
-
-# 5c. L7 policies (PR #10)
-if [ -x "$L7_APPLY" ]; then
-  echo "--- 5c. L7 policies (PR #10) ---"
-  bash "$L7_APPLY" --apply
-  green "    ✓ L7 policies applied"
-else
-  yellow "    skip: $L7_APPLY not found"
-fi
-
-# 5d. OPA Gatekeeper + ZTA constraints (PR #12)
-if [ -x "$GK_DEPLOY" ]; then
-  echo "--- 5d. OPA Gatekeeper + ZTA constraints (PR #12) ---"
-  bash "$GK_DEPLOY" || yellow "    Gatekeeper deploy failed — continuing"
-  green "    ✓ Gatekeeper installed (audit-only mode)"
-else
-  yellow "    skip: $GK_DEPLOY not found"
-fi
-
-# 5e. Tetragon TracingPolicy for T1 ns (PR #12)
-if [ -x "$TRACING_APPLY" ] && kubectl get crd tracingpoliciesnamespaced.cilium.io >/dev/null 2>&1; then
-  echo "--- 5e. Tetragon TracingPolicies for T1 ns (PR #12) ---"
-  bash "$TRACING_APPLY" --apply || yellow "    Tetragon policy apply failed — continuing"
-  green "    ✓ Tetragon TracingPolicies applied"
-else
-  yellow "    skip: $TRACING_APPLY (Tetragon CRD missing — run 10-deploy-tetragon.sh first)"
-fi
-
-# 5f. PDP Controller — Adaptive Loop closure (PR #15)
-PDP_DEPLOY="$SCRIPT_DIR/scripts/zta-deploy-pdp.sh"
-if [ -x "$PDP_DEPLOY" ]; then
-  echo "--- 5f. PDP Controller (PR #15) ---"
-  bash "$PDP_DEPLOY" || yellow "    PDP deploy failed — continuing"
-  green "    ✓ PDP Controller deployed (audit-only mode)"
-else
-  yellow "    skip: $PDP_DEPLOY not found"
-fi
-
-stop_after zta
-fi  # should_run zta
-
-# ============================================================
-# OPTIONAL — heavy post-deploy enforcement modules
-# ============================================================
-if [ "$FULL_ENFORCEMENT" -eq 1 ] && should_run verify; then
-echo
-blue "════════════════════════════════════════════════════════"
-blue " PHASE optional: Tetragon + Cosign policy-controller + SPIRE + Hubble export"
-blue "════════════════════════════════════════════════════════"
-yellow " Heavy modules are sequential and fail-fast to avoid cascading API timeouts."
-
-# Host VM RAM gate before any heavy module — Kind shares host kernel, so when
-# host available RAM <2Gi, kube-apiserver lease renews start timing out (5s)
-# and kube-scheduler / kube-controller-manager / cilium-operator /
-# spire-controller-manager flap on leader-election. Blocking here is far
-# cheaper than diagnosing a cascade after the fact.
-require_host_ram_mi "${REBUILD_FULL_REQUIRED_HOST_MI:-2000}" "full-enforcement" || {
-  yellow "  Bypass with ZTA_HOST_RAM_CHECK_FATAL=0 if you accept the flap risk."
-  exit 1
-}
-
-run_phase "tetragon" "Deploy Tetragon runtime security" \
-  bash 10-deploy-tetragon.sh
-
-run_phase "cosign-key" "Generate/publish Cosign public key" \
-  bash scripts/zta-cosign-keygen.sh
-
-run_phase "policy-controller" "Deploy sigstore policy-controller" \
-  bash scripts/zta-deploy-policy-controller.sh
-
-run_phase "spire" "Deploy SPIRE workload attestation" \
-  bash scripts/zta-deploy-spire.sh
-
-run_phase "spire-demo" "Deploy SPIRE workload API demo" \
-  bash scripts/zta-spire-onboard-demo.sh
-
-run_phase "hubble-export" "Enable Hubble flow export to Elasticsearch" \
-  bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export
-else
-  yellow " Optional heavy modules skipped by default."
-  yellow " Run after the base rebuild is PASS/WARN-only:"
-  yellow "   bash 10-deploy-tetragon.sh"
-  yellow "   bash scripts/zta-cosign-keygen.sh"
-  yellow "   bash scripts/zta-deploy-policy-controller.sh"
-  yellow "   bash scripts/zta-deploy-spire.sh"
-  yellow "   bash scripts/zta-spire-onboard-demo.sh"
-  yellow "   bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export"
-  yellow " Or use: bash scripts/zta-rebuild.sh --full-enforcement"
-fi
-
-# ============================================================
-# PHASE 7 — verify
-# ============================================================
-if should_run verify; then
-echo
-blue "════════════════════════════════════════════════════════"
-blue " PHASE verify: Run 09-verify-zta.sh + observability baseline"
-blue "════════════════════════════════════════════════════════"
-
-# Allow soft-fail on verify (vault may be sealed initially, etc.)
-bash 09-verify-zta.sh || yellow "    (some verification checks failed — review evidence/)"
-
-if [ -x "$SCRIPT_DIR/scripts/zta-observability-baseline.sh" ]; then
-  echo "--- baseline snapshot ---"
-  bash "$SCRIPT_DIR/scripts/zta-observability-baseline.sh" || yellow "    baseline failed — non-fatal"
-fi
-fi  # should_run verify
-
-DT=$(( $(date +%s) - T0 ))
+DT=$(( $(date +%s) - T_START ))
 echo
 green "============================================================"
-green " ✅  Rebuild complete in ${DT}s"
-green "    Cluster: $(kubectl config current-context 2>/dev/null || echo '?')"
-green "    Pods:    $(kubectl get pod -A --no-headers 2>/dev/null | wc -l) total"
-green "    CNPs:    $(kubectl get cnp -A --no-headers 2>/dev/null | wc -l) total"
+green " ✅  Rebuild orchestrator finished in ${DT}s"
+green "    Logs:    $LOG_DIR"
+green "    Summary: $SUMMARY_FILE"
 green "============================================================"
-green " Next: bash 09-verify-zta.sh        # re-check anytime"
-green "       open evidence/baseline-*/SUMMARY.md   # baseline detail"
-green "============================================================"
+
+# Exit non-zero if any step failed (when halt=0 was used)
+for r in "${RESULTS[@]}"; do
+  if [[ "$r" == *"|FAIL"* ]]; then
+    exit 1
+  fi
+done

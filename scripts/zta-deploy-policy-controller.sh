@@ -236,7 +236,7 @@ helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
   --wait --cleanup-on-fail \
-  --timeout="${POLICY_CONTROLLER_HELM_TIMEOUT:-600s}" || {
+  --timeout="${POLICY_CONTROLLER_HELM_TIMEOUT:-900s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. ImagePullBackOff (registry rate-limit) → kubectl -n $NAMESPACE describe pod"
   red "      2. Webhook cert generation timeout → kubectl -n $NAMESPACE get cert"
@@ -248,7 +248,7 @@ helm upgrade --install "$HELM_RELEASE" "$HELM_CHART" \
 }
 
 blue "[3/5] Waiting for policy-controller webhook rollout..."
-kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeout=180s || {
+kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeout=360s || {
   red "  ✗ policy-controller-webhook rollout failed"
   kubectl -n "$NAMESPACE" describe pod -l app.kubernetes.io/component=webhook | tail -30
   kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true
@@ -256,7 +256,7 @@ kubectl -n "$NAMESPACE" rollout status deploy/policy-controller-webhook --timeou
 }
 kubectl -n "$NAMESPACE" wait --for=condition=Ready pod \
   -l control-plane=policy-controller-webhook \
-  --timeout=120s >/dev/null || {
+  --timeout=240s >/dev/null || {
   red "  ✗ policy-controller-webhook pod not Ready after rollout"
   kubectl -n "$NAMESPACE" get pod -l control-plane=policy-controller-webhook
   kubectl -n "$NAMESPACE" logs deploy/policy-controller-webhook --all-containers --tail=80 2>/dev/null || true

@@ -117,7 +117,7 @@ if ! helm upgrade --install "$RELEASE" "$HELM_REPO_NAME/falco" \
      --namespace "$NAMESPACE" \
      --values "$VALUES_FILE" \
      --cleanup-on-fail \
-     --timeout 8m 2>&1 | tail -10; then
+     --timeout "${FALCO_HELM_TIMEOUT:-15m}" 2>&1 | tail -10; then
   red "  ✗ helm install/upgrade failed"
   red "    Diagnose:"
   red "      helm list -n $NAMESPACE --all"
@@ -127,7 +127,7 @@ if ! helm upgrade --install "$RELEASE" "$HELM_REPO_NAME/falco" \
 fi
 
 blue "[4/4] Waiting for Falco DaemonSet rollout..."
-if ! kubectl -n "$NAMESPACE" rollout status ds/falco --timeout=300s; then
+if ! kubectl -n "$NAMESPACE" rollout status ds/falco --timeout=600s; then
   red "  ✗ Falco rollout did not complete — common causes:"
   red "      1. Driver init failed (modern_ebpf unsupported)"
   red "         → kubectl -n $NAMESPACE logs ds/falco -c falco --tail=40"
@@ -142,7 +142,7 @@ fi
 # Falcosidekick (Deployment, separate from Falco DS)
 if kubectl -n "$NAMESPACE" get deploy falco-falcosidekick >/dev/null 2>&1; then
   blue "[4b/4] Waiting for falcosidekick Deployment rollout..."
-  kubectl -n "$NAMESPACE" rollout status deploy/falco-falcosidekick --timeout=120s || true
+  kubectl -n "$NAMESPACE" rollout status deploy/falco-falcosidekick --timeout=240s || true
 fi
 
 green "============================================================"

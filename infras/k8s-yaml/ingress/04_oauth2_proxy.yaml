@@ -136,7 +136,12 @@ spec:
           echo "Keycloak is ready!"
       containers:
       - name: oauth2-proxy
-        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        # Pinned tag (was :latest). quay.io intermittently fails TLS handshake
+        # on slow VMware NAT links → image pull fails → CrashLoopBackOff.
+        # IfNotPresent + node-side `kind load docker-image` (handled in
+        # 01-setup-cluster.sh) means the image is fetched once and cached.
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+        imagePullPolicy: IfNotPresent
         args:
         - "--config=/etc/oauth2-proxy/oauth2-proxy.cfg"
         env:
@@ -178,6 +183,15 @@ spec:
             port: 4180
           initialDelaySeconds: 10
           periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 4
+        resources:
+          requests:
+            cpu: "25m"
+            memory: "32Mi"
+          limits:
+            cpu: "150m"
+            memory: "128Mi"
       volumes:
       - name: config
         configMap:

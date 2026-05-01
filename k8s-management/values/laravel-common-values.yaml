@@ -56,20 +56,26 @@ internalReloadToken: ""
 appEnvTmpfsSizeLimit: "16Mi"
 
 resources:
+  # Diag tháng 4/2026 ghi nhận hiring-service container app bị OOMKilled
+  # (exit 137) trong khi 6 microservice còn lại đang flap với exit 131/143
+  # (SIGQUIT/SIGTERM khi pod được replace). Bump memory limit từ 384Mi → 640Mi
+  # cho app container giúp PHP-FPM + Octane workers chịu được peak khi job
+  # warm cache + worker queue cùng chạy. CPU limit 400m → 600m để xử lý burst
+  # khi cluster vừa khôi phục sau cascade và queue dồn lại.
   app:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "150m"
+      memory: "192Mi"
     limits:
-      cpu: "400m"
-      memory: "384Mi"
+      cpu: "600m"
+      memory: "640Mi"
   sidecar:
     requests:
       cpu: "10m"
       memory: "16Mi"
     limits:
-      cpu: "60m"
-      memory: "48Mi"
+      cpu: "80m"
+      memory: "64Mi"
   init:
     requests:
       cpu: "5m"

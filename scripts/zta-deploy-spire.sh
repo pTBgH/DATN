@@ -180,7 +180,7 @@ kubectl create ns "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 ensure_spire_tokenreview_rbac
 helm upgrade --install spire-crds "$SPIRE_CRDS_CHART" \
   -n "$NAMESPACE" \
-  --wait --timeout="${SPIRE_CRDS_HELM_TIMEOUT:-300s}"
+  --wait --timeout="${SPIRE_CRDS_HELM_TIMEOUT:-600s}"
 
 # Recover from a previous failed install: chart leaves orphan ConfigMaps when
 # install fails (e.g. namespace mismatch), which then break helm upgrade with
@@ -239,7 +239,7 @@ helm upgrade --install spire "$SPIRE_CHART" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
   --wait --cleanup-on-fail \
-  --timeout="${SPIRE_HELM_TIMEOUT:-900s}" || {
+  --timeout="${SPIRE_HELM_TIMEOUT:-1500s}" || {
   red "  ✗ helm install/upgrade failed — common causes:"
   red "      1. namespaces 'spire-system'/'spire-server' not found"
   red "         → ensure values.yaml sets global.spire.namespaces.{system,server}.name=$NAMESPACE"
@@ -257,12 +257,12 @@ helm upgrade --install spire "$SPIRE_CHART" \
 }
 
 blue "[4/5] Waiting for spire-server StatefulSet rollout..."
-kubectl -n "$NAMESPACE" rollout status statefulset/spire-server --timeout=240s || {
+kubectl -n "$NAMESPACE" rollout status statefulset/spire-server --timeout=480s || {
   red "  ✗ spire-server rollout failed"
   kubectl -n "$NAMESPACE" describe pod -l app.kubernetes.io/name=spire-server | tail -30
   exit 1
 }
-kubectl -n "$NAMESPACE" rollout status daemonset/spire-agent --timeout=240s || true
+kubectl -n "$NAMESPACE" rollout status daemonset/spire-agent --timeout=480s || true
 green "    ✓ spire-server + spire-agent ready"
 
 blue "[5/5] Applying ClusterSPIFFEID workload identity rules..."

@@ -1,0 +1,13 @@
+# Strategic-merge patch: ép kube-apiserver có resource requests rõ ràng.
+# Diag tháng 4/2026 ghi nhận kube-apiserver lastState.terminated.exitCode=137
+# (OOMKilled) khi cluster Kind chạy full-enforcement ZTA → khi apiserver chết
+# thì cả cluster coi như đứng vì leader-election cascade kéo theo. Đặt request
+# 1 CPU / 1Gi đẩy QoS sang Burstable, kubelet sẽ ưu tiên giữ apiserver thay vì
+# evict trước khi đụng các pod best-effort khác.
+spec:
+  containers:
+  - name: kube-apiserver
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "1Gi"

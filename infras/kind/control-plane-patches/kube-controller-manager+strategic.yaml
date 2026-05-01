@@ -1,0 +1,11 @@
+# Strategic-merge patch cho kube-controller-manager.
+# Diag tháng 4/2026: 23 lần CrashLoopBackOff trong 3h, mỗi lần do liveness
+# probe timeout (read tcp 127.0.0.1:10257: connection reset). Có request CPU
+# vừa đủ giúp scheduler giữ slot khi node bị stress.
+spec:
+  containers:
+  - name: kube-controller-manager
+    resources:
+      requests:
+        cpu: "300m"
+        memory: "256Mi"

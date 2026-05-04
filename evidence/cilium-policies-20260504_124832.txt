@@ -1,0 +1,7 @@
+NAME                              AGE   VALID
+allow-dns-egress                  33m   True
+allow-egress-vault-db             33m   True
+allow-internal-identity           33m   True
+allow-internal-job-to-workspace   33m   True
+allow-kong-ingress                33m   True
+default-deny-all                  33m   False

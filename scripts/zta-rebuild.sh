@@ -27,6 +27,20 @@
 #                                 # e.g. ZTA_REBUILD_SKIP=25-falco,27-pdp
 #   COSIGN_TLOG_UPLOAD=true       # opt-in to public Rekor log upload
 #                                 # (requires PR #4 merged; default false)
+#   ZTA_MODULE_ROLLBACK=0         # disable automatic module rollback on steps
+#                                 # 25-27 failure (default 1 = auto-rollback).
+#                                 # Set =0 to leave failed release in place for
+#                                 # manual inspection before retrying.
+#
+# Steps 25-27 rollback / retry workflow (module-level, cluster preserved):
+#   # If step fails, the orchestrator auto-runs do_module_rollback <step>.
+#   # To inspect before retrying:
+#   ZTA_MODULE_ROLLBACK=0 bash scripts/zta-rebuild.sh --from=25-falco \
+#     --skip-cluster --yes
+#   # After inspecting, manually rollback and retry:
+#   source scripts/zta-rebuild.sh --list   # confirms step names
+#   # then:
+#   bash scripts/zta-rebuild.sh --from=25-falco --skip-cluster --yes
 #
 # Logs (per run):
 #   evidence/rebuild_<timestamp>/00-prep.log
@@ -81,6 +95,15 @@ declare -A STEP_TIMEOUTS=(
   [21-cosign-keygen]=60
   # Preflight is fast environment checks.
   [00-prep]=120
+  # Falco helm install: eBPF probe pull + falco image pull + DS rollout.
+  # Allow 20 min on slow registries; if it still times out check
+  # falco DS for ImagePullBackOff or driver init failures.
+  [25-falco]=1200
+  # Gatekeeper: helm install + ConstraintTemplate CRD registration (~12s)
+  # + Constraint apply. 600s is conservative.
+  [26-gatekeeper]=600
+  # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
+  [27-pdp]=600
 )
 
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
@@ -359,6 +382,77 @@ do_cosign_sign_workloads() {
 export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_workloads
 
 # ============================================================================
+# Module-level rollback helpers for steps 25-27
+#
+# Strategy: never wipe the whole cluster. Each helper tears out only the helm
+# release / CRDs / namespace for the failing module so the pipeline can be
+# retried with --from=<step> --skip-cluster --yes. The rest of the cluster
+# (Vault, microservices, Tetragon, SPIRE, etc.) is untouched.
+#
+# Called automatically by dump_failure_context when ZTA_MODULE_ROLLBACK=1
+# (default: 1). Set ZTA_MODULE_ROLLBACK=0 to disable automatic rollback and
+# leave the failed release in place for manual inspection first.
+#
+# Usage (manual):
+#   do_module_rollback 25-falco
+#   do_module_rollback 26-gatekeeper
+#   do_module_rollback 27-pdp
+# ============================================================================
+do_module_rollback() {
+  local step_id=$1
+  yellow "  [module-rollback] rolling back step '$step_id' (cluster preserved)..."
+  case "$step_id" in
+    25-falco)
+      yellow "  [25-falco rollback] uninstalling helm release 'falco' from ns falco..."
+      helm uninstall falco -n falco 2>/dev/null || true
+      kubectl delete ns falco --ignore-not-found 2>/dev/null || true
+      yellow "  [25-falco rollback] done. Retry: bash scripts/zta-rebuild.sh --from=25-falco --skip-cluster --yes"
+      yellow "  [25-falco inspect]"
+      echo "    kubectl -n falco get pod"
+      echo "    kubectl -n falco logs ds/falco -c falco --tail=60"
+      echo "    kubectl -n falco describe pod -l app.kubernetes.io/name=falco"
+      echo "    # Check eBPF driver conflict with Tetragon:"
+      echo "    kubectl -n kube-system get pod -l app.kubernetes.io/name=tetragon"
+      echo "    kubectl -n kube-system top pod -l app.kubernetes.io/name=tetragon"
+      ;;
+    26-gatekeeper)
+      yellow "  [26-gatekeeper rollback] removing constraints + helm release..."
+      # Remove constraints before CRDs to avoid orphan finalizers
+      kubectl delete ztarequiredlabels,ztablockhostmounts,ztarestrictprivileged --all --ignore-not-found 2>/dev/null || true
+      kubectl delete constrainttemplate --all --ignore-not-found 2>/dev/null || true
+      helm uninstall gatekeeper -n gatekeeper-system 2>/dev/null || true
+      kubectl delete ns gatekeeper-system --ignore-not-found 2>/dev/null || true
+      yellow "  [26-gatekeeper rollback] done. Retry: bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"
+      yellow "  [26-gatekeeper inspect]"
+      echo "    kubectl -n gatekeeper-system get pod"
+      echo "    kubectl -n gatekeeper-system logs deploy/gatekeeper-controller-manager --tail=60"
+      echo "    kubectl get constrainttemplate"
+      echo "    # Inspect violations after re-apply:"
+      echo "    kubectl get ztarequiredlabels zta-labels-required -o jsonpath='{.status.violations}' | jq"
+      ;;
+    27-pdp)
+      yellow "  [27-pdp rollback] removing PDP deployment + configmap + RBAC..."
+      kubectl delete deployment zta-pdp -n security --ignore-not-found 2>/dev/null || true
+      kubectl delete configmap  zta-pdp-script -n security --ignore-not-found 2>/dev/null || true
+      kubectl delete clusterrolebinding zta-pdp --ignore-not-found 2>/dev/null || true
+      kubectl delete clusterrole zta-pdp --ignore-not-found 2>/dev/null || true
+      kubectl delete serviceaccount zta-pdp -n security --ignore-not-found 2>/dev/null || true
+      kubectl delete cnp allow-pdp-controller-egress -n security --ignore-not-found 2>/dev/null || true
+      yellow "  [27-pdp rollback] done. Retry: bash scripts/zta-rebuild.sh --from=27-pdp --skip-cluster --yes"
+      yellow "  [27-pdp inspect]"
+      echo "    kubectl -n security get pod -l app=zta-pdp"
+      echo "    kubectl -n security logs -l app=zta-pdp --tail=60"
+      echo "    kubectl -n security describe pod -l app=zta-pdp"
+      echo "    # CNP egress check:"
+      echo "    kubectl -n security get cnp allow-pdp-controller-egress -o yaml"
+      ;;
+    *)
+      yellow "  [module-rollback] no specific rollback defined for '$step_id' — no action taken"
+      ;;
+  esac
+}
+
+# ============================================================================
 # Failure diagnostics — dump everything we know about cluster state right now
 # ============================================================================
 dump_failure_context() {
@@ -439,6 +533,24 @@ dump_failure_context() {
       done <<<"$sick_pods"
     } > "$LOG_DIR/${step_id}.diag.txt" 2>&1 || true
     red "  Full diagnostic written to $LOG_DIR/${step_id}.diag.txt"
+  fi
+
+  # Module-level rollback for steps 25-27 — surgically remove the failed
+  # release so a --from=<step> retry starts from a clean slate without
+  # touching the rest of the cluster. Skip if ZTA_MODULE_ROLLBACK=0.
+  if [ "${ZTA_MODULE_ROLLBACK:-1}" = "1" ]; then
+    case "$step_id" in
+      25-falco|26-gatekeeper|27-pdp)
+        do_module_rollback "$step_id"
+        ;;
+    esac
+  else
+    case "$step_id" in
+      25-falco|26-gatekeeper|27-pdp)
+        yellow "  [module-rollback] ZTA_MODULE_ROLLBACK=0 — skipping automatic rollback."
+        yellow "  Inspect manually, then run: do_module_rollback $step_id"
+        ;;
+    esac
   fi
 
   red "  ──── END DIAGNOSTICS ────"

@@ -8,9 +8,11 @@
 #                   match. Falls back if modern_ebpf unsupported.
 #
 # Resource budget (per replica × 4 nodes):
-#   falco:         100-500m CPU / 200-512 Mi RAM
+#   falco:         100-500m CPU / 200-256 Mi RAM  (cap reduced from 512Mi
+#                  to avoid eBPF map exhaustion conflicts with Tetragon on
+#                  worker3 which sits at ~29% of 12 GiB host RAM)
 #   falcosidekick: 25-100m CPU / 64-128 Mi RAM (single Deployment, not DS)
-#   Total:         ~800-1024 Mi RAM
+#   Total:         ~800-896 Mi RAM (was 1024 Mi)
 #
 # Sink: Falcosidekick → Elasticsearch (monitoring ns) index falco-events-*
 #
@@ -165,13 +167,17 @@ falcosidekick:
     enabled: false   # save RAM; ES + Kibana are canonical UI
 
 # Falco DS resource sizing.
+# NOTE: limit.memory capped at 256Mi (was 512Mi) to prevent eBPF map
+# pressure conflicts with Tetragon when both run on the same node (worker3
+# sits at ~29% RAM). modern_ebpf maps are small; 256Mi is ample for
+# Falco's userspace ring-buffer + rule evaluation under normal load.
 resources:
   requests:
     cpu: 100m
     memory: 200Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 256Mi
 
 # DS scheduling — tolerate all taints so it covers control-plane nodes.
 tolerations:

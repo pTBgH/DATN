@@ -82,8 +82,9 @@ events already approximate.
 
 - Tetragon DS ran 30+ minutes with **0 restarts** after the mem bump.
 - Steps 01-24 completed cleanly in `rebuild_20260505_114551` (4567 s total).
-- Step 26 now gated by apiserver `/readyz` health + 3× helm retry
-  (see `docs/gatekeeper-crd-timeout-incident.md`).
+- Step 26 now gated by apiserver `/readyz` health + helm retry
+  (see `doc/incident-gatekeeper-crd-timeout.md` and
+  `doc/incident-gatekeeper-probe-webhook-stuck.md`).
 
 ## Next-attempt checklist
 

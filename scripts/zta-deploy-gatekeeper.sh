@@ -83,20 +83,56 @@ fi
 # ---------------------------------------------------------------
 if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   # -------------------------------------------------------------
-  # Pre-flight: apiserver responsiveness.
+  # Pre-flight: host RAM, apiserver responsiveness, host load.
   #
-  # Observed failure (2026-05-05 rebuild_20260505_092417):
-  #   "Error: INSTALLATION FAILED: failed to install CRD
-  #    crds/syncset-customresourcedefinition.yaml: Timeout: request did
-  #    not complete within requested timeout - context deadline exceeded"
-  # Root cause: apiserver was overloaded (host load avg 190+ on 12 GiB
-  # lab VM) and couldn't process the CRD POST within its 60s request
-  # timeout. Helm's own --timeout flag doesn't help here because the
-  # timeout is per-request on the apiserver side.
-  # Fix: wait for /readyz to return 200 before starting helm install,
-  # then wrap the install in a 3-attempt retry with 30s backoff.
+  # Observed failures:
+  #   2026-05-05 rebuild_20260505_092417 — "Error: INSTALLATION FAILED:
+  #     failed to install CRD crds/syncset-customresourcedefinition.yaml:
+  #     Timeout: request did not complete within requested timeout -
+  #     context deadline exceeded".
+  #     Root cause: apiserver overloaded (host load avg 190+ on 12 GiB
+  #     lab VM); CRD POST exceeded the apiserver's 60s request timeout.
+  #   2026-05-05 rebuild_20260505_142433 — step TIMEOUT after 1501s.
+  #     Root cause: helm install hung on the post-install probeWebhook
+  #     curl Job (gatekeeper-probe-webhook-post-install) which waits for
+  #     gatekeeper-webhook-service to answer; on an overloaded cluster
+  #     the controller-manager pod cannot be scheduled (resource quota
+  #     evaluation timed out) so the webhook never becomes Ready and the
+  #     hook hangs until the rebuild step's 25-min budget is killed —
+  #     and the host VM crashes from the OOM cascade.
+  # Fix:
+  #   1. Refuse to run if host has < ${MIN_FREE_MIB} MiB available.
+  #      Avoids walking into the death-spiral the operator already saw.
+  #   2. Wait for /readyz before helm install.
+  #   3. Disable post-install probeWebhook hook + use --no-hooks so helm
+  #      can never block on a curl-probe Job (we verify rollout ourselves).
+  #   4. Retry install up to 2 times with 30s backoff (was 3) so total
+  #      wall-clock fits the orchestrator's 1500s step budget.
   # -------------------------------------------------------------
-  blue "[0/4] Pre-flight: waiting for apiserver /readyz (up to 180s)..."
+  MIN_FREE_MIB="${MIN_FREE_MIB:-1500}"
+  blue "[0a/4] Pre-flight: host RAM (need ≥ ${MIN_FREE_MIB} MiB available)..."
+  if [ -r /proc/meminfo ]; then
+    _avail=$(awk '/MemAvailable:/ {printf "%d\n", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
+    _total=$(awk '/MemTotal:/    {printf "%d\n", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
+    echo "    host MemAvailable: ${_avail} MiB / MemTotal: ${_total} MiB"
+    if [ "${_avail:-0}" -lt "$MIN_FREE_MIB" ]; then
+      red "    ✗ host has only ${_avail} MiB available (need ≥ ${MIN_FREE_MIB} MiB)."
+      red "      Refusing to install — overcommit cascade WILL crash the VM"
+      red "      (already happened in rebuild_20260505_142433: cluster ended with 0 pods)."
+      red "      Free RAM first, e.g.:"
+      red "        kubectl -n monitoring scale deploy/grafana --replicas=0"
+      red "        kubectl -n logging  scale deploy/kibana  --replicas=0"
+      red "        kubectl -n logging  scale sts/elasticsearch --replicas=1"
+      red "      then retry: bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"
+      red "      Or override (NOT RECOMMENDED): MIN_FREE_MIB=0 bash scripts/zta-deploy-gatekeeper.sh"
+      exit 1
+    fi
+    green "    ✓ ${_avail} MiB available — proceeding"
+  else
+    yellow "    /proc/meminfo not readable — skipping RAM pre-flight (untested host)"
+  fi
+
+  blue "[0b/4] Pre-flight: waiting for apiserver /readyz (up to 180s)..."
   if ! kubectl wait --for=condition=Ready --timeout=5s node --all >/dev/null 2>&1; then
     red "    ✗ not all nodes Ready — refusing to install into an unhealthy cluster"
     kubectl get nodes
@@ -129,6 +165,43 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   fi
 
   blue "[1/4] Installing OPA Gatekeeper $GK_VERSION via helm..."
+
+  # Common helm --set flags. Why each one matters:
+  #   replicas=1 / audit.replicas=1
+  #     The chart default is replicas=3 which over-allocates on a 4-node Kind.
+  #   controllerManager/audit resources
+  #     Sized for the 12 GiB lab VM. See doc/incident-falco-tetragon-ram-overcommit.md.
+  #   postInstall.labelNamespace.enabled=false / postUpgrade.labelNamespace.enabled=false
+  #     The PSA-labelling Job runs `kubectl label ns gatekeeper-system pod-security.*`
+  #     and isn't needed in this lab.
+  #   postInstall.probeWebhook.enabled=false   ★ NEW
+  #     The chart's default post-install hook is a curl Job that probes
+  #     gatekeeper-webhook-service for up to 60 s. On an overloaded cluster
+  #     the gatekeeper-controller-manager pod can't be scheduled inside that
+  #     window (resource quota admission evaluation times out) → curl exits 7
+  #     → helm install fails. Worse, helm WAITS on the hook so the rebuild
+  #     step burns its entire 1500 s budget while the host VM dies from
+  #     overcommit (rebuild_20260505_142433: cluster ended Total pods=0).
+  #     We disable the chart's probe and run our own rollout-status check
+  #     after the install instead.
+  # We also pass --no-hooks to helm install as belt-and-suspenders: even if
+  # someone re-enables the chart hook in values, helm itself will skip ALL
+  # hooks. The chart's hooks are only for cosmetic pod-security labels +
+  # the broken curl probe; none are required for correctness.
+  HELM_SET_ARGS=(
+    --set replicas=1
+    --set audit.replicas=1
+    --set controllerManager.resources.limits.memory=384Mi
+    --set controllerManager.resources.requests.memory=192Mi
+    --set controllerManager.resources.limits.cpu=500m
+    --set controllerManager.resources.requests.cpu=100m
+    --set audit.resources.limits.memory=384Mi
+    --set audit.resources.requests.memory=192Mi
+    --set postInstall.labelNamespace.enabled=false
+    --set postUpgrade.labelNamespace.enabled=false
+    --set postInstall.probeWebhook.enabled=false
+  )
+
   if helm list -n "$GK_NS" 2>/dev/null | grep -q gatekeeper; then
     yellow "    helm release 'gatekeeper' already present — running upgrade"
     helm repo add gatekeeper "$GK_CHART_REPO" >/dev/null 2>&1 || true
@@ -137,7 +210,8 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
     helm upgrade gatekeeper gatekeeper/gatekeeper \
       -n "$GK_NS" \
       --version "$GK_VERSION" \
-      --timeout 15m \
+      --timeout 10m \
+      --no-hooks \
       --reuse-values
   else
     helm repo add gatekeeper "$GK_CHART_REPO" >/dev/null 2>&1 || true
@@ -145,27 +219,20 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
     helm_repo_update_retry gatekeeper
     kubectl create ns "$GK_NS" --dry-run=client -o yaml | kubectl apply -f -
     # Retry wrapper: helm fails fast (~50s) when apiserver returns 504 on
-    # CRD install. Give it 3 attempts with 30s backoff; on each retry we
-    # re-check apiserver health and wipe any ghost release left over from
-    # the prior failed attempt ("namespace/gatekeeper-system created" +
-    # no release but CRDs half-installed is a known helm failure mode).
+    # CRD install. 2 attempts with 30s backoff (was 3) so the total
+    # wall-clock fits the orchestrator's 1500s step budget. On each retry
+    # we re-check apiserver health and wipe any ghost release left over
+    # from the prior failed attempt ("namespace/gatekeeper-system created"
+    # + no release but CRDs half-installed is a known helm failure mode).
     _helm_ok=0
-    for attempt in 1 2 3; do
-      blue "    helm install attempt ${attempt}/3 (timeout 15m)..."
+    for attempt in 1 2; do
+      blue "    helm install attempt ${attempt}/2 (timeout 10m, --no-hooks)..."
       if helm install gatekeeper gatekeeper/gatekeeper \
           -n "$GK_NS" \
           --version "$GK_VERSION" \
-          --timeout 15m \
-          --set replicas=1 \
-          --set audit.replicas=1 \
-          --set controllerManager.resources.limits.memory=384Mi \
-          --set controllerManager.resources.requests.memory=192Mi \
-          --set controllerManager.resources.limits.cpu=500m \
-          --set controllerManager.resources.requests.cpu=100m \
-          --set audit.resources.limits.memory=384Mi \
-          --set audit.resources.requests.memory=192Mi \
-          --set postInstall.labelNamespace.enabled=false \
-          --set postUpgrade.labelNamespace.enabled=false; then
+          --timeout 10m \
+          --no-hooks \
+          "${HELM_SET_ARGS[@]}"; then
         _helm_ok=1; break
       fi
       yellow "    ✗ helm install attempt ${attempt} failed — cleaning orphaned CRDs/release before retry"
@@ -173,7 +240,7 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
       kubectl get crd -o name 2>/dev/null \
         | grep -E 'gatekeeper\.sh$' \
         | xargs -r -n 1 kubectl delete --ignore-not-found 2>/dev/null || true
-      if [ "$attempt" -lt 3 ]; then
+      if [ "$attempt" -lt 2 ]; then
         yellow "    sleeping 30s, re-checking apiserver, then retrying..."
         sleep 30
         kubectl get --raw=/readyz --request-timeout=10s >/dev/null 2>&1 || {
@@ -183,7 +250,7 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
       fi
     done
     if [ "$_helm_ok" -ne 1 ]; then
-      red "    ✗ helm install failed 3 times — aborting"
+      red "    ✗ helm install failed 2 times — aborting"
       red "      Most common root cause on this lab: apiserver overload."
       red "      Fix: free host RAM / reduce load, then:"
       red "        bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"
@@ -192,12 +259,37 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   fi
 
   blue "[2/4] Waiting for Gatekeeper controller-manager rollout..."
-  kubectl -n "$GK_NS" rollout status deploy/gatekeeper-controller-manager --timeout=240s || {
-    red "    ✗ controller-manager rollout failed"
+  # We disabled the chart's post-install probeWebhook curl Job, so this
+  # rollout-status is now the SOLE gate that the webhook is up. If it
+  # fails we surface the real reason (sick pods / events) instead of a
+  # cryptic curl exit 7.
+  if ! kubectl -n "$GK_NS" rollout status deploy/gatekeeper-controller-manager --timeout=300s; then
+    red "    ✗ controller-manager rollout failed (300s budget)"
     kubectl -n "$GK_NS" get pod
+    kubectl -n "$GK_NS" get events --sort-by=.lastTimestamp | tail -20
     exit 1
-  }
+  fi
   kubectl -n "$GK_NS" rollout status deploy/gatekeeper-audit --timeout=240s || true
+
+  # Manual webhook probe (replaces the chart's curl Job). We hit the apiserver
+  # routing layer to gatekeeper-webhook-service from inside the cluster — this
+  # is exactly what the disabled post-install hook used to do, but as a
+  # short-lived `kubectl run` so a hang here can't block helm install.
+  blue "    probing gatekeeper-webhook-service (replaces chart's post-install hook)..."
+  _probe_ok=0
+  for i in 1 2 3 4 5 6; do
+    if kubectl -n "$GK_NS" get endpoints gatekeeper-webhook-service \
+         -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q '\.'; then
+      _probe_ok=1; break
+    fi
+    yellow "    webhook endpoints not populated yet (attempt $i/6) — sleeping 10s..."
+    sleep 10
+  done
+  if [ "$_probe_ok" -ne 1 ]; then
+    red "    ✗ gatekeeper-webhook-service has no endpoints after 60s — webhook not Ready"
+    kubectl -n "$GK_NS" describe svc gatekeeper-webhook-service | head -40
+    exit 1
+  fi
   green "    ✓ Gatekeeper running"
 fi
 

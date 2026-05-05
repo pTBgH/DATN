@@ -82,14 +82,24 @@ its limits and OOM-killed the kubelets, etcd, and apiserver.
    overcommit problem. Override with `MIN_FREE_MIB=0` (NOT recommended)
    for explicit operator opt-in.
 
-3. **Retry budget tightened from 3 → 2** so the total wall-clock fits
-   inside the orchestrator's 1500 s step budget even in the worst case
-   (2 × 10 min helm timeout + 30 s backoff = 1230 s ≪ 1500 s).
+3. **Retry budget tightened from 3 → 2** to keep the helm phase under
+   ~21 min in the worst case (2 × 10 min + 30 s backoff). The previous
+   3-attempt loop on its own could burn 45 min, exceeding the original
+   1500 s step budget by ~2×.
 
 4. **Helm `--timeout 10m`** (was 15 m). With `--no-hooks` the chart
    only has to install the core Deployment + ServiceAccount + RBAC +
    webhook configurations — none of which need 15 minutes on a healthy
    cluster.
+
+5. **Step budget bumped 1500 → 2700 s** in `scripts/zta-rebuild.sh`
+   (`STEP_TIMEOUTS[26-gatekeeper]`). Even with the tighter retry, the
+   degenerate worst case — both helm installs hitting their 10 min
+   timeout, both rollout-status calls draining their full budget, and
+   all 6 ConstraintTemplate CRD waits maxing at 120 s each — sums to
+   ~2610 s. 2700 s gives a small slack on top so the orchestrator
+   doesn't kill a script that is genuinely making progress. See the
+   commented arithmetic in `scripts/zta-rebuild.sh:[26-gatekeeper]`.
 
 ## Operational guidance
 

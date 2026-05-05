@@ -105,16 +105,27 @@ declare -A STEP_TIMEOUTS=(
   [00-prep]=120
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
   # Gatekeeper: helm install + ConstraintTemplate CRD registration
-  # + Constraint apply. Budget 25 min because helm install itself now
-  # uses --timeout 10m with up to 2 retries + a 30s backoff + our own
-  # rollout-status (300s) and webhook-endpoints probe (60s).
-  # Worst-case wall-clock: 2*10m + 30s + 300s + 60s + slack = ~1530s
-  # — we round up to 1500 because in practice the second retry rarely
-  # runs once we added MIN_FREE_MIB pre-flight + --no-hooks.
+  # + Constraint apply. Worst-case wall-clock breakdown:
+  #   pre-flight (RAM + apiserver /readyz + load warn cooldown) :   30s
+  #   helm install attempt 1 (--timeout 10m)                    :  600s
+  #   30s backoff                                               :   30s
+  #   helm install attempt 2 (--timeout 10m)                    :  600s
+  #   rollout-status deploy/gatekeeper-controller-manager (300s):  300s
+  #   rollout-status deploy/gatekeeper-audit (240s, `|| true`)  :  240s
+  #   webhook-endpoints poll (6 × 10s)                          :   60s
+  #   6 × CRD `kubectl wait --for=condition=Established` (120s) :  720s
+  #   constraints apply + 5s sleep                              :   30s
+  #                                                       total : 2610s
+  # We budget 2700s (45 min). Earlier 1500s was a math error
+  # (real worst case ~1830s even ignoring CRD waits) — see Devin
+  # Review on PR #11. The MIN_FREE_MIB + apiserver pre-flight should
+  # keep most runs well under 5 min, but the budget must cover the
+  # degenerate case so the orchestrator doesn't kill a script that's
+  # genuinely making progress.
   # See doc/incident-gatekeeper-crd-timeout.md for the original 504
   # failure and doc/incident-gatekeeper-probe-webhook-stuck.md for the
   # follow-up probeWebhook hang that motivated the current sizing.
-  [26-gatekeeper]=1500
+  [26-gatekeeper]=2700
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
 )

@@ -15,10 +15,18 @@
 # File này thêm:
 #   - allow-mysql-from-keycloak  (data/mysql ← security/keycloak)
 #   - allow-mysql-from-phpmyadmin
+#   - allow-mysql-from-vault     (data/mysql ← vault: dynamic credential issuance)
 #   - allow-kafka-from-apps
 #   - allow-kafka-from-kafbat
 #   - allow-prometheus-scrape-data
 #   - allow-dns-egress-data
+#
+# IMPORTANT — Vault dynamic credentials require MySQL ingress from vault namespace:
+#   Vault's database secrets engine opens connections to MySQL:3306 to CREATE
+#   short-lived DB users per service. Without allow-mysql-from-vault, the
+#   default-deny-data policy drops these connections and vault-agent-init
+#   reports "context deadline exceeded" when rendering DB credential templates.
+#   The corresponding Vault-side egress allow is in 11-vault.yaml.
 # =============================================================================
 
 # 1) DNS egress (mosquito test client + mysql/kafka cần resolve service)
@@ -61,7 +69,29 @@ spec:
       - port: "3306"
         protocol: TCP
 ---
-# 3) MySQL ingress: bổ sung từ phpmyadmin (admin UI)
+# 3) MySQL ingress: từ Vault (database secrets engine — dynamic cred issuance)
+#    Vault connects to MySQL to CREATE short-lived service-specific DB users.
+#    See corresponding egress rule in 11-vault.yaml (allow-vault-egress-mysql).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-from-vault
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: vault
+        k8s:io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP
+---
+# 4) MySQL ingress: bổ sung từ phpmyadmin (admin UI)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

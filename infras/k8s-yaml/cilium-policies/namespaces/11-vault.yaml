@@ -7,6 +7,12 @@
 #
 # vault-prod (StatefulSet) ports: 8200 (api), 8201 (cluster/raft)
 # vault-dev (Deployment)    port: 8300 (dev api)
+#
+# IMPORTANT — Vault Database Secrets Engine egress:
+#   Vault needs TCP:3306 egress TO mysql.data.svc.cluster.local to issue
+#   dynamic DB credentials (vault read database/creds/<service>).
+#   Without this, vault-agent-init hangs on "context deadline exceeded".
+#   The corresponding MySQL-side ingress allow is in 10-data.yaml.
 # =============================================================================
 
 # 1) Default-deny
@@ -240,4 +246,28 @@ spec:
     toPorts:
     - ports:
       - port: "8200"
+        protocol: TCP
+---
+# 9) Vault egress → MySQL (database secrets engine)
+#    Vault's dynamic credential backend connects to MySQL:3306 to create
+#    short-lived DB users for each service. Without this rule the Vault
+#    server cannot issue dynamic creds and vault-agent-init hangs.
+#    See matching ingress rule in 10-data.yaml (allow-mysql-from-vault).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-egress-mysql
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: mysql
+        k8s:io.kubernetes.pod.namespace: data
+    toPorts:
+    - ports:
+      - port: "3306"
         protocol: TCP

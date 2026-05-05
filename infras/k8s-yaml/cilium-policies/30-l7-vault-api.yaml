@@ -1,14 +1,26 @@
 # =============================================================================
-# PR #10 — L7 enforcement: Vault API
+# PR #10 — L4 enforcement: Vault API
 # Reference: doc/20-5w1h-policy-matrix.md row #5
 #
-# Vault expose hơn 100 paths (sys/*, auth/*, secret/*, database/*, transit/*,
-# kv/*). Phần lớn KHÔNG cần thiết cho workload. Whitelist cụ thể những path
-# mà identity-service / Vault-Agent-Injector thực sự dùng.
+# IMPORTANT — TLS COMPATIBILITY NOTE (2026-05-05):
+# Vault uses TLS (HTTPS) on port 8200. Cilium L7 HTTP rules on a TLS port cause
+# the Envoy proxy to intercept the TCP stream and treat it as plaintext HTTP,
+# which breaks the TLS handshake. Symptom: vault-agent-init fails with
+# "http: server gave HTTP response to HTTPS client".
 #
-# Selector: pod app=vault trong namespace vault (StatefulSet vault-0).
-# Source: pod có serviceAccount = identity-service (từ job7189-apps) +
-#         vault-agent-agent-injector + vault-prod ↔ vault-dev (intra-ns).
+# ROOT CAUSE: Cilium L7 HTTP inspection is INCOMPATIBLE with TLS endpoints
+# unless Cilium is configured with the endpoint's TLS certificates (not done here).
+# The correct ZTA posture is L4 (port-level) allow rules combined with:
+#   • Vault's own mutual TLS (cert at /vault/tls/tls.crt)
+#   • Cilium WireGuard node-to-node encryption (already enabled in step 08)
+#   • Namespace-level default-deny (already applied)
+#
+# If L7 Vault path filtering is required in the future, use Cilium's
+# terminatingTLS / originatingTLS stanza to provide the Vault CA cert so
+# Envoy can properly terminate and re-originate TLS connections.
+#
+# Selector: pod app=vault in namespace vault (StatefulSet vault-0).
+# Source: all backend services (vault-agent-init) + injector + vault-dev.
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -23,6 +35,8 @@ spec:
       zta.job7189/env: prod
   ingress:
   # 1) identity-service (job7189-apps) — DB cred JIT + sys/health
+  #    L4-only: Vault's own TLS + WireGuard provide transport security.
+  #    Removing HTTP rules prevents Cilium Envoy from intercepting the TLS stream.
   - fromEndpoints:
     - matchLabels:
         io.cilium.k8s.policy.serviceaccount: identity-service
@@ -31,23 +45,8 @@ spec:
     - ports:
       - port: "8200"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/v1/sys/health.*"
-        - method: "GET"
-          path: "/v1/sys/seal-status"
-        - method: "POST"
-          path: "/v1/auth/kubernetes/login"
-        - method: "POST"
-          path: "/v1/database/creds/identity-service"
-        - method: "GET"
-          path: "/v1/secret/data/laravel-common"
-        - method: "PUT"
-          path: "/v1/auth/token/renew-self"
-        - method: "POST"
-          path: "/v1/auth/token/revoke-self"
-  # 2) Other backend services có Vault Agent Injector — cùng pattern
+  # 2) All other backend services with Vault Agent Injector (vault-agent-init)
+  #    L4-only for the same reason. Covers all 7 Laravel microservices.
   - fromEndpoints:
     - matchExpressions:
       - key: zta.job7189/role
@@ -63,19 +62,17 @@ spec:
     - ports:
       - port: "8200"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/v1/sys/health.*"
-        - method: "POST"
-          path: "/v1/auth/kubernetes/login"
-        - method: "POST"
-          path: "/v1/database/creds/.*"
-        - method: "GET"
-          path: "/v1/secret/data/.*"
-        - method: "PUT"
-          path: "/v1/auth/token/renew-self"
-  # 3) vault-agent-injector webhook health check (host)
+  # 3) vault-agent-injector (same namespace) — webhook callback to vault
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+      - port: "8201"
+        protocol: TCP
+  # 4) host + remote-node (kubelet health checks, kind bridge traffic)
   - fromEntities:
     - host
     - remote-node
@@ -83,9 +80,3 @@ spec:
     - ports:
       - port: "8200"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/v1/sys/health.*"
-        - method: "GET"
-          path: "/v1/sys/seal-status"

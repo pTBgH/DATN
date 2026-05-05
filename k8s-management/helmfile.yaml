@@ -56,16 +56,6 @@ releases:
       - values/laravel-common-values.yaml
       - values/storage-values.yaml
 
-  # Frontend - Candidate Portal
-  - name: fe-candidate
-    namespace: frontend
-    chart: ./charts/fe-candidate
-    values:
-      - values/fe-candidate-values.yaml
-
-  # Frontend - Recruiter Portal
-  - name: fe-recruiter
-    namespace: frontend
-    chart: ./charts/fe-recruiter
-    values:
-      - values/fe-recruiter-values.yaml
+# Frontend (fe_candidate / fe_recruiter) đã được tách ra khỏi pipeline ZTA.
+# Repo giữ thư mục `frontend/` ở root cho dev cục bộ; KHÔNG build/deploy
+# trong cluster ZTA. Xem doc/cleanup-workspace-plan.md (PR-C).

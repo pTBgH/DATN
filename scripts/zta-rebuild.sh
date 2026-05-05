@@ -36,10 +36,11 @@
 #   uptime                                  # 1-min load < 10 recommended
 #   free -m | head -2                       # available RAM > 1.5 GiB
 #   time kubectl get --raw=/readyz          # < 1 s for a healthy cluster
-# See docs/gatekeeper-crd-timeout-incident.md for the 504 CRD-install
-# failure mode, and docs/falco-tetragon-ram-overcommit.md for the RAM
-# overcommit incident that motivated the current Tetragon/Gatekeeper
-# resource sizing.
+# See doc/incident-gatekeeper-crd-timeout.md for the 504 CRD-install
+# failure mode, doc/incident-gatekeeper-probe-webhook-stuck.md for the
+# more recent probeWebhook hang that crashed the host VM, and
+# doc/incident-falco-tetragon-ram-overcommit.md for the RAM overcommit
+# incident that motivated the current Tetragon/Gatekeeper resource sizing.
 #
 # Steps 26-27 rollback / retry workflow (module-level, cluster preserved):
 #   # If step fails, the orchestrator auto-runs do_module_rollback <step>.
@@ -104,10 +105,15 @@ declare -A STEP_TIMEOUTS=(
   [00-prep]=120
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
   # Gatekeeper: helm install + ConstraintTemplate CRD registration
-  # + Constraint apply. Budget 20 min because helm install itself now
-  # uses --timeout 15m with up to 3 retries (see zta-deploy-gatekeeper.sh)
-  # to handle apiserver 504 on CRD creation under high host load.
-  # See docs/gatekeeper-crd-timeout-incident.md for the 2026-05-05 failure.
+  # + Constraint apply. Budget 25 min because helm install itself now
+  # uses --timeout 10m with up to 2 retries + a 30s backoff + our own
+  # rollout-status (300s) and webhook-endpoints probe (60s).
+  # Worst-case wall-clock: 2*10m + 30s + 300s + 60s + slack = ~1530s
+  # — we round up to 1500 because in practice the second retry rarely
+  # runs once we added MIN_FREE_MIB pre-flight + --no-hooks.
+  # See doc/incident-gatekeeper-crd-timeout.md for the original 504
+  # failure and doc/incident-gatekeeper-probe-webhook-stuck.md for the
+  # follow-up probeWebhook hang that motivated the current sizing.
   [26-gatekeeper]=1500
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600

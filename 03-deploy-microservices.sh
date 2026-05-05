@@ -518,7 +518,9 @@ declare -a REQUIRED_IMAGES=()
 for svc in "identity" "workspace" "job" "hiring" "candidate" "communication" "storage"; do
   val_file="k8s-management/values/${svc}-values.yaml"
   if [ -f "$val_file" ]; then
-    TAG=$(grep -m 1 -E "^[[:space:]]*tag:" "$val_file" | awk -F"[:]" "{print \$2}" | tr -d " \"\r")
+    # grep exits 1 when no "tag:" line exists; `|| true` prevents pipefail abort.
+    TAG=$(grep -m 1 -E "^[[:space:]]*tag:" "$val_file" | awk -F"[:]" "{print \$2}" | tr -d " \"\r" || true)
+    TAG="${TAG:-latest}"
   else
     TAG="latest"
   fi
@@ -820,7 +822,10 @@ echo "? Checking for Error States:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Check for problematic pod states
-ERROR_PODS=$(kubectl get pod -A --no-headers 2>/dev/null | grep -E 'Error|Backoff|Failed' | wc -l)
+# grep exits 1 when no lines match; with set -euo pipefail that would abort the
+# script and produce a false "FAIL(1)" even when every service is healthy.
+# The `|| true` makes the pipeline always succeed; wc -l still prints 0.
+ERROR_PODS=$(kubectl get pod -A --no-headers 2>/dev/null | grep -E 'Error|Backoff|Failed' | wc -l || true)
 
 if [ "$ERROR_PODS" -gt 0 ]; then
   echo "⚠️  Found $ERROR_PODS pods with errors:"

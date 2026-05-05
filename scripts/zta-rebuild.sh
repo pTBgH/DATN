@@ -143,6 +143,13 @@ for arg in "$@"; do
   esac
 done
 
+# Export CLI-derived flags so that exported helper functions (do_preflight,
+# do_harden_full, do_cosign_sign_workloads) can read them when they run inside
+# `bash -c "..."` subshells via run_step. Without export, variables are empty
+# in subshells, causing `[ "$SKIP_CLUSTER" -eq 0 ]` to emit:
+#   "environment: line 26: [: : integer expression expected"
+export SKIP_CLUSTER NO_PROMPT DRY_RUN FROM_STEP TO_STEP
+
 if [ "$LIST_ONLY" -eq 1 ]; then
   bold "Steps in execution order:"
   for entry in "${STEPS[@]}"; do
@@ -211,7 +218,7 @@ do_preflight() {
   echo "  pwd: $(pwd)"
   echo "  branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
   echo "  HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
-  if [ "$SKIP_CLUSTER" -eq 0 ]; then
+  if [ "${SKIP_CLUSTER:-0}" -eq 0 ]; then
     if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
       yellow "  existing kind cluster '$CLUSTER_NAME' WILL BE DELETED by step 01"
     fi

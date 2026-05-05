@@ -37,7 +37,14 @@ source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
 # busy nodes (PHP-FPM, OpenResty) because the BPF event ringbuf backs up
 # faster than the agent can drain it under cgroup memory pressure.
 TETRAGON_MEM_REQ="${TETRAGON_MEM_REQ:-128Mi}"
-TETRAGON_MEM_LIM="${TETRAGON_MEM_LIM:-256Mi}"
+# Bumped 256Mi→384Mi after observing repeated OOMKills (exit 137) on the
+# 12 GiB lab cluster: Tetragon's BPF map page-cache + DeltaFIFO event ring
+# exceed 256Mi when 76+ pods churn (cilium DS + microservice rollouts +
+# vault-injection traffic). Symptom: liveness gRPC times out at 60s
+# ("DeltaFIFO Pop Process: slow event handlers blocking the queue") →
+# kubelet kills + restarts the pod every 5-10 min.
+# 4 nodes × 384Mi = 1536Mi total (was 1024Mi) — net +512Mi cluster-wide.
+TETRAGON_MEM_LIM="${TETRAGON_MEM_LIM:-384Mi}"
 TETRAGON_CPU_REQ="${TETRAGON_CPU_REQ:-50m}"
 TETRAGON_CPU_LIM="${TETRAGON_CPU_LIM:-300m}"
 TETRAGON_OPERATOR_MEM_LIM="${TETRAGON_OPERATOR_MEM_LIM:-64Mi}"

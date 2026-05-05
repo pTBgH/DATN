@@ -24,23 +24,21 @@
 # Env vars:
 #   ZTA_REBUILD_HALT_ON_FAIL=0   # continue on step failure (default 1, halt)
 #   ZTA_REBUILD_SKIP=             # comma-separated step names to skip
-#                                 # e.g. ZTA_REBUILD_SKIP=25-falco,27-pdp
+#                                 # e.g. ZTA_REBUILD_SKIP=27-pdp
 #   COSIGN_TLOG_UPLOAD=true       # opt-in to public Rekor log upload
 #                                 # (requires PR #4 merged; default false)
 #   ZTA_MODULE_ROLLBACK=0         # disable automatic module rollback on steps
-#                                 # 25-27 failure (default 1 = auto-rollback).
+#                                 # 26-27 failure (default 1 = auto-rollback).
 #                                 # Set =0 to leave failed release in place for
 #                                 # manual inspection before retrying.
 #
-# Steps 25-27 rollback / retry workflow (module-level, cluster preserved):
+# Steps 26-27 rollback / retry workflow (module-level, cluster preserved):
 #   # If step fails, the orchestrator auto-runs do_module_rollback <step>.
 #   # To inspect before retrying:
-#   ZTA_MODULE_ROLLBACK=0 bash scripts/zta-rebuild.sh --from=25-falco \
+#   ZTA_MODULE_ROLLBACK=0 bash scripts/zta-rebuild.sh --from=26-gatekeeper \
 #     --skip-cluster --yes
-#   # After inspecting, manually rollback and retry:
-#   source scripts/zta-rebuild.sh --list   # confirms step names
-#   # then:
-#   bash scripts/zta-rebuild.sh --from=25-falco --skip-cluster --yes
+#   # After inspecting, retry:
+#   bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes
 #
 # Logs (per run):
 #   evidence/rebuild_<timestamp>/00-prep.log
@@ -95,10 +93,7 @@ declare -A STEP_TIMEOUTS=(
   [21-cosign-keygen]=60
   # Preflight is fast environment checks.
   [00-prep]=120
-  # Falco helm install: eBPF probe pull + falco image pull + DS rollout.
-  # Allow 20 min on slow registries; if it still times out check
-  # falco DS for ImagePullBackOff or driver init failures.
-  [25-falco]=1200
+  # 25-falco removed from pipeline (Tetragon covers runtime detection).
   # Gatekeeper: helm install + ConstraintTemplate CRD registration (~12s)
   # + Constraint apply. 600s is conservative.
   [26-gatekeeper]=600
@@ -132,7 +127,13 @@ STEPS=(
   "22-cosign-sign|Sign all 7 microservice Deployments with offline Cosign|do_cosign_sign_workloads"
   "23-policy-controller|Deploy sigstore policy-controller (image admission)|bash scripts/zta-deploy-policy-controller.sh"
   "24-hubble-export|Enable Hubble flow export to Elasticsearch|bash scripts/zta-deploy-hubble-export.sh --enable-cilium-export"
-  "25-falco|Deploy Falco runtime detection (modern_ebpf)|bash scripts/zta-deploy-falco.sh"
+  # 25-falco was removed from the pipeline. Tetragon (10-tetragon) provides
+  # equivalent eBPF runtime detection, and Falco's DS-per-node (~1 GiB total)
+  # caused host RAM overcommit on the 12 GiB lab box (cascading OOMKills:
+  # tetragon, metrics-server, cilium-operator, policy-controller-webhook).
+  # The script scripts/zta-deploy-falco.sh and infras/k8s-yaml/falco/values.yaml
+  # are kept on disk as future-work artifacts (e.g. multi-node lab) but are
+  # not invoked by the rebuild orchestrator.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
   "90-verify|Run 09-verify-zta.sh (final assessment)|bash 09-verify-zta.sh"
@@ -417,8 +418,12 @@ do_module_rollback() {
       ;;
     26-gatekeeper)
       yellow "  [26-gatekeeper rollback] removing constraints + helm release..."
-      # Remove constraints before CRDs to avoid orphan finalizers
-      kubectl delete ztarequiredlabels,ztablockhostmounts,ztarestrictprivileged --all --ignore-not-found 2>/dev/null || true
+      # Remove constraints before CRDs to avoid orphan finalizers.
+      # Includes all 6 constraint kinds (3 ZTA + 3 image-supply-chain).
+      kubectl delete ztarequiredlabels,ztablockhostmounts,ztarestrictprivileged \
+        --all --ignore-not-found 2>/dev/null || true
+      kubectl delete k8simagedigestrequired,k8sblocklatesttag,k8ssignedimageannotation \
+        --all --ignore-not-found 2>/dev/null || true
       kubectl delete constrainttemplate --all --ignore-not-found 2>/dev/null || true
       helm uninstall gatekeeper -n gatekeeper-system 2>/dev/null || true
       kubectl delete ns gatekeeper-system --ignore-not-found 2>/dev/null || true
@@ -535,18 +540,21 @@ dump_failure_context() {
     red "  Full diagnostic written to $LOG_DIR/${step_id}.diag.txt"
   fi
 
-  # Module-level rollback for steps 25-27 — surgically remove the failed
+  # Module-level rollback for steps 26-27 — surgically remove the failed
   # release so a --from=<step> retry starts from a clean slate without
   # touching the rest of the cluster. Skip if ZTA_MODULE_ROLLBACK=0.
+  # 25-falco is intentionally NOT in this list: Falco was removed from the
+  # pipeline (Tetragon covers runtime detection on this 12 GiB host).
+  # do_module_rollback still supports 25-falco as a manual teardown helper.
   if [ "${ZTA_MODULE_ROLLBACK:-1}" = "1" ]; then
     case "$step_id" in
-      25-falco|26-gatekeeper|27-pdp)
+      26-gatekeeper|27-pdp)
         do_module_rollback "$step_id"
         ;;
     esac
   else
     case "$step_id" in
-      25-falco|26-gatekeeper|27-pdp)
+      26-gatekeeper|27-pdp)
         yellow "  [module-rollback] ZTA_MODULE_ROLLBACK=0 — skipping automatic rollback."
         yellow "  Inspect manually, then run: do_module_rollback $step_id"
         ;;

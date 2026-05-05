@@ -1,0 +1,467 @@
+# Failure diagnostic dump for step 26-gatekeeper at 2026-05-05T08:37:48Z
+
+## Sick pods
+NAMESPACE            NAME                                            READY   STATUS              RESTARTS        AGE
+cert-manager         cert-manager-5779d6596f-zz6qr                   1/1     Running             3 (8m2s ago)    5h7m
+cert-manager         cert-manager-cainjector-5ddf6799cc-4zs2p        1/1     Running             4 (8m7s ago)    5h7m
+cert-manager         cert-manager-webhook-5d4dc79c59-jknln           1/1     Running             6 (6m42s ago)   5h7m
+cosign-system        policy-controller-webhook-76f9d45bf4-6brfq      0/1     Running             23              4h34m
+gatekeeper-system    gatekeeper-probe-webhook-post-install-f6bq5     0/1     ContainerCreating   0               112s
+ingress-nginx        ingress-nginx-controller-7fbf5b4d96-jqb8s       1/1     Running             4 (3m59s ago)   5h7m
+kube-system          cilium-operator-788c799db4-85tlj                0/1     Running             18 (2m4s ago)   5h11m
+kube-system          hubble-ui-67d8bff4c4-lrq8k                      2/2     Running             3               5h11m
+kube-system          kube-apiserver-job7189-control-plane            1/1     Running             1 (109m ago)    5h11m
+kube-system          kube-controller-manager-job7189-control-plane   1/1     Running             8 (8m34s ago)   5h11m
+kube-system          kube-scheduler-job7189-control-plane            1/1     Running             9 (9m13s ago)   5h11m
+kube-system          metrics-server-5445fc4c89-8vvws                 1/1     Running             5 (4m ago)      47m
+spire                spire-agent-5h9rt                               1/1     Running             2 (4m7s ago)    4h37m
+spire                spire-agent-k24kp                               1/1     Running             2 (6m35s ago)   4h37m
+spire                spire-agent-xfnvd                               1/1     Running             1               4h37m
+spire                spire-agent-zbpwt                               1/1     Running             3 (9m7s ago)    4h37m
+spire                spire-server-0                                  1/2     CrashLoopBackOff    15 (2m5s ago)   4h37m
+vault                vault-agent-agent-injector-59999f8dd-sjpxb      0/1     Running             13 (115s ago)   4h39m
+
+## Events (last 50)
+kube-system         2m47s       Warning   Unhealthy                      pod/cilium-t74vz                                    Liveness probe failed: Get "http://127.0.0.1:9879/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         2m45s       Warning   FailedToUpdateEndpoint         endpoints/metrics-server                            Failed to update endpoint kube-system/metrics-server: etcdserver: request timed out
+kube-system         2m43s       Warning   FailedToUpdateEndpoint         endpoints/metrics-server                            Failed to update endpoint kube-system/metrics-server: Operation cannot be fulfilled on endpoints "metrics-server": the object has been modified; please apply your changes to the latest version and try again
+gatekeeper-system   2m42s       Warning   FailedCreate                   replicaset/gatekeeper-controller-manager-b9894d9    Error creating: Internal error occurred: resource quota evaluation timed out
+spire               2m40s       Normal    LeaderElection                 lease/67103523.spiffe.io                            spire-server-0_b60f00ea-7115-4683-904f-8da16dc28856 stopped leading
+kube-system         2m40s       Warning   Unhealthy                      pod/coredns-7d764666f9-9l949                        Readiness probe failed: Get "http://10.244.1.175:8181/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+gatekeeper-system   2m37s       Normal    SuccessfulCreate               replicaset/gatekeeper-audit-85f79bd77b              Created pod: gatekeeper-audit-85f79bd77b-ng2fk
+kube-system         2m37s       Warning   Unhealthy                      pod/kube-scheduler-job7189-control-plane            Readiness probe failed: Get "https://127.0.0.1:10259/readyz": net/http: TLS handshake timeout
+kube-system         2m36s       Warning   Unhealthy                      pod/tetragon-operator-6f8b69c8d5-6xhmn              Readiness probe failed: Get "http://10.244.0.195:8081/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+gatekeeper-system   2m34s       Normal    SuccessfulCreate               replicaset/gatekeeper-controller-manager-b9894d9    Created pod: gatekeeper-controller-manager-b9894d9-bhxqt
+kube-system         2m34s       Warning   Unhealthy                      pod/tetragon-operator-6f8b69c8d5-6xhmn              Liveness probe failed: Get "http://10.244.0.195:8081/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         2m33s       Warning   Unhealthy                      pod/cilium-envoy-fsmgq                              Readiness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+security            2m33s       Warning   Unhealthy                      pod/keycloak-7657998b6f-xw5zh                       Readiness probe failed: Get "http://10.244.2.32:8080/health/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+vault               2m26s       Normal    Killing                        pod/vault-agent-agent-injector-59999f8dd-sjpxb      Container sidecar-injector failed liveness probe, will be restarted
+gatekeeper-system   2m22s       Normal    SuccessfulCreate               job/gatekeeper-probe-webhook-post-install           Created pod: gatekeeper-probe-webhook-post-install-f6bq5
+vault               2m20s       Normal    Pulled                         pod/vault-agent-agent-injector-59999f8dd-sjpxb      Container image "hashicorp/vault-k8s:1.7.2" already present on machine and can be accessed by the pod
+spire               2m11s       Warning   Unhealthy                      pod/spiffe-csi-driver-txx2t                         Liveness probe failed: HTTP probe failed with statuscode: 500
+job7189-apps        2m10s       Warning   Unhealthy                      pod/storage-service-b9fd8bb4b-pr2m5                 Readiness probe failed: command timed out: "/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]" timed out after 1s
+job7189-apps        2m6s        Warning   Unhealthy                      pod/candidate-service-6dc5ccc4c9-hsjsb              Readiness probe failed: command timed out: "/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]" timed out after 1s
+vault               2m3s        Normal    Created                        pod/vault-agent-agent-injector-59999f8dd-sjpxb      Container created
+gatekeeper-system   118s        Normal    Pulled                         pod/gatekeeper-audit-85f79bd77b-ng2fk               Container image "openpolicyagent/gatekeeper:v3.16.3" already present on machine and can be accessed by the pod
+gatekeeper-system   116s        Normal    Pulled                         pod/gatekeeper-probe-webhook-post-install-f6bq5     Container image "curlimages/curl:7.83.1" already present on machine and can be accessed by the pod
+job7189-apps        114s        Warning   Unhealthy                      pod/job-service-7978d77d7d-p7sr7                    Readiness probe failed: command timed out: "/bin/sh -c [ -f /app-secrets/.env ] && [ -s /app-secrets/.env ]" timed out after 1s
+gatekeeper-system   114s        Normal    Pulled                         pod/gatekeeper-controller-manager-b9894d9-bhxqt     Container image "openpolicyagent/gatekeeper:v3.16.3" already present on machine and can be accessed by the pod
+gatekeeper-system   113s        Normal    Created                        pod/gatekeeper-audit-85f79bd77b-ng2fk               Container created
+gatekeeper-system   107s        Normal    Created                        pod/gatekeeper-probe-webhook-post-install-f6bq5     Container created
+gatekeeper-system   105s        Normal    Created                        pod/gatekeeper-controller-manager-b9894d9-bhxqt     Container created
+gatekeeper-system   98s         Normal    Started                        pod/gatekeeper-audit-85f79bd77b-ng2fk               Container started
+gatekeeper-system   96s         Normal    Started                        pod/gatekeeper-controller-manager-b9894d9-bhxqt     Container started
+gatekeeper-system   90s         Warning   Unhealthy                      pod/gatekeeper-audit-85f79bd77b-ng2fk               Liveness probe failed: Get "http://10.244.2.197:9090/healthz": dial tcp 10.244.2.197:9090: connect: connection refused
+gatekeeper-system   88s         Warning   Unhealthy                      pod/gatekeeper-controller-manager-b9894d9-bhxqt     Liveness probe failed: Get "http://10.244.2.35:9090/healthz": dial tcp 10.244.2.35:9090: connect: connection refused
+gatekeeper-system   88s         Normal    Started                        pod/gatekeeper-probe-webhook-post-install-f6bq5     Container started
+gatekeeper-system   87s         Warning   Unhealthy                      pod/gatekeeper-audit-85f79bd77b-ng2fk               Readiness probe failed: Get "http://10.244.2.197:9090/readyz": dial tcp 10.244.2.197:9090: connect: connection refused
+gatekeeper-system   87s         Warning   Unhealthy                      pod/gatekeeper-controller-manager-b9894d9-bhxqt     Readiness probe failed: Get "http://10.244.2.35:9090/readyz": dial tcp 10.244.2.35:9090: connect: connection refused
+ingress-nginx       79s         Warning   Unhealthy                      pod/ingress-nginx-controller-7fbf5b4d96-jqb8s       Liveness probe failed: Get "http://10.244.3.10:10254/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring          72s         Warning   Unhealthy                      pod/kube-state-metrics-856b75dfd5-792q5             Liveness probe failed: Get "http://10.244.3.28:8080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         72s         Warning   Unhealthy                      pod/cilium-envoy-cnpg5                              Liveness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+cosign-system       71s         Warning   Unhealthy                      pod/policy-controller-webhook-76f9d45bf4-6brfq      (combined from similar events): Readiness probe failed: Get "https://10.244.3.76:8443/readyz": context deadline exceeded
+cert-manager        70s         Warning   Unhealthy                      pod/cert-manager-webhook-5d4dc79c59-jknln           Readiness probe failed: Get "http://10.244.3.149:6080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+gatekeeper-system   59s         Warning   Unhealthy                      pod/gatekeeper-audit-85f79bd77b-ng2fk               Liveness probe failed: Get "http://10.244.2.197:9090/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire               59s         Warning   Unhealthy                      pod/spiffe-csi-driver-txx2t                         Liveness probe failed: Get "http://10.244.2.18:9809/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire               58s         Warning   Unhealthy                      pod/spire-agent-xfnvd                               Readiness probe failed: Get "http://172.18.0.2:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+gatekeeper-system   57s         Warning   Unhealthy                      pod/gatekeeper-controller-manager-b9894d9-bhxqt     Liveness probe failed: Get "http://10.244.2.35:9090/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         57s         Warning   Unhealthy                      pod/coredns-7d764666f9-sskwm                        Readiness probe failed: Get "http://10.244.1.148:8181/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         55s         Warning   Unhealthy                      pod/hubble-relay-999c5cd6f-qgdsf                    Readiness probe failed: timeout: failed to connect service "10.244.1.216:4222" within 3s: context deadline exceeded
+vault               53s         Warning   Unhealthy                      pod/vault-agent-agent-injector-59999f8dd-sjpxb      Startup probe failed: Get "https://10.244.1.115:8080/health/ready": dial tcp 10.244.1.115:8080: connect: connection refused
+gatekeeper-system   52s         Warning   Unhealthy                      pod/gatekeeper-controller-manager-b9894d9-bhxqt     Readiness probe failed: Get "http://10.244.2.35:9090/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         52s         Warning   Unhealthy                      pod/cilium-envoy-sn7bd                              Readiness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+gatekeeper-system   52s         Warning   Unhealthy                      pod/gatekeeper-audit-85f79bd77b-ng2fk               Readiness probe failed: Get "http://10.244.2.197:9090/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system         34s         Normal    Killing                        pod/hubble-ui-67d8bff4c4-lrq8k                      Container frontend failed liveness probe, will be restarted
+
+## Pod describe
+
+### gatekeeper-system/gatekeeper-probe-webhook-post-install-f6bq5
+Name:             gatekeeper-probe-webhook-post-install-f6bq5
+Namespace:        gatekeeper-system
+Priority:         0
+Service Account:  default
+Node:             job7189-worker2/172.18.0.5
+Start Time:       Tue, 05 May 2026 08:36:05 +0000
+Labels:           app=gatekeeper
+                  app.kubernetes.io/instance=gatekeeper
+                  app.kubernetes.io/managed-by=Helm
+                  app.kubernetes.io/name=gatekeeper
+                  app.kubernetes.io/version=3.16.3
+                  batch.kubernetes.io/controller-uid=be9a7a59-e7ec-470e-9e66-6461f84715b6
+                  batch.kubernetes.io/job-name=gatekeeper-probe-webhook-post-install
+                  chart=gatekeeper
+                  controller-uid=be9a7a59-e7ec-470e-9e66-6461f84715b6
+                  gatekeeper.sh/system=yes
+                  helm.sh/chart=gatekeeper-3.16.3
+                  heritage=Helm
+                  job-name=gatekeeper-probe-webhook-post-install
+                  release=gatekeeper
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.2.80
+IPs:
+  IP:           10.244.2.80
+Controlled By:  Job/gatekeeper-probe-webhook-post-install
+Containers:
+  webhook-probe-post:
+    Container ID:    containerd://b7643630e3cf344c0131c68037553f4e6638602c1cf105e87e3d5f33b24c8fe7
+    Image:           curlimages/curl:7.83.1
+    Image ID:        docker.io/curlimages/curl@sha256:e83fef2d5a036d40df4ded829141e8c0ec41871490d252fb8c81cb4580ebb35b
+    Port:            <none>
+    Host Port:       <none>
+    SeccompProfile:  RuntimeDefault
+    Command:
+      curl
+    Args:
+      --retry
+      99999
+      --retry-connrefused
+      --retry-max-time
+      60
+      --retry-delay
+      1
+      --max-time
+      2
+      --cacert
+      /certs/ca.crt
+      -v
+      https://gatekeeper-webhook-service.gatekeeper-system.svc/v1/admitlabel?timeout=2s
+    State:          Terminated
+      Reason:       Error
+      Exit Code:    7
+      Started:      Tue, 05 May 2026 08:36:49 +0000
+      Finished:     Tue, 05 May 2026 08:36:48 +0000
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /certs from cert (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-ktnx5 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  cert:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  gatekeeper-webhook-server-cert
+    Optional:    false
+  kube-api-access-ktnx5:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              kubernetes.io/os=linux
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  4m     default-scheduler  Successfully assigned gatekeeper-system/gatekeeper-probe-webhook-post-install-f6bq5 to job7189-worker2
+  Normal  Pulled     3m35s  kubelet            spec.containers{webhook-probe-post}: Container image "curlimages/curl:7.83.1" already present on machine and can be accessed by the pod
+  Normal  Created    3m26s  kubelet            spec.containers{webhook-probe-post}: Container created
+  Normal  Started    3m7s   kubelet            spec.containers{webhook-probe-post}: Container started
+
+### gatekeeper-system/gatekeeper-probe-webhook-post-install-f6bq5 logs (current)
+
+### gatekeeper-system/gatekeeper-probe-webhook-post-install-f6bq5 logs (--previous)
+
+### spire/spire-server-0
+Name:             spire-server-0
+Namespace:        spire
+Priority:         0
+Service Account:  spire-server
+Node:             job7189-worker3/172.18.0.3
+Start Time:       Tue, 05 May 2026 04:00:36 +0000
+Labels:           app.kubernetes.io/component=server
+                  app.kubernetes.io/instance=spire
+                  app.kubernetes.io/name=spire-server
+                  apps.kubernetes.io/pod-index=0
+                  component=server
+                  controller-revision-hash=spire-server-8764fb489
+                  release=spire
+                  release-namespace=spire
+                  statefulset.kubernetes.io/pod-name=spire-server-0
+Annotations:      checksum/config: c051d3aec9d1f826e217a3de3dc5d529cc09434f502df86ceef0540e0c7cb586
+                  checksum/config2: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+                  checksum/config3: d7d5da40b43a4ad4076310d017061efd273507161a0e55c895652df5485bd26b
+                  checksum/configTornjak: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+                  kubectl.kubernetes.io/default-container: spire-server
+Status:           Running
+IP:               10.244.3.172
+IPs:
+  IP:           10.244.3.172
+Controlled By:  StatefulSet/spire-server
+Init Containers:
+  chown:
+    Container ID:  containerd://771df280fb0ac108e37ff1521967c9b6ab40de5670c900ff9179eafe5353551f
+    Image:         busybox:1.37.0-uclibc
+    Image ID:      docker.io/library/busybox@sha256:e3a499df044f0129fd2e82a63177e7affe66ba6fd73acc9e231fd7695f06e5e2
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+    Args:
+      chown -R 1000:1000 /var/lib/spire
+      
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Tue, 05 May 2026 04:00:50 +0000
+      Finished:     Tue, 05 May 2026 04:00:50 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/lib/spire from spire-data (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-2tqql (ro)
+Containers:
+  spire-server:
+    Container ID:  containerd://ed85a150ac73a433af7bdebe6ec5bbd20b6365585783b45e60d3ecae54b3b659
+    Image:         ghcr.io/spiffe/spire-server:1.14.5
+    Image ID:      ghcr.io/spiffe/spire-server@sha256:295af37293ffef6530ba0cafce055c41fd4d26dbabaca24944c029bbc8291214
+    Ports:         8081/TCP (grpc), 8080/TCP (healthz)
+    Host Ports:    0/TCP (grpc), 0/TCP (healthz)
+    Args:
+      -expandEnv
+      -config
+      /run/spire/config/server.conf
+    State:          Running
+      Started:      Tue, 05 May 2026 04:01:14 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     300m
+      memory:  384Mi
+    Requests:
+      cpu:      100m
+      memory:   192Mi
+    Liveness:   http-get http://:healthz/live delay=60s timeout=10s period=60s #success=1 #failure=8
+    Readiness:  http-get http://:healthz/ready delay=15s timeout=8s period=15s #success=1 #failure=6
+    Environment:
+      PATH:  /opt/spire/bin:/bin
+    Mounts:
+      /run/spire/config from spire-config (ro)
+      /run/spire/data from spire-data (rw)
+      /tmp from server-tmp (rw)
+      /tmp/spire-server/private from spire-server-socket (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-2tqql (ro)
+  spire-controller-manager:
+    Container ID:  containerd://50fa7cf4ad7d315522463f5633aa9e4f95ee4fe91de104a970419d103792ccf1
+    Image:         ghcr.io/spiffe/spire-controller-manager:0.6.4
+    Image ID:      ghcr.io/spiffe/spire-controller-manager@sha256:f8fd8e6637f4d4fa21a46fb6a285a5166f5adc812dbe1f9f6ebe48c09dfda9bf
+    Ports:         9443/TCP (https), 8083/TCP (hp-cm)
+    Host Ports:    0/TCP (https), 0/TCP (hp-cm)
+    Args:
+      --config=controller-manager-config.yaml
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Tue, 05 May 2026 08:33:56 +0000
+      Finished:     Tue, 05 May 2026 08:35:45 +0000
+    Ready:          False
+    Restart Count:  15
+    Limits:
+      cpu:     200m
+      memory:  256Mi
+    Requests:
+      cpu:      50m
+      memory:   96Mi
+    Liveness:   http-get http://:hp-cm/healthz delay=60s timeout=10s period=30s #success=1 #failure=6
+    Readiness:  http-get http://:hp-cm/readyz delay=20s timeout=10s period=20s #success=1 #failure=8
+    Environment:
+      ENABLE_WEBHOOKS:  true
+    Mounts:
+      /controller-manager-config.yaml from controller-manager-config (ro,path="controller-manager-config.yaml")
+      /tmp from spire-controller-manager-tmp (rw,path="spire-controller-manager")
+      /tmp/spire-server/private from spire-server-socket (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-2tqql (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  spire-data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  spire-data-spire-server-0
+    ReadOnly:   false
+  server-tmp:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  spire-config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      spire-server
+    Optional:  false
+  spire-server-socket:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  spire-controller-manager-tmp:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  controller-manager-config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      spire-controller-manager
+    Optional:  false
+  kube-api-access-2tqql:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                     From     Message
+  ----     ------     ----                    ----     -------
+  Warning  Unhealthy  12m (x11 over 116m)     kubelet  spec.containers{spire-controller-manager}: Liveness probe failed: Get "http://10.244.3.172:8083/healthz": dial tcp 10.244.3.172:8083: connect: connection refused
+  Warning  Unhealthy  9m6s                    kubelet  spec.containers{spire-controller-manager}: Readiness probe failed: Get "http://10.244.3.172:8083/readyz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  Warning  Unhealthy  8m30s (x23 over 122m)   kubelet  spec.containers{spire-controller-manager}: Readiness probe failed: Get "http://10.244.3.172:8083/readyz": dial tcp 10.244.3.172:8083: connect: connection refused
+  Normal   Pulled     7m15s (x15 over 3h54m)  kubelet  spec.containers{spire-controller-manager}: Container image "ghcr.io/spiffe/spire-controller-manager:0.6.4" already present on machine and can be accessed by the pod
+  Normal   Created    6m41s (x16 over 4h39m)  kubelet  spec.containers{spire-controller-manager}: Container created
+  Normal   Started    6m34s (x16 over 4h39m)  kubelet  spec.containers{spire-controller-manager}: Container started
+
+### spire/spire-server-0 logs (current)
+time="2026-05-05T04:01:14.732613938Z" level=warning msg="Current umask 0022 is too permissive; setting umask 0027"
+time="2026-05-05T04:01:14.733401042Z" level=info msg=Configured admin_ids="[]" data_dir=/run/spire/data launch_log_level=info version=1.14.5
+time="2026-05-05T04:01:14.733912522Z" level=info msg="Opening SQL database" db_type=sqlite3 subsystem_name=sql
+time="2026-05-05T04:01:14.746976547Z" level=info msg="Initializing new database" subsystem_name=sql
+time="2026-05-05T04:01:14.928367042Z" level=info msg="Connected to SQL database" read_only=false subsystem_name=sql type=sqlite3 version=3.51.3
+time="2026-05-05T04:01:14.928461209Z" level=info msg="Configured DataStore" reconfigurable=false subsystem_name=catalog
+time="2026-05-05T04:01:14.932770647Z" level=info msg="Configured plugin" external=false plugin_name=k8s_configmap plugin_type=BundlePublisher reconfigurable=false subsystem_name=catalog
+time="2026-05-05T04:01:14.932836481Z" level=info msg="Plugin loaded" external=false plugin_name=k8s_configmap plugin_type=BundlePublisher subsystem_name=catalog
+time="2026-05-05T04:01:14.935342262Z" level=info msg="Configured plugin" external=false plugin_name=disk plugin_type=KeyManager reconfigurable=false subsystem_name=catalog
+time="2026-05-05T04:01:14.935390072Z" level=info msg="Plugin loaded" external=false plugin_name=disk plugin_type=KeyManager subsystem_name=catalog
+time="2026-05-05T04:01:14.937283873Z" level=info msg="Configured plugin" external=false plugin_name=k8s_psat plugin_type=NodeAttestor reconfigurable=false subsystem_name=catalog
+time="2026-05-05T04:01:14.937385634Z" level=info msg="Plugin loaded" external=false plugin_name=k8s_psat plugin_type=NodeAttestor subsystem_name=catalog
+time="2026-05-05T04:01:15.014804105Z" level=info msg="There is not a CA journal record that matches any of the local X509 authority IDs" subsystem_name=ca_manager
+time="2026-05-05T04:01:15.015382161Z" level=info msg="Journal loaded" jwt_keys=0 subsystem_name=ca_manager wit_keys=0 x509_cas=0
+time="2026-05-05T04:01:15.23851215Z" level=info msg="X509 CA prepared" expiration="2026-05-06 04:01:15 +0000 UTC" issued_at="2026-05-05 04:01:15.015967139 +0000 UTC" local_authority_id=e7651d1d027f326fbb2d256538850c5e56a254e8 self_signed=true slot=A subsystem_name=ca_manager upstream_authority_id=
+time="2026-05-05T04:01:15.238631313Z" level=info msg="X509 CA activated" expiration="2026-05-06 04:01:15 +0000 UTC" issued_at="2026-05-05 04:01:15.015967139 +0000 UTC" local_authority_id=e7651d1d027f326fbb2d256538850c5e56a254e8 slot=A subsystem_name=ca_manager upstream_authority_id=
+time="2026-05-05T04:01:15.238654136Z" level=info msg="Creating a new CA journal entry" subsystem_name=ca_manager
+time="2026-05-05T04:01:15.430579447Z" level=info msg="JWT key prepared" expiration="2026-05-06 04:01:15.239388996 +0000 UTC" issued_at="2026-05-05 04:01:15.239388996 +0000 UTC" local_authority_id=TPEZELni1pEd7qsNdKMdTKzvD68j0AHB slot=A subsystem_name=ca_manager
+time="2026-05-05T04:01:15.430686018Z" level=info msg="JWT key activated" expiration="2026-05-06 04:01:15.239388996 +0000 UTC" issued_at="2026-05-05 04:01:15.239388996 +0000 UTC" local_authority_id=TPEZELni1pEd7qsNdKMdTKzvD68j0AHB slot=A subsystem_name=ca_manager
+time="2026-05-05T04:01:16.411623739Z" level=info msg="Building in-memory entry cache" subsystem_name=endpoints
+time="2026-05-05T04:01:16.420480733Z" level=info msg="Completed building in-memory entry cache" subsystem_name=endpoints
+time="2026-05-05T04:01:16.42283793Z" level=info msg="Logger service configured" launch_log_level=info
+time="2026-05-05T04:01:16.438056672Z" level=info msg="Starting Server APIs" address="[::]:8081" network=tcp subsystem_name=endpoints
+time="2026-05-05T04:01:16.438441574Z" level=info msg="Starting Server APIs" address=/tmp/spire-server/private/api.sock network=unix subsystem_name=endpoints
+time="2026-05-05T04:01:16.447339806Z" level=info msg="Serving health checks" address="0.0.0.0:8080" subsystem_name=health
+time="2026-05-05T04:02:04.192399132Z" level=info msg="Agent attestation request completed" address="10.244.3.151:35216" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/6d64d167-4c14-4f36-9388-d07aa79be170" authorized_as=nobody authorized_via= caller_addr="10.244.3.151:35216" method=AttestAgent node_attestor_type=k8s_psat request_id=7e2a0726-2c74-45ca-b434-aa5825cf19fe service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T04:02:05.622432327Z" level=info msg="Agent attestation request completed" address="10.244.2.214:60390" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:60390" method=AttestAgent node_attestor_type=k8s_psat request_id=505a3d44-63e5-416c-8a99-600b18cf8f2a service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T04:02:10.979263559Z" level=info msg="Agent attestation request completed" address="10.244.0.34:51996" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/e8fc0a39-4baa-43c6-9d86-ef2d63a69a1f" authorized_as=nobody authorized_via= caller_addr="10.244.0.34:51996" method=AttestAgent node_attestor_type=k8s_psat request_id=7713fd2b-0979-4754-b921-fa08f349c700 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T04:02:11.112918353Z" level=info msg="Agent attestation request completed" address="10.244.1.246:60830" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/857b3c4d-3d7f-44a4-8227-2ae76dc2e29e" authorized_as=nobody authorized_via= caller_addr="10.244.1.246:60830" method=AttestAgent node_attestor_type=k8s_psat request_id=ba6ce47d-eb52-4cf9-a73e-a4297bea5706 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T05:51:23.43158818Z" level=info msg="Agent attestation request completed" address="10.244.2.214:36168" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:36168" method=AttestAgent node_attestor_type=k8s_psat request_id=b340e3da-a6d5-4450-b454-dad4612d2292 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T05:51:32.227817367Z" level=info msg="Agent attestation request completed" address="10.244.0.34:44686" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/e8fc0a39-4baa-43c6-9d86-ef2d63a69a1f" authorized_as=nobody authorized_via= caller_addr="10.244.0.34:44686" method=AttestAgent node_attestor_type=k8s_psat request_id=1d1c1a61-5335-4020-a4d7-ddcf7aafcaae service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T05:52:12.616999292Z" level=info msg="Agent attestation request completed" address="10.244.3.151:57862" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/6d64d167-4c14-4f36-9388-d07aa79be170" authorized_as=nobody authorized_via= caller_addr="10.244.3.151:57862" method=AttestAgent node_attestor_type=k8s_psat request_id=88b31155-5921-44bb-b08b-3647a27f9101 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T05:52:54.517121864Z" level=info msg="Agent attestation request completed" address="10.244.1.246:49058" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/857b3c4d-3d7f-44a4-8227-2ae76dc2e29e" authorized_as=nobody authorized_via= caller_addr="10.244.1.246:49058" method=AttestAgent node_attestor_type=k8s_psat request_id=75864be2-373c-42e3-9c28-4a79206337c7 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T06:43:38.816302602Z" level=info msg="Agent attestation request completed" address="10.244.3.151:55134" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/6d64d167-4c14-4f36-9388-d07aa79be170" authorized_as=nobody authorized_via= caller_addr="10.244.3.151:55134" method=AttestAgent node_attestor_type=k8s_psat request_id=8369f436-e439-4d5d-8f00-fd463aa17d67 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T06:48:01.151610831Z" level=error msg="Nodeattestor(k8s_psat): fail to get node from k8s API server: unable to query nodes API: Get \"https://10.96.0.1:443/api/v1/nodes/job7189-worker2\": dial tcp 10.96.0.1:443: connect: connection refused" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:36968" method=AttestAgent node_attestor_type=k8s_psat request_id=5fabd4da-397b-41ec-a9d8-fabea4e49575 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T06:48:41.275704775Z" level=error msg="Nodeattestor(k8s_psat): unable to validate token with TokenReview API: unable to query token review API: Post \"https://10.96.0.1:443/apis/authentication.k8s.io/v1/tokenreviews\": net/http: TLS handshake timeout" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:51866" method=AttestAgent node_attestor_type=k8s_psat request_id=73ed38bc-7fca-4ed8-aafb-446baa6644de service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T06:49:30.934641829Z" level=info msg="Agent attestation request completed" address="10.244.2.214:38978" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:38978" method=AttestAgent node_attestor_type=k8s_psat request_id=947ff8ba-ab68-466f-bc30-aa2d601de70b service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T06:56:11.015777504Z" level=error msg="Failed to list entries" authorized_as=local authorized_via=transport error="datastore-sql: context canceled" method=ListEntries request_id=e4d3dbbd-13f3-4360-967b-28a509cec8aa service=entry.v1.Entry subsystem_name=api
+time="2026-05-05T06:59:59.122728502Z" level=info msg="Agent attestation request completed" address="10.244.0.34:56424" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/e8fc0a39-4baa-43c6-9d86-ef2d63a69a1f" authorized_as=nobody authorized_via= caller_addr="10.244.0.34:56424" method=AttestAgent node_attestor_type=k8s_psat request_id=760cd849-9f5e-4643-af80-fef831dfa2cc service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T07:41:33.113118374Z" level=info msg="Agent attestation request completed" address="10.244.1.246:55350" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/857b3c4d-3d7f-44a4-8227-2ae76dc2e29e" authorized_as=nobody authorized_via= caller_addr="10.244.1.246:55350" method=AttestAgent node_attestor_type=k8s_psat request_id=e043fe65-7a24-4a99-92d4-b19d93fc4f5d service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T08:13:52.315754926Z" level=info msg="Agent attestation request completed" address="10.244.2.214:35698" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:35698" method=AttestAgent node_attestor_type=k8s_psat request_id=2f80b817-c02d-4d94-b999-e0895927689f service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T08:15:03.73474279Z" level=info msg="Agent attestation request completed" address="10.244.1.246:40522" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/857b3c4d-3d7f-44a4-8227-2ae76dc2e29e" authorized_as=nobody authorized_via= caller_addr="10.244.1.246:40522" method=AttestAgent node_attestor_type=k8s_psat request_id=81dd4b2f-1eb4-4b09-85bf-b377dc88f64f service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T08:31:02.360425907Z" level=info msg="Agent attestation request completed" address="10.244.2.214:43902" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053" authorized_as=nobody authorized_via= caller_addr="10.244.2.214:43902" method=AttestAgent node_attestor_type=k8s_psat request_id=12f6dd03-70b9-4b70-af37-7fa8b9edaffc service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T08:31:22.880477686Z" level=error msg="Failed to list entries" authorized_as=local authorized_via=transport error="datastore-sql: context canceled" method=ListEntries request_id=fa6d4a9e-8663-403b-b325-7305d834cdf1 service=entry.v1.Entry subsystem_name=api
+time="2026-05-05T08:33:45.296143612Z" level=info msg="Agent attestation request completed" address="10.244.3.151:39834" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/6d64d167-4c14-4f36-9388-d07aa79be170" authorized_as=nobody authorized_via= caller_addr="10.244.3.151:39834" method=AttestAgent node_attestor_type=k8s_psat request_id=04acc12b-15e3-4691-8c82-4679c44dcc67 service=agent.v1.Agent subsystem_name=api
+time="2026-05-05T08:34:38.213348273Z" level=info msg="Agent attestation request completed" address="10.244.1.246:48588" agent_id="spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/857b3c4d-3d7f-44a4-8227-2ae76dc2e29e" authorized_as=nobody authorized_via= caller_addr="10.244.1.246:48588" method=AttestAgent node_attestor_type=k8s_psat request_id=71830389-dc9e-4fd7-8df8-cf52fdba38bc service=agent.v1.Agent subsystem_name=api
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"filebeat-qds7t","namespace":"monitoring"}, "namespace": "monitoring", "name": "filebeat-qds7t", "reconcileID": "14e3b7ec-c065-4a1e-8a6a-30f01e771dba"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"filebeat-spp4c","namespace":"monitoring"}, "namespace": "monitoring", "name": "filebeat-spp4c", "reconcileID": "0d70404c-bd33-4a6e-95a4-eab7b95fd737"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"identity-service-redis-58bc5b5fdf-s2rgj","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "identity-service-redis-58bc5b5fdf-s2rgj", "reconcileID": "b01f16ef-c330-47e1-9282-821d8fec20b5"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"workspace-service-redis-76b9bf6b4d-jp9rm","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "workspace-service-redis-76b9bf6b4d-jp9rm", "reconcileID": "7610530c-ddee-4d1d-b350-9d1eda9e1eea"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"filebeat-wvsm5","namespace":"monitoring"}, "namespace": "monitoring", "name": "filebeat-wvsm5", "reconcileID": "83b50a59-ec5d-4bc2-a156-0a2108f6def5"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-agent-5h9rt","namespace":"spire"}, "namespace": "spire", "name": "spire-agent-5h9rt", "reconcileID": "999b4f81-983b-454d-a938-ba6b26b36069"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"storage-service-redis-67999f7dd-jbs8n","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "storage-service-redis-67999f7dd-jbs8n", "reconcileID": "4fc28b8b-22f3-499d-9ee5-3a8cae510fe1"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"node-exporter-pjtm7","namespace":"monitoring"}, "namespace": "monitoring", "name": "node-exporter-pjtm7", "reconcileID": "77ab12c1-a482-4ed7-94be-de30143e17f7"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"vault-agent-agent-injector-59999f8dd-sjpxb","namespace":"vault"}, "namespace": "vault", "name": "vault-agent-agent-injector-59999f8dd-sjpxb", "reconcileID": "a5f5b758-5e4a-4283-b382-3b0862932101"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"job-service-7978d77d7d-p7sr7","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "job-service-7978d77d7d-p7sr7", "reconcileID": "1eafc1d4-c247-478f-97bd-c7801c1041a0"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spiffe-csi-driver-26dxj","namespace":"spire"}, "namespace": "spire", "name": "spiffe-csi-driver-26dxj", "reconcileID": "4d7a5b9b-12df-4442-972f-66300946e122"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"es-0","namespace":"monitoring"}, "namespace": "monitoring", "name": "es-0", "reconcileID": "e2e5427d-78e7-4c96-9692-368cbde2332e"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-server-0","namespace":"spire"}, "namespace": "spire", "name": "spire-server-0", "reconcileID": "d548d5b8-5dc5-466d-92f4-f4c7dede6540"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spiffe-csi-driver-6bcnw","namespace":"spire"}, "namespace": "spire", "name": "spiffe-csi-driver-6bcnw", "reconcileID": "82a4f932-8113-4a65-853c-6697954db992"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"hiring-service-redis-66467986cb-nnpk6","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "hiring-service-redis-66467986cb-nnpk6", "reconcileID": "3cacfde6-4133-4e42-bffb-3278eccbe81f"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"phpmyadmin-68d5df54bd-l5n8d","namespace":"management"}, "namespace": "management", "name": "phpmyadmin-68d5df54bd-l5n8d", "reconcileID": "fc918977-c178-49a1-ae6b-db83db856ac4"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"prometheus-5d7cfdfd4b-pd6zp","namespace":"monitoring"}, "namespace": "monitoring", "name": "prometheus-5d7cfdfd4b-pd6zp", "reconcileID": "47148ca9-369e-478f-92ca-4832a5401d08"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"kong-gateway-5fb8847568-p8q2h","namespace":"gateway"}, "namespace": "gateway", "name": "kong-gateway-5fb8847568-p8q2h", "reconcileID": "0edc66e3-425d-481a-80e4-f469f1149e2d"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"communication-service-redis-848bb44985-p5m2r","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "communication-service-redis-848bb44985-p5m2r", "reconcileID": "7bec8cd0-2631-48d6-b2a2-e7169e302aee"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-agent-xfnvd","namespace":"spire"}, "namespace": "spire", "name": "spire-agent-xfnvd", "reconcileID": "889c1d79-8862-443c-801d-88d3e363baa7"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"node-exporter-wffxr","namespace":"monitoring"}, "namespace": "monitoring", "name": "node-exporter-wffxr", "reconcileID": "b82ff5ff-ca1f-44a3-9b8f-eb8c1816e2e2"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-agent-k24kp","namespace":"spire"}, "namespace": "spire", "name": "spire-agent-k24kp", "reconcileID": "9422918c-2d95-4c57-b68a-95a2e09d24bb"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"communication-service-5967c8855f-4vb8f","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "communication-service-5967c8855f-4vb8f", "reconcileID": "ce083ebc-9e13-45c7-9b7d-83754da3b0c9"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"kafka-0","namespace":"data"}, "namespace": "data", "name": "kafka-0", "reconcileID": "32961c94-e8fa-4aca-bb72-f32a7f1a505d"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"mysql-668fc484f9-2krmm","namespace":"data"}, "namespace": "data", "name": "mysql-668fc484f9-2krmm", "reconcileID": "4a67c822-30e4-4928-b9ee-ea06e87381ea"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"job-service-redis-7d978bf878-4bv5r","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "job-service-redis-7d978bf878-4bv5r", "reconcileID": "8e7aab35-43c8-4a3b-b739-dbf98a94f9f9"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"kafbat-7c6bd7577d-vwfn7","namespace":"management"}, "namespace": "management", "name": "kafbat-7c6bd7577d-vwfn7", "reconcileID": "f59094df-002b-47a0-8e80-60a60507de8c"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"kibana-55f7f8646d-rqmw6","namespace":"monitoring"}, "namespace": "monitoring", "name": "kibana-55f7f8646d-rqmw6", "reconcileID": "e7dce808-2a86-4c84-abd4-29231ab79dc3"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"ingress-nginx-controller-7fbf5b4d96-jqb8s","namespace":"ingress-nginx"}, "namespace": "ingress-nginx", "name": "ingress-nginx-controller-7fbf5b4d96-jqb8s", "reconcileID": "8f19bfe8-a99e-413b-b967-64b60eab2014"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"candidate-service-redis-8dbc4444-2fcgg","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "candidate-service-redis-8dbc4444-2fcgg", "reconcileID": "19cab73b-dfa4-4f11-b6e2-f9b452bd9690"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"candidate-service-6dc5ccc4c9-hsjsb","namespace":"job7189-apps"}, "namespace": "job7189-apps", "name": "candidate-service-6dc5ccc4c9-hsjsb", "reconcileID": "75355bda-d581-4530-a02d-fbaafc137638"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"vault-dev-858fd5cd6b-kctck","namespace":"vault"}, "namespace": "vault", "name": "vault-dev-858fd5cd6b-kctck", "reconcileID": "855749cf-f304-43ea-8049-c22d49498658"}
+2026-05-05T08:34:37Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-agent-zbpwt","namespace":"spire"}, "namespace": "spire", "name": "spire-agent-zbpwt", "reconcileID": "83898735-9469-4d27-8d4d-33099b6f08d7"}
+2026-05-05T08:34:37Z	INFO	entry-reconciler	Created entry	{"id": "kind-job7189.13832dd7-e424-4f83-89f6-056e1d709b62", "parentID": "spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053", "spiffeID": "spiffe://zta.job7189/ns/gatekeeper-system/sa/gatekeeper-admin-upgrade-crds", "x509SVIDTTL": "0s", "jwtSVIDTTL": "0s", "selectors": "[k8s:pod-uid:e5faa9b6-8590-4d7a-833a-6f4fd11ff314]", "federatesWith": "[]", "dnsNames": "[]", "admin": false, "downstream": false, "hint": "default", "storeSVID": false}
+2026-05-05T08:34:38Z	INFO	entry-reconciler	Updated status	{"clusterSPIFFEID": "/spire-spire-default"}
+2026-05-05T08:34:38Z	DEBUG	Triggering reconciliation	{"controller": "clusterspiffeid", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterSPIFFEID", "ClusterSPIFFEID": {"name":"spire-spire-default"}, "namespace": "", "name": "spire-spire-default", "reconcileID": "69b98d87-a5e3-47c3-a580-8a85b7afc2f6"}
+2026-05-05T08:34:45Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"gatekeeper-update-crds-hook-zgjf4","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-update-crds-hook-zgjf4", "reconcileID": "dd8a8f63-caa3-4321-a726-42ae4a5e64ff"}
+2026-05-05T08:34:46Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"policy-controller-webhook-76f9d45bf4-6brfq","namespace":"cosign-system"}, "namespace": "cosign-system", "name": "policy-controller-webhook-76f9d45bf4-6brfq", "reconcileID": "f454efd5-25fa-4f1e-8744-e621993d21e0"}
+2026-05-05T08:34:57Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"gatekeeper-update-crds-hook-zgjf4","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-update-crds-hook-zgjf4", "reconcileID": "a9b6ff26-8c78-4dfb-a3f9-5fbdd1cae579"}
+2026-05-05T08:34:58Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"spire-agent-5h9rt","namespace":"spire"}, "namespace": "spire", "name": "spire-agent-5h9rt", "reconcileID": "c6b7f9f4-5b3c-49b5-ad32-7113d5d6d267"}
+2026-05-05T08:34:59Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"gatekeeper-update-crds-hook-zgjf4","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-update-crds-hook-zgjf4", "reconcileID": "262267d3-f02c-45ce-a246-b6b6453aea86"}
+2026-05-05T08:35:12Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"gatekeeper-update-crds-hook-zgjf4","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-update-crds-hook-zgjf4", "reconcileID": "f2d10bb7-b07a-475e-a4ad-f1af45368ded"}
+2026-05-05T08:35:12Z	DEBUG	Triggering reconciliation	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod", "Pod": {"name":"gatekeeper-update-crds-hook-zgjf4","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-update-crds-hook-zgjf4", "reconcileID": "4d068ad8-b3e3-4686-a554-7a0d6f1610d4"}
+2026-05-05T08:35:14Z	INFO	entry-reconciler	Deleted entry	{"id": "kind-job7189.13832dd7-e424-4f83-89f6-056e1d709b62", "parentID": "spiffe://zta.job7189/spire/agent/k8s_psat/kind-job7189/8cf050e0-442e-4e1f-85d9-e025debb5053", "spiffeID": "spiffe://zta.job7189/ns/gatekeeper-system/sa/gatekeeper-admin-upgrade-crds", "x509SVIDTTL": "0s", "jwtSVIDTTL": "0s", "selectors": "[k8s:pod-uid:e5faa9b6-8590-4d7a-833a-6f4fd11ff314]", "federatesWith": "[]", "dnsNames": "[]", "admin": false, "downstream": false, "hint": "default", "storeSVID": false}
+2026-05-05T08:35:15Z	INFO	entry-reconciler	Updated status	{"clusterSPIFFEID": "/spire-spire-default"}
+2026-05-05T08:35:15Z	DEBUG	Triggering reconciliation	{"controller": "clusterspiffeid", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterSPIFFEID", "ClusterSPIFFEID": {"name":"spire-spire-default"}, "namespace": "", "name": "spire-spire-default", "reconcileID": "ad59ce41-8fe5-495d-b5b3-91d035634072"}
+2026-05-05T08:35:21Z	DEBUG	Triggering reconciliation	{"controller": "endpoints", "controllerGroup": "", "controllerKind": "Endpoints", "Endpoints": {"name":"gatekeeper-webhook-service","namespace":"gatekeeper-system"}, "namespace": "gatekeeper-system", "name": "gatekeeper-webhook-service", "reconcileID": "279691ad-2c2d-40a5-ac10-c7e292f4d38f"}
+E0505 08:35:40.203964     370 leaderelection.go:445] "Failed to update lease optimistically, falling back to slow path" err="Put \"https://10.96.0.1:443/apis/coordination.k8s.io/v1/namespaces/spire/leases/67103523.spiffe.io?timeout=5s\": net/http: request canceled (Client.Timeout exceeded while awaiting headers)" lock="spire/67103523.spiffe.io"
+E0505 08:35:40.277845     370 leaderelection.go:452] "Error retrieving lease lock" err="context deadline exceeded" lock="spire/67103523.spiffe.io"
+I0505 08:35:40.310569     370 leaderelection.go:299] "Failed to renew lease" lock="spire/67103523.spiffe.io" err="context deadline exceeded"
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for non leader election runnables
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for warmup runnables
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for leader election runnables
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for caches
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for webhooks
+2026-05-05T08:35:40Z	INFO	Stopping and waiting for HTTP servers
+2026-05-05T08:35:40Z	INFO	Wait completed, proceeding to shutdown the manager
+2026-05-05T08:35:40Z	DEBUG	events	spire-server-0_b60f00ea-7115-4683-904f-8da16dc28856 stopped leading	{"type": "Normal", "object": {"kind":"Lease","namespace":"spire","name":"67103523.spiffe.io","uid":"976260cb-1969-49b5-9aee-afa1e9066291","apiVersion":"coordination.k8s.io/v1","resourceVersion":"59400"}, "reason": "LeaderElection"}
+2026-05-05T08:35:40Z	ERROR	setup	problem running manager	{"error": "leader election lost"}
+main.run
+	/workspace/cmd/main.go:474
+main.main
+	/workspace/cmd/main.go:107
+runtime.main
+	/usr/local/go/src/runtime/proc.go:285
+2026-05-05T08:35:40Z	INFO	entry-reconciler	Reconciliation canceled
+2026-05-05T08:35:40Z	INFO	federation relationship-reconciler	Reconciliation canceled
+2026-05-05T08:35:40Z	INFO	Shutdown signal received, waiting for all workers to finish	{"controller": "clusterstaticentry", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterStaticEntry"}
+2026-05-05T08:35:40Z	INFO	Shutdown signal received, waiting for all workers to finish	{"controller": "clusterfederatedtrustdomain", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterFederatedTrustDomain"}
+2026-05-05T08:35:40Z	INFO	Shutdown signal received, waiting for all workers to finish	{"controller": "endpoints", "controllerGroup": "", "controllerKind": "Endpoints"}
+2026-05-05T08:35:40Z	INFO	Shutdown signal received, waiting for all workers to finish	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod"}
+2026-05-05T08:35:40Z	INFO	Shutdown signal received, waiting for all workers to finish	{"controller": "clusterspiffeid", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterSPIFFEID"}
+2026-05-05T08:35:40Z	INFO	All workers finished	{"controller": "clusterstaticentry", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterStaticEntry"}
+2026-05-05T08:35:40Z	INFO	All workers finished	{"controller": "clusterspiffeid", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterSPIFFEID"}
+2026-05-05T08:35:40Z	INFO	All workers finished	{"controller": "pod", "controllerGroup": "", "controllerKind": "Pod"}
+2026-05-05T08:35:40Z	INFO	All workers finished	{"controller": "clusterfederatedtrustdomain", "controllerGroup": "spire.spiffe.io", "controllerKind": "ClusterFederatedTrustDomain"}
+2026-05-05T08:35:40Z	INFO	All workers finished	{"controller": "endpoints", "controllerGroup": "", "controllerKind": "Endpoints"}
+2026-05-05T08:35:41Z	INFO	controller-runtime.webhook	Shutting down webhook server with timeout of 1 minute
+2026-05-05T08:35:41Z	INFO	controller-runtime.metrics	Shutting down metrics server with timeout of 1 minute
+2026-05-05T08:35:41Z	INFO	shutting down server	{"name": "health probe", "addr": "[::]:8083"}
+
+### spire/spire-server-0 logs (--previous)

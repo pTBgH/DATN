@@ -102,10 +102,12 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
       --version "$GK_VERSION" \
       --set replicas=1 \
       --set audit.replicas=1 \
-      --set controllerManager.resources.limits.memory=256Mi \
-      --set controllerManager.resources.requests.memory=128Mi \
-      --set audit.resources.limits.memory=256Mi \
-      --set audit.resources.requests.memory=128Mi \
+      --set controllerManager.resources.limits.memory=384Mi \
+      --set controllerManager.resources.requests.memory=192Mi \
+      --set controllerManager.resources.limits.cpu=500m \
+      --set controllerManager.resources.requests.cpu=100m \
+      --set audit.resources.limits.memory=384Mi \
+      --set audit.resources.requests.memory=192Mi \
       --set postInstall.labelNamespace.enabled=false \
       --set postUpgrade.labelNamespace.enabled=false
   fi
@@ -123,15 +125,44 @@ fi
 # ---------------------------------------------------------------
 # APPLY constraints
 # ---------------------------------------------------------------
-blue "[3/4] Applying ConstraintTemplates..."
-for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml; do
-  echo "    + $(basename "$f")"
+blue "[3/4] Applying ConstraintTemplates (sequentially, with CRD wait)..."
+# Apply each template ONE at a time and wait for its generated CRD to be
+# Established before moving to the next. Gatekeeper's controller-manager
+# generates a `<kind>.constraints.gatekeeper.sh` CRD per ConstraintTemplate;
+# on a busy cluster (ours: 76+ pods, control-plane under load) the
+# controller-manager can be CPU-throttled or restart during a batch apply,
+# silently dropping CRD generation for the later templates. Sequential
+# apply gives the controller breathing room and surfaces failures cleanly.
+declare -A TEMPLATE_TO_CRD=(
+  [01-constraint-template-required-zta-labels.yaml]=ztarequiredlabels
+  [03-constraint-template-block-host-mounts.yaml]=ztablockhostmounts
+  [05-constraint-template-restrict-privileged.yaml]=ztarestrictprivileged
+  [07-constraint-template-image-digest-required.yaml]=k8simagedigestrequired
+  [09-constraint-template-block-latest-tag.yaml]=k8sblocklatesttag
+  [11-constraint-template-signed-image-annotation.yaml]=k8ssignedimageannotation
+)
+# Iterate in numerically-sorted filename order so we match the on-disk numbering.
+for f in $(ls "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml | sort); do
+  base=$(basename "$f")
+  crd_kind="${TEMPLATE_TO_CRD[$base]:-}"
+  if [ -z "$crd_kind" ]; then
+    red "    ✗ unknown template $base — add to TEMPLATE_TO_CRD map"
+    exit 1
+  fi
+  echo "    + $base"
   kubectl apply -f "$f"
+  echo "      waiting for crd/${crd_kind}.constraints.gatekeeper.sh to be Established (up to 120s)..."
+  if ! kubectl wait --for=condition=Established "crd/${crd_kind}.constraints.gatekeeper.sh" --timeout=120s 2>/dev/null; then
+    red "    ✗ CRD ${crd_kind}.constraints.gatekeeper.sh never reached Established"
+    red "      Likely cause: ConstraintTemplate Rego compile error, or Gatekeeper controller-manager"
+    red "      OOM/CPU-throttled. Inspect:"
+    red "        kubectl describe constrainttemplate $crd_kind"
+    red "        kubectl -n $GK_NS logs deploy/gatekeeper-controller-manager --tail=80"
+    exit 1
+  fi
+  green "      ✓ ${crd_kind} CRD Established"
 done
-
-# Constraint CRDs lag behind ConstraintTemplate by ~5-10s
-echo "    waiting 12s for constraint CRDs to register..."
-sleep 12
+green "    ✓ all ConstraintTemplate CRDs registered"
 
 blue "[4/4] Applying Constraints..."
 for f in "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-*.yaml; do

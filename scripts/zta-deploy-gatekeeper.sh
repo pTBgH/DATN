@@ -405,11 +405,30 @@ for f in $(ls "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml | sort); d
   echo "      waiting for crd/${crd_kind}.constraints.gatekeeper.sh to be Established (up to ${_wait})..."
   if ! kubectl wait --for=condition=Established "crd/${crd_kind}.constraints.gatekeeper.sh" --timeout="$_wait" 2>/dev/null; then
     red "    ✗ CRD ${crd_kind}.constraints.gatekeeper.sh never reached Established within ${_wait}"
-    red "      Likely cause: ConstraintTemplate Rego compile error, or Gatekeeper controller-manager"
-    red "      OOM/CPU-throttled. Inspect:"
-    red "        kubectl describe constrainttemplate $crd_kind"
-    red "        kubectl -n $GK_NS logs deploy/gatekeeper-controller-manager --tail=80"
-    red "        uptime    # if 1-min load > 30 the controller is CPU-starved — free CPU and retry"
+    # Capture diagnostics INLINE before exit. The orchestrator's module-rollback
+    # deletes the gatekeeper-system namespace (and with it the ConstraintTemplate
+    # + controller-manager pod) seconds after we exit 1, so any kubectl command
+    # the operator runs afterwards will fail with "namespace not found". Snapshot
+    # everything we need to debug Rego compile errors / pod restarts here.
+    red "      ── inline diagnostics (captured before module-rollback) ──"
+    red "      [a] ConstraintTemplate status (look for status.byPod[].errors):"
+    kubectl describe "constrainttemplate/$crd_kind" 2>&1 | sed 's/^/        | /' || true
+    red "      [b] gatekeeper-controller-manager pods (look for restartCount > 0):"
+    kubectl -n "$GK_NS" get pod -l control-plane=controller-manager \
+      -o wide 2>&1 | sed 's/^/        | /' || true
+    red "      [c] gatekeeper-controller-manager logs (last 100 lines):"
+    kubectl -n "$GK_NS" logs deploy/gatekeeper-controller-manager --tail=100 2>&1 \
+      | sed 's/^/        | /' || true
+    red "      [d] recent gatekeeper-system events:"
+    kubectl -n "$GK_NS" get events --sort-by=.lastTimestamp 2>&1 | tail -20 \
+      | sed 's/^/        | /' || true
+    red "      [e] host load (1-min average — controller is CPU-starved if > 30):"
+    uptime 2>&1 | sed 's/^/        | /' || true
+    red "      Likely causes (in order of probability based on diagnostics above):"
+    red "        1) Rego compile error in $base — look at [a] status.byPod[].errors"
+    red "           To validate offline: opa check <(yq '.spec.targets[0].rego' $f)"
+    red "        2) controller-manager OOMKilled — look at [b] for RESTARTS column"
+    red "        3) controller-manager CPU-throttled — look at [e] for load > 30"
     exit 1
   fi
   green "      ✓ ${crd_kind} CRD Established"

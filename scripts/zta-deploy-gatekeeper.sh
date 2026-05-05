@@ -152,15 +152,47 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   fi
   green "    ✓ apiserver healthy"
 
-  # Warn on high host load — Gatekeeper CRD install hammers etcd and will
-  # 504 if the host VM is saturated. Not fatal (operator can proceed with
-  # eyes open), just loud.
+  # Host-load handling. Gatekeeper CRD install hammers etcd and the
+  # controller-manager itself needs CPU to compile each ConstraintTemplate's
+  # Rego and POST a dynamically-generated CRD. On a CPU-starved host the
+  # CRD never reaches `Established` (rebuild_20260505_152348: load=66 →
+  # CRD wait timed out at 120s in [3/4]; old behaviour was just a 30s
+  # warn-and-proceed which is useless when load > 50). Strategy:
+  #   load > LOAD_HARD_FAIL (default 100) — abort, host can't take it.
+  #   load > LOAD_WAIT_THRESHOLD (default 20) — poll until it drops
+  #       below LOAD_OK_THRESHOLD (default 30) or LOAD_WAIT_MAX_S elapses.
+  #   else — proceed immediately.
+  LOAD_WAIT_THRESHOLD="${LOAD_WAIT_THRESHOLD:-20}"
+  LOAD_OK_THRESHOLD="${LOAD_OK_THRESHOLD:-30}"
+  LOAD_HARD_FAIL="${LOAD_HARD_FAIL:-100}"
+  LOAD_WAIT_MAX_S="${LOAD_WAIT_MAX_S:-300}"
   if [ -r /proc/loadavg ]; then
     _load1=$(awk '{printf "%.0f", $1}' /proc/loadavg 2>/dev/null || echo 0)
-    if [ "${_load1:-0}" -gt 20 ]; then
-      yellow "    ⚠ host 1-min load average is $_load1 — Gatekeeper CRD install may 504 the apiserver."
-      yellow "      Recommend waiting for load < 10 before proceeding. Sleeping 30s as a cooldown..."
-      sleep 30
+    if [ "${_load1:-0}" -gt "$LOAD_HARD_FAIL" ]; then
+      red "    ✗ host 1-min load average is $_load1 (> ${LOAD_HARD_FAIL}) — way too high to install Gatekeeper."
+      red "      The controller-manager will be CPU-throttled and ConstraintTemplate CRDs"
+      red "      will never reach Established. Free CPU (scale down ELK/Grafana/Tetragon),"
+      red "      wait for load < ${LOAD_OK_THRESHOLD}, then retry:"
+      red "        bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"
+      red "      Override (NOT RECOMMENDED): LOAD_HARD_FAIL=999 bash scripts/zta-deploy-gatekeeper.sh"
+      exit 1
+    fi
+    if [ "${_load1:-0}" -gt "$LOAD_WAIT_THRESHOLD" ]; then
+      yellow "    ⚠ host 1-min load average is $_load1 — polling for it to drop below ${LOAD_OK_THRESHOLD} (max ${LOAD_WAIT_MAX_S}s)..."
+      _waited=0
+      while [ "$_waited" -lt "$LOAD_WAIT_MAX_S" ]; do
+        sleep 30
+        _waited=$(( _waited + 30 ))
+        _load1=$(awk '{printf "%.0f", $1}' /proc/loadavg 2>/dev/null || echo 0)
+        if [ "${_load1:-0}" -le "$LOAD_OK_THRESHOLD" ]; then
+          green "    ✓ load dropped to $_load1 after ${_waited}s — proceeding"
+          break
+        fi
+        yellow "    load=$_load1 after ${_waited}s, still > ${LOAD_OK_THRESHOLD}, waiting..."
+      done
+      if [ "${_load1:-0}" -gt "$LOAD_OK_THRESHOLD" ]; then
+        yellow "    ⚠ load still $_load1 after ${LOAD_WAIT_MAX_S}s — proceeding anyway, but step may time out."
+      fi
     fi
   fi
 
@@ -269,7 +301,10 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
     kubectl -n "$GK_NS" get events --sort-by=.lastTimestamp | tail -20
     exit 1
   fi
-  kubectl -n "$GK_NS" rollout status deploy/gatekeeper-audit --timeout=240s || true
+  # gatekeeper-audit isn't on the critical path for ConstraintTemplate CRD
+  # generation — only controller-manager is. Don't block the install for
+  # the audit Deployment; cap at 120s so we don't burn step budget here.
+  kubectl -n "$GK_NS" rollout status deploy/gatekeeper-audit --timeout=120s || true
 
   # Manual webhook probe (replaces the chart's curl Job). We hit the apiserver
   # routing layer to gatekeeper-webhook-service from inside the cluster — this
@@ -289,6 +324,34 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
     red "    ✗ gatekeeper-webhook-service has no endpoints after 60s — webhook not Ready"
     kubectl -n "$GK_NS" describe svc gatekeeper-webhook-service | head -40
     exit 1
+  fi
+
+  # Settle. The Deployment becoming Available != the controller-manager
+  # leader-election + ConstraintTemplate reconciler is up. On a CPU-throttled
+  # host the readiness probe can flap (rebuild_20260505_152348 events showed
+  # readiness 'connection refused' even after the rollout returned), and the
+  # FIRST ConstraintTemplate apply lands before the controller has finished
+  # warming up its caches — which is why its dynamic CRD never reaches
+  # Established within 120s. Wait for 30 consecutive seconds of Ready=True
+  # before we start applying templates.
+  blue "    waiting for controller-manager to be stable Ready for 30s..."
+  _stable=0; _settle_max=180
+  while [ "$_stable" -lt 30 ] && [ "$_settle_max" -gt 0 ]; do
+    if kubectl -n "$GK_NS" get pod \
+         -l control-plane=controller-manager \
+         -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
+         | grep -qw True; then
+      _stable=$(( _stable + 5 ))
+    else
+      _stable=0
+    fi
+    sleep 5
+    _settle_max=$(( _settle_max - 5 ))
+  done
+  if [ "$_stable" -lt 30 ]; then
+    yellow "    ⚠ controller-manager Ready not stable after 180s — proceeding anyway, but [3/4] may fail"
+  else
+    green "    ✓ controller-manager stable Ready for 30s"
   fi
   green "    ✓ Gatekeeper running"
 fi
@@ -313,6 +376,17 @@ declare -A TEMPLATE_TO_CRD=(
   [11-constraint-template-signed-image-annotation.yaml]=k8ssignedimageannotation
 )
 # Iterate in numerically-sorted filename order so we match the on-disk numbering.
+# CRD-wait budget per template:
+#   First template: 300s. The controller-manager has just started, so the
+#     reconciler cold-start (loading caches, leader-election, opening the
+#     webhook server, compiling its first Rego template) can take 60-180s
+#     on a CPU-throttled host (rebuild_20260505_152348: load=66 made the
+#     old 120s budget too tight; the CRD never reached Established).
+#   Subsequent templates: 120s. Once the controller has generated one CRD
+#     successfully it stays warm; subsequent templates compile in seconds.
+CRD_WAIT_FIRST="${CRD_WAIT_FIRST:-300s}"
+CRD_WAIT_REST="${CRD_WAIT_REST:-120s}"
+_first_template=1
 for f in $(ls "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml | sort); do
   base=$(basename "$f")
   crd_kind="${TEMPLATE_TO_CRD[$base]:-}"
@@ -320,15 +394,22 @@ for f in $(ls "$CONSTRAINT_DIR"/[0-9][0-9]-constraint-template-*.yaml | sort); d
     red "    ✗ unknown template $base — add to TEMPLATE_TO_CRD map"
     exit 1
   fi
+  if [ "$_first_template" -eq 1 ]; then
+    _wait="$CRD_WAIT_FIRST"
+    _first_template=0
+  else
+    _wait="$CRD_WAIT_REST"
+  fi
   echo "    + $base"
   kubectl apply -f "$f"
-  echo "      waiting for crd/${crd_kind}.constraints.gatekeeper.sh to be Established (up to 120s)..."
-  if ! kubectl wait --for=condition=Established "crd/${crd_kind}.constraints.gatekeeper.sh" --timeout=120s 2>/dev/null; then
-    red "    ✗ CRD ${crd_kind}.constraints.gatekeeper.sh never reached Established"
+  echo "      waiting for crd/${crd_kind}.constraints.gatekeeper.sh to be Established (up to ${_wait})..."
+  if ! kubectl wait --for=condition=Established "crd/${crd_kind}.constraints.gatekeeper.sh" --timeout="$_wait" 2>/dev/null; then
+    red "    ✗ CRD ${crd_kind}.constraints.gatekeeper.sh never reached Established within ${_wait}"
     red "      Likely cause: ConstraintTemplate Rego compile error, or Gatekeeper controller-manager"
     red "      OOM/CPU-throttled. Inspect:"
     red "        kubectl describe constrainttemplate $crd_kind"
     red "        kubectl -n $GK_NS logs deploy/gatekeeper-controller-manager --tail=80"
+    red "        uptime    # if 1-min load > 30 the controller is CPU-starved — free CPU and retry"
     exit 1
   fi
   green "      ✓ ${crd_kind} CRD Established"

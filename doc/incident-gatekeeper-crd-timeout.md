@@ -108,8 +108,12 @@ kubectl -n monitoring scale deploy/grafana --replicas=1
 
 ## Related incidents
 
-- `docs/falco-tetragon-ram-overcommit.md` — earlier root cause of host
+- `doc/incident-falco-tetragon-ram-overcommit.md` — earlier root cause of host
   overcommit that led to this secondary failure.
+- `doc/incident-gatekeeper-probe-webhook-stuck.md` — follow-up failure
+  (rebuild_20260505_142433): the chart's post-install probeWebhook hook
+  hangs helm install when the apiserver is healthy but the cluster is
+  too loaded to schedule the controller-manager pod.
 - Commit `313178f` — Falco removal + Tetragon 256→384 Mi.
 
 ## Verification
@@ -117,5 +121,5 @@ kubectl -n monitoring scale deploy/grafana --replicas=1
 After the fix, the script will:
 - Not start helm install if /readyz is bad → no orphan resources.
 - Retry on 504 automatically → succeeds as soon as apiserver quiesces.
-- Surface a clean error message ("helm install failed 3 times —
+- Surface a clean error message ("helm install failed 2 times —
   apiserver overload") if the cluster genuinely can't hold Gatekeeper.

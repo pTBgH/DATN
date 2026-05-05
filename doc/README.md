@@ -2,7 +2,11 @@
 
 Kho tri thuc gon cho du an Zero Trust job7189.
 Muc tieu: giam token khi lam viec voi AI — chi doc dung file can thiet.
-Cap nhat: 2026-04-29 (32 files)
+Cap nhat: 2026-05-05 (32 chuong + 3 incident reports)
+
+Thu muc `docs/` cu (operational incident reports) da duoc gop vao day
+(`incident-*.md`) de chi co MOT knowledge base duy nhat — nguoi/AI khong
+phai phan van giua `doc/` va `docs/`.
 
 ## Index
 
@@ -41,6 +45,17 @@ Cap nhat: 2026-04-29 (32 files)
 | 31 | `31-falco-runtime-detection.md` | (PR #22) — Falco eBPF + 5 ZTA custom rules + Falcosidekick |
 | 32 | `32-deploy-script-troubleshooting.md` | **MOI** (PR #24) — Deploy script recovery: --reset, --uninstall, RAM pre-flight, cluster cascade fix |
 
+## Incident reports (operational fixes)
+
+Mot file moi cho moi failure mode da gap khi rebuild. Format:
+Symptom → Root cause → Fix → Operational guidance → Verification.
+
+| File | Chu de | Related commit |
+|------|--------|----------------|
+| `incident-falco-tetragon-ram-overcommit.md` | Falco + Tetragon OOM cascade tren host 12 GiB | `313178f` |
+| `incident-gatekeeper-crd-timeout.md` | Gatekeeper helm CRD install 504 (apiserver overload) | `f7ab2ca` |
+| `incident-gatekeeper-probe-webhook-stuck.md` | Gatekeeper post-install probeWebhook hook treo helm install → host VM crash | (this PR) |
+
 ## Query Map (cho AI/Agent)
 
 | Muon hoi ve... | Doc file... |
@@ -77,6 +92,8 @@ Cap nhat: 2026-04-29 (32 files)
 | Hubble flow sink (Elasticsearch audit trail) | `30` |
 | Falco runtime detection + Falcosidekick | `31` |
 | Deploy script troubleshooting (--reset, --uninstall, RAM pre-flight) | `32` |
+| Step 26 helm install hangs / VM crashes | `incident-gatekeeper-*.md` |
+| Tetragon OOM / host overcommit | `incident-falco-tetragon-ram-overcommit.md` |
 
 ## Archive
 

@@ -36,10 +36,11 @@
 #   uptime                                  # 1-min load < 10 recommended
 #   free -m | head -2                       # available RAM > 1.5 GiB
 #   time kubectl get --raw=/readyz          # < 1 s for a healthy cluster
-# See docs/gatekeeper-crd-timeout-incident.md for the 504 CRD-install
-# failure mode, and docs/falco-tetragon-ram-overcommit.md for the RAM
-# overcommit incident that motivated the current Tetragon/Gatekeeper
-# resource sizing.
+# See doc/incident-gatekeeper-crd-timeout.md for the 504 CRD-install
+# failure mode, doc/incident-gatekeeper-probe-webhook-stuck.md for the
+# more recent probeWebhook hang that crashed the host VM, and
+# doc/incident-falco-tetragon-ram-overcommit.md for the RAM overcommit
+# incident that motivated the current Tetragon/Gatekeeper resource sizing.
 #
 # Steps 26-27 rollback / retry workflow (module-level, cluster preserved):
 #   # If step fails, the orchestrator auto-runs do_module_rollback <step>.
@@ -104,11 +105,27 @@ declare -A STEP_TIMEOUTS=(
   [00-prep]=120
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
   # Gatekeeper: helm install + ConstraintTemplate CRD registration
-  # + Constraint apply. Budget 20 min because helm install itself now
-  # uses --timeout 15m with up to 3 retries (see zta-deploy-gatekeeper.sh)
-  # to handle apiserver 504 on CRD creation under high host load.
-  # See docs/gatekeeper-crd-timeout-incident.md for the 2026-05-05 failure.
-  [26-gatekeeper]=1500
+  # + Constraint apply. Worst-case wall-clock breakdown:
+  #   pre-flight (RAM + apiserver /readyz + load warn cooldown) :   30s
+  #   helm install attempt 1 (--timeout 10m)                    :  600s
+  #   30s backoff                                               :   30s
+  #   helm install attempt 2 (--timeout 10m)                    :  600s
+  #   rollout-status deploy/gatekeeper-controller-manager (300s):  300s
+  #   rollout-status deploy/gatekeeper-audit (240s, `|| true`)  :  240s
+  #   webhook-endpoints poll (6 × 10s)                          :   60s
+  #   6 × CRD `kubectl wait --for=condition=Established` (120s) :  720s
+  #   constraints apply + 5s sleep                              :   30s
+  #                                                       total : 2610s
+  # We budget 2700s (45 min). Earlier 1500s was a math error
+  # (real worst case ~1830s even ignoring CRD waits) — see Devin
+  # Review on PR #11. The MIN_FREE_MIB + apiserver pre-flight should
+  # keep most runs well under 5 min, but the budget must cover the
+  # degenerate case so the orchestrator doesn't kill a script that's
+  # genuinely making progress.
+  # See doc/incident-gatekeeper-crd-timeout.md for the original 504
+  # failure and doc/incident-gatekeeper-probe-webhook-stuck.md for the
+  # follow-up probeWebhook hang that motivated the current sizing.
+  [26-gatekeeper]=2700
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
 )

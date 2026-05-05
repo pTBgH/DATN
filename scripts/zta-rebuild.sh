@@ -32,6 +32,15 @@
 #                                 # Set =0 to leave failed release in place for
 #                                 # manual inspection before retrying.
 #
+# Before re-running after a failure, ALWAYS check host + apiserver health:
+#   uptime                                  # 1-min load < 10 recommended
+#   free -m | head -2                       # available RAM > 1.5 GiB
+#   time kubectl get --raw=/readyz          # < 1 s for a healthy cluster
+# See docs/gatekeeper-crd-timeout-incident.md for the 504 CRD-install
+# failure mode, and docs/falco-tetragon-ram-overcommit.md for the RAM
+# overcommit incident that motivated the current Tetragon/Gatekeeper
+# resource sizing.
+#
 # Steps 26-27 rollback / retry workflow (module-level, cluster preserved):
 #   # If step fails, the orchestrator auto-runs do_module_rollback <step>.
 #   # To inspect before retrying:
@@ -94,9 +103,12 @@ declare -A STEP_TIMEOUTS=(
   # Preflight is fast environment checks.
   [00-prep]=120
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
-  # Gatekeeper: helm install + ConstraintTemplate CRD registration (~12s)
-  # + Constraint apply. 600s is conservative.
-  [26-gatekeeper]=600
+  # Gatekeeper: helm install + ConstraintTemplate CRD registration
+  # + Constraint apply. Budget 20 min because helm install itself now
+  # uses --timeout 15m with up to 3 retries (see zta-deploy-gatekeeper.sh)
+  # to handle apiserver 504 on CRD creation under high host load.
+  # See docs/gatekeeper-crd-timeout-incident.md for the 2026-05-05 failure.
+  [26-gatekeeper]=1500
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
 )

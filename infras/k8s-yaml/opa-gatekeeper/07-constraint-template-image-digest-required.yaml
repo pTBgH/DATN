@@ -61,10 +61,5 @@ spec:
         image := images[_]
         not exempt(image)
         not contains(image, "@sha256:")
-        msg := sprintf(
-          "image %q must be referenced by sha256 digest (e.g. %s@sha256:...). " +
-          "Pin to immutable digest to prevent supply-chain tampering. " +
-          "Add to exemptImages parameter if external dependency cannot be pinned.",
-          [image, split(image, ":")[0]],
-        )
+        msg := sprintf("image %q must be referenced by sha256 digest (e.g. %s@sha256:...). Pin to immutable digest to prevent supply-chain tampering. Add to exemptImages parameter if external dependency cannot be pinned.", [image, split(image, ":")[0]])
       }

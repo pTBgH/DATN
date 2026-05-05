@@ -65,10 +65,5 @@ spec:
       violation[{"msg": msg}] {
         required := required_annotations[_]
         not has_annotation(required)
-        msg := sprintf(
-          "missing required signature annotation %q. Add to .spec.template." +
-          "metadata.annotations (Deployment/StatefulSet/DaemonSet) or to " +
-          ".metadata.annotations (raw Pod). Use scripts/zta-cosign-sign-deployment.sh.",
-          [required],
-        )
+        msg := sprintf("missing required signature annotation %q. Add to .spec.template.metadata.annotations (Deployment/StatefulSet/DaemonSet) or to .metadata.annotations (raw Pod). Use scripts/zta-cosign-sign-deployment.sh.", [required])
       }

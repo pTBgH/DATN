@@ -55,19 +55,11 @@ spec:
       violation[{"msg": msg}] {
         image := images[_]
         ends_with_latest(image)
-        msg := sprintf(
-          "image %q uses ':latest' tag — reject. Use a specific version " +
-          "tag (e.g. 1.27.4) or pin to sha256 digest.",
-          [image],
-        )
+        msg := sprintf("image %q uses ':latest' tag — reject. Use a specific version tag (e.g. 1.27.4) or pin to sha256 digest.", [image])
       }
 
       violation[{"msg": msg}] {
         image := images[_]
         no_explicit_tag(image)
-        msg := sprintf(
-          "image %q has no explicit tag (implicit ':latest') — reject. " +
-          "Specify a version tag.",
-          [image],
-        )
+        msg := sprintf("image %q has no explicit tag (implicit ':latest') — reject. Specify a version tag.", [image])
       }

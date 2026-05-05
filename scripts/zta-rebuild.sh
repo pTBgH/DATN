@@ -106,26 +106,33 @@ declare -A STEP_TIMEOUTS=(
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
   # Gatekeeper: helm install + ConstraintTemplate CRD registration
   # + Constraint apply. Worst-case wall-clock breakdown:
-  #   pre-flight (RAM + apiserver /readyz + load warn cooldown) :   30s
+  #   pre-flight RAM check                                      :    5s
+  #   pre-flight apiserver /readyz (max 180s)                   :  180s
+  #   pre-flight load-wait poll (max 300s)                      :  300s
   #   helm install attempt 1 (--timeout 10m)                    :  600s
-  #   30s backoff                                               :   30s
+  #   30s backoff + apiserver re-check                          :   30s
   #   helm install attempt 2 (--timeout 10m)                    :  600s
   #   rollout-status deploy/gatekeeper-controller-manager (300s):  300s
-  #   rollout-status deploy/gatekeeper-audit (240s, `|| true`)  :  240s
+  #   rollout-status deploy/gatekeeper-audit (120s, `|| true`)  :  120s
   #   webhook-endpoints poll (6 × 10s)                          :   60s
-  #   6 × CRD `kubectl wait --for=condition=Established` (120s) :  720s
+  #   controller-manager Ready-stable settle (max 180s)         :  180s
+  #   CRD wait first template (300s, cold-start)                :  300s
+  #   CRD wait remaining 5 templates (5 × 120s)                 :  600s
   #   constraints apply + 5s sleep                              :   30s
-  #                                                       total : 2610s
-  # We budget 2700s (45 min). Earlier 1500s was a math error
-  # (real worst case ~1830s even ignoring CRD waits) — see Devin
-  # Review on PR #11. The MIN_FREE_MIB + apiserver pre-flight should
-  # keep most runs well under 5 min, but the budget must cover the
-  # degenerate case so the orchestrator doesn't kill a script that's
-  # genuinely making progress.
-  # See doc/incident-gatekeeper-crd-timeout.md for the original 504
-  # failure and doc/incident-gatekeeper-probe-webhook-stuck.md for the
-  # follow-up probeWebhook hang that motivated the current sizing.
-  [26-gatekeeper]=2700
+  #                                                       total : 3305s
+  # We budget 3600s (60 min) to leave headroom over the 3305s math.
+  # The MIN_FREE_MIB + load-wait pre-flight should keep most runs
+  # well under 10 min, but the budget must cover the degenerate
+  # case (host load > 30 + cold helm + cold controller-manager)
+  # so the orchestrator doesn't kill a script that's genuinely
+  # making progress.
+  # See:
+  #   doc/incident-gatekeeper-crd-timeout.md           — original 504
+  #   doc/incident-gatekeeper-probe-webhook-stuck.md   — probeWebhook
+  #     hang AND follow-on CPU-throttle CRD failure (rebuild
+  #     20260505_152348: load=66, controller-manager couldn't
+  #     generate ztarequiredlabels CRD within 120s).
+  [26-gatekeeper]=3600
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
 )

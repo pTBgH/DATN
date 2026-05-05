@@ -100,6 +100,133 @@ its limits and OOM-killed the kubelets, etcd, and apiserver.
    ~2610 s. 2700 s gives a small slack on top so the orchestrator
    doesn't kill a script that is genuinely making progress. See the
    commented arithmetic in `scripts/zta-rebuild.sh:[26-gatekeeper]`.
+   **Subsequently bumped 2700 → 3600 s** when phase-2 below was fixed
+   (CPU-throttle CRD wait + load-poll); see Phase 2 section.
+
+---
+
+## Phase 2: Follow-on failure — CPU-throttled controller, CRD never Established
+
+**Date:** 2026-05-05 (later same day)
+**Rebuild log:** `evidence/rebuild_20260505_152348/26-gatekeeper.log`
+**Severity:** Medium — orchestrator caught it; cluster preserved by
+  module-rollback. The fixes from Phase 1 (above) were all working
+  correctly; this is a new failure mode that surfaced *after* helm
+  install + webhook readiness succeeded.
+
+### Symptom
+
+Phase 1 fixes did their job: the `gatekeeper-probe-webhook-post-install`
+hook is gone, helm install exits in <30 s, and rollout-status passes
+for both `gatekeeper-controller-manager` and `gatekeeper-audit`.
+Step 26 now fails further along, in `[3/4] Applying ConstraintTemplates`:
+
+```
+[3/4] Applying ConstraintTemplates (sequentially, with CRD wait)...
+    + 01-constraint-template-required-zta-labels.yaml
+constrainttemplate.templates.gatekeeper.sh/ztarequiredlabels created
+      waiting for crd/ztarequiredlabels.constraints.gatekeeper.sh to be Established (up to 120s)...
+    ✗ CRD ztarequiredlabels.constraints.gatekeeper.sh never reached Established
+```
+
+### Root cause
+
+Gatekeeper's controller-manager is responsible for taking each
+`ConstraintTemplate` object, compiling its embedded Rego policy, and
+POSTing a dynamically-generated CRD (e.g.
+`ztarequiredlabels.constraints.gatekeeper.sh`) for the apiserver to
+register. The 120 s `kubectl wait --for=condition=Established` budget
+was tuned for a healthy controller — but on a CPU-saturated host this
+isn't enough.
+
+Evidence from `26-gatekeeper.log` and the events tail:
+
+- Pre-flight saw `host 1-min load average is 66` and only slept 30 s.
+  After the cooldown the load was almost certainly still ≥ 50.
+- `kube-apiserver-job7189-control-plane`: `Readiness probe failed: HTTP probe failed with statuscode: 500`.
+- `gatekeeper-controller-manager-…`: container started at t≈52 s but
+  `Readiness probe failed: connect: connection refused` on
+  `:9090/readyz` 30 s later — i.e. the readiness server hadn't bound
+  yet, even though the container was running.
+- `gatekeeper-audit-…`: same `connection refused` pattern on liveness
+  AND readiness.
+- `vault-0`: `Readiness probe failed: command timed out` (10 s).
+
+The Deployment becoming `Available` (which is what `kubectl rollout
+status` waits for) is **not** the same as the controller-manager
+having finished leader-election + opening its webhook server +
+warming its template-reconciler caches. On a CPU-throttled host all
+of those steps happen in slow-motion. The first `ConstraintTemplate`
+apply lands while the controller is still warming up, and the
+reconciler doesn't manage to compile + POST the CRD inside 120 s.
+
+### Phase-2 fix (in `scripts/zta-deploy-gatekeeper.sh`)
+
+1. **Smarter load handling.** The previous "warn + sleep 30 s" was
+   useless when load > 50. Replaced with:
+   - `LOAD_HARD_FAIL` (default 100): refuse to start if load >100.
+   - `LOAD_WAIT_THRESHOLD` (default 20) / `LOAD_OK_THRESHOLD`
+     (default 30) / `LOAD_WAIT_MAX_S` (default 300 s): poll
+     `/proc/loadavg` every 30 s and only proceed once load drops
+     below `LOAD_OK_THRESHOLD`. Capped at 300 s so the step still
+     terminates if the host stays hot.
+2. **Controller-manager Ready-stable settle (max 180 s).** After
+   `rollout status` succeeds, poll the controller-manager pod's
+   `Ready` condition and require **30 consecutive seconds** of
+   `Ready=True` before applying any ConstraintTemplate. This catches
+   the readiness-flap pattern that the rollout check can race past.
+3. **Per-template CRD-wait split.**
+   - First template: `CRD_WAIT_FIRST` (default `300s`). Cold-start
+     for the controller-manager reconciler — caches, leader-
+     election, webhook server, first Rego compile.
+   - Subsequent templates: `CRD_WAIT_REST` (default `120s`). The
+     controller stays warm, so each subsequent CRD usually
+     Establishes in seconds.
+4. **`gatekeeper-audit` rollout-status timeout 240 → 120 s.** The
+   audit Deployment is **not** on the CRD-generation critical path
+   (it runs the periodic audit loop, not the template reconciler),
+   so we don't burn step budget waiting for it. Still `|| true`, so
+   a slow audit pod doesn't fail the whole step.
+5. **Step budget bumped 2700 → 3600 s** (`STEP_TIMEOUTS[26-gatekeeper]`).
+   New worst-case math (see comment on the assignment) sums to
+   ~3305 s; 3600 s leaves headroom.
+
+### Operational guidance for Phase 2
+
+If step 26 still fails at the CRD wait, run:
+
+```bash
+# 1) What's the host load? Anything above ~30 will starve the
+#    controller-manager reconciler.
+uptime
+# Override the script's pre-flight if you've already manually
+# verified the cluster is healthy:
+LOAD_OK_THRESHOLD=50 bash scripts/zta-rebuild.sh \
+  --from=26-gatekeeper --skip-cluster --yes
+
+# 2) Inspect the ConstraintTemplate object — Rego compile errors
+#    show up here, not in the CRD wait error.
+kubectl describe constrainttemplate ztarequiredlabels
+
+# 3) Tail controller-manager logs. Look for "compile error",
+#    "leader election lost", or repeated "Reconciler error".
+kubectl -n gatekeeper-system logs deploy/gatekeeper-controller-manager --tail=200
+
+# 4) If only the FIRST CRD is timing out, give it more time:
+CRD_WAIT_FIRST=600s bash scripts/zta-deploy-gatekeeper.sh
+```
+
+### Phase-2 verification
+
+The fix is verified when:
+
+- `[0c] pre-flight load wait` either logs `load dropped to N` or
+  `proceeding immediately` (i.e. the script doesn't just warn-sleep-30s).
+- `[2/4] controller-manager stable Ready for 30s` appears before
+  `[3/4]` starts.
+- The first `ztarequiredlabels` CRD reaches `Established` within
+  the new 300 s budget on a host with load < 30.
+- The orchestrator step record is `OK`, not `TIMEOUT`/`FAILED`.
 
 ## Operational guidance
 

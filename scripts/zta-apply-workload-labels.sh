@@ -150,8 +150,9 @@ label_workload deployment minio data \
 # management namespace
 label_workload deployment phpmyadmin management \
   ui T3 prod internal internal platform
-label_workload deployment kafbat management \
-  ui T3 prod none internal data
+# kafbat (Kafka UI) disabled — see infras/k8s-yaml/03-kafka.yaml (Phần 2)
+# label_workload deployment kafbat management \
+#   ui T3 prod none internal data
 
 # security namespace
 label_workload deployment keycloak security \

@@ -19,7 +19,7 @@ phai phan van giua `doc/` va `docs/`.
 | 04 | `04-policy-enforcement.md` | Kong JWT matrix + Cilium microseg layers + encryption |
 | 05 | `05-observability-stack.md` | EFK + Prometheus + Grafana + Hubble + exporters |
 | 06 | `06-resource-budget.md` | Memory budget toan he thong + swap strategy |
-| 07 | `07-service-toggle.md` | Bat/tat UI noi bo (phpMyAdmin, Kafbat, Kibana, Grafana) |
+| 07 | `07-service-toggle.md` | Bat/tat UI noi bo (phpMyAdmin, Kibana, Grafana; Kafbat removed) |
 | 08 | `08-deployment-pipeline.md` | 9 scripts deploy (01-09) + thu tu chay + rollback |
 | 09 | `09-evidence-checklist.md` | Placeholder screenshots can dien cho chapter3 |
 | 10 | `10-priority-roadmap.md` | P0/P1/P2 tasks + trinh tu thuc thi |

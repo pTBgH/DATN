@@ -38,7 +38,7 @@ Repo dùng **prefix riêng `zta.job7189/`** cho tất cả label do PR #9 thêm 
 | `oauth2-proxy` | security | proxy | T1 | prod | confidential | internal | security |
 | `zta-pdp` | security | worker | T1 | prod | confidential | cluster-only | security |
 | `kafka` | data | broker | T1 | prod | confidential | cluster-only | data |
-| `kafbat` | management | ui | T3 | prod | none | internal | data |
+| ~~`kafbat`~~ | ~~management~~ | ~~ui~~ | ~~T3~~ | ~~prod~~ | ~~none~~ | ~~internal~~ | ~~data~~ | (removed — Kafka UI never used)
 | `kong-gateway` | gateway | proxy | T2 | prod | none | external | platform |
 | `vault-0` (vault-prod) | vault | secret-store | T1 | prod | confidential | cluster-only | security |
 | `vault-dev` | vault | secret-store | T1 | dev | internal | cluster-only | security |

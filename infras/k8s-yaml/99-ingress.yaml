@@ -39,17 +39,17 @@ spec:
                 port:
                   number: 8080
 
-    # 3. Kafka UI (MỚI)
-    - host: kafka.job7189.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: kafka-ui
-                port:
-                  number: 80 # Port của Service Kafka UI
+    # 3. Kafka UI — DISABLED (see infras/k8s-yaml/03-kafka.yaml Phần 2)
+    # - host: kafka.job7189.local
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: kafka-ui
+    #             port:
+    #               number: 80 # Port của Service Kafka UI
 
     # 4 Kong Manager (Giao diện)
     - host: kong.job7189.com

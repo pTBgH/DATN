@@ -2,16 +2,17 @@
 
 ## Muc dich
 
-Tat cac giao dien quan tri khi khong dung de tiet kiem RAM (~1.28Gi).
+Tat cac giao dien quan tri khi khong dung de tiet kiem RAM (~1.15Gi).
+Kafbat (Kafka UI) da bi remove khoi pipeline (xem `infras/k8s-yaml/03-kafka.yaml` Phan 2).
 
 ## Services co the toggle
 
 | Service | Namespace | RAM Limit | Khi nao can |
 |---------|-----------|-----------|-------------|
 | phpMyAdmin | management | 128Mi | Debug database |
-| Kafbat (Kafka UI) | management | 128Mi | Debug Kafka topics |
 | Kibana | monitoring | 512Mi | Xem logs, dieu tra su co |
 | Grafana | monitoring | 512Mi | Xem metrics, dashboards |
+| ~~Kafbat (Kafka UI)~~ | ~~management~~ | ~~128Mi~~ | (removed) |
 
 ## Script su dung
 
@@ -36,13 +37,13 @@ Tat cac giao dien quan tri khi khong dung de tiet kiem RAM (~1.28Gi).
 
 | Kich ban | Tiet kiem |
 |----------|----------|
-| Tat tat ca 4 UI | ~1.28Gi |
+| Tat tat ca 3 UI | ~1.15Gi |
 | Tat chi Kibana + Grafana | ~1Gi |
-| Tat chi phpMyAdmin + Kafbat | ~256Mi |
+| Tat chi phpMyAdmin | ~128Mi |
 
 ## Goi y
 
 - **Khi deploy/debug**: bat phpMyAdmin + Kibana
 - **Khi demo/bao ve**: bat Grafana + Kibana (screenshot dashboards)
-- **Khi khong dung**: tat het → tiet kiem ~1.28Gi cho Laravel services
-- **Mac dinh khi deploy**: nen tat phpMyAdmin + Kafbat (script 02 co the them flag)
+- **Khi khong dung**: tat het → tiet kiem ~1.15Gi cho Laravel services
+- **Mac dinh khi deploy**: nen tat phpMyAdmin (script 02 co the them flag)

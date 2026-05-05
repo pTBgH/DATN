@@ -8,7 +8,8 @@
 #   Egress:  data/mysql:3306 (Keycloak DB), DNS
 # oauth2-proxy (4180):
 #   Ingress: ingress-nginx
-#   Egress:  keycloak/8080, kibana/5601, grafana/3000, phpmyadmin/8080, kafbat/8080
+#   Egress:  keycloak/8080, kibana/5601, grafana/3000, phpmyadmin/8080
+#           (kafbat/8080 removed — Kafka UI never used)
 # =============================================================================
 
 # 1) Default-deny
@@ -163,15 +164,16 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
-  # kafbat
-  - toEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: management
-        app: kafbat
-    toPorts:
-    - ports:
-      - port: "8080"
-        protocol: TCP
+  # kafbat egress removed — Kafka UI never used; see
+  # infras/k8s-yaml/03-kafka.yaml Phần 2.
+  # - toEndpoints:
+  #   - matchLabels:
+  #       k8s:io.kubernetes.pod.namespace: management
+  #       app: kafbat
+  #   toPorts:
+  #   - ports:
+  #     - port: "8080"
+  #       protocol: TCP
 ---
 # 7) Allow Prometheus scrape keycloak metrics
 apiVersion: cilium.io/v2

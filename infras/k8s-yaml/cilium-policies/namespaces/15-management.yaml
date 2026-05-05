@@ -1,10 +1,12 @@
 # =============================================================================
 # Namespace: management  (Tier 3 — admin UI)
-# DAAS:      Service: phpmyadmin, kafbat (admin only)
+# DAAS:      Service: phpmyadmin (kafbat removed — Kafka UI never used; see
+#                                infras/k8s-yaml/03-kafka.yaml Phần 2)
 # Step:      2.3.2 — Microperimeter + default-deny
 # Notes:
 #   - Ingress chỉ qua oauth2-proxy (security/oauth2-proxy:4180)
-#   - Egress: phpmyadmin → data/mysql:3306; kafbat → data/kafka:9092
+#   - Egress: phpmyadmin → data/mysql:3306
+#   - kafbat-related policies (sections 4 & 6) commented out below.
 # =============================================================================
 
 # 1) Default-deny
@@ -68,27 +70,27 @@ spec:
       - port: "8080"
         protocol: TCP
 ---
-# 4) Ingress vào kafbat chỉ từ oauth2-proxy + ingress-nginx
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: allow-kafbat-ingress
-  namespace: management
-spec:
-  endpointSelector:
-    matchLabels:
-      app: kafbat
-  ingress:
-  - fromEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
-        app: oauth2-proxy
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: ingress-nginx
-    toPorts:
-    - ports:
-      - port: "8080"
-        protocol: TCP
+# # 4) Ingress vào kafbat chỉ từ oauth2-proxy + ingress-nginx
+# apiVersion: cilium.io/v2
+# kind: CiliumNetworkPolicy
+# metadata:
+#   name: allow-kafbat-ingress
+#   namespace: management
+# spec:
+#   endpointSelector:
+#     matchLabels:
+#       app: kafbat
+#   ingress:
+#   - fromEndpoints:
+#     - matchLabels:
+#         k8s:io.kubernetes.pod.namespace: security
+#         app: oauth2-proxy
+#     - matchLabels:
+#         k8s:io.kubernetes.pod.namespace: ingress-nginx
+#     toPorts:
+#     - ports:
+#       - port: "8080"
+#         protocol: TCP
 ---
 # 5) Egress phpmyadmin → mysql (data/3306)
 apiVersion: cilium.io/v2
@@ -110,27 +112,27 @@ spec:
       - port: "3306"
         protocol: TCP
 ---
-# 6) Egress kafbat → kafka (data/9092)
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: allow-kafbat-egress-kafka
-  namespace: management
-spec:
-  endpointSelector:
-    matchLabels:
-      app: kafbat
-  egress:
-  - toEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: data
-        app: kafka
-    toPorts:
-    - ports:
-      - port: "9092"
-        protocol: TCP
-      - port: "9093"
-        protocol: TCP
+# # 6) Egress kafbat → kafka (data/9092)
+# apiVersion: cilium.io/v2
+# kind: CiliumNetworkPolicy
+# metadata:
+#   name: allow-kafbat-egress-kafka
+#   namespace: management
+# spec:
+#   endpointSelector:
+#     matchLabels:
+#       app: kafbat
+#   egress:
+#   - toEndpoints:
+#     - matchLabels:
+#         k8s:io.kubernetes.pod.namespace: data
+#         app: kafka
+#     toPorts:
+#     - ports:
+#       - port: "9092"
+#         protocol: TCP
+#       - port: "9093"
+#         protocol: TCP
 ---
 # 7) Allow Prometheus scrape (egress từ monitoring → management/*)
 #    Thêm tách bạch để các UI tool có thể được scrape sau này.

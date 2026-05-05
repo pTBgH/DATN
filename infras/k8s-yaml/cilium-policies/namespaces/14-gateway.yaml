@@ -131,7 +131,8 @@ spec:
       - port: "8080"
         protocol: TCP
 ---
-# 6) Egress kong → phpmyadmin/kafbat (qua route admin) — Tier 3, optional
+# 6) Egress kong → phpmyadmin (qua route admin) — Tier 3, optional
+#    (kafbat removed — Kafka UI never used; see infras/k8s-yaml/03-kafka.yaml Phần 2)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

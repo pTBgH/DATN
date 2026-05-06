@@ -390,6 +390,51 @@ fi
 # ---------------------------------------------------------------
 # APPLY constraints
 # ---------------------------------------------------------------
+# Pre-step: clean up orphan dynamic CRDs from previous failed/aborted runs.
+#
+# Background (rebuild_20260506_150331):
+#   ConstraintTemplate apply succeeded, but controller-manager logged
+#       customresourcedefinitions.apiextensions.k8s.io
+#       "ztarequiredlabels.constraints.gatekeeper.sh" already exists
+#   so the CRD never updated to its new owner UID and the [3/4] wait
+#   timed out at 300s.
+#
+# Why orphans linger:
+#   Each ConstraintTemplate triggers controller-manager to POST a
+#   matching CRD `<kind>.constraints.gatekeeper.sh`. ConstraintTemplate
+#   deletion CASCADES that CRD only if the controller-manager pod is
+#   still alive — but module-rollback runs `helm uninstall gatekeeper`
+#   right after deleting templates, killing the controller before the
+#   CRD garbage-collection can finalize. On the next run, the CRD is
+#   still in etcd, owned by a UID that no longer exists, and the new
+#   controller-manager refuses to recreate it (409 already-exists).
+#
+# Fix is idempotent: if there are no orphans, this is a no-op.
+_orphan_crds=$(
+  kubectl get crd -o name 2>/dev/null \
+    | awk -F/ '{print $2}' \
+    | grep -E '\.constraints\.gatekeeper\.sh$' \
+    || true
+)
+if [ -n "$_orphan_crds" ]; then
+  _n_orphans=$(echo "$_orphan_crds" | wc -l | tr -d ' ')
+  yellow "    Found ${_n_orphans} orphan constraint CRD(s) from a previous run — deleting:"
+  echo "$_orphan_crds" | sed 's/^/      - /'
+  # Delete leftover CR instances first so the CRD removal doesn't hang on
+  # finalizers from a controller-manager pod that no longer exists.
+  while IFS= read -r _crd; do
+    [ -z "$_crd" ] && continue
+    _short="${_crd%%.*}"   # e.g. ztarequiredlabels
+    kubectl delete "$_short" --all --ignore-not-found --wait=false 2>/dev/null || true
+  done <<< "$_orphan_crds"
+  echo "$_orphan_crds" \
+    | xargs -r kubectl delete crd --ignore-not-found --wait=false --timeout=30s 2>/dev/null \
+    || true
+  # Wait briefly for finalizers to clear so the controller-manager can
+  # POST the new CRDs without a 409 race.
+  sleep 5
+fi
+
 blue "[3/4] Applying ConstraintTemplates (sequentially, with CRD wait)..."
 # Apply each template ONE at a time and wait for its generated CRD to be
 # Established before moving to the next. Gatekeeper's controller-manager

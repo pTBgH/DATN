@@ -449,6 +449,24 @@ do_module_rollback() {
       kubectl delete k8simagedigestrequired,k8sblocklatesttag,k8ssignedimageannotation \
         --all --ignore-not-found 2>/dev/null || true
       kubectl delete constrainttemplate --all --ignore-not-found 2>/dev/null || true
+      # Also delete the dynamic CRDs the controller-manager generated from
+      # each ConstraintTemplate. ConstraintTemplate deletion only cascades
+      # to its CRD if the controller-manager pod is still alive — but
+      # `helm uninstall` below will kill it, leaving zombie CRDs in etcd
+      # that block the next install with "CRD already exists"
+      # (rebuild_20260506_150331). Delete them now while the controller is
+      # still around so finalizers can run.
+      _gk_orphans=$(
+        kubectl get crd -o name 2>/dev/null \
+          | awk -F/ '{print $2}' \
+          | grep -E '\.constraints\.gatekeeper\.sh$' \
+          || true
+      )
+      if [ -n "$_gk_orphans" ]; then
+        echo "$_gk_orphans" \
+          | xargs -r kubectl delete crd --ignore-not-found --wait=false --timeout=30s \
+            2>/dev/null || true
+      fi
       helm uninstall gatekeeper -n gatekeeper-system 2>/dev/null || true
       kubectl delete ns gatekeeper-system --ignore-not-found 2>/dev/null || true
       yellow "  [26-gatekeeper rollback] done. Retry: bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"

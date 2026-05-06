@@ -42,7 +42,7 @@ phai phan van giua `doc/` va `docs/`.
 | 28 | `28-sigstore-policy-controller.md` | (PR #19) — sigstore policy-controller real Cosign verify |
 | 29 | `29-spire-workload-integration.md` | (PR #20) — Consume SVID via spiffe-helper + Workload API |
 | 30 | `30-hubble-flow-sink.md` | (PR #21) — Hubble flow → Elasticsearch via filebeat shipper |
-| 31 | `31-falco-runtime-detection.md` | (PR #22) — Falco eBPF + 5 ZTA custom rules + Falcosidekick |
+| 31 | `31-falco-deprecated.md` | (PR #22 — **DEPRECATED** 2026-05) — Falco runtime detection thay thế bằng Tetragon, giữ làm thesis evidence |
 | 32 | `32-deploy-script-troubleshooting.md` | **MOI** (PR #24) — Deploy script recovery: --reset, --uninstall, RAM pre-flight, cluster cascade fix |
 
 ## Incident reports (operational fixes)
@@ -90,7 +90,7 @@ Symptom → Root cause → Fix → Operational guidance → Verification.
 | sigstore policy-controller (real Cosign verify) | `28` |
 | SPIRE Workload Integration (consume SVID) | `29` |
 | Hubble flow sink (Elasticsearch audit trail) | `30` |
-| Falco runtime detection + Falcosidekick | `31` |
+| Falco runtime detection (DEPRECATED — thay bằng Tetragon) | `31` |
 | Deploy script troubleshooting (--reset, --uninstall, RAM pre-flight) | `32` |
 | Step 26 helm install hangs / VM crashes | `incident-gatekeeper-*.md` |
 | Tetragon OOM / host overcommit | `incident-falco-tetragon-ram-overcommit.md` |

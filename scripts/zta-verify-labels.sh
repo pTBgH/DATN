@@ -17,7 +17,7 @@
 set -euo pipefail
 
 # Namespace yêu cầu label đầy đủ (mirror PR #8 DAAS)
-export ZTA_NAMESPACES="data vault security monitoring gateway management registry job7189-apps frontend"
+export ZTA_NAMESPACES="data vault security monitoring gateway management job7189-apps"
 
 echo "============================================================"
 echo " ZTA Step 2.3.3 — Workload Label Verify"

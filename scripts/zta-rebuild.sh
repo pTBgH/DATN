@@ -51,7 +51,6 @@
 #   bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes
 #
 # Logs (per run):
-#   evidence/rebuild_<timestamp>/00-prep.log
 #   evidence/rebuild_<timestamp>/01-cluster.log
 #   ...
 #   evidence/rebuild_<timestamp>/SUMMARY.md     # generated at end
@@ -101,9 +100,9 @@ declare -A STEP_TIMEOUTS=(
   [22-cosign-sign]=300
   # Cosign keygen is a single openssl-equivalent operation.
   [21-cosign-keygen]=60
-  # Preflight is fast environment checks.
-  [00-prep]=120
   # 25-falco removed from pipeline (Tetragon covers runtime detection).
+  # 00-prep was inlined into main() (PR-D, 2026-05) — preflight runs as a
+  # cheap 2s check before the step loop, no longer a discrete STEPS entry.
   # Gatekeeper: helm install + ConstraintTemplate CRD registration
   # + Constraint apply. Worst-case wall-clock breakdown:
   #   pre-flight RAM check                                      :    5s
@@ -150,7 +149,6 @@ bold()   { printf '\033[1m%s\033[0m\n'   "$*"; }
 # Steps run in array order. Each row's <command> is invoked via `bash -c`,
 # so feel free to chain with && / set env vars / call helper functions.
 STEPS=(
-  "00-prep|Pre-flight checks (tools, host RAM, repo state)|do_preflight"
   "01-cluster|Setup Kind cluster + Cilium + cert-manager + ingress + metrics-server|bash 01-setup-cluster.sh"
   "02-infra|Deploy Vault + Keycloak + MySQL + Kafka + Kong + ELK + Prometheus + Grafana|bash 02-deploy-infrastructure.sh"
   "03-microservices|Deploy 7 Laravel microservices (builds images via 04 internally)|bash 03-deploy-microservices.sh"
@@ -167,9 +165,9 @@ STEPS=(
   # equivalent eBPF runtime detection, and Falco's DS-per-node (~1 GiB total)
   # caused host RAM overcommit on the 12 GiB lab box (cascading OOMKills:
   # tetragon, metrics-server, cilium-operator, policy-controller-webhook).
-  # The script scripts/zta-deploy-falco.sh and infras/k8s-yaml/falco/values.yaml
-  # are kept on disk as future-work artifacts (e.g. multi-node lab) but are
-  # not invoked by the rebuild orchestrator.
+  # As of PR-D cleanup (2026-05) the deploy script + helm values are also
+  # deleted from the repo. See doc/incident-falco-tetragon-ram-overcommit.md
+  # + doc/31-falco-deprecated.md for full rationale.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
   "90-verify|Run 09-verify-zta.sh (final assessment)|bash 09-verify-zta.sh"
@@ -194,7 +192,11 @@ for arg in "$@"; do
   case "$arg" in
     --yes|-y)         NO_PROMPT=1 ;;
     --skip-cluster)   SKIP_CLUSTER=1 ;;
-    --from=*)         FROM_STEP="${arg#--from=}" ;;
+    --from=*)         FROM_STEP="${arg#--from=}"
+                      # 00-prep was inlined into main() — treat the legacy
+                      # value as "start from the beginning" so old commands
+                      # don't silently skip every step.
+                      [ "$FROM_STEP" = "00-prep" ] && FROM_STEP="" ;;
     --to=*)           TO_STEP="${arg#--to=}" ;;
     --dry-run)        DRY_RUN=1 ;;
     --list)           LIST_ONLY=1 ;;
@@ -431,7 +433,6 @@ export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_
 # leave the failed release in place for manual inspection first.
 #
 # Usage (manual):
-#   do_module_rollback 25-falco
 #   do_module_rollback 26-gatekeeper
 #   do_module_rollback 27-pdp
 # ============================================================================
@@ -439,19 +440,6 @@ do_module_rollback() {
   local step_id=$1
   yellow "  [module-rollback] rolling back step '$step_id' (cluster preserved)..."
   case "$step_id" in
-    25-falco)
-      yellow "  [25-falco rollback] uninstalling helm release 'falco' from ns falco..."
-      helm uninstall falco -n falco 2>/dev/null || true
-      kubectl delete ns falco --ignore-not-found 2>/dev/null || true
-      yellow "  [25-falco rollback] done. Retry: bash scripts/zta-rebuild.sh --from=25-falco --skip-cluster --yes"
-      yellow "  [25-falco inspect]"
-      echo "    kubectl -n falco get pod"
-      echo "    kubectl -n falco logs ds/falco -c falco --tail=60"
-      echo "    kubectl -n falco describe pod -l app.kubernetes.io/name=falco"
-      echo "    # Check eBPF driver conflict with Tetragon:"
-      echo "    kubectl -n kube-system get pod -l app.kubernetes.io/name=tetragon"
-      echo "    kubectl -n kube-system top pod -l app.kubernetes.io/name=tetragon"
-      ;;
     26-gatekeeper)
       yellow "  [26-gatekeeper rollback] removing constraints + helm release..."
       # Remove constraints before CRDs to avoid orphan finalizers.
@@ -643,7 +631,7 @@ run_step() {
   # Clear BASH_ENV/ENV so we don't drag the user's interactive shell init
   # (e.g. /etc/environment, ~/environment) into every step's subshell. We've
   # seen `environment: line 26: [: : integer expression expected` warnings
-  # from one user's init file leak into 00-prep.log; harmless but noisy.
+  # from one user's init file leak into per-step logs; harmless but noisy.
   #
   # `timeout --kill-after=15s` sends SIGTERM at the deadline, then SIGKILL
   # 15 seconds later if the process is still alive. Exit code 124 means the
@@ -746,7 +734,22 @@ if [ "$SKIP_CLUSTER" -eq 1 ]; then
   yellow "  --skip-cluster: removing 01-cluster from plan"
 fi
 
-if [ "$NO_PROMPT" -ne 1 ] && [ "$DRY_RUN" -ne 1 ]; then
+# Compute up-front whether 01-cluster is going to run (used by both the
+# destructive-confirm prompt and to skip it when --skip-cluster is set).
+WILL_RUN_01_CLUSTER=1
+if [ "$SKIP_CLUSTER" -eq 1 ]; then
+  WILL_RUN_01_CLUSTER=0
+fi
+if [ -n "$FROM_STEP" ] && [ "$FROM_STEP" != "01-cluster" ]; then
+  # If --from is set to anything past 01-cluster, 01 will be skipped.
+  case "$FROM_STEP" in
+    01-cluster) WILL_RUN_01_CLUSTER=1 ;;
+    *) WILL_RUN_01_CLUSTER=0 ;;
+  esac
+fi
+
+if [ "$WILL_RUN_01_CLUSTER" -eq 1 ] \
+   && [ "$NO_PROMPT" -ne 1 ] && [ "$DRY_RUN" -ne 1 ]; then
   echo
   yellow "  This will DELETE kind cluster '$CLUSTER_NAME' and rebuild it from scratch (~30-50 min)."
   yellow "  All existing data in the cluster will be lost."
@@ -755,6 +758,21 @@ if [ "$NO_PROMPT" -ne 1 ] && [ "$DRY_RUN" -ne 1 ]; then
     yellow "  Cancelled."
     exit 0
   fi
+fi
+
+# ----------------------------------------------------------------------------
+# Inline pre-flight (formerly step 00-prep). Keeps the cheap 2s check ALWAYS
+# running but no longer surfaces it as a separate "step" in the log/summary,
+# since it's not destructive and almost always passes.
+# ----------------------------------------------------------------------------
+if [ "$DRY_RUN" -ne 1 ]; then
+  echo
+  blue "▶ pre-flight (host RAM, tools, repo state)"
+  if ! do_preflight 2>&1 | sed 's/^/  /'; then
+    red "  pre-flight FAILED — aborting before any deploy step runs."
+    exit 1
+  fi
+  green "  pre-flight OK"
 fi
 
 T_START=$(date +%s)

@@ -137,24 +137,12 @@ webhook pod + sleep 5s.
 
 ---
 
-## 4. Falco — `scripts/zta-deploy-falco.sh`
+## 4. Falco (DEPRECATED — đã gỡ khỏi repo)
 
-### 4.1 Flags
-
-| Flag | Tác dụng |
-|------|----------|
-| (default) | Install/upgrade chart `falcosecurity/falco` với values `infras/k8s-yaml/falco/values.yaml` |
-| `--uninstall` | Xoá helm release + namespace `falco` |
-
-Env override: `FALCO_REQUIRED_NODE_MI=300`.
-
-### 4.2 Triệu chứng & nguyên nhân hay gặp
-
-| Triệu chứng | Nguyên nhân | Fix |
-|-------------|-------------|-----|
-| `falco-XXXXX  CrashLoopBackOff` ngay sau install | Modern eBPF probe yêu cầu kernel ≥5.8; trên Kind worker (kernel host), probe build fail. | `values.yaml` đã set `driver.kind=ebpf` (legacy eBPF). Nếu vẫn fail: `kubectl -n falco logs -l app.kubernetes.io/name=falco -c falco-driver-loader`. |
-| Falcosidekick không gửi event tới Elasticsearch | ES location bị hardcode sai (cũ: `data` ns). | Đã fix ở PR #22 commit `ca42b0b`: `ES_NS=monitoring`, target = `elasticsearch.monitoring.svc.cluster.local:9200`. Confirm: `kubectl -n falco get cm falcosidekick -o yaml | grep elastic`. |
-| `kubectl get index falco-events-*` rỗng (Test 4m FAIL) | Chưa có security event nào trigger trong N phút. Falco events index lazy-created. | Trigger 1 event manual: `kubectl -n job7189-apps exec deploy/identity-service -- cat /etc/shadow` (sẽ trigger rule "Read sensitive file untrusted"). Đợi 30s rồi kiểm Kibana hoặc `curl http://localhost:9200/falco-events-*/_count`. |
+Falco runtime detection đã được loại bỏ hoàn toàn khỏi pipeline ZTA và repo
+này từ PR-D cleanup (2026-05). Tetragon (`10-deploy-tetragon.sh`) phủ tất cả
+runtime use-cases. Xem `doc/31-falco-deprecated.md` +
+`doc/incident-falco-tetragon-ram-overcommit.md`.
 
 ---
 
@@ -258,7 +246,6 @@ block. Host check luôn chạy được vì chỉ phụ thuộc `free -m` (có s
 |--------|----------------|---------------|
 | `zta-deploy-spire.sh` | 1500Mi | `SPIRE_REQUIRED_HOST_MI` |
 | `zta-deploy-policy-controller.sh` | 1200Mi | `PC_REQUIRED_HOST_MI` |
-| `zta-deploy-falco.sh` | 1800Mi | `FALCO_REQUIRED_HOST_MI` |
 | `zta-rebuild.sh --full-enforcement` | 2000Mi (gate trước heavy phase) | `REBUILD_FULL_REQUIRED_HOST_MI` |
 | `10-deploy-tetragon.sh` | 900Mi (auto-runs `free-ram-for-tetragon.sh` nếu thiếu) | `TETRAGON_RAM_TARGET_MI` |
 

@@ -83,7 +83,6 @@ else
     PROJECT_PATTERNS=(
       'job7189' 'datn' 'identity-service' 'hiring-service' 'job-service'
       'candidate-service' 'manager-service' 'mail-service' 'cv-service'
-      'fe-candidate' 'fe-recruiter'
     )
     for pat in "${PROJECT_PATTERNS[@]}"; do
       ids=$(docker images --format '{{.ID}} {{.Repository}}' 2>/dev/null \

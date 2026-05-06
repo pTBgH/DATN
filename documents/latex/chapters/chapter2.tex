@@ -20,9 +20,12 @@ Các công cụ bảo mật truyền thống (tường lửa biên, IPS) chỉ g
 \textbf{Ví dụ trong job7189:} Khi người dùng xem danh sách công việc, request đi qua Kong Gateway → \texttt{job-service} phải gọi sang \texttt{identity-service} để xác thực quyền hạn và \texttt{workspace-service} để lấy thông tin doanh nghiệp. Tường lửa biên chỉ thấy request đầu tiên; toàn bộ trao đổi Token và dữ liệu bên trong nằm ngoài tầm kiểm soát của nó.
 \end{leftbar}
 
-\begin{leftbar}
-\textbf{Minh họa:} Sự khác biệt giữa lưu lượng North-South (client--gateway) và East-West (service--service) trong kiến trúc Microservices được mô tả ở Mục~3.2 của Chương 3 -- nơi liệt kê chi tiết các tuyến giao tiếp nội bộ của hệ thống job7189.
-\end{leftbar}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{images/nsew.png}
+    \caption{Lưu lượng \textit{North-South} (client $\rightarrow$ gateway) và \textit{East-West} (service $\rightarrow$ service) trong kiến trúc Microservices.}
+    \label{fig:nsew}
+\end{figure}
 
 
 \subsection{Ephemeral Workloads: Sự lỗi thời của mô hình tin cậy dựa trên IP}
@@ -350,191 +353,38 @@ Chính sách không phải thực thể tĩnh mà trải qua vòng đời khép 
 %==============================================================================
 \section{Quy trình triển khai kiến trúc Zero Trust}
 
-NIST SP 800-207 (Mục 7 — \textit{``Migrating to a Zero Trust Architecture''}) nhấn mạnh rằng chuyển đổi sang Zero Trust là một \textbf{lộ trình dài hạn, tuần tự và lặp lại}, không phải là một sự kiện triển khai đơn lẻ. Việc ``bật công tắc'' ZTA cho toàn bộ hệ thống cùng một lúc sẽ gây gián đoạn nghiêm trọng và phản tác dụng \cite{nist800207}. Dựa trên khuyến nghị NIST và các thực tiễn triển khai tốt nhất (Best Practices), đồ án đề xuất quy trình triển khai 4 giai đoạn dưới đây.
+NIST SP 800-207 (Mục~7) nhấn mạnh chuyển đổi sang Zero Trust là \emph{lộ trình dài hạn, tuần tự và lặp lại}, không phải sự kiện đơn lẻ. Bật ZTA toàn hệ thống cùng lúc gây gián đoạn nghiêm trọng \cite{nist800207}. Đồ án đề xuất quy trình \textbf{4 giai đoạn}, mỗi giai đoạn có đầu ra và tiêu chí hoàn thành (Bảng~\ref{tab:deployment_phases}).
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{5cm}
-            \textit{[HÌNH: Sơ đồ lộ trình triển khai ZTA 4 giai đoạn — Chuẩn bị → Thí điểm → Mở rộng → Cải tiến liên tục, với các milestone và checkpoint giữa mỗi giai đoạn]}
-            \vspace{5cm}
-        \end{minipage}
-    }
-    \caption{Lộ trình triển khai kiến trúc Zero Trust theo 4 giai đoạn}
-    \label{fig:zta_deployment_roadmap}
-\end{figure}
+\paragraph{Giai đoạn 1 -- Chuẩn bị và Lập kế hoạch.} Xây bức tranh toàn cảnh trước khi thay đổi: (i) \emph{kiểm kê tài sản} (data, compute, subjects) gắn nhãn nhạy cảm; (ii) \emph{lập bản đồ luồng} N-S, E-W, data-out để có Ma trận truy cập; (iii) \emph{đánh giá hiện trạng} (SSO, secrets, NetworkPolicy, observability) tìm gap; (iv) \emph{lựa chọn công nghệ} -- ánh xạ logic NIST PE/PA/PEP sang công cụ thực tế (Bảng~\ref{tab:nist_comparison}).
 
-
-\subsection{Giai đoạn 1: Chuẩn bị và Lập kế hoạch}
-
-Giai đoạn đầu tiên đóng vai trò nền tảng quyết định thành bại của toàn bộ quá trình chuyển đổi. Mục tiêu là xây dựng một bức tranh toàn cảnh (Full Visibility) về hệ thống hiện tại trước khi thay đổi bất cứ điều gì.
-
-\subsubsection*{Bước 1.1: Kiểm kê và Phân loại tài sản (Asset Inventory)}
-
-Kiểm kê tất cả các tài sản kỹ thuật số cần được bảo vệ, bao gồm:
-\begin{itemize}
-    \item \textbf{Tài nguyên dữ liệu:} Toàn bộ cơ sở dữ liệu, kho lưu trữ tệp tin, hệ thống message queue (Kafka, RabbitMQ), bộ nhớ đệm (Redis).
-    \item \textbf{Tài nguyên tính toán:} Các dịch vụ ứng dụng (Microservices, Monolith), hạ tầng nền tảng (Kubernetes cluster, VM), công cụ nội bộ (CI/CD pipelines, monitoring).
-    \item \textbf{Chủ thể truy cập:} Người dùng cuối (End-Users), quản trị viên hệ thống (SysAdmins), tài khoản dịch vụ (ServiceAccounts), thiết bị IoT.
-\end{itemize}
-Mỗi tài sản phải được gán một \textbf{mức độ nhạy cảm} (Sensitivity Level) — ví dụ: Cơ sở dữ liệu lương = Nghiêm trọng, trang chủ công khai = Thấp — để xác định mức ưu tiên bảo vệ.
-
-\subsubsection*{Bước 1.2: Lập bản đồ luồng giao dịch (Transaction Flow Mapping)}
-
-Vẽ sơ đồ chi tiết mọi luồng dữ liệu trong hệ thống:
-\begin{itemize}
-    \item \textbf{Luồng North-South:} Client → API Gateway → Backend Services. Xác định rõ những route nào công khai, những route nào yêu cầu xác thực.
-    \item \textbf{Luồng East-West:} Service A → Service B nội bộ. Liệt kê chính xác: dịch vụ nào gọi dịch vụ nào, qua port nào, sử dụng HTTP method gì, truy cập path nào. Đây chính là đầu vào để thiết kế \textbf{Ma trận truy cập} (Access Matrix) ở giai đoạn sau.
-    \item \textbf{Luồng Data-out:} Dịch vụ nào kết nối ra ngoài Internet (gọi API bên thứ ba, gửi email, webhook). Đây là luồng cần \textit{Egress Filtering} nghiêm ngặt nhất.
-\end{itemize}
-
-\subsubsection*{Bước 1.3: Đánh giá hiện trạng bảo mật (Security Posture Baseline)}
-
-Đánh giá hệ thống hiện tại theo các tiêu chí Zero Trust để xác định ``khoảng cách'' (Gap) cần thu hẹp:
-\begin{itemize}
-    \item Hệ thống có sử dụng xác thực tập trung (SSO/OIDC) chưa, hay mỗi service tự xác thực riêng?
-    \item Bí mật (Secrets) được quản lý như thế nào? Hardcode trong file \texttt{.env}, lưu trong ConfigMap, hay sử dụng Secret Manager?
-    \item Network Policy có được thiết lập chưa? Hệ thống đang ở trạng thái ``Flat Network'' hay đã có microsegmentation?
-    \item Hệ thống logging/monitoring đã bao phủ đến đâu? Có khả năng truy vết (traceability) sự kiện bảo mật theo thời gian thực không?
-\end{itemize}
-
-\subsubsection*{Bước 1.4: Xây dựng kế hoạch triển khai và lựa chọn công nghệ}
-
-Dựa trên kết quả kiểm kê và đánh giá gap, lập kế hoạch triển khai bao gồm:
-\begin{itemize}
-    \item Lựa chọn hướng tiếp cận ZTA phù hợp (Chương 1, Mục 1.2.4): Enhanced Identity Governance, Micro-segmentation, hay kết hợp.
-    \item Ánh xạ các thành phần logic NIST (PE, PA, PEP) sang công cụ cụ thể — tham chiếu Bảng~\ref{tab:nist_comparison} (Mục 2.3.7).
-    \item Xác định phạm vi thí điểm (Pilot Scope): chọn một nhóm service hoặc một namespace có rủi ro cao nhưng blast radius thấp (nếu thất bại, ảnh hưởng giới hạn).
-    \item Xây dựng timeline với các \textbf{checkpoint} rõ ràng giữa mỗi giai đoạn.
-\end{itemize}
-
-
-\subsection{Giai đoạn 2: Triển khai thí điểm (Pilot Deployment)}
-
-Giai đoạn thí điểm áp dụng kiến trúc ZTA cho một \textbf{phạm vi nhỏ, có kiểm soát} để kiểm chứng thiết kế trước khi mở rộng. Mục tiêu là phát hiện sớm các vấn đề về tương thích, hiệu năng và vận hành mà không gây gián đoạn nghiệp vụ.
-
-\subsubsection*{Bước 2.1: Thiết lập gốc tin cậy (Root of Trust)}
-
-Trước mọi thành phần khác, gốc tin cậy phải được thiết lập vì tất cả các thành phần sau đều phụ thuộc vào nó:
+\paragraph{Giai đoạn 2 -- Triển khai thí điểm.} Áp dụng ZTA cho phạm vi nhỏ có kiểm soát:
 \begin{enumerate}
-    \item \textbf{Identity Provider (IdP):} Triển khai hệ thống xác thực tập trung (Keycloak, Okta, Microsoft Entra ID). Cấu hình realm, client, role mapping, và OIDC flow (Authorization Code, Client Credentials).
-    \item \textbf{Secret Manager:} Triển khai HashiCorp Vault (hoặc AWS Secrets Manager). Cấu hình Dynamic Secret Engine cho database, Kubernetes Auth Method cho workload authentication, và policy RBAC cho từng service. (Hình ~\ref{fig:vault_dynamic_secret_concept} minh họa quá trình Vault cấp Dynamic Secret cho database).
-    \item \textbf{Workload Identity:} Cấu hình Kubernetes ServiceAccount cho mỗi microservice. Nếu sử dụng SPIFFE/SPIRE, triển khai SPIRE Server trước và đăng ký các entry cho từng workload.
+    \item \textbf{Gốc tin cậy:} IdP (Keycloak), Secret Manager (Vault với Dynamic Secret + K8s Auth), Workload Identity (SA hoặc SPIFFE/SPIRE) -- xem Hình~\ref{fig:vault_dynamic_secret_concept}.
+    \item \textbf{Default Deny:} áp \texttt{ingress: []} / \texttt{egress: []} cho namespace thí điểm, sau đó mở allow-rules \emph{theo thứ tự ưu tiên} DNS → Vault → DB → Gateway, dùng Hubble xác minh.
+    \item \textbf{Edge PEP:} API Gateway gắn JWT plugin, CORS, rate-limit; gửi request không token phải nhận 401.
+    \item \textbf{Dynamic secrets:} Vault Database Engine + Agent Injector; xác minh \texttt{/vault/secrets/.env.db} có username ngẫu nhiên + lease ID.
+    \item \textbf{Đánh giá pilot:} kiểm tra correctness (200 OK với microsegmentation), latency (<5\,ms), khả năng debug.
 \end{enumerate}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{images/1576778435-vault-db.png}
-    \caption{Minh họa quá trình Vault cấp Dynamic Secret cho database — dịch vụ gửi yêu cầu với ServiceAccount, Vault xác thực và trả về credential tạm thời}
+    \caption{Quá trình Vault cấp Dynamic Secret cho database -- service xác thực bằng SA, Vault trả credential tạm thời.}
     \label{fig:vault_dynamic_secret_concept}
 \end{figure}
 
-\subsubsection*{Bước 2.2: Áp dụng chính sách Default Deny cho phạm vi thí điểm}
+\paragraph{Giai đoạn 3 -- Mở rộng.} Sau khi pilot ổn định, mở rộng \emph{theo chiều ngang} (namespace by namespace, dùng Ma trận truy cập sinh allow-rules) và \emph{theo chiều sâu} (nâng L3/L4 lên L7 HTTP method/path, ServiceAccount-based policy, mTLS sidecarless / WireGuard). Đồng thời triển khai Observability toàn diện (EFK + Prometheus/Grafana + Alertmanager).
 
-Bắt đầu với nguyên tắc cốt lõi nhất của ZTA — \textit{Mặc định từ chối (Default Deny)}:
-\begin{enumerate}
-    \item Áp dụng \texttt{CiliumNetworkPolicy} hoặc \texttt{NetworkPolicy} với \texttt{ingress: []} và \texttt{egress: []} cho namespace thí điểm — chặn 100\% traffic.
-    \item Lần lượt mở các allow-rules \textbf{theo thứ tự ưu tiên}: DNS (port 53) → Vault (port 8200) → Database (port 3306) → Gateway Ingress (port 80).
-    \item Sử dụng \textbf{Hubble CLI} hoặc công cụ tương đương để quan sát traffic và xác nhận rằng chỉ các luồng được khai báo mới đi qua.
-\end{enumerate}
-
-\subsubsection*{Bước 2.3: Triển khai PEP biên (Edge PEP)}
-
-Cấu hình API Gateway (Kong, Istio Ingress) làm PEP cho luồng North-South:
+\paragraph{Giai đoạn 4 -- Vận hành và Cải tiến liên tục.} ZTA là \emph{vòng lặp cải tiến} chứ không phải trạng thái đích:
 \begin{itemize}
-    \item Gắn JWT plugin trên các protected routes — bắt buộc xác thực token.
-    \item Cấu hình CORS, rate limiting, và logging chi tiết.
-    \item Xác minh bằng cách gửi request không có JWT → phải nhận 401.
+    \item \textbf{Daily:} dashboard Grafana (drops, lease count, restart), log Kibana, Hubble UI.
+    \item \textbf{Weekly/Monthly/Quarterly:} review policy drops, cập nhật Ma trận truy cập, audit Vault/Keycloak/Kong roles.
+    \item \textbf{Pen-test \& diễn tập:} Pod ``attacker'' kiểm tra microsegmentation; mô phỏng credential leak; incident response drill.
+    \item \textbf{Cập nhật công nghệ:} theo dõi CVE Cilium/Vault/Keycloak; nâng cấp khi có tính năng bảo mật mới.
 \end{itemize}
 
-\subsubsection*{Bước 2.4: Triển khai Dynamic Secrets cho phạm vi thí điểm}
+\vspace{0.3cm}
 
-Thay thế static credentials bằng dynamic credentials cho service thí điểm:
-\begin{itemize}
-    \item Cấu hình Vault Database Engine cho database tương ứng.
-    \item Triển khai Vault Agent Injector, cấu hình annotations trên Deployment.
-    \item Xác minh bằng cách kiểm tra file \texttt{/vault/secrets/.env.db} trong Pod — phải thấy username ngẫu nhiên và lease ID.
-\end{itemize}
-
-\subsubsection*{Bước 2.5: Đánh giá kết quả thí điểm}
-
-Trước khi mở rộng, hội đồng kỹ thuật phải đánh giá các tiêu chí:
-\begin{itemize}
-    \item \textbf{Tính đúng đắn:} Service thí điểm hoạt động bình thường (200 OK) với microsegmentation bật? Credential rotation có gây downtime?
-    \item \textbf{Hiệu năng:} Latency tăng bao nhiêu phần trăm so với trước khi áp dụng? Có nằm trong ngưỡng chấp nhận được (<5ms tăng thêm)?
-    \item \textbf{Vận hành:} Đội vận hành đã hiểu quy trình debug khi traffic bị chặn? Log và metrics có đủ để truy vết nguyên nhân?
-\end{itemize}
-
-
-\subsection{Giai đoạn 3: Mở rộng (Expansion)}
-
-Sau khi thí điểm thành công, mở rộng ZTA ra toàn bộ hệ thống theo chiến lược \textbf{từng lớp, từng namespace}:
-
-\subsubsection*{Bước 3.1: Mở rộng theo chiều ngang — Namespace by Namespace}
-
-\begin{enumerate}
-    \item Áp dụng Default Deny cho namespace tiếp theo (ví dụ: \texttt{data} sau khi đã hoàn thành \texttt{job7189-apps}).
-    \item Tạo allow-rules cho các luồng East-West mới dựa trên Ma trận truy cập.
-    \item Triển khai Vault dynamic credentials cho toàn bộ 7 services.
-    \item Hubble observe để xác nhận mọi luồng hợp lệ vẫn hoạt động.
-\end{enumerate}
-
-\subsubsection*{Bước 3.2: Mở rộng theo chiều sâu — Nâng cấp từ L3/L4 lên L7}
-
-Sau khi microsegmentation L3/L4 ổn định:
-\begin{enumerate}
-    \item Bổ sung L7 HTTP Policy cho các luồng East-West quan trọng — kiểm soát cả HTTP method và path.
-    \item Cấu hình ServiceAccount-based policy cho cặp service nhạy cảm (ví dụ: \texttt{identity-service} → MySQL).
-    \item Xem xét bật mTLS sidecarless (Cilium mesh-auth) hoặc WireGuard encryption cho traffic giữa các node.
-\end{enumerate}
-
-\subsubsection*{Bước 3.3: Triển khai Observability Layer toàn diện}
-
-Song song với việc mở rộng policy:
-\begin{itemize}
-    \item Triển khai EFK Stack cho centralized logging — thu thập log từ mọi namespace bảo mật.
-    \item Triển khai Prometheus + Grafana cho Security Metrics — tạo dashboard giám sát Cilium drops, Vault leases, Pod health.
-    \item Cấu hình Alertmanager cho tự động cảnh báo khi phát hiện anomaly.
-\end{itemize}
-
-
-\subsection{Giai đoạn 4: Vận hành và Cải tiến liên tục}
-
-Zero Trust không phải là trạng thái ``đạt được một lần rồi xong'', mà là một \textbf{vòng lặp cải tiến liên tục} (Continuous Improvement Loop). Giai đoạn này đảm bảo hệ thống duy trì và nâng cao tư thế bảo mật theo thời gian.
-
-\subsubsection*{Bước 4.1: Giám sát vận hành hàng ngày}
-
-\begin{itemize}
-    \item Theo dõi dashboard Grafana: tỷ lệ Dropped/Forwarded packets, Vault lease count, Pod restart rate.
-    \item Review log Kibana: các sự kiện đăng nhập thất bại, JWT hết hạn, API 403/401 bất thường.
-    \item Hubble UI: trực quan hóa network flow, phát hiện sớm các kết nối không mong muốn.
-\end{itemize}
-
-\subsubsection*{Bước 4.2: Rà soát và cập nhật chính sách định kỳ (Policy Review)}
-
-\begin{itemize}
-    \item \textbf{Hàng tuần:} Review Cilium policy drops — nếu có service liên tục bị chặn, cần điều tra xem đó là tấn công hay policy sai.
-    \item \textbf{Hàng tháng:} Rà soát Ma trận truy cập — khi thêm service mới hoặc thay đổi luồng nghiệp vụ, cập nhật CiliumNetworkPolicy tương ứng.
-    \item \textbf{Hàng quý:} Audit toàn diện Vault policies, Keycloak roles, Kong routes — loại bỏ quyền thừa (stale permissions).
-\end{itemize}
-
-\subsubsection*{Bước 4.3: Kiểm tra xâm nhập (Penetration Testing) và Diễn tập sự cố}
-
-\begin{itemize}
-    \item Thực hiện kiểm tra xâm nhập nội bộ: tạo Pod ``attacker'' trong namespace \texttt{default} và kiểm tra xem có thể vượt qua microsegmentation không.
-    \item Mô phỏng kịch bản credential leak: thu hồi toàn bộ Vault leases và kiểm tra xem hệ thống tự phục hồi trong bao lâu.
-    \item Diễn tập ứng phó sự cố (Incident Response drill): phát hiện, cô lập và phục hồi khi một service bị chiếm quyền.
-\end{itemize}
-
-\subsubsection*{Bước 4.4: Cập nhật công nghệ và nâng cấp phiên bản}
-
-\begin{itemize}
-    \item Theo dõi CVE (Common Vulnerabilities and Exposures) cho các thành phần ZTA: Cilium, Vault, Keycloak, Kong.
-    \item Nâng cấp phiên bản Cilium/Tetragon khi có tính năng bảo mật mới (ví dụ: cải thiện mTLS performance, bổ sung TracingPolicy matchers).
-    \item Đánh giá lại kiến trúc khi có thay đổi lớn: thêm module mới, chuyển cloud provider, thay đổi quy mô.
-\end{itemize}
 
 \vspace{0.5cm}
 

@@ -105,21 +105,12 @@ cascading API timeouts trên cluster RAM-constrained:
 > mới `bash scripts/zta-rebuild.sh --skip-cluster --until=zta --yes` để 5e
 > apply được TracingPolicy.
 
-### 2.4 Falco (PR #22 — không chạy tự động)
+### 2.4 Falco (DEPRECATED — đã gỡ)
 
-`scripts/zta-deploy-falco.sh` **không** nằm trong `--full-enforcement` vì
-Falco một mình ăn ~1Gi RAM (Falcosidekick + eBPF probe). Chạy thủ công sau
-khi cluster ổn định:
-
-```bash
-bash scripts/free-ram-for-tetragon.sh   # giải phóng ~600Mi nếu cần
-bash scripts/zta-deploy-falco.sh
-sleep 90  # build eBPF probe
-bash 09-verify-zta.sh | grep "Test 4m" -A 12
-```
-
-Pre-flight RAM Falco yêu cầu ≥300Mi/node free (override:
-`FALCO_REQUIRED_NODE_MI=200` hoặc `ZTA_RAM_CHECK_FATAL=0`).
+Falco runtime detection đã bị gỡ khỏi pipeline ZTA (PR-D cleanup, 2026-05).
+Tetragon (xem step `10-tetragon`) phủ toàn bộ runtime use-case mà Falco từng
+làm. Xem `doc/31-falco-deprecated.md` + `doc/incident-falco-tetragon-ram-overcommit.md`
+cho lý do và evidence.
 
 ### 2.5 Flags tổng hợp
 
@@ -174,7 +165,7 @@ Test ID coverage trong `09-verify-zta.sh`:
 | 4j | sigstore policy-controller real Cosign verify (PR #19) | `28` |
 | 4k | SPIRE workload integration consume SVID (PR #20) | `29` |
 | 4l | Hubble flow → ES sink (PR #21) | `30` |
-| 4m | Falco runtime detection (PR #22) | `31` |
+| ~~4m~~ | ~~Falco runtime detection (PR #22)~~ — **REMOVED** PR-D, xem `31-falco-deprecated.md` | `31` |
 | 5 | Encryption mTLS + WireGuard | `15` |
 | 6 | Observability stack | `05` |
 | 7 | Namespace tier isolation | `02`, `18` |

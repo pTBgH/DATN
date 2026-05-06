@@ -212,11 +212,9 @@ for svc in hiring-service candidate-service job-service workspace-service commun
   label_workload deployment "${svc}-redis" job7189-apps \
     cache T2 prod internal cluster-only backend
 done
-# Frontend (T3) — namespace=frontend (per helmfile.yaml)
-for svc in fe-candidate fe-recruiter; do
-  label_workload deployment "$svc" frontend \
-    ui T3 prod public internal frontend
-done
+# Frontend (fe-candidate / fe-recruiter) đã được tách ra khỏi pipeline ZTA
+# từ 2026-05 (xem doc/cleanup-workspace-plan.md, PR-C). Thư mục `frontend/`
+# ở root chỉ phục vụ dev cục bộ; không deploy vào cluster ZTA.
 
 echo
 echo "============================================================"

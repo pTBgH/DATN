@@ -10,7 +10,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/ssl-redirect: "false" 
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://fe-candidate.job7189.com, http://kong.job7189.local"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://kong.job7189.local"
 
 spec:
   ingressClassName: nginx

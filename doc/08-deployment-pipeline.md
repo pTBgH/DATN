@@ -16,8 +16,7 @@
 05-seed-databases.sh
   → Load 7 database schemas from DB/ folder
 
-06-build-frontends.sh
-  → Build + push fe-candidate + fe-recruiter images
+# (06-build-frontends.sh đã được gỡ — frontend tách riêng, xem doc/cleanup-workspace-plan.md)
 
 07-deploy-monitoring-exporters.sh
   → node-exporter (DaemonSet) + kube-state-metrics (fill Prometheus gaps)
@@ -46,8 +45,8 @@ bash 02-deploy-infrastructure.sh
 bash 03-deploy-microservices.sh
 bash 05-seed-databases.sh
 
-# Tuy chon: Frontend
-bash 06-build-frontends.sh
+# Frontend (fe_candidate / fe_recruiter) đã tách khỏi pipeline ZTA;
+# code dev cục bộ ở thư mục root `frontend/`. Xem doc/cleanup-workspace-plan.md.
 
 # Monitoring bo sung
 bash 07-deploy-monitoring-exporters.sh
@@ -87,15 +86,12 @@ bash 11-provision-dashboards.sh
 ### 03-deploy-microservices.sh
 - Setup local registry + build 7 Laravel images
 - Validate Vault dynamic DB readiness
-- Helmfile apply 7 services + 2 frontends
+- Helmfile apply 7 services (frontend đã tách khỏi helmfile từ PR-C)
 - **Step 1d**: Verify microseg policies sau deploy
 
 ### 05-seed-databases.sh
 - Doc MySQL root password tu Vault KV
 - Seed 7 databases tu DB/*.sql
-
-### 06-build-frontends.sh
-- Build fe-candidate + fe-recruiter Docker images
 
 ### 07-deploy-monitoring-exporters.sh (MOI)
 - Deploy node-exporter DaemonSet (~32Mi/node)

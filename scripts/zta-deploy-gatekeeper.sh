@@ -110,21 +110,52 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   #      wall-clock fits the orchestrator's 1500s step budget.
   # -------------------------------------------------------------
   MIN_FREE_MIB="${MIN_FREE_MIB:-1500}"
+  # Auto-free target: a touch above MIN_FREE_MIB to absorb the helm install
+  # spike. Operator can override via FREE_RAM_TARGET_MI if needed.
+  FREE_RAM_TARGET_MI="${FREE_RAM_TARGET_MI:-1700}"
+  AUTO_FREE_RAM="${AUTO_FREE_RAM:-1}"
+
+  _read_avail() {
+    awk '/MemAvailable:/ {printf "%d\n", $2/1024}' /proc/meminfo 2>/dev/null || echo 0
+  }
+
   blue "[0a/4] Pre-flight: host RAM (need ≥ ${MIN_FREE_MIB} MiB available)..."
   if [ -r /proc/meminfo ]; then
-    _avail=$(awk '/MemAvailable:/ {printf "%d\n", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
+    _avail=$(_read_avail)
     _total=$(awk '/MemTotal:/    {printf "%d\n", $2/1024}' /proc/meminfo 2>/dev/null || echo 0)
     echo "    host MemAvailable: ${_avail} MiB / MemTotal: ${_total} MiB"
+
+    # If we're below the gate, try the auto-free script before giving up.
+    # Pattern mirrors 10-deploy-tetragon.sh's auto-call of
+    # scripts/free-ram-for-tetragon.sh.
+    if [ "${_avail:-0}" -lt "$MIN_FREE_MIB" ] && [ "$AUTO_FREE_RAM" = "1" ]; then
+      _free_script="$(dirname "${BASH_SOURCE[0]}")/free-ram-for-gatekeeper.sh"
+      if [ -x "$_free_script" ]; then
+        yellow "    ⚠ Below threshold (${_avail} MiB < ${MIN_FREE_MIB} MiB)."
+        yellow "      Auto-running ${_free_script} (toggle UI off + drop_caches)..."
+        FREE_RAM_TARGET_MI="$FREE_RAM_TARGET_MI" "$_free_script" \
+          | sed 's/^/      /'
+        _avail=$(_read_avail)
+        echo "    host MemAvailable after free-ram: ${_avail} MiB"
+      else
+        yellow "    ⚠ free-ram-for-gatekeeper.sh not found / not executable — skipping auto-free"
+      fi
+    fi
+
     if [ "${_avail:-0}" -lt "$MIN_FREE_MIB" ]; then
       red "    ✗ host has only ${_avail} MiB available (need ≥ ${MIN_FREE_MIB} MiB)."
       red "      Refusing to install — overcommit cascade WILL crash the VM"
       red "      (already happened in rebuild_20260505_142433: cluster ended with 0 pods)."
       red "      Free RAM first, e.g.:"
-      red "        kubectl -n monitoring scale deploy/grafana --replicas=0"
-      red "        kubectl -n logging  scale deploy/kibana  --replicas=0"
-      red "        kubectl -n logging  scale sts/elasticsearch --replicas=1"
+      red "        bash scripts/free-ram-for-gatekeeper.sh   # toggle UI + drop_caches"
+      red "        # Heavier (breaks audit pipeline — re-scale after step 27):"
+      red "        kubectl -n data       scale sts/kafka --replicas=0"
+      red "        kubectl -n monitoring scale sts/es    --replicas=0"
       red "      then retry: bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes"
-      red "      Or override (NOT RECOMMENDED): MIN_FREE_MIB=0 bash scripts/zta-deploy-gatekeeper.sh"
+      red "      Or skip this gate (NOT RECOMMENDED):"
+      red "        MIN_FREE_MIB=0 bash scripts/zta-deploy-gatekeeper.sh"
+      red "      Or disable just the auto-free attempt:"
+      red "        AUTO_FREE_RAM=0 bash scripts/zta-deploy-gatekeeper.sh"
       exit 1
     fi
     green "    ✓ ${_avail} MiB available — proceeding"

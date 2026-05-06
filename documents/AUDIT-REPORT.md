@@ -13,13 +13,13 @@
 |---|---|
 | Knowledge base (32 chapter trong `doc/`) | Mô tả nhất quán với code thực tế. Không có chương nào "trống" hoặc mâu thuẫn với pipeline `zta-rebuild.sh`. |
 | `scripts/zta-rebuild.sh` (812 dòng, 16 phase) | Khớp với KB chương 08 (deployment-pipeline) và các chương 14, 15, 24–32 (các module Phase 4). |
-| LaTeX (`documents/latex/`) | **Build OK** — `main.pdf` 105 trang, 4.38 MB. Đã sửa 4 lỗi compile cũ. |
+| LaTeX (`documents/latex/`) | **Build OK** — `main.pdf` 113 trang, 4.43 MB. Đã sửa 4 lỗi compile cũ. |
 | Auto-move PDF | **Đã code** — `docker-compose.yml` mới: `cp -f build/main.pdf main.pdf` sau mỗi lần build. |
-| Bổ sung nội dung `.tex` | **Đã thêm 2 section mới** vào `chapter3.tex`: (1) Cấu trúc Pod đa sidecar; (2) Lớp ZTA mở rộng — Phase 4 (Cosign/SPIRE/Gatekeeper/PDP/Hubble export). |
+| Bổ sung nội dung `.tex` | **Đã thêm 3 section mới** vào `chapter3.tex`: (0) Tổng quan kiến trúc và vai trò từng dịch vụ — bảng PE/PA/PEP, bảng 5 lớp, sơ đồ TikZ namespace map, phân tích 13 component; (1) Cấu trúc Pod đa sidecar; (2) Lớp ZTA mở rộng — Phase 4 (Cosign/SPIRE/Gatekeeper/PDP/Hubble export). |
 
 Test build cuối:
 ```
-my_latex_project  | Output written on build/main.pdf (105 pages, 4383168 bytes).
+my_latex_project  | Output written on build/main.pdf (113 pages, 4432258 bytes).
 my_latex_project  | [latex] main.pdf đã được copy ra /workdir/main.pdf
 my_latex_project exited with code 0
 ```

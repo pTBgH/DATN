@@ -1,8 +1,28 @@
-# 31. Falco Runtime Detection + Falcosidekick (ZTA-aware rules)
+# 31. Falco Runtime Detection (DEPRECATED — Tetragon replaced)
 
-PR #22 — Step 2.3.12. Add detection layer độc lập với Tetragon (PR #12), đặc tả runtime threats cụ thể cho ZTA workload patterns.
+> **STATUS: DEPRECATED (2026-05).** Falco đã bị gỡ khỏi pipeline ZTA và
+> repo này từ PR-D cleanup parallel. Tetragon (xem `doc/14-tetragon-runtime.md`)
+> phủ toàn bộ runtime detection use-cases mà Falco từng làm trên cụm 1-node lab.
+>
+> **Lý do gỡ:** xem `doc/incident-falco-tetragon-ram-overcommit.md`. Tóm tắt:
+> Falco DS-per-node (~1 GiB tổng cluster) gây RAM overcommit trên lab box 12 GiB,
+> cascading OOMKills (tetragon, metrics-server, cilium-operator,
+> policy-controller-webhook). Tetragon đã có sẵn (cùng dự án `cilium`,
+> share kernel BPF probes) nên Falco trở thành redundant trong môi trường
+> hạn chế tài nguyên.
+>
+> **Artefact đã xóa khỏi repo:**
+> - `scripts/zta-deploy-falco.sh`
+> - `infras/k8s-yaml/falco/values.yaml`
+> - Test 4m trong `09-verify-zta.sh`
+> - Step 25-falco trong `scripts/zta-rebuild.sh` (đã loại từ trước, comment vẫn còn)
+>
+> Tài liệu này được giữ lại làm chứng cứ thiết kế (thesis Chapter 4) — KHÔNG
+> phải hướng dẫn vận hành. Đừng triển khai theo các bước bên dưới.
 
-## 1. Bối cảnh
+---
+
+## 1. Bối cảnh (lịch sử)
 
 PR #12 deploy Tetragon — kernel-level eBPF observation tool, focus tracking syscall + process events. Falco là rules-based detection engine, focus alerting trên policy violation. Hai tool **bổ sung**, không thay thế:
 

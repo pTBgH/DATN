@@ -167,9 +167,9 @@ STEPS=(
   # equivalent eBPF runtime detection, and Falco's DS-per-node (~1 GiB total)
   # caused host RAM overcommit on the 12 GiB lab box (cascading OOMKills:
   # tetragon, metrics-server, cilium-operator, policy-controller-webhook).
-  # The script scripts/zta-deploy-falco.sh and infras/k8s-yaml/falco/values.yaml
-  # are kept on disk as future-work artifacts (e.g. multi-node lab) but are
-  # not invoked by the rebuild orchestrator.
+  # As of PR-D cleanup (2026-05) the deploy script + helm values are also
+  # deleted from the repo. See doc/incident-falco-tetragon-ram-overcommit.md
+  # + doc/31-falco-deprecated.md for full rationale.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
   "90-verify|Run 09-verify-zta.sh (final assessment)|bash 09-verify-zta.sh"
@@ -431,7 +431,6 @@ export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_
 # leave the failed release in place for manual inspection first.
 #
 # Usage (manual):
-#   do_module_rollback 25-falco
 #   do_module_rollback 26-gatekeeper
 #   do_module_rollback 27-pdp
 # ============================================================================
@@ -439,19 +438,6 @@ do_module_rollback() {
   local step_id=$1
   yellow "  [module-rollback] rolling back step '$step_id' (cluster preserved)..."
   case "$step_id" in
-    25-falco)
-      yellow "  [25-falco rollback] uninstalling helm release 'falco' from ns falco..."
-      helm uninstall falco -n falco 2>/dev/null || true
-      kubectl delete ns falco --ignore-not-found 2>/dev/null || true
-      yellow "  [25-falco rollback] done. Retry: bash scripts/zta-rebuild.sh --from=25-falco --skip-cluster --yes"
-      yellow "  [25-falco inspect]"
-      echo "    kubectl -n falco get pod"
-      echo "    kubectl -n falco logs ds/falco -c falco --tail=60"
-      echo "    kubectl -n falco describe pod -l app.kubernetes.io/name=falco"
-      echo "    # Check eBPF driver conflict with Tetragon:"
-      echo "    kubectl -n kube-system get pod -l app.kubernetes.io/name=tetragon"
-      echo "    kubectl -n kube-system top pod -l app.kubernetes.io/name=tetragon"
-      ;;
     26-gatekeeper)
       yellow "  [26-gatekeeper rollback] removing constraints + helm release..."
       # Remove constraints before CRDs to avoid orphan finalizers.

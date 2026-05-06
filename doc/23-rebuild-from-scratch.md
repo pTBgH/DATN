@@ -19,12 +19,6 @@ bash scripts/zta-rebuild.sh --yes
 bash scripts/zta-rebuild.sh --yes --full-enforcement
 ```
 
-Hoặc qua menu:
-```bash
-bash deploy-all.sh
-# → option 7 (teardown) → option 8 (rebuild base, không có --full-enforcement)
-```
-
 Kết quả mong đợi (cluster trắng → cluster Phase 4 sẵn sàng):
 - **Base rebuild** (`--yes`): ~25-35 phút, cluster ZTA Advanced+, chưa có Tetragon/SPIRE/Cosign/Hubble.
 - **Full-enforcement rebuild** (`--yes --full-enforcement`): ~45-60 phút, cluster ZTA Optimal, đã có cả 4 module trên.

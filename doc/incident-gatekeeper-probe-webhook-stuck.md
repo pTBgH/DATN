@@ -235,10 +235,12 @@ If the rebuild fails again at step 26 with the new script:
 ```bash
 # 1) Confirm host RAM is the problem (most likely on the lab VM)
 free -m | head -2
-# If MemAvailable < 1500 MiB, free RAM by scaling down ELK / Grafana:
-kubectl -n monitoring scale deploy/grafana --replicas=0
-kubectl -n logging    scale deploy/kibana   --replicas=0
-kubectl -n logging    scale sts/elasticsearch --replicas=1
+# If MemAvailable < 1500 MiB, the [0a/4] pre-flight inside
+# scripts/zta-deploy-gatekeeper.sh now auto-runs free-ram-for-gatekeeper.sh
+# (toggle Kibana/Grafana/Kafbat/phpMyAdmin off + drop_caches).
+# Run it manually if you need to free RAM before the next pipeline retry:
+bash scripts/free-ram-for-gatekeeper.sh
+# Re-enable the UIs after step 27:  bash scripts/toggle-internal-ui.sh on
 
 # 2) Confirm apiserver is healthy
 time kubectl get --raw=/readyz   # < 1 s expected

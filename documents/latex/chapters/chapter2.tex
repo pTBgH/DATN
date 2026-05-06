@@ -8,7 +8,7 @@
 
 Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công (Attack Surface) của hệ thống. Mục này phân tích năm đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức mà chúng tạo ra cho việc triển khai ZTA.
 
-Theo NIST SP 800-204, kiến trúc Microservices dịch chuyển độ phức tạp bảo mật từ bên trong ứng dụng nguyên khối ra mạng lưới giao tiếp liên dịch vụ, làm bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \cite{nist800204}.
+Theo NIST SP 800-204, kiến trúc Microservices dịch chuyển độ phức tạp bảo mật từ bên trong ứng dụng nguyên khối ra mạng lưới giao tiếp liên dịch vụ, làm bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \cite{nist800204_microservices}.
 
 \subsection{Sự bùng nổ lưu lượng nội bộ (East-West Traffic)}
 
@@ -21,7 +21,7 @@ Các công cụ bảo mật truyền thống (tường lửa biên, IPS) chỉ g
 \end{leftbar}
 
 \begin{leftbar}
-\textbf{Minh họa:} Xem Hình~\ref{fig:nsew} (Chương 1) về sự khác biệt giữa lưu lượng North-South và East-West trong kiến trúc Microservices.
+\textbf{Minh họa:} Sự khác biệt giữa lưu lượng North-South (client--gateway) và East-West (service--service) trong kiến trúc Microservices được mô tả ở Mục~3.2 của Chương 3 -- nơi liệt kê chi tiết các tuyến giao tiếp nội bộ của hệ thống job7189.
 \end{leftbar}
 
 
@@ -155,7 +155,7 @@ Khi người dùng đăng nhập thành công, IdP (Keycloak) trả về Access 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{text}
 spiffe://job7189.local/ns/job7189-apps/sa/identity-service
-  │             │              │                │
+  |             |              |                |
   scheme   trust domain    namespace      serviceaccount
 \end{minted}
 \caption{Cấu trúc SPIFFE ID — định danh ứng dụng gắn chặt vào Namespace và ServiceAccount}
@@ -420,7 +420,7 @@ Giai đoạn thí điểm áp dụng kiến trúc ZTA cho một \textbf{phạm v
 Trước mọi thành phần khác, gốc tin cậy phải được thiết lập vì tất cả các thành phần sau đều phụ thuộc vào nó:
 \begin{enumerate}
     \item \textbf{Identity Provider (IdP):} Triển khai hệ thống xác thực tập trung (Keycloak, Okta, Microsoft Entra ID). Cấu hình realm, client, role mapping, và OIDC flow (Authorization Code, Client Credentials).
-    \item \textbf{Secret Manager:} Triển khai HashiCorp Vault (hoặc AWS Secrets Manager). Cấu hình Dynamic Secret Engine cho database, Kubernetes Auth Method cho workload authentication, và policy RBAC cho từng service. (Hình ~\ref{fig:vault_proof_screenshot} minh họa quá trình Vault cấp Dynamic Secret cho database).
+    \item \textbf{Secret Manager:} Triển khai HashiCorp Vault (hoặc AWS Secrets Manager). Cấu hình Dynamic Secret Engine cho database, Kubernetes Auth Method cho workload authentication, và policy RBAC cho từng service. (Hình ~\ref{fig:vault_dynamic_secret_concept} minh họa quá trình Vault cấp Dynamic Secret cho database).
     \item \textbf{Workload Identity:} Cấu hình Kubernetes ServiceAccount cho mỗi microservice. Nếu sử dụng SPIFFE/SPIRE, triển khai SPIRE Server trước và đăng ký các entry cho từng workload.
 \end{enumerate}
 
@@ -428,7 +428,7 @@ Trước mọi thành phần khác, gốc tin cậy phải được thiết lậ
     \centering
     \includegraphics[width=1\textwidth]{images/1576778435-vault-db.png}
     \caption{Minh họa quá trình Vault cấp Dynamic Secret cho database — dịch vụ gửi yêu cầu với ServiceAccount, Vault xác thực và trả về credential tạm thời}
-    \label{fig:vault_proof_screenshot}
+    \label{fig:vault_dynamic_secret_concept}
 \end{figure}
 
 \subsubsection*{Bước 2.2: Áp dụng chính sách Default Deny cho phạm vi thí điểm}

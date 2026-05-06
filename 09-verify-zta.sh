@@ -350,7 +350,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🏷️  Test 4d: Workload Label Coverage"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-LABEL_NAMESPACES="data vault security monitoring gateway management job7189-apps frontend"
+LABEL_NAMESPACES="data vault security monitoring gateway management job7189-apps"
 LABEL_KEYS="zta.job7189/role zta.job7189/tier zta.job7189/env zta.job7189/data-classification zta.job7189/exposure zta.job7189/team"
 
 for ns in $LABEL_NAMESPACES; do

@@ -67,8 +67,11 @@ Repo dùng **prefix riêng `zta.job7189/`** cho tất cả label do PR #9 thêm 
 | `storage-service` | job7189-apps | api | T2 | prod | internal | internal | backend |
 | `identity-service-redis` | job7189-apps | cache | **T1** | prod | confidential | cluster-only | backend |
 | `<other-service>-redis` | job7189-apps | cache | T2 | prod | internal | cluster-only | backend |
-| `fe-candidate` | frontend | ui | T3 | prod | public | internal | frontend |
-| `fe-recruiter` | frontend | ui | T3 | prod | public | internal | frontend |
+
+> **Frontend (`fe-candidate` / `fe-recruiter`)**: đã được tách khỏi pipeline
+> ZTA từ 2026-05 (xem `doc/cleanup-workspace-plan.md`, PR-C). Code dev cục
+> bộ ở thư mục root `frontend/`; không deploy vào cluster ZTA nên không
+> cần ZTA labels.
 
 > Ghi chú: mỗi service có Redis sidecar riêng (vd `hiring-service-redis`). Helm chart `laravel-app` template Redis tier+data-classification kế thừa từ parent service — Redis của identity-service tự động T1/confidential vì cache session token nhạy cảm; Redis các service khác là T2/internal.
 

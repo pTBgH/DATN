@@ -1,0 +1,225 @@
+# Failure diagnostic dump for step 26-gatekeeper at 2026-05-05T16:37:40Z
+
+## Sick pods
+NAMESPACE            NAME                                            READY   STATUS        RESTARTS      AGE
+management           kafbat-7c6bd7577d-nrrjc                         1/1     Terminating   0             57m
+management           phpmyadmin-68d5df54bd-kg5td                     1/1     Terminating   0             61m
+monitoring           kibana-55f7f8646d-cct5m                         1/1     Terminating   0             55m
+monitoring           kube-state-metrics-856b75dfd5-v2cbs             1/1     Running       1 (31m ago)   42m
+
+## Events (last 50)
+monitoring           31m         Warning   Unhealthy               pod/kube-state-metrics-856b75dfd5-v2cbs                          Liveness probe failed: Get "http://10.244.1.10:8080/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring           30m         Normal    Pulled                  pod/kube-state-metrics-856b75dfd5-v2cbs                          Container image "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0" already present on machine and can be accessed by the pod
+kube-system          30m         Warning   Unhealthy               pod/metrics-server-94d8f7d95-4xg6w                               Liveness probe failed: Get "https://10.244.3.225:10250/livez": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring           30m         Warning   Unhealthy               pod/kube-state-metrics-856b75dfd5-v2cbs                          Readiness probe failed: Get "http://10.244.1.10:8081/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring           30m         Normal    Created                 pod/kube-state-metrics-856b75dfd5-v2cbs                          Container created
+monitoring           30m         Normal    Started                 pod/kube-state-metrics-856b75dfd5-v2cbs                          Container started
+monitoring           30m         Warning   Unhealthy               pod/kube-state-metrics-856b75dfd5-v2cbs                          Readiness probe failed: HTTP probe failed with statuscode: 503
+monitoring           30m         Normal    Pulling                 pod/hubble-flow-shipper-nj2qh                                    Pulling image "docker.elastic.co/beats/filebeat:8.10.4"
+monitoring           30m         Normal    Pulled                  pod/hubble-flow-shipper-bm45z                                    Successfully pulled image "docker.elastic.co/beats/filebeat:8.10.4" in 1m5.559s (1m5.559s including waiting). Image size: 131761770 bytes.
+monitoring           30m         Normal    Created                 pod/hubble-flow-shipper-bm45z                                    Container created
+monitoring           30m         Normal    Started                 pod/hubble-flow-shipper-bm45z                                    Container started
+monitoring           30m         Normal    Pulled                  pod/hubble-flow-shipper-ggpsp                                    Successfully pulled image "docker.elastic.co/beats/filebeat:8.10.4" in 1m8.525s (1m8.525s including waiting). Image size: 131761770 bytes.
+monitoring           30m         Normal    Created                 pod/hubble-flow-shipper-ggpsp                                    Container created
+monitoring           30m         Normal    Pulled                  pod/hubble-flow-shipper-j5r2w                                    Successfully pulled image "docker.elastic.co/beats/filebeat:8.10.4" in 1m11.813s (1m11.814s including waiting). Image size: 131761770 bytes.
+monitoring           30m         Normal    Started                 pod/hubble-flow-shipper-ggpsp                                    Container started
+monitoring           30m         Normal    Created                 pod/hubble-flow-shipper-j5r2w                                    Container created
+monitoring           29m         Normal    Started                 pod/hubble-flow-shipper-j5r2w                                    Container started
+cosign-system        29m         Warning   Unhealthy               pod/policy-controller-webhook-76f9d45bf4-9w9nv                   Readiness probe failed: Get "https://10.244.2.161:8443/readyz": net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+monitoring           29m         Normal    Pulled                  pod/hubble-flow-shipper-nj2qh                                    Successfully pulled image "docker.elastic.co/beats/filebeat:8.10.4" in 58.03s (58.03s including waiting). Image size: 131761770 bytes.
+monitoring           29m         Normal    Created                 pod/hubble-flow-shipper-nj2qh                                    Container created
+monitoring           29m         Normal    Started                 pod/hubble-flow-shipper-nj2qh                                    Container started
+spire                25m         Warning   Unhealthy               pod/spire-agent-qb8kg                                            Readiness probe failed: Get "http://172.18.0.4:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system          23m         Warning   Unhealthy               pod/kube-apiserver-job7189-control-plane                         Readiness probe failed: HTTP probe failed with statuscode: 500
+spire                12m         Warning   Unhealthy               pod/spire-agent-49gcr                                            Readiness probe failed: Get "http://172.18.0.5:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+spire                12m         Warning   Unhealthy               pod/spire-agent-z2hrw                                            Readiness probe failed: Get "http://172.18.0.2:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+security             12m         Warning   Unhealthy               pod/oauth2-proxy-d75995f4d-cp5rm                                 Readiness probe failed: Get "http://10.244.1.116:4180/ping": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system          12m         Warning   Unhealthy               pod/hubble-ui-67d8bff4c4-qkgsb                                   Readiness probe failed: Get "http://10.244.1.63:8081/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+kube-system          12m         Warning   Unhealthy               pod/coredns-7d764666f9-rpnj7                                     Readiness probe failed: Get "http://10.244.1.160:8181/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+cosign-system        11m         Warning   Unhealthy               pod/policy-controller-webhook-76f9d45bf4-9w9nv                   Readiness probe failed: Get "https://10.244.2.161:8443/readyz": context deadline exceeded
+cosign-system        11m         Warning   Unhealthy               pod/policy-controller-webhook-76f9d45bf4-9w9nv                   Liveness probe failed: Get "https://10.244.2.161:8443/healthz": net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+cosign-system        11m         Warning   Unhealthy               pod/policy-controller-webhook-76f9d45bf4-9w9nv                   Liveness probe failed: Get "https://10.244.2.161:8443/healthz": net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+spire                11m         Warning   Unhealthy               pod/spire-agent-m2lnh                                            Readiness probe failed: Get "http://172.18.0.3:9982/ready": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+monitoring           10m         Normal    ScalingReplicaSet       deployment/grafana                                               Scaled down replica set grafana-77fcc4b588 from 1 to 0
+monitoring           10m         Normal    ScalingReplicaSet       deployment/prometheus                                            Scaled down replica set prometheus-5d7cfdfd4b from 1 to 0
+monitoring           10m         Normal    SuccessfulDelete        replicaset/grafana-77fcc4b588                                    Deleted pod: grafana-77fcc4b588-sgzjk
+monitoring           10m         Normal    Killing                 pod/grafana-77fcc4b588-sgzjk                                     Stopping container grafana
+monitoring           10m         Normal    Killing                 pod/prometheus-5d7cfdfd4b-tbgnx                                  Stopping container prometheus
+monitoring           10m         Normal    SuccessfulDelete        replicaset/prometheus-5d7cfdfd4b                                 Deleted pod: prometheus-5d7cfdfd4b-tbgnx
+kube-system          10m         Warning   Unhealthy               pod/metrics-server-94d8f7d95-4xg6w                               Liveness probe failed: Get "https://10.244.3.225:10250/livez": net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+kube-system          10m         Warning   Unhealthy               pod/cilium-envoy-6t5sp                                           Readiness probe failed: Get "http://127.0.0.1:9878/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+vault                10m         Warning   Unhealthy               pod/vault-0                                                      Readiness probe failed: command timed out: "sh -c STATUS_JSON=$(VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 vault status -format=json 2>/dev/null || true)\necho \"$STATUS_JSON\" | grep -q '\"initialized\"[[:space:]]*:[[:space:]]*true' && \\\necho \"$STATUS_JSON\" | grep -q '\"sealed\"[[:space:]]*:[[:space:]]*false'\n" timed out after 10s
+management           9s          Normal    Killing                 pod/kafbat-7c6bd7577d-nrrjc                                      Stopping container kafbat
+management           9s          Normal    ScalingReplicaSet       deployment/kafbat                                                Scaled down replica set kafbat-7c6bd7577d from 1 to 0
+management           9s          Normal    SuccessfulDelete        replicaset/kafbat-7c6bd7577d                                     Deleted pod: kafbat-7c6bd7577d-nrrjc
+monitoring           8s          Normal    SuccessfulDelete        replicaset/kibana-55f7f8646d                                     Deleted pod: kibana-55f7f8646d-cct5m
+monitoring           8s          Normal    ScalingReplicaSet       deployment/kibana                                                Scaled down replica set kibana-55f7f8646d from 1 to 0
+monitoring           8s          Normal    Killing                 pod/kibana-55f7f8646d-cct5m                                      Stopping container kibana
+management           7s          Normal    ScalingReplicaSet       deployment/phpmyadmin                                            Scaled down replica set phpmyadmin-68d5df54bd from 1 to 0
+management           7s          Normal    SuccessfulDelete        replicaset/phpmyadmin-68d5df54bd                                 Deleted pod: phpmyadmin-68d5df54bd-kg5td
+management           7s          Normal    Killing                 pod/phpmyadmin-68d5df54bd-kg5td                                  Stopping container phpmyadmin
+
+## Pod describe
+
+### management/kafbat-7c6bd7577d-nrrjc
+Name:                      kafbat-7c6bd7577d-nrrjc
+Namespace:                 management
+Priority:                  0
+Service Account:           kafbat
+Node:                      job7189-worker/172.18.0.5
+Start Time:                Tue, 05 May 2026 15:40:11 +0000
+Labels:                    app=kafbat
+                           pod-template-hash=7c6bd7577d
+                           zta.job7189/data-classification=none
+                           zta.job7189/env=prod
+                           zta.job7189/exposure=internal
+                           zta.job7189/role=ui
+                           zta.job7189/team=data
+                           zta.job7189/tier=T3
+Annotations:               <none>
+Status:                    Terminating (lasts <invalid>)
+Termination Grace Period:  30s
+IP:                        10.244.1.86
+IPs:
+  IP:           10.244.1.86
+Controlled By:  ReplicaSet/kafbat-7c6bd7577d
+Containers:
+  kafbat:
+    Container ID:   containerd://0b6841e420d5174962cc24ba49d6007c046a44bb57e533737cce68ce70ca1cf6
+    Image:          kafbat/kafka-ui:main
+    Image ID:       docker.io/kafbat/kafka-ui@sha256:1f388444af73c9091cf77c692c230e1b3712aac3fa818eca4397519b49861fb8
+    Port:           8080/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Tue, 05 May 2026 15:40:59 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:
+      KAFKA_CLUSTERS_0_NAME:              job7189-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS:  kafka-0.kafka-svc.data.svc.cluster.local:9092
+      DYNAMIC_CONFIG_ENABLED:             true
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-grxg5 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-grxg5:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  57m   default-scheduler  Successfully assigned management/kafbat-7c6bd7577d-nrrjc to job7189-worker
+  Normal  Pulling    57m   kubelet            spec.containers{kafbat}: Pulling image "kafbat/kafka-ui:main"
+  Normal  Pulled     56m   kubelet            spec.containers{kafbat}: Successfully pulled image "kafbat/kafka-ui:main" in 45.961s (45.961s including waiting). Image size: 222973405 bytes.
+  Normal  Created    56m   kubelet            spec.containers{kafbat}: Container created
+  Normal  Started    56m   kubelet            spec.containers{kafbat}: Container started
+  Normal  Killing    10s   kubelet            spec.containers{kafbat}: Stopping container kafbat
+
+### management/kafbat-7c6bd7577d-nrrjc logs (current)
+2026-05-05T16:25:06.696Z DEBUG 1 --- [     parallel-4] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:25:06.697Z DEBUG 1 --- [     parallel-4] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:25:37.550Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:25:46.705Z DEBUG 1 --- [     parallel-1] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:25:46.708Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:26:06.148Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:26:08.017Z DEBUG 1 --- [     parallel-1] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:26:08.018Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:26:36.222Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:26:40.337Z DEBUG 1 --- [     parallel-6] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:26:40.397Z DEBUG 1 --- [     parallel-6] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:27:06.535Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:27:11.233Z DEBUG 1 --- [     parallel-5] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:27:11.237Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:27:36.165Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:27:36.520Z DEBUG 1 --- [     parallel-2] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:27:36.521Z DEBUG 1 --- [     parallel-2] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:28:06.161Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:28:06.336Z DEBUG 1 --- [     parallel-6] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:28:06.337Z DEBUG 1 --- [     parallel-6] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:28:36.145Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:28:36.239Z DEBUG 1 --- [     parallel-3] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:28:36.240Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:29:06.146Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:29:06.240Z DEBUG 1 --- [     parallel-4] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:29:06.241Z DEBUG 1 --- [     parallel-4] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:29:36.146Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:29:36.309Z DEBUG 1 --- [     parallel-4] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:29:36.312Z DEBUG 1 --- [     parallel-4] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:30:06.146Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:30:06.364Z DEBUG 1 --- [     parallel-4] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:30:06.367Z DEBUG 1 --- [     parallel-4] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:30:36.146Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:30:36.335Z DEBUG 1 --- [     parallel-2] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:30:36.336Z DEBUG 1 --- [     parallel-2] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:31:06.148Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:31:06.491Z DEBUG 1 --- [     parallel-4] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:31:06.493Z DEBUG 1 --- [     parallel-4] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:31:36.148Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:31:36.362Z DEBUG 1 --- [     parallel-3] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:31:36.363Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:32:06.148Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:32:06.346Z DEBUG 1 --- [     parallel-5] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:32:06.347Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:32:36.146Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:32:36.301Z DEBUG 1 --- [     parallel-5] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:32:36.302Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:33:06.145Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:33:06.297Z DEBUG 1 --- [     parallel-3] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:33:06.298Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:33:36.145Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:33:36.276Z DEBUG 1 --- [     parallel-5] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:33:36.277Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:34:06.147Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:34:06.310Z DEBUG 1 --- [     parallel-6] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:34:06.310Z DEBUG 1 --- [     parallel-6] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:34:36.146Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:34:36.282Z DEBUG 1 --- [     parallel-3] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:34:36.283Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:35:06.146Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:35:06.275Z DEBUG 1 --- [     parallel-2] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:35:06.276Z DEBUG 1 --- [     parallel-2] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:35:36.148Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:35:36.472Z DEBUG 1 --- [     parallel-3] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:35:36.473Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:36:06.145Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:36:06.663Z DEBUG 1 --- [     parallel-5] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:36:06.663Z DEBUG 1 --- [     parallel-5] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:36:36.147Z DEBUG 1 --- [     parallel-1] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:36:36.359Z DEBUG 1 --- [     parallel-6] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:36:36.359Z DEBUG 1 --- [     parallel-6] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:37:06.146Z DEBUG 1 --- [     parallel-3] i.k.u.s.ClustersStatisticsScheduler      : Start getting metrics for kafkaCluster: job7189-cluster
+2026-05-05T16:37:06.373Z DEBUG 1 --- [     parallel-2] i.k.u.s.m.s.i.InferredMetricsScraper     : 13 metric families inferred from cluster state
+2026-05-05T16:37:06.373Z DEBUG 1 --- [     parallel-2] i.k.u.s.ClustersStatisticsScheduler      : Metrics updated for cluster: job7189-cluster
+2026-05-05T16:37:36.219Z  INFO 1 --- [ionShutdownHook] o.s.b.w.embedded.netty.GracefulShutdown  : Commencing graceful shutdown. Waiting for active requests to complete
+2026-05-05T16:37:36.449Z  INFO 1 --- [ netty-shutdown] o.s.b.w.embedded.netty.GracefulShutdown  : Graceful shutdown complete
+2026-05-05T16:37:41.087Z  INFO 1 --- [in-1777995697-1] o.a.kafka.common.utils.AppInfoParser     : App info kafka.admin.client for kafbat-ui-admin-1777995697-1 unregistered
+2026-05-05T16:37:41.500Z  INFO 1 --- [in-1777995697-1] o.apache.kafka.common.metrics.Metrics    : Metrics scheduler closed
+2026-05-05T16:37:41.505Z  INFO 1 --- [in-1777995697-1] o.apache.kafka.common.metrics.Metrics    : Closing reporter org.apache.kafka.common.metrics.JmxReporter
+2026-05-05T16:37:41.512Z  INFO 1 --- [in-1777995697-1] o.apache.kafka.common.metrics.Metrics    : Metrics reporters closed
+
+### management/kafbat-7c6bd7577d-nrrjc logs (--previous)
+
+### management/phpmyadmin-68d5df54bd-kg5td
+
+### management/phpmyadmin-68d5df54bd-kg5td logs (current)
+
+### management/phpmyadmin-68d5df54bd-kg5td logs (--previous)
+
+### monitoring/kibana-55f7f8646d-cct5m
+
+### monitoring/kibana-55f7f8646d-cct5m logs (current)
+
+### monitoring/kibana-55f7f8646d-cct5m logs (--previous)

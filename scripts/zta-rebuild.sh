@@ -134,6 +134,11 @@ declare -A STEP_TIMEOUTS=(
   [26-gatekeeper]=3600
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
+  # Trivy Operator: helm install (~30s) + first scan jobs (~60s/image × 30
+  # images = ~30 min worst-case but operator returns Ready before they all
+  # complete; verify polls VulnerabilityReport CR appearance non-blockingly
+  # for 300s).
+  [28-trivy]=1200
   # 09-verify-zta.sh standalone runs in ~150s on a stable cluster, but inside
   # a fresh-cluster rebuild we frequently hit transient hangs:
   #   - hubble-l7-warmup pods stuck in image-pull / default-deny limbo
@@ -184,6 +189,7 @@ STEPS=(
   # + doc/31-falco-deprecated.md for full rationale.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
+  "28-trivy|Deploy Trivy Operator (CDM / PIP 4)|bash scripts/zta-deploy-trivy.sh"
   "90-verify|Run 09-verify-zta.sh (final assessment)|do_workload_settle && bash 09-verify-zta.sh"
 )
 

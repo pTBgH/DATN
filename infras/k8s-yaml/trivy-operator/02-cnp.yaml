@@ -1,0 +1,110 @@
+# =============================================================================
+# Cilium policies for namespace `security-cdm` (Trivy Operator + Threat-Intel).
+# Decision: doc/zta-gap-decision.md.
+#
+# 1) Default-deny: every pod in security-cdm is opt-out by default.
+# 2) DNS egress: required by every workload.
+# 3) Trivy egress: apiserver (CRUD VulnerabilityReport CR) + ghcr.io
+#    (download vulnerability DB blob ~80 MiB).
+# 4) Filebeat ingress: monitoring/filebeat scrapes Trivy operator logs +
+#    threat-intel CronJob output (PR-K).
+#
+# Trivy DB host: `ghcr.io/aquasecurity/trivy-db`. Cilium's FQDN proxy needs
+# wildcard pattern because GHCR uses Fastly CDN with rotating IPs.
+# =============================================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-security-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-security-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - {port: "53", protocol: UDP}
+      - {port: "53", protocol: TCP}
+      rules:
+        dns:
+        - matchPattern: "*"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-egress
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  egress:
+  # K8s apiserver — list pods, write VulnerabilityReport CR.
+  - toEntities: [kube-apiserver, host, remote-node]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  - toCIDR: ["10.96.0.0/12", "172.18.0.0/16"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  # Trivy DB download from ghcr.io (Fastly CDN — broad pattern needed).
+  - toFQDNs:
+    - matchPattern: "*.ghcr.io"
+    - matchPattern: "ghcr.io"
+    - matchPattern: "*.githubusercontent.com"
+    - matchPattern: "*.fastly.net"
+    - matchPattern: "*.fastlylb.net"
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+  # Fallback: temporary broad CIDR for first DB pull. Operator may remove
+  # via:
+  #   kubectl -n security-cdm patch cnp allow-trivy-egress --type=json \
+  #     -p='[{"op":"remove","path":"/spec/egress/3"}]'
+  - toCIDR: ["0.0.0.0/0"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-monitoring-ingress-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector: {}
+  ingress:
+  # Filebeat collects pod stdout/stderr via /var/log on each node — but
+  # since Filebeat runs as DaemonSet in monitoring, the actual log read is
+  # host-side, no pod-to-pod traffic. We still allow Prometheus scrape on
+  # operator metrics port 8080.
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: prometheus
+    toPorts:
+    - ports:
+      - {port: "8080", protocol: TCP}

@@ -1,8 +1,13 @@
+%==============================================================================
+% Tài liệu nền tảng về Zero Trust Architecture
+%==============================================================================
+
 @book{gilman2017zero,
   title={Zero Trust Networks: Building Secure Systems in Untrusted Networks},
   author={Gilman, Evan and Barth, Doug},
   year={2017},
-  publisher={O'Reilly Media, Inc.}
+  publisher={O'Reilly Media, Inc.},
+  isbn={9781491962190}
 }
 
 @techreport{nist800207,
@@ -11,82 +16,44 @@
   year={2020},
   institution={National Institute of Standards and Technology (NIST)},
   number={NIST Special Publication 800-207},
-  doi={10.6028/NIST.SP.800-207}
+  doi={10.6028/NIST.SP.800-207},
+  howpublished={\url{https://csrc.nist.gov/pubs/sp/800/207/final}}
+}
+
+@techreport{nist800204_microservices,
+  title={Security Strategies for Microservices-based Application Systems},
+  author={Chandramouli, Ramaswamy},
+  year={2019},
+  institution={National Institute of Standards and Technology (NIST)},
+  number={NIST Special Publication 800-204},
+  doi={10.6028/NIST.SP.800-204},
+  howpublished={\url{https://csrc.nist.gov/pubs/sp/800/204/final}}
+}
+
+@techreport{nist_abac,
+  title={Guide to Attribute Based Access Control (ABAC) Definition and Considerations},
+  author={Hu, Vincent C. and Ferraiolo, David and Kuhn, Rick and Schnitzer, Adam and Sandlin, Kenneth and Miller, Robert and Scarfone, Karen},
+  year={2014},
+  institution={National Institute of Standards and Technology (NIST)},
+  number={NIST Special Publication 800-162},
+  doi={10.6028/NIST.SP.800-162},
+  howpublished={\url{https://csrc.nist.gov/pubs/sp/800/162/upd2/final}}
 }
 
 @techreport{kindervag2010build,
   title={Build Security Into Your Network's DNA: The Zero Trust Network Architecture},
   author={Kindervag, John},
   year={2010},
-  institution={Forrester Research}
+  institution={Forrester Research},
+  howpublished={\url{https://media.paloaltonetworks.com/documents/Forrester-Build-Security-Into-Your-Network.pdf}}
 }
 
 @misc{jericho2004,
-  title={Jericho Forum Commandments},
+  title={Jericho Forum Commandments, Version 1.2},
   author={{Jericho Forum}},
-  year={2004},
-  note={Available at Open Group documentation}
+  year={2007},
+  howpublished={\url{https://collaboration.opengroup.org/jericho/commandments_v1.2.pdf}}
 }
-
-@book{rice2019kubernetes,
-  title={Kubernetes Security: Operating Kubernetes Clusters and Applications Safely},
-  author={Rice, Liz and McCarty, Michael},
-  year={2019},
-  publisher={O'Reilly Media, Inc.}
-}
-
-@misc{cilium_docs,
-  title={Cilium Documentation},
-  author={{Isovalent}},
-  year={2024},
-  howpublished={\url{https://docs.cilium.io/}}
-}
-
-@misc{kubernetes_docs,
-  title={Kubernetes Documentation},
-  author={{Kubernetes Project}},
-  year={2024},
-  howpublished={\url{https://kubernetes.io/docs/}}
-}
-
-@misc{elk_docs,
-  title={Elastic Stack Documentation},
-  author={{Elastic}},
-  year={2024},
-  howpublished={\url{https://www.elastic.co/elastic-stack/}}
-}
-
-@misc{keycloak_docs,
-  title={Keycloak Documentation},
-  author={{Keycloak}},
-  year={2024},
-  howpublished={\url{https://www.keycloak.org/documentation}}
-}
-
-@misc{vault_docs,
-  title={HashiCorp Vault Documentation},
-  author={{HashiCorp}},
-  year={2024},
-  howpublished={\url{https://developer.hashicorp.com/vault/docs}}
-}
-
-@misc{kong_docs,
-  title={Kong Gateway Documentation},
-  author={{Kong}},
-  year={2024},
-  howpublished={\url{https://docs.konghq.com/gateway/}}
-}
-
-@misc{helmfile_docs,
-  title={Helmfile Documentation},
-  author={{Helmfile}},
-  year={2024},
-  howpublished={\url{https://helmfile.readthedocs.io/}}
-}
-
-%==============================================================================
-% THAM KHẢO BỔ SUNG — CISA ZTMM, CAEP, SPIFFE, Sidecar/Sidecarless
-%==============================================================================
 
 @techreport{cisa_ztmm2023,
   title={Zero Trust Maturity Model Version 2.0},
@@ -96,11 +63,38 @@
   howpublished={\url{https://www.cisa.gov/zero-trust-maturity-model}}
 }
 
+%==============================================================================
+% Định danh, xác thực, ủy quyền
+%==============================================================================
+
 @misc{openid_caep,
-  title={OpenID Continuous Access Evaluation Profile (CAEP)},
+  title={OpenID Continuous Access Evaluation Profile (CAEP) Specification 1.0},
   author={{OpenID Foundation}},
-  year={2023},
+  year={2024},
   howpublished={\url{https://openid.net/specs/openid-caep-specification-1_0.html}}
+}
+
+@misc{rfc6749_oauth2,
+  title={RFC 6749: The OAuth 2.0 Authorization Framework},
+  author={Hardt, Dick},
+  year={2012},
+  publisher={IETF},
+  howpublished={\url{https://datatracker.ietf.org/doc/html/rfc6749}}
+}
+
+@misc{rfc7519_jwt,
+  title={RFC 7519: JSON Web Token (JWT)},
+  author={Jones, Michael and Bradley, John and Sakimura, Nat},
+  year={2015},
+  publisher={IETF},
+  howpublished={\url{https://datatracker.ietf.org/doc/html/rfc7519}}
+}
+
+@misc{oidc_core,
+  title={OpenID Connect Core 1.0 Specification},
+  author={Sakimura, Nat and Bradley, John and Jones, Michael and de Medeiros, Breno and Mortimore, Chuck},
+  year={2014},
+  howpublished={\url{https://openid.net/specs/openid-connect-core-1_0.html}}
 }
 
 @misc{spiffe_spec,
@@ -117,21 +111,44 @@
   howpublished={\url{https://spiffe.io/docs/latest/spire-about/}}
 }
 
-@techreport{nist_abac,
-  title={Guide to Attribute Based Access Control (ABAC) Definition and Considerations},
-  author={Hu, Vincent C. and Ferraiolo, David and Kuhn, Rick and others},
-  year={2014},
-  institution={National Institute of Standards and Technology (NIST)},
-  number={NIST Special Publication 800-162},
-  doi={10.6028/NIST.SP.800-162}
+@misc{keycloak_docs,
+  title={Keycloak Documentation},
+  author={{Keycloak Project}},
+  year={2024},
+  howpublished={\url{https://www.keycloak.org/documentation}}
 }
 
-@inproceedings{mtls_perf2023,
-  title={Performance Analysis of Service Mesh Sidecar Proxies in Kubernetes Environments},
-  author={Li, Wei and Zhang, Chen},
-  booktitle={IEEE International Conference on Cloud Computing},
-  year={2023},
-  organization={IEEE}
+%==============================================================================
+% Kubernetes, container, service mesh
+%==============================================================================
+
+@book{rice2019kubernetes,
+  title={Kubernetes Security: Operating Kubernetes Clusters and Applications Safely},
+  author={Rice, Liz and McCarty, Michael},
+  year={2019},
+  publisher={O'Reilly Media, Inc.},
+  isbn={9781492039075}
+}
+
+@misc{kubernetes_docs,
+  title={Kubernetes Documentation},
+  author={{Kubernetes Project}},
+  year={2024},
+  howpublished={\url{https://kubernetes.io/docs/}}
+}
+
+@misc{k8s_pod_security_standards,
+  title={Pod Security Standards},
+  author={{Kubernetes Project}},
+  year={2024},
+  howpublished={\url{https://kubernetes.io/docs/concepts/security/pod-security-standards/}}
+}
+
+@misc{k8s_admission_controllers,
+  title={Using Admission Controllers},
+  author={{Kubernetes Project}},
+  year={2024},
+  howpublished={\url{https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/}}
 }
 
 @misc{istio_ambient,
@@ -141,6 +158,34 @@
   howpublished={\url{https://istio.io/latest/docs/ambient/}}
 }
 
+@inproceedings{zhu2023meshinsight,
+  title={Dissecting Overheads of Service Mesh Sidecars},
+  author={Zhu, Xiangfeng and She, Guozhen and Xue, Bowen and Zhang, Yu and Zhang, Yongsu and Zou, Xuan Kelvin and Duan, XiongChun and He, Peng and Krishnamurthy, Arvind and Lentz, Matthew and Zhuo, Danyang and Mahajan, Ratul},
+  booktitle={Proceedings of the 2023 ACM Symposium on Cloud Computing (SoCC '23)},
+  year={2023},
+  organization={ACM},
+  doi={10.1145/3620678.3624652},
+  howpublished={\url{https://foci.uw.edu/papers/socc23-meshinsight.pdf}}
+}
+
+%==============================================================================
+% eBPF, Cilium, Tetragon
+%==============================================================================
+
+@misc{ebpf_io,
+  title={What is eBPF? An Introduction and Deep Dive into the eBPF Technology},
+  author={{eBPF Foundation}},
+  year={2024},
+  howpublished={\url{https://ebpf.io/what-is-ebpf/}}
+}
+
+@misc{cilium_docs,
+  title={Cilium Documentation: eBPF-based Networking, Security, and Observability},
+  author={{Isovalent / CNCF}},
+  year={2024},
+  howpublished={\url{https://docs.cilium.io/}}
+}
+
 @misc{tetragon_docs,
   title={Tetragon: eBPF-based Security Observability and Runtime Enforcement},
   author={{Isovalent}},
@@ -148,30 +193,172 @@
   howpublished={\url{https://tetragon.io/docs/}}
 }
 
+@misc{hubble_docs,
+  title={Hubble: Network, Service \& Security Observability for Kubernetes using eBPF},
+  author={{Cilium Project}},
+  year={2024},
+  howpublished={\url{https://docs.cilium.io/en/stable/observability/hubble/}}
+}
+
+%==============================================================================
+% Secrets, supply chain, signing
+%==============================================================================
+
+@misc{vault_docs,
+  title={HashiCorp Vault Documentation},
+  author={{HashiCorp}},
+  year={2024},
+  howpublished={\url{https://developer.hashicorp.com/vault/docs}}
+}
+
+@inproceedings{newman2022sigstore,
+  title={Sigstore: Software Signing for Everybody},
+  author={Newman, Zachary and Meyers, John Speed and Torres-Arias, Santiago},
+  booktitle={Proceedings of the 2022 ACM SIGSAC Conference on Computer and Communications Security (CCS '22)},
+  year={2022},
+  organization={ACM},
+  doi={10.1145/3548606.3560596},
+  howpublished={\url{https://dl.acm.org/doi/10.1145/3548606.3560596}}
+}
+
+@misc{sigstore_docs,
+  title={Sigstore: A New Standard for Signing, Verifying and Protecting Software},
+  author={{Sigstore Project / Linux Foundation}},
+  year={2024},
+  howpublished={\url{https://docs.sigstore.dev/}}
+}
+
+@misc{cert_manager_docs,
+  title={cert-manager: X.509 Certificate Management for Kubernetes},
+  author={{cert-manager / CNCF}},
+  year={2024},
+  howpublished={\url{https://cert-manager.io/docs/}}
+}
+
+%==============================================================================
+% Policy, gateway
+%==============================================================================
+
+@misc{opa_docs,
+  title={Open Policy Agent Documentation},
+  author={{Open Policy Agent / CNCF}},
+  year={2024},
+  howpublished={\url{https://www.openpolicyagent.org/docs}}
+}
+
+@misc{gatekeeper_docs,
+  title={OPA Gatekeeper: Policy Controller for Kubernetes},
+  author={{Open Policy Agent / Microsoft / Google}},
+  year={2024},
+  howpublished={\url{https://open-policy-agent.github.io/gatekeeper/website/docs/}}
+}
+
+@misc{kong_docs,
+  title={Kong Gateway Documentation},
+  author={{Kong Inc.}},
+  year={2024},
+  howpublished={\url{https://docs.konghq.com/gateway/}}
+}
+
+%==============================================================================
+% Quan sát, logging
+%==============================================================================
+
+@misc{elk_docs,
+  title={Elastic Stack Documentation (Elasticsearch, Kibana, Beats)},
+  author={{Elastic}},
+  year={2024},
+  howpublished={\url{https://www.elastic.co/elastic-stack/}}
+}
+
+@misc{prometheus_docs,
+  title={Prometheus Documentation},
+  author={{Prometheus / CNCF}},
+  year={2024},
+  howpublished={\url{https://prometheus.io/docs/introduction/overview/}}
+}
+
+@misc{grafana_docs,
+  title={Grafana Documentation},
+  author={{Grafana Labs}},
+  year={2024},
+  howpublished={\url{https://grafana.com/docs/grafana/latest/}}
+}
+
+@misc{fluent_bit_docs,
+  title={Fluent Bit Documentation},
+  author={{Fluent / CNCF}},
+  year={2024},
+  howpublished={\url{https://docs.fluentbit.io/manual}}
+}
+
+%==============================================================================
+% Triển khai, công cụ vận hành
+%==============================================================================
+
+@misc{helm_docs,
+  title={Helm Documentation: The Package Manager for Kubernetes},
+  author={{Helm / CNCF}},
+  year={2024},
+  howpublished={\url{https://helm.sh/docs/}}
+}
+
+@misc{helmfile_docs,
+  title={Helmfile Documentation: Declarative Spec for Deploying Helm Charts},
+  author={{Helmfile Project}},
+  year={2024},
+  howpublished={\url{https://helmfile.readthedocs.io/}}
+}
+
+@misc{kind_docs,
+  title={Kind: Kubernetes IN Docker},
+  author={{Kubernetes SIGs}},
+  year={2024},
+  howpublished={\url{https://kind.sigs.k8s.io/}}
+}
+
+%==============================================================================
+% Tham chiếu mối đe doạ, attack frameworks
+%==============================================================================
+
 @misc{mitre_containers,
-  title={MITRE ATT\&CK Matrix for Containers},
+  title={MITRE ATT\&CK\textregistered{} Matrix for Containers},
   author={{MITRE Corporation}},
   year={2024},
   howpublished={\url{https://attack.mitre.org/matrices/enterprise/containers/}}
 }
 
+@misc{owasp_api2023,
+  title={OWASP API Security Top 10 -- 2023},
+  author={{OWASP Foundation}},
+  year={2023},
+  howpublished={\url{https://owasp.org/www-project-api-security/}}
+}
+
 @misc{crowdstrike_lotl,
-  title={Living off the Land (LotL) Attacks},
+  title={Living off the Land (LOTL) Attacks},
   author={{CrowdStrike}},
   year={2024},
-  howpublished={\url{https://www.crowdstrike.com/cybersecurity-101/living-off-the-land-attacks/}}
+  howpublished={\url{https://www.crowdstrike.com/en-us/cybersecurity-101/cyberattacks/living-off-the-land-attack/}}
 }
 
 @misc{microsoft_aitm,
-  title={Adversary-in-the-Middle (AiTM) Phishing Attack},
+  title={From Cookie Theft to BEC: Attackers Use AiTM Phishing Sites as Entry Point to Further Financial Fraud},
   author={{Microsoft Threat Intelligence}},
-  year={2023},
+  year={2022},
   howpublished={\url{https://www.microsoft.com/en-us/security/blog/2022/07/12/from-cookie-theft-to-bec-attackers-use-aitm-phishing-sites-as-entry-point-to-further-financial-fraud/}}
 }
 
+@misc{cisa_solarwinds,
+  title={Mitigate SolarWinds Orion Code Compromise},
+  author={{Cybersecurity and Infrastructure Security Agency (CISA)}},
+  year={2020},
+  howpublished={\url{https://www.cisa.gov/news-events/cybersecurity-advisories/aa20-352a}}
+}
+
 @misc{machine_identity_report,
-  title={Machine Identity Management: The Next Evolution},
+  title={Machine Identity Security: What It Is and Why It Matters},
   author={{CyberArk}},
   year={2024},
-  howpublished={\url{https://www.cyberark.com/resources/threat-research/machine-identity-management}}
+  howpublished={\url{https://www.cyberark.com/what-is/machine-identity-security/}}
 }

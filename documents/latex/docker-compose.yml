@@ -5,8 +5,44 @@ services:
     volumes:
       - .:/workdir
     working_dir: /workdir
-    # Biên dịch và symlink file pdf ra ngoài root thư mục để dễ theo dõi
-    command: >
-      sh -c "latexmk -pdf -pvc -shell-escape -interaction=nonstopmode -outdir=build main.tex && ln -sf build/main.pdf main.pdf"
     # Đảm bảo file PDF tạo ra thuộc quyền sở hữu của bạn (Ubuntu)
     user: "${UID:-1000}:${GID:-1000}"
+    # Một lần build → biên dịch trong build/ rồi copy main.pdf ra root
+    # (giữ build/ chỉ chứa file phụ trợ, main.pdf đặt ngay cạnh main.tex).
+    # Lưu ý: bỏ flag `-pvc` (preview-continuously) để container thoát sau khi
+    # build xong; nếu cần chế độ watch dùng dịch vụ `latex-watch` bên dưới.
+    command:
+      - sh
+      - -c
+      - |
+        # Build 2 lần để biber + cross-reference hội tụ. -f (force) cho phép
+        # latexmk tiếp tục dù có warning về citation/ref ở pass đầu.
+        latexmk -pdf -f -shell-escape -interaction=nonstopmode -outdir=build main.tex || true
+        latexmk -pdf -shell-escape -interaction=nonstopmode -outdir=build main.tex
+        if [ -f build/main.pdf ]; then
+          cp -f build/main.pdf main.pdf
+          echo "[latex] main.pdf đã được copy ra $(pwd)/main.pdf"
+        else
+          echo "[latex][error] build/main.pdf KHÔNG tồn tại — kiểm tra build/main.log"
+          exit 1
+        fi
+
+  # Dịch vụ tuỳ chọn: latexmk -pvc (continuous preview) cho dev workflow.
+  # Sau mỗi lần biên dịch lại, hook `$compiling_cmd` đảm bảo main.pdf ngoài
+  # build/ luôn trỏ tới bản mới nhất.
+  latex-watch:
+    profiles: ["watch"]
+    build: .
+    container_name: my_latex_watch
+    volumes:
+      - .:/workdir
+    working_dir: /workdir
+    user: "${UID:-1000}:${GID:-1000}"
+    command:
+      - sh
+      - -c
+      - |
+        latexmk -pdf -pvc -shell-escape -interaction=nonstopmode \
+          -outdir=build \
+          -e '$$compiling_cmd = qq{cp -f build/main.pdf main.pdf 2>/dev/null || true};' \
+          main.tex

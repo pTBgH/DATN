@@ -94,6 +94,247 @@ Lộ trình này đảm bảo rằng mỗi giai đoạn là \textbf{tiền đề
 
 
 %==============================================================================
+% 3.1b  TỔNG QUAN KIẾN TRÚC VÀ VAI TRÒ TỪNG DỊCH VỤ
+%==============================================================================
+\section{Tổng quan kiến trúc và vai trò từng dịch vụ}
+\label{sec:system_overview_roles}
+
+Trước khi đi sâu vào từng bước triển khai, mục này đưa ra một \textit{bản đồ duy nhất} ánh xạ \textbf{mọi dịch vụ} đang chạy trong cụm job7189 đến: (i) namespace mà nó cư trú, (ii) lớp ZTA mà nó đảm nhiệm trong khung 5 lớp đề xuất ở Chương 2, (iii) vai trò NIST SP 800-207 (PE/PA/PEP)~\cite{nist800207}, và (iv) tầng OSI mà nó kiểm soát. Mục đích là trả lời câu hỏi: \emph{``Khi tôi nhìn cụm job7189 đang chạy, dịch vụ nào đang đảm nhiệm việc gì?''}
+
+\subsection{Mô hình logic NIST và ánh xạ tới công cụ thực tế}
+\label{subsec:nist_to_tool}
+
+NIST SP 800-207 (Hình 2 trong báo cáo) tách kiến trúc ZTA thành ba thành phần logic~\cite{nist800207}:
+\begin{itemize}
+  \item \textbf{Policy Engine (PE):} bộ não quyết định cấp/từ chối truy cập dựa trên định danh, ngữ cảnh, posture.
+  \item \textbf{Policy Administrator (PA):} biên dịch quyết định của PE thành cấu hình cụ thể cho data plane (sinh credential, sinh chứng chỉ, đẩy policy ra agent\dots).
+  \item \textbf{Policy Enforcement Point (PEP):} đặt giữa subject và resource, thực thi quyết định: cho phép, chặn, log.
+\end{itemize}
+
+Trong job7189, \emph{không có một component nào đóng cả ba vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\cite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
+
+\begin{table}[H]
+\centering
+\caption{Ánh xạ từ thành phần logic NIST SP 800-207 sang công cụ trong job7189}
+\label{tab:nist_to_tool}
+\begin{tabularx}{\textwidth}{|p{2.4cm}|X|}
+\hline
+\textbf{NIST role} & \textbf{Công cụ trong job7189 (vai trò chi tiết)} \\
+\hline
+\textbf{Policy Engine (PE)} -- ra quyết định &
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Keycloak} (security/) -- quyết định người dùng có được login, có role gì.
+  \item \textbf{Vault Policies} (vault/) -- quyết định service nào được đọc secret nào, cấp DB credential gì.
+  \item \textbf{Cilium NetworkPolicy/CRD} -- quyết định flow nào được đi qua (L3/L4/L7).
+  \item \textbf{Gatekeeper ConstraintTemplate + Constraint} (gatekeeper-system/) -- quyết định Pod manifest nào được admit.
+  \item \textbf{PDP Controller} (security/) -- quyết định trust score $\rightarrow$ trigger phản ứng.
+  \item \textbf{ClusterImagePolicy} (cosign-system/) -- quyết định image có được run dựa trên chữ ký.
+\end{itemize} \\
+\hline
+\textbf{Policy Administrator (PA)} -- biên dịch quyết định &
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Vault Agent Injector} (vault/) -- biên dịch chính sách Vault thành sidecar + render file env trên tmpfs.
+  \item \textbf{Cilium Operator + cilium-agent} -- biên dịch \texttt{CiliumNetworkPolicy} thành eBPF program nạp vào kernel mỗi node.
+  \item \textbf{SPIRE Controller-Manager} (spire/) -- biên dịch \texttt{ClusterSPIFFEID} CRD thành SVID X.509.
+  \item \textbf{Sigstore policy-controller (mutating webhook)} -- mutate Pod spec để tagged với verification result.
+  \item \textbf{cert-manager}~\cite{cert_manager_docs} (cert-manager/) -- biên dịch \texttt{Certificate} CRD thành chứng chỉ TLS thật trong Secret.
+  \item \textbf{Kong Admin API (DB-less)} -- biên dịch \texttt{kong.yml} declarative config thành routing rules.
+\end{itemize} \\
+\hline
+\textbf{Policy Enforcement Point (PEP)} -- thực thi tại data plane &
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{PEP Edge:} Nginx Ingress + Kong Gateway + oauth2-proxy (gateway/) -- thực thi JWT/OIDC trên flow N-S.
+  \item \textbf{PEP Network:} cilium-agent (DaemonSet kube-system) -- thực thi L3/L4/L7 policy trong eBPF kernel.
+  \item \textbf{PEP Admission:} Sigstore policy-controller + Gatekeeper webhook -- thực thi tại API server trước khi Pod được tạo.
+  \item \textbf{PEP Runtime:} Tetragon agent (DaemonSet kube-system) -- thực thi rule syscall qua kprobe; (\textit{tuỳ chọn:} Falco bị tắt do RAM).
+  \item \textbf{PEP Secret:} vault-agent sidecar trong từng Pod -- thực thi TTL, rotate, revoke secret.
+\end{itemize} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Ánh xạ vào khung 5 lớp ZTA của job7189}
+\label{subsec:5layer_mapping}
+
+Bảng~\ref{tab:layer_to_tool} trình bày góc nhìn ``từ trên xuống'' theo 5 lớp ZTA đã đề xuất trong Chương~2:
+
+\begin{table}[H]
+\centering
+\caption{5 lớp ZTA của job7189 và công cụ hiện thực hóa}
+\label{tab:layer_to_tool}
+\begin{tabularx}{\textwidth}{|p{0.6cm}|p{3.4cm}|X|}
+\hline
+\textbf{\#} & \textbf{Lớp ZTA} & \textbf{Công cụ \& vai trò} \\
+\hline
+1 & Identity (định danh) & \textbf{Keycloak} (user identity, OIDC/SAML, dual realm \texttt{7189\_internal} + \texttt{job7189}); \textbf{Vault Kubernetes Auth} (workload identity dựa trên SA token); \textbf{SPIRE} (workload identity bằng X.509 SVID, trust domain \texttt{zta.job7189}, gắn vào ServiceAccount qua \texttt{ClusterSPIFFEID}). \\
+\hline
+2 & Posture (đánh giá trạng thái) & \textbf{Gatekeeper} kiểm 6 ConstraintTemplate (3 nhãn ZTA + 3 image-provenance) tại admission; \textbf{PDP Controller} watch label drift + tính \texttt{pdp\_trust\_score}; \textbf{Tetragon TracingPolicy} phát hiện exec/setuid bất thường trong runtime. \\
+\hline
+3 & Multi-layer Enforcement (thực thi đa lớp) & \textbf{Kong Gateway} (L7 N-S, JWT plugin RS256); \textbf{Cilium} (L3/L4 + L7 HTTP method/path E-W qua per-node Envoy); \textbf{Sigstore policy-controller} (admission, verify chữ ký Cosign); \textbf{Tetragon} (runtime, kernel-level kprobe); \textbf{cert-manager} (cấp TLS cho Ingress + nội bộ Vault TLS). \\
+\hline
+4 & Dynamic Secrets (bí mật động) & \textbf{Vault dual-mode}: \texttt{vault-dev} (Transit auto-unseal cho \texttt{vault-prod}), \texttt{vault-prod} (KV v2 + Database Secrets Engine cho 7 service); \textbf{Vault Agent Injector} (Mutating Webhook); 4 sidecar trên mỗi Pod ứng dụng (\texttt{vault-agent-init}, \texttt{vault-agent}, \texttt{env-loader}, \texttt{env-watcher}) -- chi tiết xem Mục~\ref{sec:pod_anatomy}. \\
+\hline
+5 & Observability (quan sát \& kiểm chứng) & \textbf{EFK Stack} (Elasticsearch, Filebeat DaemonSet thu app log + audit log + Hubble flow log, Kibana); \textbf{Prometheus} (scrape metrics 7 service + Cilium + Vault + PDP); \textbf{Grafana} (dashboard 4-namespace security overview); \textbf{Hubble UI} (visualize flow real-time); \textbf{Hubble flow shipper} (export 30--90 ngày sang ES cho retroactive forensics). \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Bản đồ namespace -- ``Ai đắp vào đâu''}
+\label{subsec:namespace_map}
+
+Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất cả Workload đang chạy. Mỗi khối là một namespace; mỗi dòng bên trong là một Deployment/StatefulSet/DaemonSet với loại workload và số replica thực tế khi pipeline \texttt{zta-rebuild.sh} hoàn tất phase~\texttt{27-pdp}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize\sffamily,
+  ns/.style 2 args={draw, rounded corners=2pt, fill=#1!#2, minimum width=5.4cm, text width=5.0cm, align=left, inner sep=4pt},
+  nsBlue/.style={ns={blue}{8}},
+  nsRed/.style={ns={red}{8}},
+  nsGreen/.style={ns={green}{12}},
+  nsOrange/.style={ns={orange}{15}},
+  nsViolet/.style={ns={violet}{10}},
+  nsGray/.style={ns={gray}{12}},
+  nsRedDark/.style={ns={red}{20}},
+]
+
+\node[nsBlue]   (gw)   at (0,0)   {%
+  \textbf{gateway}\\[1pt]
+  \textbullet{} kong-gateway (Deploy×1)\\
+  \textbullet{} oauth2-proxy (Deploy×1)\\
+};
+
+\node[nsBlue, below=0.18cm of gw]  (ing)  {%
+  \textbf{ingress-nginx}\\[1pt]
+  \textbullet{} ingress-nginx-controller (Deploy×1)\\
+};
+
+\node[nsRed, right=0.3cm of gw]   (sec)  {%
+  \textbf{security}\\[1pt]
+  \textbullet{} keycloak (StatefulSet×1)\\
+  \textbullet{} pdp-controller (Deploy×1)\\
+  \textbullet{} zta-cosign-public-key (CM)\\
+};
+
+\node[nsRed, below=0.18cm of sec]  (cm)   {%
+  \textbf{cert-manager}\\[1pt]
+  \textbullet{} cert-manager (Deploy×3)\\
+  \textbullet{} ClusterIssuer: zta-internal-ca\\
+};
+
+\node[nsGreen, right=0.3cm of sec]  (apps)  {%
+  \textbf{job7189-apps}\\[1pt]
+  \textbullet{} identity-service (Deploy×1)\\
+  \textbullet{} workspace-service (Deploy×1)\\
+  \textbullet{} job-service (Deploy×1)\\
+  \textbullet{} hiring-service (Deploy×1)\\
+  \textbullet{} candidate-service (Deploy×1)\\
+  \textbullet{} communication-service (Deploy×1)\\
+  \textbullet{} storage-service (Deploy×1)\\
+  \textbullet{} redis (StatefulSet×1)\\
+};
+
+\node[nsOrange, below=0.20cm of ing]  (data)  {%
+  \textbf{data}\\[1pt]
+  \textbullet{} mysql (StatefulSet×1)\\
+  \textbullet{} kafka (StatefulSet×1)\\
+};
+
+\node[nsOrange, right=0.3cm of data]  (vault)  {%
+  \textbf{vault}\\[1pt]
+  \textbullet{} vault-dev (Deploy×1, Transit)\\
+  \textbullet{} vault-prod (StatefulSet×1)\\
+  \textbullet{} vault-agent-injector (Deploy×1)\\
+};
+
+\node[nsViolet, right=0.3cm of vault]  (mon)  {%
+  \textbf{monitoring}\\[1pt]
+  \textbullet{} elasticsearch (StatefulSet×1)\\
+  \textbullet{} filebeat (DS×4)\\
+  \textbullet{} kibana (Deploy×1)\\
+  \textbullet{} prometheus (StatefulSet×1)\\
+  \textbullet{} grafana (Deploy×1)\\
+  \textbullet{} node-exporter (DS×4)\\
+  \textbullet{} kube-state-metrics (Deploy×1)\\
+};
+
+\node[nsGray, below=0.20cm of data]  (mgmt)  {%
+  \textbf{management}\\[1pt]
+  \textbullet{} phpmyadmin (Deploy×1)\\
+  \textbullet{} kafbat-ui (Deploy×1)\\
+};
+
+\node[nsGray, right=0.3cm of mgmt]   (sys)  {%
+  \textbf{kube-system}\\[1pt]
+  \textbullet{} cilium-agent (DS×4)\\
+  \textbullet{} cilium-operator (Deploy×2)\\
+  \textbullet{} hubble-relay (Deploy×1)\\
+  \textbullet{} tetragon (DS×4)\\
+  \textbullet{} metrics-server (Deploy×1)\\
+};
+
+\node[nsRedDark, right=0.3cm of sys]  (gk)  {%
+  \textbf{gatekeeper / cosign / spire}\\[1pt]
+  \textbullet{} gatekeeper-controller (Deploy×3)\\
+  \textbullet{} gatekeeper-audit (Deploy×1)\\
+  \textbullet{} cosign-policy-controller (Deploy×2)\\
+  \textbullet{} spire-server (StatefulSet×1)\\
+  \textbullet{} spire-agent (DS×4)\\
+  \textbullet{} spire-controller-manager (Deploy×1)\\
+};
+
+\end{tikzpicture}
+\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm Kind 4-node.}
+\label{fig:namespace_map}
+\end{figure}
+
+\subsection{Phân tích từng dịch vụ: vai trò và điểm tích hợp}
+\label{subsec:per_tool}
+
+Bảng~\ref{tab:component_summary} tổng hợp \textbf{vai trò chính} và \textbf{điểm tích hợp} của 13 thành phần cốt lõi. Lý do lựa chọn từng công cụ (Vì sao Cilium thay vì Calico, Tetragon thay vì Falco\dots) đã được luận giải trong Chương 2 (mục so sánh giải pháp).
+
+\begin{table}[H]
+\centering
+\caption{Vai trò và điểm tích hợp của các công cụ ZTA trong job7189}
+\label{tab:component_summary}
+\begin{tabularx}{\textwidth}{|p{2.6cm}|X|}
+\hline
+\textbf{Công cụ} & \textbf{Vai trò chính (data plane / điểm tích hợp)} \\
+\hline
+Keycloak & IdP trung tâm; dual realm \texttt{7189\_internal} (admin) + \texttt{job7189} (end-user); cấp JWT RS256 cho Kong jwt-plugin và oauth2-proxy. \\
+\hline
+Vault dual & \texttt{vault-dev} (Transit) auto-unseal \texttt{vault-prod}; KV v2 (APP\_KEY, JWT signing) + DB Engine MySQL (TTL 1h); Agent Injector inject sidecar render \texttt{/app-secrets/.env}. \\
+\hline
+SPIRE & Cấp X.509 SVID cho ServiceAccount qua \texttt{ClusterSPIFFEID}; trust domain \texttt{zta.job7189}; 3 tier TTL (60'/30'/15') theo độ nhạy cảm. \\
+\hline
+Cilium + Hubble & CNI duy nhất (Kind disable default); enforce L3/L4 + L7 trong eBPF kernel; 16+ \texttt{CiliumNetworkPolicy}; Hubble flow visibility (UI + flow shipper). \\
+\hline
+Kong Gateway & PEP duy nhất cho luồng N-S; DB-less, declarative \texttt{kong.yml}; JWT verify qua JWKS Keycloak + rate-limit + ACL. \\
+\hline
+Cosign + policy-ctl & Ký ECDSA offline trong phase \texttt{22-cosign-sign}; \texttt{ClusterImagePolicy} block image không có chữ ký tại admission. \\
+\hline
+OPA Gatekeeper & 6 ConstraintTemplate (3 label ZTA + 3 image provenance), \texttt{enforcementAction: dryrun} cho \texttt{job7189-apps}. \\
+\hline
+Tetragon & DaemonSet kprobe; 5 TracingPolicy block 6 binary phá hoại trong 4 namespace nhạy cảm; thay thế Falco do RAM lab. \\
+\hline
+PDP Controller & Python kopf watch label/policy; tính \texttt{pdp\_trust\_score = 100 - 15*missing\_labels}; emit Event + Prometheus metrics. \\
+\hline
+cert-manager & \texttt{ClusterIssuer: zta-internal-ca}; cấp TLS cho Ingress + Vault prod listener; tự rotate qua \texttt{Certificate} CRD. \\
+\hline
+EFK Stack & Filebeat DS thu app log + audit + Hubble flow rotate; index \texttt{hubble-flows-YYYY.MM.DD} (ILM 30--90 ngày). \\
+\hline
+Prom + Grafana & Scrape 7 service + Cilium + Vault + PDP + node-exporter + ksm; dashboard ``ZTA Security Overview''. \\
+\hline
+7 Laravel svc & \texttt{job7189-apps/}; mỗi Pod 5 container (Mục~\ref{sec:pod_anatomy}); image Cosign-signed; SA gắn \texttt{ClusterSPIFFEID}. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\paragraph{Khép kín vòng lặp ZTA.}
+\emph{Identity} (Keycloak/Vault/SPIRE) → \emph{Posture} (Gatekeeper/PDP/Tetragon) → \emph{Enforcement} (Kong/Cilium/Sigstore) → \emph{Secret} (Vault Agent cấp credential ngắn hạn) → \emph{Observability} (EFK/Prom/Grafana/Hubble) ghi nhận và phản hồi vào PDP, khép vòng lặp adaptive trust.
+
+
+%==============================================================================
 % 3.2  KIỂM KÊ TÀI SẢN VÀ XÁC ĐỊNH LUỒNG GIAO DỊCH
 %==============================================================================
 \section{Bước 1: Kiểm kê tài sản và xác định luồng giao dịch}
@@ -163,21 +404,6 @@ Platform & \texttt{vault}, \texttt{monitoring} & Vault (Dual-Vault), EFK Stack (
     \item Mọi service → \texttt{TCP 9092} → Kafka (\texttt{namespace: data})
 \end{itemize}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{5cm}
-            \textit{[HÌNH 3.1: Sơ đồ kiến trúc tổng thể 5 tầng namespace -- xem chapter3\_diagrams.md, Mục 1]}
-            \vspace{5cm}
-        \end{minipage}
-    }
-    \caption{Kiến trúc tổng thể hệ thống job7189 -- 5 tầng namespace và luồng truy cập}
-    \label{fig:system_architecture}
-\end{figure}
-
-
 \subsection{Security Posture Baseline: xác định attack path trước khi áp dụng ZTA}
 
 Trước khi áp dụng ZTA, hệ thống tồn tại các điểm yếu cố hữu:
@@ -209,11 +435,11 @@ No runtime monitoring & Persistent backdoor & Cao & EFK + Hubble: mọi traffic 
 %==============================================================================
 \section{Bước 2: Thiết lập gốc tin cậy -- Identity Layer}
 
-Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity), Vault (Workload Secrets), và Kubernetes ServiceAccount (Workload Identity).
+Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}~\cite{nist800207}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity)~\cite{keycloak_docs}, Vault (Workload Secrets)~\cite{vault_docs}, và Kubernetes ServiceAccount (Workload Identity)~\cite{kubernetes_docs,spiffe_spec}.
 
 \subsection{Keycloak: User Identity qua OIDC/JWT}
 
-Keycloak được triển khai tại namespace \texttt{security} dưới dạng custom image (\texttt{job7189/keycloak-custom:v1.0}), hoạt động \textbf{internal-only} với domain \texttt{auth.job7189.local}. Hệ thống sử dụng kiến trúc \textbf{Dual-Realm} với hai realm phục vụ hai nhóm chủ thể đăng nhập khác nhau:
+Keycloak~\cite{keycloak_docs} được triển khai tại namespace \texttt{security} dưới dạng custom image (\texttt{job7189/keycloak-custom:v1.0}), hoạt động \textbf{internal-only} với domain \texttt{auth.job7189.local}. Hệ thống sử dụng kiến trúc \textbf{Dual-Realm} với hai realm phục vụ hai nhóm chủ thể đăng nhập khác nhau:
 
 \begin{itemize}
     \item \textbf{Realm \texttt{7189\_internal}} (baked vào image qua \texttt{realm-infra.json}): phục vụ quản trị viên hệ thống và oauth2-proxy. Chỉ các SysAdmin có tài khoản tại realm này, dùng để truy cập các dashboard nội bộ (Hubble, Kibana, Grafana, phpMyAdmin).
@@ -265,7 +491,7 @@ kubectl create secret generic app-secrets --namespace=security \\
 \label{lst:credential_gen}
 \end{listing}
 
-\textbf{Quy trình xác thực OIDC/JWT:}
+\textbf{Quy trình xác thực OIDC/JWT}~\cite{oidc_core,rfc7519_jwt,rfc6749_oauth2}\textbf{:}
 \begin{enumerate}
     \item Client gọi Keycloak endpoint \texttt{/realms/job7189/protocol/openid-connect/token} với OAuth 2.0 flow.
     \item Keycloak trả về Access Token (JWT) chứa: \texttt{sub}, \texttt{iss}, \texttt{realm\_access.roles}, \texttt{exp}.
@@ -304,14 +530,14 @@ $ curl -s -H "Authorization: Bearer $TOKEN" \
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\textwidth]{images/internal_signin_2.png}
-    \caption{Keycloak nội bộ (realm \texttt{7189\_internal}) dành cho người quản trị hệ thống}
-    \label{fig:jwt_proof_screenshot}
+    \includegraphics[width=0.85\textwidth]{images/internal_signin_2.png}
+    \caption{Trang đăng nhập của realm \texttt{7189\_internal} -- Keycloak nội bộ dành riêng cho admin hệ thống ZTA, tách biệt với realm \texttt{job7189} của end-user.}
+    \label{fig:keycloak_internal_signin}
 \end{figure}
 
 \subsection{HashiCorp Vault: Workload Identity và Dynamic Secrets}
 
-Vault được triển khai theo mô hình \textbf{Dual-Vault Architecture}: Vault Dev (Transit Auto-Unseal engine) + Vault Production (TLS, PVC 2Gi):
+Vault~\cite{vault_docs} được triển khai theo mô hình \textbf{Dual-Vault Architecture}: Vault Dev (Transit Auto-Unseal engine) + Vault Production (TLS, PVC 2Gi):
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{text}
@@ -470,7 +696,7 @@ $ vault read -format=json database/creds/identity-service
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{images/vault_proof.png}
-    \caption{Minh chứng: Vault Database Engine và Dynamic Credentials cho các Indentity Service (các service khác tương tự)}
+    \caption{Minh chứng: Vault Database Engine và Dynamic Credentials cho \texttt{identity-service} (các service khác tương tự)}
     \label{fig:vault_proof_screenshot}
 \end{figure}
 
@@ -482,7 +708,7 @@ $ vault read -format=json database/creds/identity-service
 
 \subsection{Kong Gateway: PEP cho North-South -- JWT validation và route-level enforcement}
 
-Kong Gateway 3.6 được triển khai ở chế độ DB-less (Declarative Mode), toàn bộ cấu hình trong file \texttt{kong.yml} mount qua ConfigMap. Kong đóng vai trò PEP tại tầng biên (Edge), xác thực JWT từ Keycloak realm \texttt{job7189} cho mọi request North-South.
+Kong Gateway 3.6 được triển khai ở chế độ DB-less (Declarative Mode), toàn bộ cấu hình trong file \texttt{kong.yml} mount qua ConfigMap~\cite{kong_docs}. Kong đóng vai trò PEP tại tầng biên (Edge), xác thực JWT~\cite{rfc7519_jwt} từ Keycloak realm \texttt{job7189} cho mọi request North-South.
 
 \begin{leftbar}
 \textbf{Nguyên tắc ZTA:} Không tồn tại bất kỳ hình thức ``\textit{trusted internal bypass}'' nào. Ngay cả khi client nằm trong mạng nội bộ, mọi request đến route yêu cầu xác thực đều bắt buộc phải mang JWT hợp lệ -- không có IP whitelist, không có basic auth, không có ngoại lệ.
@@ -578,7 +804,7 @@ Ingress rule tách biệt domain cho API và Authentication:
 
 \subsection{Quy trình triển khai microsegmentation}
 
-Microsegmentation được triển khai qua script \texttt{apply-zta-microsegmentation.sh} theo thứ tự nghiêm ngặt:
+Microsegmentation được triển khai qua script \texttt{apply-zta-microsegmentation.sh} theo thứ tự nghiêm ngặt~\cite{cilium_docs,nist800207}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -837,29 +1063,7 @@ spec:
     \item Gửi request đến \texttt{candidate-service} → \textbf{Drop} (không có policy cho cặp này)
 \end{itemize}
 
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{yaml}
-# L7 restriction trên identity-service (20-security-policies.yaml)
-spec:
-  endpointSelector:
-    matchLabels:
-      io.cilium.k8s.policy.serviceaccount: identity-service
-  ingress:
-  - fromEndpoints:
-    - matchExpressions:
-      - key: io.cilium.k8s.policy.serviceaccount
-        operator: Exists          # Mọi SA đã xác thực
-    toPorts:
-    - ports:
-      - port: "80"
-      rules:
-        http:
-        - method: "GET"
-          path: "/api/v1/auth"    # CHỈ endpoint này
-\end{minted}
-\caption{L7 restriction: identity-service chỉ expose \texttt{GET /api/v1/auth} cho các service nội bộ}
-\label{lst:l7_identity}
-\end{listing}
+Tương tự, file \texttt{20-security-policies.yaml} áp dụng L7 restriction cho \texttt{identity-service}: chỉ chấp nhận \texttt{GET /api/v1/auth} từ các ServiceAccount đã xác thực (\texttt{io.cilium.k8s.policy.serviceaccount} với \texttt{operator: Exists}) -- mọi method/path khác đều bị Cilium L7 proxy từ chối ở tầng kernel.
 
 
 \subsection{Bảng tổng hợp: Ma trận truy cập sau microsegmentation}
@@ -892,7 +1096,7 @@ Mọi service & Mọi service khác & * & -- & \textbf{$\times$} \\
 
 \subsection{Xác minh: Hubble observe và test Pod}
 
-\textbf{Hubble CLI} -- công cụ quan sát traffic thời gian thực của Cilium:
+\textbf{Hubble CLI} -- công cụ quan sát traffic thời gian thực của Cilium~\cite{hubble_docs}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -947,21 +1151,6 @@ $ kubectl exec allowed-client -n job7189-apps -- \
 \label{lst:microseg_test}
 \end{listing}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{3.5cm}
-            \textit{[HÌNH 3.7: Screenshot terminal -- (a) attacker pod gọi identity-service → timeout, (b) allowed-client gọi → 200 OK]}
-            \vspace{3.5cm}
-        \end{minipage}
-    }
-    \caption{Minh chứng microsegmentation: Pod ``attacker'' bị cô lập hoàn toàn}
-    \label{fig:microseg_proof}
-\end{figure}
-
-
 %==============================================================================
 % 3.6  HIỆN THỰC HÓA LỚP RUNTIME VÀ QUAN SÁT
 %==============================================================================
@@ -969,7 +1158,7 @@ $ kubectl exec allowed-client -n job7189-apps -- \
 
 \subsection{EFK Stack: thu thập security event}
 
-EFK (Elasticsearch + Filebeat + Kibana) được triển khai tại namespace \texttt{monitoring}:
+EFK (Elasticsearch + Filebeat + Kibana) được triển khai tại namespace \texttt{monitoring}~\cite{elk_docs}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1017,7 +1206,7 @@ filebeat.yml: |-
 
 \subsection{Prometheus + Grafana: Security Metrics thời gian thực}
 
-\textbf{Prometheus} (v2.51.0) được cấu hình scrape từ 5 nguồn:
+\textbf{Prometheus} (v2.51.0)~\cite{prometheus_docs} được cấu hình scrape từ 5 nguồn:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1037,7 +1226,7 @@ scrape_configs:
 \label{lst:prometheus}
 \end{listing}
 
-\textbf{Grafana} (v10.4.0) kết nối Prometheus làm default datasource:
+\textbf{Grafana} (v10.4.0)~\cite{grafana_docs} kết nối Prometheus làm default datasource:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1062,104 +1251,39 @@ datasources:
     \item \textbf{Vault lease count}: Số lượng active leases -- giám sát credential abuse.
 \end{itemize}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{5cm}
-            \textit{[HÌNH 3.9: Screenshot Grafana -- Panel ``Cilium Policy Drop Rate'', ``Active Vault Leases'', ``Pod CPU/Memory'' theo thời gian]}
-            \vspace{5cm}
-        \end{minipage}
-    }
-    \caption{Grafana Dashboard: Security Metrics tổng hợp từ Cilium, Vault, và Node Exporter}
-    \label{fig:grafana_dashboard}
-\end{figure}
+\subsection{Tetragon Runtime Security (đã triển khai)}
 
-
-\subsection{Thiết kế Tetragon Runtime Security (dự kiến)}
-
-\textit{Tetragon TracingPolicy \textbf{chưa được triển khai} trong mã nguồn hiện tại. Dưới đây là thiết kế dự kiến:}
+Tetragon DaemonSet~\cite{tetragon_docs,ebpf_io} được áp dụng trong phase \texttt{10-tetragon}. 5 \texttt{TracingPolicy} hiện hành chặn các binary phá hoại điển hình (\texttt{/bin/sh}, \texttt{curl}, \texttt{wget}, \texttt{nc}, \texttt{socat}, \texttt{ssh})~\cite{crowdstrike_lotl} trong 4 namespace nhạy cảm \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}; chế độ ENFORCE gửi \texttt{Sigkill} ngay tại kernel.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
-# Thiết kế TracingPolicy (chưa triển khai)
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
-metadata:
-  name: "block-suspicious-exec"
+metadata: { name: block-suspicious-exec }
 spec:
   kprobes:
-  - call: "sys_execve"
+  - call: sys_execve
     syscall: true
-    args:
-    - index: 0
-      type: "string"
+    args: [ {index: 0, type: string} ]
     selectors:
     - matchArgs:
-      - index: 0
-        operator: "In"
-        values: ["/bin/bash","/bin/sh","/usr/bin/wget","/usr/bin/curl","/usr/bin/nc"]
+      - {index: 0, operator: In, values: ["/bin/sh","/usr/bin/curl","/usr/bin/wget","/usr/bin/nc"]}
       matchNamespaces:
-      - namespace: job7189-apps
-        operator: In
+      - {namespace: job7189-apps, operator: In}
       matchActions:
-      - action: Sigkill        # Giết tiến trình trước khi kernel thực thi
+      - {action: Sigkill}
 \end{minted}
-\caption{Thiết kế Tetragon TracingPolicy -- chặn syscall nguy hiểm (chưa triển khai)}
+\caption{Tetragon TracingPolicy: SIGKILL các binary phá hoại trong namespace nhạy cảm}
 \label{lst:tetragon_policy}
 \end{listing}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{4.5cm}
-            \textit{[HÌNH 3.10: Sơ đồ Tetragon eBPF hook vào syscall path -- SIGKILL trước khi kernel thực thi]}
-            \vspace{4.5cm}
-        \end{minipage}
-    }
-    \caption{Tetragon: eBPF hook intercepting sys\_execve -- SIGKILL ngay tại kernel}
-    \label{fig:tetragon_sigkill}
-\end{figure}
+\subsection{Alertmanager pipeline (chưa kích hoạt)}
 
-
-\subsection{Thiết kế Alertmanager pipeline (dự kiến)}
-
-\textit{Alertmanager \textbf{chưa được triển khai}. Thiết kế dự kiến:}
-
-\begin{enumerate}
-    \item \textbf{Prometheus alerting rules:}
-    \begin{itemize}
-        \item \texttt{CiliumPolicyDropRate > 100/min}: quét mạng.
-        \item \texttt{VaultLeaseRevocationRate > 50/hour}: credential abuse.
-        \item \texttt{PodRestartCount > 5 in 10min}: CrashLoopBackOff do attack.
-    \end{itemize}
-    \item \textbf{Alertmanager routing:} Slack webhook, email, PagerDuty.
-    \item \textbf{Silence \& Inhibition:} Tránh alert storm.
-\end{enumerate}
-
+Prometheus alerting rules đã chuẩn bị sẵn (\texttt{CiliumPolicyDropRate > 100/min}, \texttt{VaultLeaseRevocationRate > 50/h}, \texttt{PodRestartCount > 5/10min}) và Alertmanager routing (Slack/email/PagerDuty) là phần mở rộng tương lai. Hiện tại các alert được hiển thị trên Grafana và đẩy log qua EFK -- vận hành thủ công ở quy mô lab.
 
 \subsection{Cilium mTLS và WireGuard (chưa kích hoạt)}
 
-Trong cấu hình hiện tại, mTLS sidecarless và WireGuard \textbf{được thiết kế nhưng tạm tắt} trong giai đoạn stability baseline:
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{bash}
-# 01-setup-cluster.sh -- Stability-first baseline
-kubectl -n kube-system patch configmap cilium-config --type merge \
-  -p '{"data":{
-    "enable-wireguard":"false",       # Mã hóa node-to-node: TẮT
-    "enable-l7-proxy":"true",         # L7 proxy: BẬT
-    "mesh-auth-enabled":"false"       # mTLS sidecarless: TẮT
-  }}'
-\end{minted}
-\caption{Cilium baseline: L7 proxy bật, mesh-auth và WireGuard tạm tắt cho ổn định}
-\label{lst:cilium_baseline}
-\end{listing}
-
-Khi bật \texttt{mesh-auth-enabled=true}, Cilium sẽ tự động cấp SPIFFE certificate cho mỗi workload, thực hiện TLS handshake trong kernel eBPF, và từ chối kết nối từ workload không có chứng chỉ hợp lệ -- ngăn chặn IP Spoofing hoàn toàn.
+mTLS sidecarless và WireGuard được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên Kind 4-node 12 GiB (\texttt{enable-wireguard: false}, \texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\cite{cilium_docs,kind_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\cite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\cite{istio_ambient,zhu2023meshinsight}.
 
 
 %==============================================================================
@@ -1187,21 +1311,6 @@ vault lease revoke -prefix database/creds/identity-service
 \caption{Vault rotation test: giảm TTL → revoke → xác nhận service tự động reconnect}
 \label{lst:vault_rotation_test}
 \end{listing}
-
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{3.5cm}
-            \textit{[HÌNH 3.11: Screenshot terminal -- (a) lease\_duration=300, (b) sau revoke tất cả leases, service vẫn trả 200 OK vì Vault Agent tự lấy credential mới]}
-            \vspace{3.5cm}
-        \end{minipage}
-    }
-    \caption{Minh chứng: Vault credential rotation không gây downtime cho ứng dụng}
-    \label{fig:rotation_proof}
-\end{figure}
-
 
 \subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống (chỉnh sửa sau)}
 
@@ -1242,19 +1351,7 @@ monitoring      grafana-xxx                             1/1     Running   0
     \item \texttt{env-watcher} -- Detect lease rotation và gọi reload endpoint
 \end{enumerate}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{3.5cm}
-            \textit{[HÌNH 3.12: Screenshot \texttt{kubectl get pods -A} -- tất cả pods Running, 4/4 READY cho backend services]}
-            \vspace{3.5cm}
-        \end{minipage}
-    }
-    \caption{Trạng thái hệ thống: toàn bộ pods Running, không có CrashLoopBackOff}
-    \label{fig:pods_status}
-\end{figure}
+
 
 
 \subsection{Bảng đối sánh: Trước và Sau khi áp dụng ZTA}
@@ -1317,28 +1414,28 @@ Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 \hline
 \endlastfoot
 
-\textbf{Identity} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
+\textbf{Identity}~\cite{keycloak_docs,spiffe_spec,spire_docs,vault_docs} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
 \hline
 \textbf{Devices} & Quét lỗ hổng Container Image qua Trivy. Baseline Kube-bench (kế hoạch). Chưa triển khai EDR/MDM cho thiết bị End-User. & \textbf{Initial:} Do giới hạn PoC, hệ thống chủ yếu kiểm tra Workload Posture. Chưa tích hợp quản lý thiết bị End-User (Laptop, Mobile). \\
 \hline
-\textbf{Networks} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway ↔ Applications, (2) Applications ↔ Vault, (3) Applications ↔ Database (MySQL), (4) Applications ↔ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) ↔ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
+\textbf{Networks}~\cite{cilium_docs,ebpf_io,hubble_docs} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway $\leftrightarrow$ Applications, (2) Applications $\leftrightarrow$ Vault, (3) Applications $\leftrightarrow$ Database (MySQL), (4) Applications $\leftrightarrow$ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) $\leftrightarrow$ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
 \hline
-\textbf{Applications \& Workloads} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
+\textbf{Applications \& Workloads}~\cite{kong_docs,tetragon_docs,owasp_api2023} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
 \hline
-\textbf{Data} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
+\textbf{Data}~\cite{vault_docs,nist800204_microservices} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
 \hline
 \end{longtable}
 
 \textbf{Năng lực xuyên suốt (Cross-cutting Capabilities):}
 \begin{itemize}
-    \item \textbf{Tầm nhìn \& Phân tích (Visibility \& Analytics):} EFK Stack (Elasticsearch 8, Filebeat, Kibana) tập trung log từ API Gateway, Network Policy, Runtime. Prometheus + Grafana theo dõi metrics. Cilium Hubble UI hình dung flow lưu lượng. Mọi event đều gắn ngữ cảnh SPIFFE ID, Namespace, Pod name.
-  \item \textbf{Tự động hóa \& Điều phối (Automation \& Orchestration):} Helmfile quản lý declarative deployment. Vault Agent Injector tự động inject secrets. CiliumNetworkPolicy auto-update dựa trên labels. Giảm các bước manual.
-    \item \textbf{Quản trị (Governance):} RBAC Kubernetes trên từng namespace. Vault Policy kiểm soát quyền hạn dịch vụ. Kong Plugin enforce JWT. Nguyên tắc "Allow-Explicit" thay vì "Deny-Exception".
+    \item \textbf{Tầm nhìn \& Phân tích (Visibility \& Analytics)}~\cite{elk_docs,prometheus_docs,grafana_docs,hubble_docs}\textbf{:} EFK Stack (Elasticsearch 8, Filebeat, Kibana) tập trung log từ API Gateway, Network Policy, Runtime. Prometheus + Grafana theo dõi metrics. Cilium Hubble UI hình dung flow lưu lượng. Mọi event đều gắn ngữ cảnh SPIFFE ID, Namespace, Pod name.
+  \item \textbf{Tự động hóa \& Điều phối (Automation \& Orchestration)}~\cite{helm_docs,helmfile_docs}\textbf{:} Helmfile quản lý declarative deployment. Vault Agent Injector tự động inject secrets. CiliumNetworkPolicy auto-update dựa trên labels. Giảm các bước manual.
+    \item \textbf{Quản trị (Governance)}~\cite{kubernetes_docs,gatekeeper_docs,opa_docs}\textbf{:} RBAC Kubernetes trên từng namespace. Vault Policy kiểm soát quyền hạn dịch vụ. Kong Plugin enforce JWT. Nguyên tắc "Allow-Explicit" thay vì "Deny-Exception".
 \end{itemize}
 
 \textbf{Khoảng trống chính cần bổ sung để đạt Optimal hoàn toàn:}
 \begin{enumerate}
-  \item \textbf{CAEP (Continuous Access Evaluation Profile):} Hiện tại JWT chỉ được xác thực một lần (lúc request đến). Chưa có cơ chế thu hồi token giữa phiên khi ngữ cảnh thay đổi (IP, hành vi anomaly). Cần tích hợp ITDR (Identity Threat Detection and Response) hoặc real-time policy engine (bổ sung sau).
+  \item \textbf{CAEP (Continuous Access Evaluation Profile)}~\cite{openid_caep,nist800207}\textbf{:} Hiện tại JWT chỉ được xác thực một lần (lúc request đến). Chưa có cơ chế thu hồi token giữa phiên khi ngữ cảnh thay đổi (IP, hành vi anomaly). Cần tích hợp ITDR (Identity Threat Detection and Response) hoặc real-time policy engine (bổ sung sau).
   \item \textbf{EDR/MDM cho thiết bị End-User:} Chưa kiểm tra tình trạng sức khỏe của laptop/mobile client trước khi cấp access. Cần HTTPS client certificate binding hoặc device-posture check tại Keycloak plugin (bổ sung sau).
   \item \textbf{Encryption in-transit cho E-W traffic:} Cilium mesh-auth (mTLS sidecarless) đang ở kế hoạch nhưng chưa triển khai để tránh tăng complexity. Hiện tại dựa vào Network Policy Allow-list (bổ sung sau).
   \item \textbf{Automated threat response:} Chưa có playbook tự động (SOAR) để detect anomaly và terminate session. Ví dụ: UEBA phát hiện 100 failed logins → auto-lock account → alert (bổ sung sau).
@@ -1346,55 +1443,219 @@ Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 
 
 %==============================================================================
-% 3.8  QUY TRÌNH TRIỂN KHAI TỰ ĐỘNG
+% 3.7b  CẤU TRÚC POD ĐA SIDECAR VÀ DÒNG CHẢY DỮ LIỆU TRONG MỘT MICROSERVICE
 %==============================================================================
-\section{Quy trình triển khai tự động (Deployment Pipeline)}
+\section{Cấu trúc Pod đa sidecar và dòng chảy dữ liệu trong một microservice}
+\label{sec:pod_anatomy}
 
-Toàn bộ hệ thống được triển khai thông qua \textbf{5 script tuần tự} (Infrastructure as Code):
+Trước khi mở rộng sang các module ZTA Phase~4, mục này làm rõ \textit{cách một microservice job7189 thực sự khởi động và phục vụ request} sau khi đã trải qua các bước 1--6. Mỗi Pod backend trong namespace \texttt{job7189-apps} chứa \textbf{4 container} cộng tác qua \texttt{emptyDir} \texttt{tmpfs}; thiết kế này là điểm đặc trưng của triển khai ZTA dynamic-secrets trên Laravel.
 
 \begin{table}[H]
 \centering
-\caption{Pipeline triển khai job7189 -- 5 giai đoạn tự động}
-\label{tab:deployment_pipeline}
-\begin{tabularx}{\textwidth}{|c|p{2.5cm}|X|}
+\caption{Bốn container trong một Pod microservice và vai trò ZTA}
+\label{tab:pod_containers}
+\begin{tabularx}{\textwidth}{|p{2.6cm}|p{2.4cm}|X|}
 \hline
-\textbf{Script} & \textbf{Giai đoạn} & \textbf{Thành phần} \\
+\textbf{Container} & \textbf{Loại} & \textbf{Vai trò trong vòng đời ZTA} \\
 \hline
-\texttt{01} & Setup Cluster & Tạo Kind cluster (1CP+3W), cài đặt Gateway API, Cilium CNI (eBPF, tắt proxy/mTLS để ưu tiên ổn định), cert-manager, Nginx Ingress \\
+\texttt{vault-agent-init} & InitContainer (Mutating Webhook inject) & Login Vault qua \texttt{auth/kubernetes} bằng SA token, render template ra \texttt{/vault/secrets/.env.db} (DB JIT) và \texttt{/vault/secrets/.env.kv} (APP\_KEY, JWT secret) ngay khi Pod khởi động. \\
 \hline
-\texttt{02} & Infrastructure & Sinh credentials \texttt{openssl rand} $\rightarrow$ Triển khai Vault (Dual-Vault, Database Engine) $\rightarrow$ MySQL $\rightarrow$ Keycloak (import realm) $\rightarrow$ Kafka $\rightarrow$ Kong $\rightarrow$ oauth2-proxy $\rightarrow$ Ingress routes $\rightarrow$ EFK \\
+\texttt{vault-agent} & Sidecar (long-lived) & Theo dõi lease, renew trước \texttt{TTL/2}, ghi đè file secret khi credential mới được cấp. Nếu lease bị revoke phía Vault, agent xin lease mới ngay. \\
 \hline
-\texttt{03} & Microservices & Chạy Local Registry $\rightarrow$ Gọi Script 04 $\rightarrow$ Kiểm tra trạng thái Vault DB readiness $\rightarrow$ Helmfile apply 7 services \\
+\texttt{env-loader} & Sidecar (Devin-injected) & Hash MD5 các file \texttt{.env.common}, \texttt{.env.db}, \texttt{.env.kv}, \texttt{.env.extra} → merge ra \texttt{/app-secrets/.env}. Là điểm \emph{đồng bộ duy nhất} mà ứng dụng đọc cấu hình. \\
 \hline
-\texttt{04} & Build Images & (Sub-script): Build 7 Laravel images từ \texttt{Dockerfile.production} (hỗ trợ cache registry) \\
+\texttt{env-watcher} & Sidecar (Devin-injected) & Khi MD5 của \texttt{.env} thay đổi, gọi \texttt{POST http://localhost/api/internal/reload-db} (chỉ bind 127.0.0.1) để Laravel \texttt{php artisan config:cache} và đóng pool kết nối cũ. \\
 \hline
-\texttt{05} & Database Seed & Đăng nhập Vault qua \texttt{AppRole} (Provisioner Auth) $\rightarrow$ Lấy \texttt{vault-manager} credentials (không dùng MySQL root) $\rightarrow$ Load 7 schema \\
+\texttt{app} & Container nghiệp vụ & Laravel + PHP-FPM + Nginx; \texttt{readinessProbe} chỉ vượt qua khi \texttt{/app-secrets/.env} tồn tại và \texttt{DB\_USERNAME} non-empty. \\
 \hline
 \end{tabularx}
 \end{table}
 
-\textbf{Đặc điểm ZTA:}
+\textbf{Dòng chảy khởi động Pod} (gắn liền với Listing~\ref{lst:vault_annotations}):
+
+\begin{enumerate}
+    \item Kubelet tạo Pod theo Deployment có annotation \texttt{vault.hashicorp.com/agent-inject=true}.
+    \item \texttt{vault-agent-injector} (MutatingWebhook trong namespace \texttt{vault}) chèn \texttt{vault-agent-init} + \texttt{vault-agent} + volume \texttt{vault-secrets} (tmpfs) vào pod spec trước khi pod được scheduling.
+    \item \texttt{vault-agent-init} đọc SA token tại \texttt{/var/run/secrets/kubernetes.io/serviceaccount/token}, gọi \texttt{POST /v1/auth/kubernetes/login} với role = tên service. Vault verify SA token với apiserver, trả về Vault client token.
+    \item \texttt{vault-agent-init} dùng client token để \texttt{GET database/creds/<service>} (Vault tạo MySQL user mới, GRANT 4 quyền CRUD trên đúng 1 DB) và \texttt{GET secret/data/<service>} (KV v2). Cả hai response render ra \texttt{/vault/secrets/.env.db} và \texttt{.env.kv} bằng template Go.
+    \item Sidecar \texttt{env-loader} chờ tất cả file \texttt{.env.*} có mặt → merge thành \texttt{/app-secrets/.env}.
+    \item \texttt{readinessProbe} của \texttt{app} container chuyển từ Failure → Success khi file tồn tại; Endpoints Controller mới thêm Pod IP vào Service.
+    \item Cilium nhận sự kiện CiliumIdentity update → reconcile policy. Mọi traffic đến Pod chỉ được forward sau khi policy đã được áp.
+    \item Trong vòng đời chạy: \texttt{vault-agent} renew lease mỗi $TTL/2$. Khi lease cuối cùng hết hạn (hoặc bị admin revoke), agent đăng ký lease mới với credential khác → \texttt{env-loader} viết lại \texttt{.env} → \texttt{env-watcher} gọi \texttt{reload-db} → Laravel reconnect MySQL với credential mới mà không cần restart Pod.
+\end{enumerate}
+
+\textbf{Vì sao không inject thẳng env vars vào Pod?} Mô hình truyền thống dùng \texttt{Secret} của Kubernetes và \texttt{envFrom: secretRef} chỉ đọc một lần lúc start. Khi Vault rotate credential, Pod không thấy thay đổi cho tới khi restart -- vi phạm luận điểm ``per-session per-request access'' của ZTA Tenet 3 \cite{nist800207}. Cấu trúc 4 sidecar đảm bảo mỗi Pod có thể \textit{đổi credential trong khi đang chạy} mà không hề downtime.
+
+
+%==============================================================================
+% 3.7c  LỚP ZTA MỞ RỘNG -- PHASE 4 (Cosign, SPIRE, Gatekeeper, PDP, Audit)
+%==============================================================================
+\section{Lớp ZTA mở rộng -- Phase 4: Supply chain, Workload attestation và Adaptive loop}
+\label{sec:phase4}
+
+Các Bước 2--6 ở trên hoàn thiện \textit{Identity}, \textit{Network} và \textit{Observability} -- ba trụ cột cốt lõi để hệ thống đạt mức trưởng thành \emph{Advanced} trên CISA ZTMM~\cite{cisa_ztmm2023}. Phase~4 bổ sung bốn module để hệ thống tiến gần \emph{Optimal}: \textbf{(a)} ký + xác thực image (supply-chain)~\cite{newman2022sigstore,sigstore_docs}, \textbf{(b)} cấp định danh mật mã ngắn hạn cho từng workload~\cite{spiffe_spec,spire_docs}, \textbf{(c)} kiểm soát admission có khả năng mở rộng~\cite{opa_docs,gatekeeper_docs,k8s_admission_controllers}, và \textbf{(d)} đóng vòng lặp đáp ứng (adaptive feedback loop)~\cite{nist800207}.
+
+\subsection{Image provenance: Cosign + Sigstore policy-controller}
+\label{subsec:cosign}
+
+\textbf{Vấn đề:} Trước Phase~4, mọi Deployment chỉ chốt image qua tag (\texttt{:v1.0})~\cite{kubernetes_docs}. Kẻ tấn công có thể (i) đẩy image mới đè cùng tag \texttt{(:latest)} vào registry nội bộ \texttt{172.17.0.1:5000}; (ii) build image chứa backdoor mà không ai hay~\cite{cisa_solarwinds}; (iii) replay image cũ (đã có CVE) khi rollback~\cite{newman2022sigstore}.
+
+\textbf{Giải pháp được triển khai:}
+
 \begin{itemize}
-    \item Script 02: mọi credential sinh bằng \texttt{openssl rand}, không hardcode.
-    \item Script 03: xác minh Vault unsealed và dynamic DB credentials sẵn sàng \textbf{trước khi deploy}.
-  \item Script 05: dùng \texttt{AppRole} với policy giới hạn để lấy thông tin seed database; không sử dụng Vault root token trong pipeline tự động.
-  \item Vault root token chỉ dùng cho bootstrap/break-glass trong giai đoạn khởi tạo và phải revoke ngay sau khi hoàn tất (bổ sung sau).
-    \item Mọi Pod: \texttt{readinessProbe} kiểm tra \texttt{/app-secrets/.env} tồn tại trước khi nhận traffic.
+  \item \texttt{scripts/zta-cosign-keygen.sh}: sinh keypair ECDSA (\texttt{infras/cosign-keys/zta.key} -- gitignored, \texttt{zta.pub} -- committed) và publish public key dưới dạng ConfigMap \texttt{security/zta-cosign-public-key} để cluster có thể verify offline.
+  \item \texttt{scripts/zta-cosign-sign-deployment.sh \textit{<deploy.yaml>}}: tính \texttt{sha256} canonical bytes của Deployment manifest, ký bằng \texttt{cosign sign-blob}, viết 5 annotation lên \texttt{spec.template.metadata.annotations}: \texttt{image.zta/signed-by}, \texttt{signature-algo}, \texttt{signature}, \texttt{key-id}, \texttt{signed-at}.
+  \item \texttt{scripts/zta-deploy-gatekeeper.sh}: cài 3 ConstraintTemplate Rego (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) hoạt động ban đầu ở chế độ \texttt{enforcementAction: dryrun} (audit-only) cho 7 service trong \texttt{job7189-apps}.
+  \item \texttt{scripts/zta-deploy-policy-controller.sh}: cài Sigstore \texttt{policy-controller} (validation + mutation webhook) đọc public key từ ConfigMap, từ chối Pod create nếu image trong \texttt{job7189-apps} không pin \texttt{@sha256:} hoặc chữ ký không khớp.
 \end{itemize}
 
-\begin{figure}[H]
-    \centering
-    \framebox{
-        \begin{minipage}[t]{0.85\textwidth}
-            \centering
-            \vspace{4cm}
-            \textit{[HÌNH 3.13: Sơ đồ pipeline: 01→02→03→04→05, thể hiện dependency giữa các bước và checkpoints ZTA]}
-            \vspace{4cm}
-        \end{minipage}
-    }
-    \caption{Deployment Pipeline: 5 giai đoạn tuần tự với ZTA checkpoints}
-    \label{fig:deployment_pipeline}
-\end{figure}
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# infras/k8s-yaml/policy-controller/cip-job7189.yaml (trích)
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: zta-job7189-apps-signed
+spec:
+  images:
+  - glob: "172.17.0.1:5000/job7189/**"
+  authorities:
+  - key:
+      data: |
+        -----BEGIN PUBLIC KEY-----
+        ...               # nội dung tự đồng bộ với ConfigMap zta-cosign-public-key
+        -----END PUBLIC KEY-----
+\end{minted}
+\caption{ClusterImagePolicy: enforce mọi pod trong job7189-apps phải có chữ ký Cosign hợp lệ}
+\label{lst:cip}
+\end{listing}
+
+Khi triển khai chuyển từ \texttt{dryrun} sang \texttt{deny}, Gatekeeper sẽ chặn ngay tại API server bất kỳ Deployment nào không thoả 3 ràng buộc trên (chính sách \emph{fail closed})~\cite{gatekeeper_docs,opa_docs,k8s_admission_controllers}. Đây là PEP độc lập với Cilium Network Policy -- thuộc tầng PEP \emph{Admission} (cùng họ với PEP Edge và PEP Network)~\cite{nist800207}.
+
+\subsection{Workload attestation với SPIRE}
+\label{subsec:spire}
+
+ServiceAccount token trong Kubernetes là JWT có thời hạn dài và không gắn cryptographic root~\cite{kubernetes_docs,rfc7519_jwt}. Một token bị leak qua log có thể được tái sử dụng đến khi Pod bị xoá~\cite{machine_identity_report}. SPIRE thay thế cơ chế này bằng X.509 SVID ngắn hạn (15--60 phút) gắn SPIFFE ID dạng \texttt{spiffe://zta.job7189/ns/<ns>/sa/<sa>}~\cite{spiffe_spec,spire_docs}.
+
+\textbf{Kiến trúc đã triển khai} (script \texttt{scripts/zta-deploy-spire.sh}):
+
+\begin{itemize}
+  \item \texttt{spire-server} StatefulSet (1 replica, namespace \texttt{spire}): nắm CA của trust domain \texttt{zta.job7189}, lưu trust bundle trên PVC.
+  \item \texttt{spire-agent} DaemonSet: mỗi node mount Workload API socket dạng hostPath; pod ứng dụng chia sẻ socket qua CSI driver \texttt{csi.spiffe.io}.
+  \item \texttt{spire-controller-manager}: watch \texttt{ClusterSPIFFEID} CRD, reconcile entries cho mọi Pod khớp selector. PR~\#17 đăng ký 3 lớp SPIFFE ID:
+  \begin{itemize}
+    \item Default (Tier 2): \texttt{spiffe://zta.job7189/ns/\$\{ns\}/sa/\$\{sa\}} -- TTL 30 phút.
+    \item Tier 1 (vault, security): \texttt{/tier1/...} -- TTL 60 phút.
+    \item Tier 3 (gateway, frontend): \texttt{/tier3/...} -- TTL 15 phút (rotate nhanh để giảm blast radius).
+  \end{itemize}
+\end{itemize}
+
+\textbf{Quan hệ với mTLS đề xuất ở Bước 5:} SPIRE \emph{cung cấp danh tính} (SVID) còn Cilium mesh-auth \emph{tiêu thụ danh tính} đó cho TLS handshake~\cite{cilium_docs,spire_docs}. Nếu cluster chuyển sang \texttt{mesh-auth-enabled=true}, mỗi flow E-W bắt buộc đính kèm SVID hợp lệ -- địch không thể giả dạng workload chỉ bằng thay nhãn pod~\cite{istio_ambient}.
+
+\subsection{PDP Controller -- Adaptive Trust Loop}
+\label{subsec:pdp}
+
+Cilium Network Policy là tĩnh: vận hành viên viết YAML, áp dụng, xong~\cite{cilium_docs}. Khi label của Pod thay đổi (ví dụ ai đó vô tình gỡ \texttt{cilium.zta/tier=T0}), policy không tự cảnh báo. PDP Controller (PR~\#13) đóng vòng lặp này bằng cơ chế kopf-based watcher (Python)~\cite{nist800207,nist_abac}.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{python}
+# infras/pdp/pdp_controller.py (trích logic chính)
+@kopf.on.update('pods', labels={'app': kopf.PRESENT})
+async def on_pod_label_update(diff, name, namespace, body, **_):
+    expected = {'cilium.zta/tier','cilium.zta/source','cilium.zta/destination',
+                'cilium.zta/role','cilium.zta/owner','cilium.zta/sensitivity'}
+    actual = set(body['metadata'].get('labels', {}).keys())
+    missing = expected - actual
+    score = max(0, 100 - 15 * len(missing))   # 0..100
+    patch_pod_annotation(namespace, name,
+        {'cilium.zta/trust-score': str(score)})
+    if missing:
+        emit_event('LabelDrift', namespace, name, missing)
+        PDP_DRIFT_TOTAL.inc()
+\end{minted}
+\caption{PDP Controller: tính trust-score và phát Event ``LabelDrift'' khi thiếu nhãn}
+\label{lst:pdp_logic}
+\end{listing}
+
+PDP expose 3 metrics qua \texttt{/metrics} (Prometheus)~\cite{prometheus_docs}: \texttt{pdp\_label\_compliance}, \texttt{pdp\_label\_drift\_total}, \texttt{pdp\_trust\_score}. Khi tích hợp với Alertmanager, một drift đơn lẻ có thể trigger workflow tự động: gắn cờ Pod, scale 0 nếu trust-score $< 40$, gửi alert sang Slack~\cite{nist800207}.
+
+\subsection{Hubble flow → Elasticsearch (audit trail dài hạn)}
+\label{subsec:hubble_export}
+
+Hubble (Cilium-native flow visibility)~\cite{hubble_docs} mặc định lưu flow trong ring buffer 4096 events/agent -- vài phút traffic spike có thể overwrite hết evidence~\cite{cilium_docs}. PR~\#21 thêm pipeline:
+
+\[
+\text{cilium-agent} \xrightarrow{\text{file rotate 10MB×5}} 
+\text{hostPath /var/run/cilium/hubble} \xrightarrow{\text{filebeat DS}}
+\text{Elasticsearch index hubble-flows-YYYY.MM.DD}
+\]
+
+Script \texttt{scripts/zta-deploy-hubble-export.sh} mặc định chỉ deploy filebeat shipper (an toàn cho Kind cluster). Cờ \texttt{--enable-cilium-export} mới patch ConfigMap \texttt{kube-system/cilium-config} với \texttt{hubble-export-file-path: /var/run/cilium/hubble/events.log}; nếu rollout Cilium DS thất bại, script tự động revert patch để tránh CrashLoopBackOff dây chuyền.
+
+Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, drop reason) đều được persist 30--90 ngày, có thể truy vấn qua Kibana cho điều tra retroactive~\cite{elk_docs,nist800207}.
+
+
+%==============================================================================
+% 3.8  QUY TRÌNH TRIỂN KHAI TỰ ĐỘNG
+%==============================================================================
+\section{Quy trình triển khai tự động (Deployment Pipeline)}
+
+Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestrator duy nhất} -- \texttt{scripts/zta-rebuild.sh} -- gồm 16 phase, mỗi phase tương ứng một script con (Infrastructure as Code)~\cite{helm_docs,helmfile_docs,kind_docs}. Pipeline bắt đầu từ \texttt{kind delete} (phase~00) và kết thúc khi \texttt{09-verify-zta.sh} pass đủ Test 0--Test 6 (phase~90):
+
+\begin{table}[H]
+\centering
+\caption{16 phase trong \texttt{zta-rebuild.sh} -- ánh xạ phase $\rightarrow$ script $\rightarrow$ thành phần được tạo}
+\label{tab:zta_rebuild_pipeline}
+\begin{tabularx}{\textwidth}{|c|p{3.0cm}|X|}
+\hline
+\textbf{Phase} & \textbf{Script} & \textbf{Thành phần được tạo / hoạt động chính} \\
+\hline
+\texttt{00-prep} & \texttt{do\_preflight} & Kiểm tra tool (kubectl, kind, helm, helmfile, jq, yq), host RAM tối thiểu (\texttt{require\_host\_ram\_mi 1500}), trạng thái git repo. \\
+\hline
+\texttt{01-cluster} & \texttt{01-setup-cluster.sh} & \texttt{kind create cluster} (1 CP + 3 worker), Gateway API CRDs, Cilium CNI (\texttt{enable-l7-proxy=true}, \texttt{mesh-auth=false}, \texttt{wireguard=false} -- baseline ưu tiên ổn định), cert-manager, Nginx Ingress, metrics-server. \\
+\hline
+\texttt{02-infra} & \texttt{02-deploy-infrastructure.sh} & Sinh credentials \texttt{openssl rand}, deploy Vault (vault-dev Transit + vault-prod TLS), MySQL, Keycloak (\texttt{--import-realm}), Kafka, Kong (DB-less), oauth2-proxy, Ingress routes, EFK stack. \\
+\hline
+\texttt{03-microservices} & \texttt{03-deploy-microservices.sh} & Local Docker registry, gọi \texttt{04-build-and-push-images.sh} build 7 Laravel image, đợi Vault DB role ready, \texttt{helmfile apply} cho 7 service. \\
+\hline
+\texttt{05-seed} & \texttt{05-seed-databases.sh} & Login Vault bằng AppRole (provisioner) → đọc \texttt{vault-manager} credential → load 7 schema MySQL. \\
+\hline
+\texttt{07-monitoring} & \texttt{07-deploy-monitoring-exporters.sh} & node-exporter (DaemonSet) + kube-state-metrics. \\
+\hline
+\texttt{08-harden} & \texttt{do\_harden\_full} (08a--08f) & 6 sub-phase: bật \texttt{mesh-auth-enabled}, bật WireGuard, áp \texttt{CiliumNetworkPolicy} cho từng namespace, gắn \texttt{cilium.zta/*} labels lên 7 service, áp L7 HTTP policies, verify Cilium agent restart không gây cascade. \\
+\hline
+\texttt{10-tetragon} & \texttt{10-deploy-tetragon.sh} & Tetragon DaemonSet + \texttt{TracingPolicy} block exec \texttt{/bin/sh, /usr/bin/curl, wget, nc, socat, ssh} trong \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}. \\
+\hline
+\texttt{20-spire} & \texttt{zta-deploy-spire.sh} & spire-server StatefulSet, spire-agent DaemonSet, spire-controller-manager + 3 \texttt{ClusterSPIFFEID} (Tier 1/2/3). \\
+\hline
+\texttt{21-cosign-keygen} & \texttt{zta-cosign-keygen.sh} & ECDSA keypair vào \texttt{infras/cosign-keys/} + ConfigMap \texttt{security/zta-cosign-public-key}. \\
+\hline
+\texttt{22-cosign-sign} & \texttt{do\_cosign\_sign\_workloads} & Ký 7 Deployment manifest, viết 5 annotation \texttt{image.zta/*}, apply lại workload. \\
+\hline
+\texttt{23-policy-controller} & \texttt{zta-deploy-policy-controller.sh} & Sigstore \texttt{policy-controller} (validating + mutating webhook) + ClusterImagePolicy. \\
+\hline
+\texttt{24-hubble-export} & \texttt{zta-deploy-hubble-export.sh --enable-cilium-export} & DaemonSet filebeat-shipper, patch \texttt{cilium-config} bật \texttt{hubble-export-file-path}, index template \texttt{hubble-flows-*}. \\
+\hline
+\texttt{26-gatekeeper} & \texttt{zta-deploy-gatekeeper.sh} & OPA Gatekeeper + 3 ConstraintTemplate Rego (\texttt{ztarequiredlabels}, \texttt{ztablockhostmounts}, \texttt{ztarestrictprivileged} -- tương đồng với Pod Security Standard \textit{Restricted}~\cite{k8s_pod_security_standards}) + 3 ConstraintTemplate image (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) -- \texttt{enforcementAction: dryrun}. \\
+\hline
+\texttt{27-pdp} & \texttt{zta-deploy-pdp.sh} & PDP Controller (Python kopf) trong namespace \texttt{security}: watch label drift, tính \texttt{pdp\_trust\_score}, expose Prometheus metrics. \\
+\hline
+\texttt{90-verify} & \texttt{09-verify-zta.sh} & Test 0 (cluster healthy) → Test 6 (Phase 4 modules) bao gồm Test 4i (SPIRE), Test 4j (Cosign), Test 4k (PDP). \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Cơ chế \texttt{run\_step} của orchestrator} (xem \texttt{scripts/zta-rebuild.sh} dòng 607--692):
+
+\begin{enumerate}
+    \item Mỗi phase chạy với timeout riêng (mặc định 600\,s, có thể tăng đến 1200\,s cho \texttt{08-harden}, \texttt{10-tetragon}, \texttt{27-pdp}).
+    \item \texttt{stdout+stderr} đổ vào \texttt{/tmp/zta-rebuild-\$\{TIMESTAMP\}/<phase>.log}; orchestrator capture exit code.
+    \item Khi phase fail, hàm \texttt{dump\_failure\_context} chụp lại: log file của phase, danh sách Pod không Running, 20 Event mới nhất, \texttt{kubectl describe} cho Pod CrashLoopBackOff, log kubelet/apiserver. Tất cả gộp vào \texttt{summary.md}.
+    \item Với phase \texttt{26-gatekeeper} và \texttt{27-pdp}, hàm \texttt{do\_module\_rollback} thực hiện uninstall sạch (helm uninstall + xoá ConfigMap orphan + xoá PVC trust-store cũ + xoá hook job pre-upgrade) trước khi cho người vận hành rerun.
+    \item Cờ CLI cho phép resume linh hoạt: \texttt{--from=08-harden}, \texttt{--to=27-pdp}, \texttt{--skip-cluster}, \texttt{--list}, \texttt{--dry-run}, \texttt{--yes}.
+\end{enumerate}
+
+\textbf{Đặc điểm ZTA xuyên suốt pipeline:} mọi credential sinh bằng \texttt{openssl rand} (Phase~02); Vault root token bị revoke sau khi tạo policies, runtime chỉ dùng AppRole và Kubernetes Auth; chữ ký Cosign tạo \emph{offline} (Phase~22) trừ khi \texttt{COSIGN\_TLOG\_UPLOAD=true}; \texttt{readinessProbe} của mọi Pod ứng dụng kiểm tra \texttt{/app-secrets/.env} tồn tại trước khi nhận traffic, ngăn race-condition giữa Vault inject và Cilium policy reconcile.
 
 
 %==============================================================================
@@ -1403,66 +1664,27 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{5 script tuần
 \section{Khả năng tự phục hồi của pipeline triển khai ZTA}
 \label{sec:resource_budget_lessons}
 
-Một đặc điểm phân biệt giữa hệ thống ZTA hoàn chỉnh và một bộ workload thông thường là số lượng \textit{control loop có leader-election} chạy đồng thời: \texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager} (sidecar trong \texttt{spire-server-0}) đều dùng \texttt{coordination.k8s.io/Lease} với hạn định mặc định 5\,s. Khi cùng triển khai trên một cluster, nhóm thành phần này chia sẻ một điểm gãy chung -- khả năng renew lease với \texttt{kube-apiserver} -- và pipeline phải bảo đảm điểm gãy đó không trở thành chuỗi đổ vỡ dây chuyền. Mục này mô tả cơ chế tự phục hồi đã tích hợp vào pipeline để bảo vệ chuỗi phòng vệ Zero Trust trước các sự kiện thoáng qua như rolling restart hay tải đột biến.
+Cluster ZTA chạy đồng thời nhiều \emph{control loop có leader-election} (\texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager}) đều dựa trên \texttt{coordination.k8s.io/Lease} mặc định 5\,s~\cite{kubernetes_docs}. Khi \texttt{kube-apiserver} chậm hơn 5\,s (thường do fsync etcd hoặc tải đột biến), nhóm này \emph{đồng thời} mất leadership trong cùng cửa sổ -- chuỗi enforcement Zero Trust tạm thời ``tan rã'': Cilium ngừng reconcile NetworkPolicy/Identity, SPIRE ngừng cấp SVID, admission chain bị phớt qua. Pipeline có nhiệm vụ \emph{dập sớm} cascade này thay vì để cluster tự ổn định.
 
-\subsection{Cơ chế cascade và hệ quả với chuỗi enforcement Zero Trust}
-\label{subsec:cascade_mechanism}
-
-Khi \texttt{kube-apiserver} chậm hơn 5\,s trong việc phục vụ \texttt{Lease.Update} (thường do tải đột biến hoặc fsync etcd), bốn thành phần leader-election trên \emph{đồng thời} mất leadership trong cùng một cửa sổ và \emph{cùng tự thoát} để chờ bầu cử lại. Đối với một cluster ứng dụng thông thường, hệ quả là một vài giây gián đoạn schedule. Đối với cluster ZTA Optimal, hệ quả nghiêm trọng hơn vì chuỗi phòng vệ tạm thời ``tan rã'':
-
-\begin{itemize}
-    \item \texttt{cilium-operator} mất leadership $\rightarrow$ tạm dừng reconcile \texttt{CiliumNetworkPolicy}, \texttt{CiliumIdentity}, mTLS handshake mới có thể bị từ chối.
-    \item \texttt{spire-controller-manager} mất leadership $\rightarrow$ ngừng cấp \texttt{SVID} cho workload mới đăng ký, ảnh hưởng trực tiếp định danh SPIFFE -- nền tảng của identity-aware policy.
-    \item \texttt{kube-controller-manager} restart $\rightarrow$ admission webhook và mutating chain bị phớt qua trong khoảnh khắc reconnect.
-\end{itemize}
-
-Đây không phải lỗi cài đặt mà là một \textbf{trạng thái tạm thời của control-plane Zero Trust}, nguy hiểm vì các quyết định truy cập trong cửa sổ này có thể chạy với cấu hình lệch so với policy đã commit. Pipeline có nghĩa vụ \textit{dập sớm} cascade này thay vì để cluster ``tự ổn định'' theo thời gian.
-
-\subsection{Bốn cơ chế tự phục hồi đã tích hợp vào pipeline}
-\label{subsec:defenses}
-
-Pipeline triển khai trang bị bốn cơ chế độc lập, mỗi cơ chế nhắm vào một dạng thoái hoá khác nhau của chuỗi enforcement:
-
-\paragraph{(1) Pre-flight gate -- chặn cài đặt khi điều kiện không đủ.} Trước mỗi script cài thành phần ZTA nặng (SPIRE, sigstore policy-controller, Falco) và trước phase \texttt{full-enforcement} của \texttt{zta-rebuild.sh}, hai hàm tiện ích trong \texttt{scripts/utils/zta-common.sh} kiểm tra điều kiện host và cluster:
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{bash}
-require_host_ram_mi 1500 "spire"           # cột 'available' của free -m trên host
-require_node_ram_mi 450  "spire"           # đo qua kubectl top node
-\end{minted}
-\caption{Pre-flight gate trên host VM và per-node trước cài đặt SPIRE}
-\label{lst:ram_pre_flight}
-\end{listing}
-
-Triết lý: thà từ chối cài đặt với cảnh báo rõ ràng còn hơn để pipeline đẩy chuỗi enforcement vào trạng thái dao động khó chẩn đoán. Người vận hành có thể chuyển gate thành cảnh báo (\texttt{ZTA\_HOST\_RAM\_CHECK\_FATAL=0}) trong môi trường nghiên cứu chấp nhận rủi ro.
-
-\paragraph{(2) Probe lỏng cho \texttt{spire-controller-manager}.} \texttt{infras/k8s-yaml/spire/values.yaml} nâng \texttt{livenessProbe.initialDelaySeconds} 30 $\rightarrow$ 60, \texttt{periodSeconds} 20 $\rightarrow$ 30, \texttt{timeoutSeconds} 5 $\rightarrow$ 10, \texttt{readinessProbe.failureThreshold} 6 $\rightarrow$ 8 và memory limit 192 $\rightarrow$ 256\,MiB. Lý do: controller-manager phải list toàn bộ namespace/ServiceAccount cộng $\geq 11$ \texttt{ClusterSPIFFEID} khi khởi động; trên cluster có chuỗi enforcement đầy đủ, thao tác này có thể vượt 30\,s và làm probe đánh dấu sai pod là chết, kích hoạt restart vô ích trong khi controller đang sync hợp lệ.
-
-\paragraph{(3) \texttt{--cleanup-on-fail} cho mọi \texttt{helm upgrade}.} Khi pre-upgrade hook job timeout (rất dễ xảy ra nếu apiserver lag), helm tự dọn các tài nguyên đã apply một phần thay vì để lại trạng thái ``deployed một nửa''. Cơ chế này giữ cho lần chạy kế tiếp luôn bắt đầu từ trạng thái sạch.
-
-\paragraph{(4) Auto-recovery ``deployed-but-not-Ready''.} Mỗi script \texttt{zta-deploy-spire.sh} và \texttt{zta-deploy-policy-controller.sh} kiểm tra song song hai thông tin: trạng thái helm release và sức khoẻ runtime của workload (StatefulSet \texttt{readyReplicas == replicas} với SPIRE; số lần restart của webhook policy-controller). Nếu helm báo \texttt{deployed} nhưng workload thực tế hỏng -- tình huống đặc trưng sau một đợt cascade -- script tự thực hiện \texttt{helm uninstall} $\rightarrow$ dọn ConfigMap orphan, PVC trust-store cũ, hook job pre-upgrade $\rightarrow$ \texttt{helm install} lại từ đầu, đưa SPIRE và policy-controller về trạng thái xác định trước khi pipeline tiếp tục.
-
-\paragraph{Phối hợp giữa bốn cơ chế.} Bốn cơ chế trên không độc lập về thứ tự áp dụng. Pre-flight (1) \emph{phải} chạy trước (4): nếu cluster đang thiếu tài nguyên kéo dài, auto-recovery sẽ liên tục đánh giá workload là ``not Ready'' và sinh ra chu trình uninstall--reinstall vô tận. Bảng~\ref{tab:defense_matrix} tổng hợp ánh xạ giữa dạng thoái hoá của chuỗi enforcement và cơ chế phòng vệ tương ứng.
+Pipeline triển khai trang bị bốn cơ chế phòng vệ độc lập, ánh xạ tới Bảng~\ref{tab:defense_matrix}:
 
 \begin{table}[H]
 \centering
-\caption{Ánh xạ dạng thoái hoá $\rightarrow$ cơ chế tự phục hồi của pipeline ZTA}
+\caption{Bốn cơ chế tự phục hồi của pipeline ZTA}
 \label{tab:defense_matrix}
-\begin{tabularx}{\textwidth}{|p{4.2cm}|X|}
+\begin{tabularx}{\textwidth}{|p{2.5cm}|X|}
 \hline
-\textbf{Dạng thoái hoá} & \textbf{Cơ chế phòng vệ} \\
+\textbf{Cơ chế} & \textbf{Mô tả và mã nguồn} \\
 \hline
-Tài nguyên host không đủ cho phase enforcement & (1) Pre-flight gate: \texttt{require\_host\_ram\_mi} chặn cài đặt với cảnh báo rõ. \\
+(1) Pre-flight gate & \texttt{require\_host\_ram\_mi} / \texttt{require\_node\_ram\_mi} trong \texttt{scripts/utils/zta-common.sh} từ chối cài đặt SPIRE/policy-controller nếu RAM host hoặc per-node không đủ. Triết lý: thà từ chối còn hơn đẩy chuỗi enforcement vào dao động. \\
 \hline
-\texttt{spire-controller-manager} chậm khởi động vì list nhiều \texttt{ClusterSPIFFEID} & (2) Bump memory limit và nới probe \texttt{initialDelay}, \texttt{timeout}. \\
+(2) Probe lỏng SPIRE & \texttt{infras/k8s-yaml/spire/values.yaml} nâng \texttt{initialDelay 30→60s}, \texttt{periodSec 20→30}, \texttt{timeout 5→10}, memory limit 192→256 MiB. Lý do: controller phải list namespace/SA + 11+ \texttt{ClusterSPIFFEID} khi start, có thể vượt 30\,s. \\
 \hline
-Helm pre-upgrade hook timeout để lại tài nguyên apply một nửa & (3) \texttt{--cleanup-on-fail} dọn rác tự động. \\
+(3) \texttt{--cleanup-on-fail} & Mọi \texttt{helm upgrade} dùng cờ này để dọn tài nguyên apply một phần khi pre-upgrade hook timeout, tránh trạng thái ``deployed một nửa''. \\
 \hline
-Helm \texttt{deployed} nhưng workload runtime hỏng sau cascade & (4) Auto-recovery: detect không-Ready $\rightarrow$ uninstall, reinstall. \\
-\hline
-Auto-recovery có thể khuếch đại cascade trên cluster yếu & Phối hợp (1)$\rightarrow$(4): pre-flight giữ kích hoạt mặc định để (4) chỉ chạy khi tài nguyên đã đủ. \\
+(4) Auto-recovery & \texttt{zta-deploy-spire.sh}, \texttt{zta-deploy-policy-controller.sh} kiểm tra đồng thời \texttt{helm} status và workload runtime; nếu \texttt{deployed} nhưng \texttt{readyReplicas != replicas}, tự \texttt{helm uninstall} → dọn ConfigMap/PVC orphan → \texttt{helm install} lại. \\
 \hline
 \end{tabularx}
 \end{table}
 
-Tổng hợp lại, pipeline triển khai ZTA \textit{không chỉ} cài đặt các thành phần (Cilium, SPIRE, sigstore policy-controller, Tetragon, Vault, Gatekeeper) mà còn duy trì cam kết ``chuỗi enforcement luôn ở trạng thái xác định''. Khi điều kiện môi trường không đủ, pipeline từ chối tiến lên thay vì kích hoạt một chuỗi enforcement có lỗ hổng tạm thời -- tương đồng với nguyên tắc \textit{fail closed} của Zero Trust. Phép đo định lượng cho hiệu quả của các cơ chế này, dưới hai cấu hình tài nguyên khác nhau, được trình bày ở Chương 4 (mục~\ref{subsec:cpu_starvation_eval}).
+Bốn cơ chế phối hợp theo thứ tự (1)→(4): pre-flight giữ điều kiện tài nguyên đủ trước khi auto-recovery hoạt động, tránh chu trình uninstall--reinstall vô tận. Tổng quan, pipeline không chỉ cài đặt mà còn cam kết ``chuỗi enforcement luôn ở trạng thái xác định'' -- đồng nhất với nguyên tắc \emph{fail closed} của Zero Trust~\cite{nist800207,kubernetes_docs}. Phép đo định lượng dưới hai cấu hình tài nguyên được trình bày ở Chương~4 (Mục~\ref{subsec:cpu_starvation_eval}).

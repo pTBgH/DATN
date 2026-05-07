@@ -11,41 +11,41 @@ Mỗi kịch bản được thiết kế để xác thực một nhóm nguyên l
 
 \subsection{Kịch bản 1: Lateral Movement}
 
-\textbf{Mục tiêu:} Pod bị chiếm quyền cố gắng truy cập dịch vụ ngoài chính sách cho phép.
+\textbf{Mục tiêu:} Pod bị chiếm quyền cố gắng truy cập dịch vụ ngoài chính sách cho phép~\cite{mitre_containers,rice2019kubernetes}.
 
 \textbf{Ý nghĩa kiểm chứng:}
 \begin{itemize}
-    \item Least Privilege (đặc quyền tối thiểu).
-    \item Micro-segmentation với nguyên tắc Deny-All, Allow-Explicit.
+    \item Least Privilege (đặc quyền tối thiểu)~\cite{nist800207}.
+    \item Micro-segmentation với nguyên tắc Deny-All, Allow-Explicit~\cite{cilium_docs,nist800207}.
 \end{itemize}
 
 \subsection{Kịch bản 2: API Abuse}
 
-\textbf{Mục tiêu:} Gọi sai endpoint hoặc sai HTTP method và bị Cilium L7 policy chặn.
+\textbf{Mục tiêu:} Gọi sai endpoint hoặc sai HTTP method và bị Cilium L7 policy chặn~\cite{cilium_docs,owasp_api2023}.
 
 \textbf{Ý nghĩa kiểm chứng:}
 \begin{itemize}
-    \item Per-request Access Decision (quyết định truy cập theo từng yêu cầu).
+    \item Per-request Access Decision (quyết định truy cập theo từng yêu cầu)~\cite{nist800207}.
 \end{itemize}
 
 \subsection{Kịch bản 3: Runtime Anomaly}
 
-\textbf{Mục tiêu:} Phát sinh hành vi bất thường trong Pod (ví dụ thực thi lệnh hệ thống trái phép).
+\textbf{Mục tiêu:} Phát sinh hành vi bất thường trong Pod (ví dụ thực thi lệnh hệ thống trái phép)~\cite{tetragon_docs,crowdstrike_lotl}.
 
 \textbf{Ý nghĩa kiểm chứng:}
 \begin{itemize}
-    \item Continuous Monitoring (giám sát liên tục).
+    \item Continuous Monitoring (giám sát liên tục)~\cite{nist800207}.
 \end{itemize}
 
 \textit{Lưu ý:} Kịch bản này sẽ được hoàn thiện khi lớp Runtime Enforcement (Tetragon) được triển khai đầy đủ (bổ sung sau).
 
 \subsection{Kịch bản 4: Credential Reuse}
 
-\textbf{Mục tiêu:} Vault credential hết hạn TTL, bị thu hồi, và kiểm tra khả năng chống tái sử dụng thông tin xác thực cũ.
+\textbf{Mục tiêu:} Vault credential hết hạn TTL, bị thu hồi, và kiểm tra khả năng chống tái sử dụng thông tin xác thực cũ~\cite{vault_docs,machine_identity_report}.
 
 \textbf{Ý nghĩa kiểm chứng:}
 \begin{itemize}
-    \item Dynamic Trust Evaluation (đánh giá tin cậy động theo thời gian).
+    \item Dynamic Trust Evaluation (đánh giá tin cậy động theo thời gian)~\cite{nist800207,openid_caep}.
 \end{itemize}
 
 \section{Phân tích kết quả}
@@ -61,16 +61,16 @@ Khung phân tích kết quả dự kiến gồm ba lớp:
 
 Nội dung đánh giá hiệu năng tập trung vào các chỉ số trọng yếu:
 \begin{itemize}
-    \item \textbf{Latency P99:} so sánh trước/sau khi áp dụng Network Policy và mTLS.
-    \item \textbf{Resource overhead:} mức tiêu thụ tài nguyên của Cilium, Tetragon, Vault Agent.
-    \item \textbf{Trade-off bảo mật - hiệu năng:} phân tích mức tăng độ trễ và tài nguyên đổi lấy mức giảm rủi ro bảo mật.
+    \item \textbf{Latency P99:} so sánh trước/sau khi áp dụng Network Policy và mTLS~\cite{zhu2023meshinsight,istio_ambient}.
+    \item \textbf{Resource overhead:} mức tiêu thụ tài nguyên của Cilium, Tetragon, Vault Agent~\cite{cilium_docs,tetragon_docs,vault_docs}.
+    \item \textbf{Trade-off bảo mật - hiệu năng:} phân tích mức tăng độ trễ và tài nguyên đổi lấy mức giảm rủi ro bảo mật~\cite{zhu2023meshinsight}.
     \item \textbf{Ngưỡng CPU tối thiểu:} xác định số vCPU cần thiết để Phase 4 enforcement chạy ổn định, làm cơ sở khuyến nghị cấu hình triển khai.
 \end{itemize}
 
 \subsection{Môi trường thử nghiệm}
 \label{subsec:env_setup}
 
-Toàn bộ thực nghiệm trong đồ án được thực hiện trên một máy chủ vật lý chạy Windows làm host, với một máy ảo Ubuntu 22.04 LTS dựng trên VMware Workstation. Cấu hình máy ảo: 6 vCPU, 12\,GiB RAM, ổ đĩa SSD. Cụm Kubernetes là Kind 4 node (1 control-plane $+$ 3 worker) chạy bên trong máy ảo, với image \texttt{kindest/node} v1.35.x, Cilium 1.19. Đây là cấu hình cố định cho mọi kịch bản trừ phi nêu rõ.
+Toàn bộ thực nghiệm trong đồ án được thực hiện trên một máy chủ vật lý chạy Windows làm host, với một máy ảo Ubuntu 22.04 LTS dựng trên VMware Workstation. Cấu hình máy ảo: 6 vCPU, 12\,GiB RAM, ổ đĩa SSD. Cụm Kubernetes là Kind 4 node (1 control-plane $+$ 3 worker) chạy bên trong máy ảo, với image \texttt{kindest/node} v1.35.x, Cilium 1.19~\cite{kind_docs,cilium_docs}. Đây là cấu hình cố định cho mọi kịch bản trừ phi nêu rõ.
 
 \subsection{Đánh giá khả năng tự phục hồi của pipeline ZTA}
 \label{subsec:cpu_starvation_eval}

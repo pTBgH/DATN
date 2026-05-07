@@ -134,6 +134,20 @@ declare -A STEP_TIMEOUTS=(
   [26-gatekeeper]=3600
   # PDP: pip install inside python:3.11-slim init container can take 3-5 min.
   [27-pdp]=600
+  # 09-verify-zta.sh standalone runs in ~150s on a stable cluster, but inside
+  # a fresh-cluster rebuild we frequently hit transient hangs:
+  #   - hubble-l7-warmup pods stuck in image-pull / default-deny limbo
+  #     (PR-H bounds these to ~25s each via timeout(1) wrapper)
+  #   - cilium-agent flushing flow buffer while the orchestrator is still
+  #     applying CNPs from prior steps
+  #   - microservices restarting due to vault-agent template churn or
+  #     PDP-controller-manager annotation reconcile (we observed 7 svc
+  #     restarts at the start of 90-verify in rebuild_20260507_030609)
+  # We add a workload-settle wait before 90-verify (do_workload_settle) and
+  # bump the budget from 1800 → 2400s so the verify script gets ~38 min of
+  # headroom over the worst-case 25 min observed; if we hit this ceiling
+  # we have a real bug to investigate, not a budget problem.
+  [90-verify]=2400
 )
 
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
@@ -170,7 +184,7 @@ STEPS=(
   # + doc/31-falco-deprecated.md for full rationale.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
-  "90-verify|Run 09-verify-zta.sh (final assessment)|bash 09-verify-zta.sh"
+  "90-verify|Run 09-verify-zta.sh (final assessment)|do_workload_settle && bash 09-verify-zta.sh"
 )
 
 # ============================================================================
@@ -418,7 +432,78 @@ do_cosign_sign_workloads() {
   fi
 }
 
-export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_workloads
+# ============================================================================
+# do_workload_settle: wait for app-layer pods to stabilise before 90-verify
+# ============================================================================
+# After step 27-pdp deploys the PDP controller (which patches pod annotations)
+# we frequently saw a cascading restart of the 7 microservice deployments at
+# the very moment 90-verify started, e.g. in
+# evidence/rebuild_20260507_030609/90-verify.log:
+#   "Container env-loader definition changed, will be restarted"
+# repeated across candidate-/communication-/hiring-/identity-/job-/storage-/
+# workspace-service inside the first 30s of 90-verify. The verify script
+# then opens kubectl exec / port-forward / hubble observe streams against
+# pods that are mid-rollout, the apiserver SPDY tunnel hangs, and we burn
+# through the 1800s budget without producing a SUMMARY.md.
+#
+# This helper polls `kubectl get pods` for the namespaces 09-verify-zta.sh
+# inspects (job7189-apps, vault, security, monitoring, gateway), and only
+# returns once their RESTARTS counts haven't increased for ZTA_SETTLE_QUIET_S
+# consecutive seconds (default 30s) or the hard cap ZTA_SETTLE_MAX_S (default
+# 300s) is reached. We never FAIL — at worst we emit a yellow warning and
+# proceed; the verify script itself has timeouts on every kubectl exec now
+# (PR-H), so a still-churning cluster will produce WARNs rather than hangs.
+do_workload_settle() {
+  local quiet="${ZTA_SETTLE_QUIET_S:-30}"
+  local max="${ZTA_SETTLE_MAX_S:-300}"
+  # The eight namespaces 09-verify-zta.sh inspects directly. Trailing space
+  # in the regex below matters — we anchor on whole-namespace match.
+  local ns_pattern='^(job7189-apps|vault|security|monitoring|gateway|data|management)$'
+  echo "  workload-settle: poll restart counts every 5s, want ${quiet}s steady,"
+  echo "                   hard cap ${max}s"
+  echo "                   namespaces matching: ${ns_pattern}"
+
+  local prev_sig=""
+  local stable_for=0
+  local elapsed=0
+  while [ "$elapsed" -lt "$max" ]; do
+    # Compose a signature: one line per pod "<ns>/<pod>=<sum-of-container-restarts>".
+    # `containerStatuses[*].restartCount` prints space-separated counts for
+    # multi-container pods (env-loader, env-watcher, app, vault-agent for
+    # microservices) — sum them so a single container restart still flips the
+    # signature even if other containers' counts are stable.
+    local sig
+    sig=$(
+      kubectl get pods --all-namespaces \
+        -o custom-columns=NS:.metadata.namespace,N:.metadata.name,R:.status.containerStatuses[*].restartCount \
+        --no-headers 2>/dev/null \
+      | awk -v re="$ns_pattern" '$1 ~ re {
+          # Sum any whitespace-separated restart counts in $3..$NF.
+          s = 0; for (i = 3; i <= NF; i++) s += $i
+          print $1"/"$2"="s
+        }' \
+      | sort \
+      | sha256sum | awk '{print $1}'
+    )
+    if [ -n "$sig" ] && [ "$sig" = "$prev_sig" ]; then
+      stable_for=$((stable_for + 5))
+      if [ "$stable_for" -ge "$quiet" ]; then
+        green "  workload-settle: stable for ${stable_for}s (cap ${max}s) — proceeding."
+        return 0
+      fi
+    else
+      stable_for=0
+      prev_sig="$sig"
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  yellow "  workload-settle: cluster did not reach ${quiet}s of restart-count quiescence within ${max}s"
+  yellow "                   continuing anyway — 09-verify-zta.sh has its own timeouts (PR-H)."
+  return 0
+}
+
+export -f red green yellow blue bold do_preflight do_harden_full do_cosign_sign_workloads do_workload_settle
 
 # ============================================================================
 # Module-level rollback helpers for steps 25-27

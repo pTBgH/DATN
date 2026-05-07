@@ -40,6 +40,34 @@ result() {
   esac
 }
 
+# ============================================================
+# Hard wall-clock timeouts for hang-prone kubectl calls.
+# ============================================================
+# Prior to PR-H this script invoked `kubectl exec ... hubble observe` and
+# `kubectl run --rm ...` directly. Each of those can block effectively
+# forever when the cluster is under load (apiserver SPDY tunnel slow,
+# image pull stuck behind default-deny, hubble-relay pod still
+# initialising). When this script runs as orchestrator step `90-verify`
+# the parent's 1800s budget is hit while we're still inside the warm-up
+# loop, the script is SIGKILLed, evidence/SUMMARY.md is never written,
+# and the hubble-l7-warmup-* pod is orphaned in Error state.
+#
+# `timeout` (coreutils) wraps every potentially-blocking call with a
+# real wall-clock kill. Exit 124 = our timeout fired; the surrounding
+# `|| true` keeps the pipeline going so we still emit a useful WARN.
+#
+# Override per-call budgets via env if you need to:
+#   ZTA_VERIFY_KUBE_EXEC_TIMEOUT=20   (kubectl exec)
+#   ZTA_VERIFY_HUBBLE_OBSERVE_TIMEOUT=30  (hubble observe)
+#   ZTA_VERIFY_WARMUP_TIMEOUT=25      (per warm-up pod)
+ZTA_VERIFY_KUBE_EXEC_TIMEOUT="${ZTA_VERIFY_KUBE_EXEC_TIMEOUT:-15}"
+ZTA_VERIFY_HUBBLE_OBSERVE_TIMEOUT="${ZTA_VERIFY_HUBBLE_OBSERVE_TIMEOUT:-30}"
+ZTA_VERIFY_WARMUP_TIMEOUT="${ZTA_VERIFY_WARMUP_TIMEOUT:-25}"
+
+# kx_exec: bounded `kubectl exec`. SIGTERM at $1, SIGKILL 5s later.
+kx_exec()    { timeout --foreground --kill-after=5s "${ZTA_VERIFY_KUBE_EXEC_TIMEOUT}s" kubectl exec "$@"; }
+kx_observe() { timeout --foreground --kill-after=5s "${ZTA_VERIFY_HUBBLE_OBSERVE_TIMEOUT}s" kubectl exec "$@"; }
+
 # ========================
 # Test 1: Pod Health (all namespaces)
 # ========================
@@ -68,7 +96,7 @@ echo "🔐 Test 2: Vault Dynamic Credentials"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # 2a: Vault sealed status
-VAULT_SEALED=$(kubectl exec -n vault vault-0 -- vault status -format=json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('sealed', True))" 2>/dev/null || echo "true")
+VAULT_SEALED=$(kx_exec -n vault vault-0 -- vault status -format=json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('sealed', True))" 2>/dev/null || echo "true")
 if [ "$VAULT_SEALED" = "False" ] || [ "$VAULT_SEALED" = "false" ]; then
   result PASS "Vault is unsealed"
 else
@@ -78,7 +106,7 @@ fi
 # 2b: Active leases
 VAULT_ROOT=$(python3 -c "import json; print(json.load(open('infras/k8s-yaml/vault-scripts/vault-prod-init.json')).get('root_token',''))" 2>/dev/null || true)
 if [ -n "$VAULT_ROOT" ]; then
-  LEASE_OUTPUT=$(kubectl exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${VAULT_ROOT}' vault list -format=json sys/leases/lookup/database/creds/" 2>/dev/null || echo "[]")
+  LEASE_OUTPUT=$(kx_exec -n vault vault-0 -c vault -- sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='${VAULT_ROOT}' vault list -format=json sys/leases/lookup/database/creds/" 2>/dev/null || echo "[]")
   echo "$LEASE_OUTPUT" > "$EVIDENCE_DIR/vault-leases-${TIMESTAMP}.json"
   LEASE_COUNT=$(echo "$LEASE_OUTPUT" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
   if [ "$LEASE_COUNT" -gt 0 ]; then
@@ -92,7 +120,7 @@ fi
 
 # 2c: Secrets on tmpfs
 echo ""
-TMPFS_CHECK=$(kubectl exec -n job7189-apps deploy/identity-service -c app -- mount 2>/dev/null | grep tmpfs | grep -c "vault-secrets\|app-secrets" || echo "0")
+TMPFS_CHECK=$(kx_exec -n job7189-apps deploy/identity-service -c app -- mount 2>/dev/null | grep tmpfs | grep -c "vault-secrets\|app-secrets" || echo "0")
 if [ "$TMPFS_CHECK" -gt 0 ]; then
   result PASS "Secrets mounted on tmpfs (RAM-only, not on disk)"
 else
@@ -192,8 +220,8 @@ HUBBLE_POD=$(kubectl -n kube-system get pods -l k8s-app=hubble-relay -o name 2>/
 if [ -n "$HUBBLE_POD" ]; then
   echo ""
   echo "   Collecting Hubble flow samples..."
-  kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe -n job7189-apps --verdict DROPPED --last 10 -o compact > "$EVIDENCE_DIR/hubble-dropped-${TIMESTAMP}.txt" 2>&1 || true
-  kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe -n job7189-apps --verdict FORWARDED --last 10 -o compact > "$EVIDENCE_DIR/hubble-forwarded-${TIMESTAMP}.txt" 2>&1 || true
+  kx_observe -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe -n job7189-apps --verdict DROPPED --last 10 -o compact > "$EVIDENCE_DIR/hubble-dropped-${TIMESTAMP}.txt" 2>&1 || true
+  kx_observe -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe -n job7189-apps --verdict FORWARDED --last 10 -o compact > "$EVIDENCE_DIR/hubble-forwarded-${TIMESTAMP}.txt" 2>&1 || true
   DROPPED_COUNT=$(wc -l < "$EVIDENCE_DIR/hubble-dropped-${TIMESTAMP}.txt" 2>/dev/null || echo "0")
   FORWARDED_COUNT=$(wc -l < "$EVIDENCE_DIR/hubble-forwarded-${TIMESTAMP}.txt" 2>/dev/null || echo "0")
   result PASS "Hubble flows: $DROPPED_COUNT dropped, $FORWARDED_COUNT forwarded samples"
@@ -410,18 +438,70 @@ done
 
 # Hubble L7 flow check (warm-up: tickle Vault + Keycloak inside-cluster
 # to ensure L7 flows are present before we observe).
+#
+# Why this looks more elaborate than `kubectl run --rm`:
+#   `kubectl run --rm -i --restart=Never --timeout=10s` does NOT bound
+#   pod lifecycle. `--timeout=10s` is the API request timeout for the
+#   create/wait calls. If the kubelet is slow to pull curlimages/curl
+#   (we observed 12s on a contended lab box) or default-deny CNP
+#   blocks the pull, kubectl run blocks indefinitely streaming logs;
+#   when SIGKILLed by a parent timeout the pod is left orphaned in
+#   Error state. We saw this directly in evidence/rebuild_20260507_030609
+#   — `vault/hubble-l7-warmup-14754` 0/1 Error 28m.
+#
+# Instead: clean up any leftover orphans first, then for each warm-up
+# fire a bounded background pod and clean it up explicitly. The whole
+# warm-up loop has a hard wall-clock cap (ZTA_VERIFY_WARMUP_TIMEOUT per
+# pod) so even pathological clusters can't take >1 minute here.
 if [ -n "$HUBBLE_POD" ]; then
+  # Clean any orphaned warm-up pods from prior aborted runs.
+  for ns in vault security; do
+    kubectl -n "$ns" delete pod -l app=hubble-l7-warmup --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  done
+
   for svc_pair in "vault:vault:8200" "security:keycloak:8080"; do
     ns="${svc_pair%%:*}"; rest="${svc_pair#*:}"
     svc="${rest%:*}"; port="${rest##*:}"
-    kubectl run -n "$ns" "hubble-l7-warmup-$RANDOM" --rm -i --restart=Never \
-      --image=curlimages/curl:8.5.0 --image-pull-policy=IfNotPresent \
-      --timeout=10s --quiet 2>/dev/null -- \
-      curl -sk -o /dev/null -m 3 "http://${svc}.${ns}.svc.cluster.local:${port}/" \
+    pod_name="hubble-l7-warmup-$RANDOM"
+    # Apply a Pod manifest with activeDeadlineSeconds so kubelet kills
+    # the curl container even if the warm-up never completes; restartPolicy
+    # Never + label app=hubble-l7-warmup so the cleanup loop above
+    # catches anything we don't delete here.
+    cat <<EOF | timeout --foreground --kill-after=3s 8s kubectl apply -f - >/dev/null 2>&1 || true
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${pod_name}
+  namespace: ${ns}
+  labels:
+    app: hubble-l7-warmup
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 15
+  terminationGracePeriodSeconds: 1
+  containers:
+  - name: curl
+    image: curlimages/curl:8.5.0
+    imagePullPolicy: IfNotPresent
+    args: ["-sk", "-o", "/dev/null", "-m", "3", "http://${svc}.${ns}.svc.cluster.local:${port}/"]
+EOF
+    # Wait at most ZTA_VERIFY_WARMUP_TIMEOUT for the pod to terminate;
+    # we don't care about the exit code, only that the L7 flow was
+    # generated through Cilium's datapath.
+    timeout --foreground --kill-after=3s "${ZTA_VERIFY_WARMUP_TIMEOUT}s" \
+      kubectl -n "$ns" wait --for=jsonpath='{.status.phase}'=Succeeded \
+      "pod/${pod_name}" --timeout="${ZTA_VERIFY_WARMUP_TIMEOUT}s" \
       >/dev/null 2>&1 || true
+    kubectl -n "$ns" delete pod "$pod_name" --ignore-not-found --wait=false --grace-period=0 >/dev/null 2>&1 || true
   done
+
+  # Final sweep so we never leak warm-up pods even if a wait raced.
+  for ns in vault security; do
+    kubectl -n "$ns" delete pod -l app=hubble-l7-warmup --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  done
+
   sleep 3   # let cilium-agent flush flow buffer
-  L7_FLOWS=$( { kubectl exec -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe --type l7 --last 50 -o compact 2>/dev/null || true; } | wc -l | tr -d ' \n')
+  L7_FLOWS=$( { kx_observe -n kube-system "${HUBBLE_POD#pod/}" -- hubble observe --type l7 --last 50 -o compact 2>/dev/null || true; } | wc -l | tr -d ' \n')
   L7_FLOWS=${L7_FLOWS:-0}
   if [ "$L7_FLOWS" -gt 0 ] 2>/dev/null; then
     result PASS "Hubble L7 flows captured: $L7_FLOWS samples"
@@ -518,7 +598,7 @@ if kubectl get deployment zta-pdp -n security >/dev/null 2>&1; then
 
     # Prometheus metrics endpoint reachable.
     # python:3.11-slim has no wget/curl — use python urllib via kubectl exec.
-    METRICS_RAW=$(kubectl exec -n security deploy/zta-pdp -- python -c 'import urllib.request, sys
+    METRICS_RAW=$(kx_exec -n security deploy/zta-pdp -- python -c 'import urllib.request, sys
 try:
   data = urllib.request.urlopen("http://localhost:9100/metrics", timeout=3).read().decode()
   print(sum(1 for l in data.splitlines() if l.startswith("# HELP pdp_")))

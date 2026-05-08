@@ -50,6 +50,7 @@ echo "[$(date -u +%FT%TZ)] Log: $LOGFILE"
 # ---------------------------------------------------------------------------
 APPLIED_MANIFESTS=()
 ROLLBACK_TRIGGERED=0
+DEPLOY_SUCCESS=0
 
 rollback() {
   [ "$ROLLBACK_TRIGGERED" -eq 1 ] && return
@@ -59,6 +60,8 @@ rollback() {
   red " DEPLOY FAILED — rolling back threat-intel resources"
   red "════════════════════════════════════════════════════════"
   for ((i=${#APPLIED_MANIFESTS[@]}-1; i>=0; i--)); do
+    # Never delete the namespace — Trivy Operator shares security-cdm
+    case "${APPLIED_MANIFESTS[$i]}" in *00-namespace*) continue ;; esac
     yellow "  rollback: ${APPLIED_MANIFESTS[$i]}"
     kubectl delete -f "${APPLIED_MANIFESTS[$i]}" --ignore-not-found 2>/dev/null || true
   done
@@ -66,6 +69,14 @@ rollback() {
   red "Rollback complete. Log: $LOGFILE"
   red "Other modules are NOT affected."
 }
+
+trap_handler() {
+  if [ "$DEPLOY_SUCCESS" -eq 0 ]; then
+    red "Unexpected error — triggering rollback"
+    rollback
+  fi
+}
+trap trap_handler ERR EXIT
 
 apply_manifest() {
   local f="$1"
@@ -195,6 +206,8 @@ if kubectl -n security-cdm get cm threat-intel-blocklist >/dev/null 2>&1; then
 else
   yellow "  ⚠ ConfigMap threat-intel-blocklist not found — CronJob will create on next run"
 fi
+
+DEPLOY_SUCCESS=1
 
 echo
 green "================================================================"

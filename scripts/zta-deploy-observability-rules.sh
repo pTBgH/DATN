@@ -46,6 +46,7 @@ echo "[$(date -u +%FT%TZ)] Log: $LOGFILE"
 # Rollback state
 # ---------------------------------------------------------------------------
 ROLLBACK_TRIGGERED=0
+DEPLOY_SUCCESS=0
 GRAFANA_CM_APPLIED=0
 PROM_CM_APPLIED=0
 GRAFANA_SPEC_BACKUP=""
@@ -81,6 +82,14 @@ rollback() {
   red "Rollback complete. Log: $LOGFILE"
   red "Other modules are NOT affected."
 }
+
+trap_handler() {
+  if [ "$DEPLOY_SUCCESS" -eq 0 ]; then
+    red "Unexpected error — triggering rollback"
+    rollback
+  fi
+}
+trap trap_handler ERR EXIT
 
 # ---------------------------------------------------------------------------
 # Subcommands
@@ -274,6 +283,8 @@ fi
 
 # Cleanup backup files on success
 rm -f "$GRAFANA_SPEC_BACKUP" "$PROM_SPEC_BACKUP" 2>/dev/null || true
+
+DEPLOY_SUCCESS=1
 
 echo
 green "================================================================"

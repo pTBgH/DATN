@@ -282,7 +282,7 @@ kubectl get pod -A --no-headers | grep -vE 'Running|Completed' | head -30
 #    (nếu free -m available <1500Mi → 99% là RAM cascade)
 free -m | awk '/^Mem:/ {print "available:", $7, "Mi"}'
 
-# 3. Free RAM (giải phóng ~600Mi từ kafbat/phpmyadmin/grafana/kibana)
+# 3. Free RAM (giải phóng ~600Mi từ phpmyadmin/grafana/kibana; kafbat removed)
 bash scripts/free-ram-for-tetragon.sh
 
 # 4. (Optional) Revert cilium-config patch nếu là nguyên nhân

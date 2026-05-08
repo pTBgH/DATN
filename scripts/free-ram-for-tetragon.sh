@@ -4,7 +4,7 @@
 # Free cluster + host RAM before deploying Tetragon (script 10).
 #
 # Strategy (in order, most-to-least reversible):
-#   1) Toggle non-essential UIs off    (Kibana, Grafana, phpMyAdmin, Kafbat)
+#   1) Toggle non-essential UIs off    (Kibana, Grafana, phpMyAdmin)
 #   2) Scale vault-dev to 0 replicas   (only needed for vault-prod auto-unseal)
 #   3) Drop Filebeat per-pod limit     (in-place container resize, no restart)
 #   4) Trim node page cache            (drop_caches=1, host-level)
@@ -41,7 +41,7 @@ fi
 TOGGLE="${SCRIPT_DIR}/toggle-internal-ui.sh"
 if [ -x "$TOGGLE" ]; then
   echo ""
-  echo "[1/4] Toggling Kibana/Grafana/phpMyAdmin/Kafbat off..."
+  echo "[1/4] Toggling Kibana/Grafana/phpMyAdmin off..."
   "$TOGGLE" off >/dev/null 2>&1 || true
   sleep 5
   echo "      Available now: $(avail_mi)Mi"

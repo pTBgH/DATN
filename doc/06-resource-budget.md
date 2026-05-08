@@ -59,8 +59,8 @@
 | Component | Pods | Request | Limit | Toggle? |
 |-----------|------|---------|-------|---------|
 | phpMyAdmin | 1 | 64Mi | 128Mi | ✅ |
-| Kafbat | 1 | 64Mi | 128Mi | ✅ |
-| **Subtotal** | | **128Mi** | **256Mi** | |
+| ~~Kafbat~~ | ~~1~~ | ~~64Mi~~ | ~~128Mi~~ | (removed — see infras/k8s-yaml/03-kafka.yaml Phần 2) |
+| **Subtotal** | | **64Mi** | **128Mi** | |
 
 ### TONG
 
@@ -74,7 +74,7 @@
 | **TONG** | **~6.1Gi** | **~13.8Gi** |
 
 > Request fit trong 12GB. Limits vuot qua nhung K8s overcommit cho phep.
-> Neu tat Kibana + Grafana + phpMyAdmin + Kafbat: tiet kiem ~1.4Gi limit.
+> Neu tat Kibana + Grafana + phpMyAdmin: tiet kiem ~1.27Gi limit. (Kafbat removed.)
 
 ---
 
@@ -92,7 +92,7 @@
    ```
 2. **Kind failSwapOn**: Kind mac dinh da set `failSwapOn: false`
 3. **QoS Priority**: K8s tu dong swap BestEffort pods truoc Guaranteed
-   - phpMyAdmin/Kafbat nen de BestEffort (khong set resources) → uu tien swap
+   - phpMyAdmin nen de BestEffort (khong set resources) → uu tien swap
 
 ### QoS Classes
 
@@ -100,7 +100,7 @@
 |-----|-----------|--------------|-----------------|
 | Guaranteed | requests == limits | Cuoi cung | Vault, MySQL, Keycloak |
 | Burstable | requests < limits | Giua | Laravel services, EFK |
-| BestEffort | Khong set resources | Dau tien | phpMyAdmin, Kafbat |
+| BestEffort | Khong set resources | Dau tien | phpMyAdmin |
 
 ---
 
@@ -112,5 +112,5 @@ RAM tiet kiem khi tat:
 - Kibana: ~512Mi
 - Grafana: ~512Mi
 - phpMyAdmin: ~128Mi
-- Kafbat: ~128Mi
-- **Tong: ~1.28Gi**
+- ~~Kafbat: ~128Mi~~ (removed)
+- **Tong: ~1.15Gi**

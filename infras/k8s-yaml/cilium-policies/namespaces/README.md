@@ -11,7 +11,7 @@ Ref: `doc/18-daas-classification.md`.
 | `12-security.yaml` | `security` | T1 | keycloak, oauth2-proxy |
 | `13-monitoring.yaml` | `monitoring` | T2 | prometheus, grafana, elasticsearch, kibana, filebeat |
 | `14-gateway.yaml` | `gateway` | T2 | kong-gateway |
-| `15-management.yaml` | `management` | T3 | phpmyadmin, kafbat |
+| `15-management.yaml` | `management` | T3 | phpmyadmin (kafbat removed) |
 | `16-registry.yaml` | `registry` | T3 | docker-registry |
 
 Mỗi file gồm:

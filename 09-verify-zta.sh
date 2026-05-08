@@ -1032,6 +1032,68 @@ fi
 
 
 # ========================
+# Test 4m: CDM (PIP 4) — Trivy Operator vulnerability scanning
+# Decision: doc/zta-gap-decision.md, Quyết định 1.
+# What we check:
+#   - Trivy Operator pod Ready
+#   - VulnerabilityReport CRD is registered
+#   - At least 1 VulnerabilityReport CR exists
+#   - At least 1 ConfigAuditReport CR exists
+# This is "is CDM observable" — PDP consuming the data is verified in Test 4o
+# (PR-J). Operator may be still scanning when verify runs, so 0 reports is
+# WARN not FAIL.
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🦠 Test 4m: CDM — Trivy Operator (PIP 4)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if kubectl get ns security-cdm >/dev/null 2>&1; then
+  TRIVY_READY=$(kubectl -n security-cdm get pod -l app.kubernetes.io/name=trivy-operator \
+    -o jsonpath='{.items[*].status.containerStatuses[*].ready}' 2>/dev/null | tr ' ' '\n' \
+    | grep -c '^true$' || true)
+  if [ "${TRIVY_READY:-0}" -ge 1 ]; then
+    result PASS "Trivy Operator running ($TRIVY_READY container(s) Ready)"
+  else
+    result FAIL "Trivy Operator pod not Ready — bash scripts/zta-deploy-trivy.sh"
+  fi
+
+  if kubectl get crd vulnerabilityreports.aquasecurity.github.io >/dev/null 2>&1; then
+    result PASS "VulnerabilityReport CRD registered"
+  else
+    result FAIL "VulnerabilityReport CRD missing — Trivy Operator helm install incomplete"
+  fi
+
+  VR_COUNT=$(kubectl get vulnerabilityreports.aquasecurity.github.io --all-namespaces \
+    --no-headers 2>/dev/null | wc -l)
+  if [ "${VR_COUNT:-0}" -ge 1 ]; then
+    # Count critical CVEs across all reports — useful evidence for thesis Ch4.
+    CRIT_TOTAL=$(kubectl get vulnerabilityreports.aquasecurity.github.io \
+      --all-namespaces -o json 2>/dev/null \
+      | jq '[.items[].report.summary.criticalCount // 0] | add // 0')
+    HIGH_TOTAL=$(kubectl get vulnerabilityreports.aquasecurity.github.io \
+      --all-namespaces -o json 2>/dev/null \
+      | jq '[.items[].report.summary.highCount // 0] | add // 0')
+    result PASS "VulnerabilityReport CRs: ${VR_COUNT} (${CRIT_TOTAL} critical, ${HIGH_TOTAL} high — across all reports)"
+  else
+    result WARN "0 VulnerabilityReport CRs yet — Trivy still scanning" \
+      "Wait 5min then: kubectl get vulnerabilityreports -A"
+  fi
+
+  CA_COUNT=$(kubectl get configauditreports.aquasecurity.github.io --all-namespaces \
+    --no-headers 2>/dev/null | wc -l)
+  if [ "${CA_COUNT:-0}" -ge 1 ]; then
+    result PASS "ConfigAuditReport CRs: ${CA_COUNT}"
+  else
+    result WARN "0 ConfigAuditReport CRs yet — Trivy still scanning"
+  fi
+else
+  result WARN "Trivy Operator not deployed (CDM gap §2 in doc/33-zta-gap-analysis.md)" \
+    "Run scripts/zta-deploy-trivy.sh"
+fi
+
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

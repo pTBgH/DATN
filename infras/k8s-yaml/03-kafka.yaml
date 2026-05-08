@@ -91,71 +91,77 @@ spec:
         requests:
           storage: 5Gi
 
----
-# ==========================================
-# PHẦN 2: KAFBAT UI (Giao diện quản lý)
-# ==========================================
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: kafbat
-  namespace: management
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: kafbat
-  namespace: management
-  labels:
-    zta.job7189/role: ui
-    zta.job7189/tier: T3
-    zta.job7189/env: prod
-    zta.job7189/data-classification: none
-    zta.job7189/exposure: internal
-    zta.job7189/team: data
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: kafbat
-  template:
-    metadata:
-      labels:
-        app: kafbat
-        zta.job7189/role: ui
-        zta.job7189/tier: T3
-        zta.job7189/env: prod
-        zta.job7189/data-classification: none
-        zta.job7189/exposure: internal
-        zta.job7189/team: data
-    spec:
-      serviceAccountName: kafbat
-      containers:
-      - name: kafbat
-        image: kafbat/kafka-ui:main
-        ports:
-        - containerPort: 8080
-        env:
-        - name: KAFKA_CLUSTERS_0_NAME
-          value: "job7189-cluster"
-        # Sửa: namespace data
-        - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
-          value: "kafka-0.kafka-svc.data.svc.cluster.local:9092"
-        - name: DYNAMIC_CONFIG_ENABLED
-          value: "true"
-
----
-# Sửa: ClusterIP thay vì NodePort — Nginx Ingress lo việc expose
-apiVersion: v1
-kind: Service
-metadata:
-  name: kafbat
-  namespace: management
-spec:
-  type: ClusterIP
-  ports:
-  - port: 80
-    targetPort: 8080
-  selector:
-    app: kafbat
+# ---
+# # ==========================================
+# # PHẦN 2: KAFBAT UI (Giao diện quản lý) — DISABLED
+# # ==========================================
+# # NOTE: kafbat UI disabled per operator decision (never used in this lab).
+# #       Disabling frees ~128Mi RAM on the 12 GiB lab VM, which is
+# #       essential for hitting the MIN_FREE_MIB=1500 pre-flight in
+# #       scripts/zta-deploy-gatekeeper.sh.
+# #       Kafka core (PHẦN 1 above) stays — only the UI is removed.
+# #       To re-enable: uncomment this block and re-apply the file.
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: kafbat
+#   namespace: management
+# 
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: kafbat
+#   namespace: management
+#   labels:
+#     zta.job7189/role: ui
+#     zta.job7189/tier: T3
+#     zta.job7189/env: prod
+#     zta.job7189/data-classification: none
+#     zta.job7189/exposure: internal
+#     zta.job7189/team: data
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: kafbat
+#   template:
+#     metadata:
+#       labels:
+#         app: kafbat
+#         zta.job7189/role: ui
+#         zta.job7189/tier: T3
+#         zta.job7189/env: prod
+#         zta.job7189/data-classification: none
+#         zta.job7189/exposure: internal
+#         zta.job7189/team: data
+#     spec:
+#       serviceAccountName: kafbat
+#       containers:
+#       - name: kafbat
+#         image: kafbat/kafka-ui:main
+#         ports:
+#         - containerPort: 8080
+#         env:
+#         - name: KAFKA_CLUSTERS_0_NAME
+#           value: "job7189-cluster"
+#         # Sửa: namespace data
+#         - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+#           value: "kafka-0.kafka-svc.data.svc.cluster.local:9092"
+#         - name: DYNAMIC_CONFIG_ENABLED
+#           value: "true"
+# 
+# ---
+# # Sửa: ClusterIP thay vì NodePort — Nginx Ingress lo việc expose
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: kafbat
+#   namespace: management
+# spec:
+#   type: ClusterIP
+#   ports:
+#   - port: 80
+#     targetPort: 8080
+#   selector:
+#     app: kafbat

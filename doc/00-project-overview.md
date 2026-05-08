@@ -38,7 +38,7 @@ Moi service chay **4 containers** trong 1 Pod:
 | Security | `security`, `cert-manager` | Keycloak (OIDC/JWT), oauth2-proxy, cert-manager |
 | Application | `job7189-apps` | 7 Laravel services + Redis Cache |
 | Data | `data` | MySQL 8.0, Kafka |
-| Management | `management` | phpMyAdmin, Kafbat (Kafka UI) |
+| Management | `management` | phpMyAdmin (Kafbat removed — Kafka UI never used) |
 | Platform | `vault`, `monitoring` | Vault (Dual-Vault), EFK, Prometheus, Grafana |
 
 ## Luong giao dich chinh

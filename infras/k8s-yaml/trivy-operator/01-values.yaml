@@ -1,0 +1,80 @@
+# =============================================================================
+# Trivy Operator helm values — minimal CDM scanner for ZTA PoC.
+# Chart: aquasecurity/trivy-operator (helm repo: aquasecurity)
+# Decision: doc/zta-gap-decision.md, Quyết định 1.
+#
+# RAM budget (lab 12 GiB):
+#   - operator         ~120 MiB limit (deploy)
+#   - trivy-server     0 (we use embedded mode in scan jobs, no server)
+#   - per-scan job     ~80 MiB peak, runs ~30s, finishes
+#   Total steady       ~150 MiB
+#
+# What we enable:
+#   - vulnerabilityScanner (CRD: VulnerabilityReport)  ← PE input cho PDP
+#   - configAuditScanner   (CRD: ConfigAuditReport)    ← PSA-like checks
+# What we disable to stay under RAM budget:
+#   - sbomGeneration       (huge SBOM JSON in CR; not consumed by PDP yet)
+#   - rbacAssessmentScanner (tier-2 nice-to-have)
+#   - infraAssessmentScanner (kube-bench equivalent — sẽ làm riêng PR-M)
+#   - exposedSecretScanner  (chỉ dùng cho registry public; nội bộ image
+#                             đều có signed Cosign signature → trust chain)
+#   - clusterComplianceReport (overlap với kube-bench + Gatekeeper)
+# =============================================================================
+trivy:
+  ignoreUnfixed: true            # Reduce noise: chỉ alert CVE đã có patch
+  severity: CRITICAL,HIGH        # Match decision threshold (Q1 trust score)
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 500m
+      memory: 500Mi              # Trivy DB load spike
+
+operator:
+  vulnerabilityScannerEnabled: true
+  configAuditScannerEnabled: true
+  sbomGenerationEnabled: false
+  rbacAssessmentScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  exposedSecretScannerEnabled: false
+  clusterComplianceEnabled: false
+  metricsVulnIdEnabled: true     # Prometheus metric per CVE id
+
+  # Scan only ZTA-relevant namespaces. Skip kube-system + monitoring infra
+  # to reduce CR churn (Cilium agents, ES, Prometheus images don't change).
+  targetNamespaces: "job7189-apps,vault,security,gateway,data,management"
+
+  scanJobsConcurrentLimit: 3     # Avoid scheduler thrashing on 4-node Kind
+  scanJobTimeout: 5m
+  scanJobsRetryDelay: 30s
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 80Mi
+    limits:
+      cpu: 300m
+      memory: 200Mi
+
+# Service account labels — ZTA 6-label schema (cho PDP compliance check).
+serviceAccount:
+  annotations: {}
+
+podLabels:
+  cilium.zta/tier: T1
+  cilium.zta/source: trivy-operator
+  cilium.zta/destination: registry-and-apiserver
+  cilium.zta/role: cdm-scanner
+  cilium.zta/owner: security-team
+  cilium.zta/sensitivity: confidential
+
+# No service exposure — Prometheus scrapes via PodMonitor / annotations.
+service:
+  metricsPort: 8080
+
+# Don't install Trivy server (embedded mode); reduces RAM ~80 MiB.
+trivyOperator:
+  scanJobAffinity: {}
+  scanJobTolerations: []

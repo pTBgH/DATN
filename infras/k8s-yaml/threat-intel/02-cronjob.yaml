@@ -45,63 +45,80 @@ spec:
         spec:
           serviceAccountName: threat-intel-updater
           restartPolicy: OnFailure
+          volumes:
+          - name: feeds
+            emptyDir: {}
+          initContainers:
+          - name: fetch-feeds
+            image: curlimages/curl:8.5.0
+            command: ["/bin/sh", "-c"]
+            args:
+            - |
+              set -eu
+              echo "[threat-intel] Fetching FireHOL Level1..."
+              curl -sSL --max-time 60 \
+                "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" \
+                | grep -E '^[0-9]+\.' | sort -u | head -2000 > /feeds/firehol.txt
+              echo "[threat-intel] FireHOL: $(wc -l < /feeds/firehol.txt) CIDRs"
+
+              echo "[threat-intel] Fetching URLhaus blocklist..."
+              curl -sSL --max-time 60 \
+                "https://urlhaus.abuse.ch/downloads/hostfile/" \
+                | grep -E '^127\.0\.0\.1' | awk '{print $2}' \
+                | grep -v '^#' | sort -u | head -1000 > /feeds/urlhaus.txt
+              echo "[threat-intel] URLhaus: $(wc -l < /feeds/urlhaus.txt) FQDNs"
+            volumeMounts:
+            - name: feeds
+              mountPath: /feeds
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "64Mi"
+              limits:
+                cpu: "200m"
+                memory: "128Mi"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
           containers:
-          - name: fetcher
+          - name: apply-configmap
             image: bitnami/kubectl:1.29
             command: ["/bin/bash", "-c"]
             args:
             - |
               set -euo pipefail
-
-              echo "[threat-intel] Fetching FireHOL Level1..."
-              FIREHOL_URL="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
-              FIREHOL_CIDR=$(curl -sSL --max-time 60 "$FIREHOL_URL" \
-                | grep -E '^[0-9]+\.' \
-                | sort -u \
-                | head -2000)
-              FIREHOL_COUNT=$(echo "$FIREHOL_CIDR" | wc -l | tr -d ' ')
-              echo "[threat-intel] FireHOL: $FIREHOL_COUNT CIDRs"
-
-              echo "[threat-intel] Fetching URLhaus blocklist..."
-              URLHAUS_URL="https://urlhaus.abuse.ch/downloads/hostfile/"
-              URLHAUS_FQDN=$(curl -sSL --max-time 60 "$URLHAUS_URL" \
-                | grep -E '^127\.0\.0\.1' \
-                | awk '{print $2}' \
-                | grep -v '^#' \
-                | sort -u \
-                | head -1000)
-              URLHAUS_COUNT=$(echo "$URLHAUS_FQDN" | wc -l | tr -d ' ')
-              echo "[threat-intel] URLhaus: $URLHAUS_COUNT FQDNs"
-
+              FIREHOL_COUNT=$(wc -l < /feeds/firehol.txt | tr -d ' ')
+              URLHAUS_COUNT=$(wc -l < /feeds/urlhaus.txt | tr -d ' ')
               TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+              echo "[threat-intel] Building ConfigMap: CIDR=$FIREHOL_COUNT FQDN=$URLHAUS_COUNT"
 
-              # Build ConfigMap YAML
-              cat > /tmp/threat-intel-cm.yaml <<EOF
-              apiVersion: v1
-              kind: ConfigMap
-              metadata:
-                name: threat-intel-blocklist
-                namespace: security-cdm
-                labels:
-                  app: threat-intel
-                  cilium.zta/tier: T1
-                annotations:
-                  threat-intel/last-updated: "$TIMESTAMP"
-                  threat-intel/firehol-count: "$FIREHOL_COUNT"
-                  threat-intel/urlhaus-count: "$URLHAUS_COUNT"
-              data:
-                cidr-list: |
-              $(echo "$FIREHOL_CIDR" | sed 's/^/        /')
-                fqdn-list: |
-              $(echo "$URLHAUS_FQDN" | sed 's/^/        /')
-              EOF
+              {
+                echo "apiVersion: v1"
+                echo "kind: ConfigMap"
+                echo "metadata:"
+                echo "  name: threat-intel-blocklist"
+                echo "  namespace: security-cdm"
+                echo "  labels:"
+                echo "    app: threat-intel"
+                echo "    cilium.zta/tier: T1"
+                echo "  annotations:"
+                echo "    threat-intel/last-updated: \"$TIMESTAMP\""
+                echo "    threat-intel/firehol-count: \"$FIREHOL_COUNT\""
+                echo "    threat-intel/urlhaus-count: \"$URLHAUS_COUNT\""
+                echo "data:"
+                echo "  cidr-list: |"
+                sed 's/^/    /' /feeds/firehol.txt
+                echo "  fqdn-list: |"
+                sed 's/^/    /' /feeds/urlhaus.txt
+              } > /tmp/threat-intel-cm.yaml
 
-              # Remove leading spaces from heredoc
-              sed -i 's/^              //' /tmp/threat-intel-cm.yaml
-
-              echo "[threat-intel] Applying ConfigMap..."
               kubectl apply -f /tmp/threat-intel-cm.yaml
               echo "[threat-intel] Done. CIDR=$FIREHOL_COUNT FQDN=$URLHAUS_COUNT updated=$TIMESTAMP"
+            volumeMounts:
+            - name: feeds
+              mountPath: /feeds
             resources:
               requests:
                 cpu: "50m"

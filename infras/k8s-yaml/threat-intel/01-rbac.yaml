@@ -1,0 +1,39 @@
+# =============================================================================
+# RBAC for threat-intel CronJob — needs to update ConfigMap in security-cdm.
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: threat-intel-updater
+  namespace: security-cdm
+  labels:
+    cilium.zta/tier: T1
+    cilium.zta/source: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/role: security
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: threat-intel-cm-writer
+  namespace: security-cdm
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: threat-intel-cm-writer
+  namespace: security-cdm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: threat-intel-cm-writer
+subjects:
+- kind: ServiceAccount
+  name: threat-intel-updater
+  namespace: security-cdm

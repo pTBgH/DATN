@@ -1,0 +1,45 @@
+# =============================================================================
+# CNP: Allow threat-intel CronJob egress to fetch external feeds.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-threat-intel-egress
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app: threat-intel-refresh
+  egress:
+  # DNS
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - {port: "53", protocol: UDP}
+      - {port: "53", protocol: TCP}
+      rules:
+        dns:
+        - matchPattern: "*"
+  # GitHub (FireHOL blocklist) + abuse.ch (URLhaus)
+  - toFQDNs:
+    - matchPattern: "raw.githubusercontent.com"
+    - matchPattern: "urlhaus.abuse.ch"
+    - matchPattern: "*.github.com"
+    - matchPattern: "*.githubusercontent.com"
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+  # K8s API (kubectl apply ConfigMap)
+  - toEntities: [kube-apiserver, host, remote-node]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  - toCIDR: ["10.96.0.0/12", "172.18.0.0/16"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}

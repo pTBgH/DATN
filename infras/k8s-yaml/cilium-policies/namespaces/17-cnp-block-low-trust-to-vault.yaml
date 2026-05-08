@@ -1,0 +1,23 @@
+# =============================================================================
+# CNP: Block pods with score-bucket=low from accessing Vault namespace.
+#
+# This is the enforcement half of the PDP Trust Score loop (PR-J):
+#   PDP computes score → patches label cilium.zta/score-bucket → CNP enforces.
+#
+# Pods labelled score-bucket=low have either missing ZTA labels or
+# critical/high CVEs detected by Trivy Operator.
+#
+# Reference: doc/zta-gap-decision.md (Decision 1)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cnp-block-low-trust-to-vault
+  namespace: vault
+spec:
+  description: "Deny ingress from pods with score-bucket=low (PDP Trust Score)"
+  endpointSelector: {}
+  ingressDeny:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/score-bucket: low

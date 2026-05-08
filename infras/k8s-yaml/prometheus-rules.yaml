@@ -1,0 +1,73 @@
+# =============================================================================
+# PrometheusRule — ZTA alerting rules
+#
+# Since this lab uses vanilla Prometheus (not kube-prometheus-stack), these
+# rules are loaded via Prometheus recording/alerting rules ConfigMap. The
+# rules are formatted as standard Prometheus rule groups.
+#
+# Alerts:
+#   - ZTATrustScoreDropped: pod trust score < 60 for 2 minutes
+#   - ZTACVECriticalImage: namespace has critical CVEs detected by Trivy
+#   - ZTALabelDriftHigh: label drift rate > 5/min for 5 minutes
+#
+# Reference: doc/zta-gap-decision.md (Decision 2)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-zta-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+    cilium.zta/tier: T2
+data:
+  zta-rules.yml: |
+    groups:
+    - name: zta-trust-score
+      interval: 30s
+      rules:
+      - alert: ZTATrustScoreDropped
+        expr: pdp_trust_score < 60
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Pod {{ $labels.pod }} in {{ $labels.namespace }} has low trust score ({{ $value }})"
+          description: "Trust score dropped below 60 for 2+ minutes. Check label coverage and CVE posture."
+          runbook_url: "doc/25-pdp-controller.md"
+
+      - alert: ZTACVECriticalImage
+        expr: pdp_cve_critical_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Namespace {{ $labels.namespace }} has {{ $value }} critical CVE(s)"
+          description: "Trivy Operator detected critical CVEs. Investigate and patch affected images."
+          runbook_url: "doc/zta-gap-decision.md"
+
+      - alert: ZTALabelDriftHigh
+        expr: rate(pdp_label_drift_total[5m]) > 0.083
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High label drift rate in {{ $labels.namespace }} ({{ $value }}/s)"
+          description: "More than 5 label drift events per minute. Pods may be recreated without proper ZTA labels."
+          runbook_url: "doc/19-label-schema.md"
+
+    - name: zta-network
+      interval: 30s
+      rules:
+      - alert: ZTACiliumDropsHigh
+        expr: sum(rate(cilium_drop_count_total[5m])) by (reason) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: network
+        annotations:
+          summary: "Cilium drops elevated: {{ $labels.reason }} ({{ $value }}/s)"
+          description: "High rate of Cilium packet drops. Check CNP rules and pod connectivity."

@@ -139,7 +139,7 @@ A: Có. PEP đầu tiên là Cilium — CNP `cnp-block-low-trust-to-vault` dùng
 | PR | Branch | Trạng thái | Ghi chú |
 |----|--------|-----------|---------|
 | PR-I | `devin/1778171244-pr-i-trivy-cdm` | đang chờ test trên lab | Trivy Operator (chart `aquasecurity/trivy-operator` v0.22) + step `28-trivy` (timeout 1200s) + Test 4m. Chỉ bật `vulnerabilityScannerEnabled` + `configAuditScannerEnabled`; tắt sbom/rbac/infra/exposedSecret để giữ ~150 MiB RAM. Manifests: `infras/k8s-yaml/trivy-operator/{00-namespace,01-values,02-cnp}.yaml`. Namespace mới `security-cdm` có default-deny + dns + trivy-egress + monitoring-ingress CNP. |
-| PR-J | `devin/<ts>-pr-j-pdp-score-bucket` | chưa | |
-| PR-K | `devin/<ts>-pr-k-threat-intel` | chưa | |
-| PR-L | `devin/<ts>-pr-l-grafana-prom-rule` | chưa | |
+| PR-J | `devin/1778211548-pr-jkl-gap-resolution` | merged cùng PR-K/PR-L | PDP 2-input score (label + CVE from Trivy VR) + label `cilium.zta/score-bucket` (high/medium/low) + CNP `cnp-block-low-trust-to-vault` + RBAC VulnerabilityReport read + Test 4o. |
+| PR-K | `devin/1778211548-pr-jkl-gap-resolution` | merged cùng PR-J/PR-L | CronJob `threat-intel-refresh` (FireHOL Level1 + URLhaus) hourly → ConfigMap `threat-intel-blocklist` → CCNP `cnp-threat-intel-egress-deny`. Step `29-threat-intel` trong rebuild. Test 4n. |
+| PR-L | `devin/1778211548-pr-jkl-gap-resolution` | merged cùng PR-J/PR-K | Grafana dashboard `zta-overview.json` (8 panels: heatmap, pie, gauge, timeseries, bargauge, stat) + Prometheus alerting rules (4 alerts: TrustScoreDropped, CVECritical, LabelDriftHigh, CiliumDropsHigh). Step `30-observability` trong rebuild. Test 4p. |
 | PR-M | `devin/<ts>-pr-m-kube-bench` | chưa | optional |

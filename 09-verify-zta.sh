@@ -1094,6 +1094,143 @@ fi
 
 
 # ========================
+# Test 4n: Threat Intelligence feeds (PR-K — doc/zta-gap-decision.md, Decision 3)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🛡️  Test 4n: Threat Intelligence Feeds"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if kubectl -n security-cdm get cronjob threat-intel-refresh >/dev/null 2>&1; then
+  result PASS "CronJob threat-intel-refresh deployed"
+
+  # Check ConfigMap exists and has entries
+  if kubectl -n security-cdm get cm threat-intel-blocklist >/dev/null 2>&1; then
+    CIDR_COUNT=$(kubectl -n security-cdm get cm threat-intel-blocklist \
+      -o jsonpath='{.data.cidr-list}' 2>/dev/null | grep -cE '^[0-9]' || echo 0)
+    FQDN_COUNT=$(kubectl -n security-cdm get cm threat-intel-blocklist \
+      -o jsonpath='{.data.fqdn-list}' 2>/dev/null | grep -cE '^[a-z0-9]' || echo 0)
+    LAST_UPDATE=$(kubectl -n security-cdm get cm threat-intel-blocklist \
+      -o jsonpath='{.metadata.annotations.threat-intel/last-updated}' 2>/dev/null || echo "")
+    if [ "${CIDR_COUNT:-0}" -ge 100 ]; then
+      result PASS "Threat-intel blocklist: ${CIDR_COUNT} CIDRs, ${FQDN_COUNT} FQDNs (updated: ${LAST_UPDATE})"
+    elif [ "${CIDR_COUNT:-0}" -ge 1 ]; then
+      result WARN "Threat-intel blocklist sparse: only ${CIDR_COUNT} CIDRs (expected >=100)" \
+        "kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh threat-intel-manual-\$(date +%s)"
+    else
+      result WARN "Threat-intel blocklist empty — CronJob may not have run yet" \
+        "kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh threat-intel-manual-\$(date +%s)"
+    fi
+  else
+    result WARN "ConfigMap threat-intel-blocklist not found — CronJob has not run yet" \
+      "kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh threat-intel-manual-\$(date +%s)"
+  fi
+
+  # Check CCNP exists
+  if kubectl get ccnp cnp-threat-intel-egress-deny >/dev/null 2>&1; then
+    result PASS "CCNP cnp-threat-intel-egress-deny applied"
+  else
+    result WARN "CCNP cnp-threat-intel-egress-deny missing" \
+      "kubectl apply -f infras/k8s-yaml/threat-intel/03-ccnp.yaml"
+  fi
+else
+  result WARN "Threat Intelligence not deployed (gap §5 in doc/33-zta-gap-analysis.md)" \
+    "Run scripts/zta-deploy-threat-intel.sh"
+fi
+
+
+# ========================
+# Test 4o: PDP Trust Score with score-bucket (PR-J — doc/zta-gap-decision.md, Decision 1)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧮 Test 4o: PDP Trust Score — score-bucket enforcement"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+APP_NS="${APP_NS:-job7189-apps}"
+if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
+  # 1. Check at least one pod has score-bucket label
+  BUCKET_PODS=$(kubectl get pods -n "$APP_NS" \
+    -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
+    | grep -cE '^(high|medium|low)$' || echo 0)
+  TOTAL_PODS=$(kubectl get pods -n "$APP_NS" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${BUCKET_PODS:-0}" -ge 1 ]; then
+    HIGH_COUNT=$(kubectl get pods -n "$APP_NS" \
+      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^high$' || echo 0)
+    MED_COUNT=$(kubectl get pods -n "$APP_NS" \
+      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^medium$' || echo 0)
+    LOW_COUNT=$(kubectl get pods -n "$APP_NS" \
+      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^low$' || echo 0)
+    result PASS "score-bucket labels: ${BUCKET_PODS}/${TOTAL_PODS} pods labelled (high=${HIGH_COUNT} med=${MED_COUNT} low=${LOW_COUNT})"
+  else
+    result WARN "No pods have score-bucket label yet — PDP reconcile may need ~60s" \
+      "Wait 60s then: kubectl get pods -n $APP_NS -L cilium.zta/score-bucket"
+  fi
+
+  # 2. Check CNP cnp-block-low-trust-to-vault exists
+  if kubectl get cnp -n vault cnp-block-low-trust-to-vault >/dev/null 2>&1; then
+    result PASS "CNP cnp-block-low-trust-to-vault enforcing in vault namespace"
+  else
+    result WARN "CNP cnp-block-low-trust-to-vault missing" \
+      "kubectl apply -f infras/k8s-yaml/cilium-policies/namespaces/17-cnp-block-low-trust-to-vault.yaml"
+  fi
+
+  # 3. Check PDP metrics include score_bucket
+  PDP_POD=$(kubectl -n security get pod -l app=zta-pdp \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+  if [ -n "$PDP_POD" ]; then
+    METRICS=$(kubectl -n security exec "$PDP_POD" -- \
+      wget -qO- http://localhost:9100/metrics 2>/dev/null || true)
+    if echo "$METRICS" | grep -q "pdp_score_bucket"; then
+      result PASS "PDP metrics include pdp_score_bucket gauge"
+    elif echo "$METRICS" | grep -q "pdp_trust_score"; then
+      result WARN "PDP metrics have pdp_trust_score but not pdp_score_bucket — redeploy PDP" \
+        "bash scripts/zta-deploy-pdp.sh"
+    else
+      result WARN "PDP /metrics not ready yet — wait for startup" \
+        "kubectl -n security logs $PDP_POD --tail=10"
+    fi
+  fi
+else
+  result WARN "PDP Controller not deployed — score-bucket enforcement unavailable" \
+    "Run scripts/zta-deploy-pdp.sh"
+fi
+
+
+# ========================
+# Test 4p: ZTA Observability Rules (PR-L — doc/zta-gap-decision.md, Decision 2)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 Test 4p: ZTA Grafana Dashboard + Prometheus Rules"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if kubectl -n monitoring get cm grafana-zta-dashboard >/dev/null 2>&1; then
+  result PASS "Grafana ZTA dashboard ConfigMap deployed"
+else
+  result WARN "Grafana ZTA dashboard not deployed" \
+    "Run scripts/zta-deploy-observability-rules.sh"
+fi
+
+if kubectl -n monitoring get cm prometheus-zta-rules >/dev/null 2>&1; then
+  RULE_COUNT=$(kubectl -n monitoring get cm prometheus-zta-rules \
+    -o jsonpath='{.data.zta-rules\.yml}' 2>/dev/null \
+    | grep -c '^\s*- alert:' || echo 0)
+  if [ "${RULE_COUNT:-0}" -ge 1 ]; then
+    result PASS "Prometheus ZTA alerting rules: ${RULE_COUNT} alerts configured"
+  else
+    result WARN "Prometheus ZTA rules ConfigMap exists but has no alerts"
+  fi
+else
+  result WARN "Prometheus ZTA rules not deployed" \
+    "Run scripts/zta-deploy-observability-rules.sh"
+fi
+
+
+# ========================
 # Test 7: Namespace Isolation
 # ========================
 echo ""

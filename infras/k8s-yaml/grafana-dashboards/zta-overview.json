@@ -1,0 +1,261 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Trust Score Heatmap",
+      "description": "PDP trust score per pod (0-100). Color: green=high, yellow=medium, red=low.",
+      "type": "heatmap",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "pdp_trust_score",
+          "legendFormat": "{{ namespace }}/{{ pod }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-GrYlRd" },
+          "custom": {
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "calculate": true,
+        "calculation": { "xBuckets": { "mode": "size" }, "yBuckets": { "mode": "size", "value": "10" } },
+        "cellGap": 1,
+        "color": { "mode": "scheme", "scheme": "RdYlGn", "steps": 128, "reverse": true },
+        "yAxis": { "min": 0, "max": 100 }
+      }
+    },
+    {
+      "title": "Score Bucket Distribution",
+      "description": "Count of pods in each trust bucket (high/medium/low).",
+      "type": "piechart",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "count(pdp_score_bucket == 3)",
+          "legendFormat": "high (>=80)",
+          "refId": "A"
+        },
+        {
+          "expr": "count(pdp_score_bucket == 2)",
+          "legendFormat": "medium (50-79)",
+          "refId": "B"
+        },
+        {
+          "expr": "count(pdp_score_bucket == 1)",
+          "legendFormat": "low (<50)",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "high (>=80)" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "medium (50-79)" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "low (<50)" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "title": "Trust Score — Current",
+      "description": "Latest trust score per namespace (avg across pods).",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "avg(pdp_trust_score) by (namespace)",
+          "legendFormat": "{{ namespace }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Label Drift Rate",
+      "description": "Rate of label drift events per namespace (5m window).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(pdp_label_drift_total[5m])",
+          "legendFormat": "{{ namespace }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Cilium Drops by Reason",
+      "description": "Cilium packet drop rate grouped by reason.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(cilium_drop_count_total[5m])) by (reason)",
+          "legendFormat": "{{ reason }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Trivy CVE Counts (Critical + High)",
+      "description": "Critical and high CVE counts per namespace from Trivy Operator via PDP.",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "pdp_cve_critical_total",
+          "legendFormat": "{{ namespace }} critical",
+          "refId": "A"
+        },
+        {
+          "expr": "pdp_cve_high_total",
+          "legendFormat": "{{ namespace }} high",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "PDP Reconcile Rate",
+      "description": "PDP reconcile loop execution rate.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(pdp_reconcile_total[5m])",
+          "legendFormat": "reconciles/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Label Compliance",
+      "description": "Percentage of pods with all 6 ZTA labels.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "targets": [
+        {
+          "expr": "avg(pdp_label_compliance) * 100",
+          "legendFormat": "compliance %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["zta", "security", "pdp", "trust-score"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "ZTA Overview — Trust Score & Compliance",
+  "uid": "zta-overview-v1",
+  "version": 1
+}

@@ -124,7 +124,7 @@ echo
 blue "    Polling VulnerabilityReport CRs (up to 300s, non-blocking)..."
 for i in $(seq 1 30); do
   count=$(kubectl get vulnerabilityreports.aquasecurity.github.io --all-namespaces \
-    --no-headers 2>/dev/null | wc -l)
+    --no-headers 2>/dev/null | wc -l || echo 0)
   if [ "${count:-0}" -gt 0 ]; then
     green "    ✓ Found ${count} VulnerabilityReport CR(s) — Trivy is scanning"
     break

@@ -8,6 +8,11 @@
 #   3. CCNP cnp-threat-intel-egress-deny (block known-bad CIDRs)
 #   4. CNP egress for CronJob to reach external feeds + kube-apiserver
 #
+# Features:
+#   - Auto-rollback on failure (trap-based) — does NOT affect other modules
+#   - All output logged to evidence/deploy-threat-intel-<ts>.log
+#   - Health check with configurable timeout (default 120s)
+#
 # Pre-req: security-cdm namespace exists (created by zta-deploy-trivy.sh).
 #
 # Usage:
@@ -30,6 +35,54 @@ green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 blue()   { printf '\033[34m%s\033[0m\n' "$*"; }
 
+# ---------------------------------------------------------------------------
+# Logging — tee all output to evidence file
+# ---------------------------------------------------------------------------
+EVIDENCE_DIR="$SCRIPT_DIR/evidence"
+mkdir -p "$EVIDENCE_DIR"
+DEPLOY_TS=$(date -u +"%Y%m%d_%H%M%S")
+LOGFILE="$EVIDENCE_DIR/deploy-threat-intel-${DEPLOY_TS}.log"
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "[$(date -u +%FT%TZ)] Log: $LOGFILE"
+
+# ---------------------------------------------------------------------------
+# Rollback — remove only threat-intel resources, never touch other modules
+# ---------------------------------------------------------------------------
+APPLIED_MANIFESTS=()
+ROLLBACK_TRIGGERED=0
+
+rollback() {
+  [ "$ROLLBACK_TRIGGERED" -eq 1 ] && return
+  ROLLBACK_TRIGGERED=1
+  echo
+  red "════════════════════════════════════════════════════════"
+  red " DEPLOY FAILED — rolling back threat-intel resources"
+  red "════════════════════════════════════════════════════════"
+  for ((i=${#APPLIED_MANIFESTS[@]}-1; i>=0; i--)); do
+    yellow "  rollback: ${APPLIED_MANIFESTS[$i]}"
+    kubectl delete -f "${APPLIED_MANIFESTS[$i]}" --ignore-not-found 2>/dev/null || true
+  done
+  kubectl delete cm -n security-cdm threat-intel-blocklist --ignore-not-found 2>/dev/null || true
+  red "Rollback complete. Log: $LOGFILE"
+  red "Other modules are NOT affected."
+}
+
+apply_manifest() {
+  local f="$1"
+  local label="$2"
+  blue "$label"
+  if kubectl apply -f "$f"; then
+    APPLIED_MANIFESTS+=("$f")
+  else
+    red "  FAILED: kubectl apply -f $f"
+    rollback
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Subcommands
+# ---------------------------------------------------------------------------
 uninstall() {
   blue "Uninstalling Threat Intelligence..."
   kubectl delete -f "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" --ignore-not-found
@@ -55,9 +108,12 @@ trigger_now() {
 case "${1:-}" in
   --uninstall) uninstall ;;
   --trigger)   trigger_now ;;
-  -h|--help)   sed -n '2,18p' "$0"; exit 0 ;;
+  -h|--help)   sed -n '2,24p' "$0"; exit 0 ;;
 esac
 
+# ---------------------------------------------------------------------------
+# Pre-flight
+# ---------------------------------------------------------------------------
 if ! command -v kubectl >/dev/null 2>&1; then
   red "ERR: kubectl not in PATH"; exit 1
 fi
@@ -70,28 +126,82 @@ blue "================================================================"
 blue " Threat Intelligence Deploy (PR-K)"
 blue "================================================================"
 
-blue "[1/4] Namespace..."
-kubectl apply -f "$MANIFEST_DIR/00-namespace.yaml"
-
-blue "[2/4] RBAC..."
-kubectl apply -f "$MANIFEST_DIR/01-rbac.yaml"
-
-blue "[3/4] CronJob threat-intel-refresh..."
-kubectl apply -f "$MANIFEST_DIR/02-cronjob.yaml"
-
-blue "[4/4] CCNP + CronJob egress CNP..."
-kubectl apply -f "$MANIFEST_DIR/03-ccnp.yaml"
-kubectl apply -f "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml"
+# ---------------------------------------------------------------------------
+# Deploy with rollback on failure
+# ---------------------------------------------------------------------------
+apply_manifest "$MANIFEST_DIR/00-namespace.yaml"   "[1/4] Namespace..."
+apply_manifest "$MANIFEST_DIR/01-rbac.yaml"         "[2/4] RBAC..."
+apply_manifest "$MANIFEST_DIR/02-cronjob.yaml"      "[3/4] CronJob threat-intel-refresh..."
+apply_manifest "$MANIFEST_DIR/03-ccnp.yaml"         "[4/4] CCNP cnp-threat-intel-egress-deny..."
+apply_manifest "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" "      CNP allow-threat-intel-egress..."
 
 echo
 blue "Triggering initial feed fetch..."
+JOB_NAME="threat-intel-init-$(date +%s)"
 kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh \
-  "threat-intel-init-$(date +%s)" 2>/dev/null || true
+  "$JOB_NAME" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# Health check — wait for init job to complete (configurable timeout)
+# ---------------------------------------------------------------------------
+HEALTH_TIMEOUT="${THREAT_INTEL_HEALTH_TIMEOUT:-120}"
+blue "Waiting for initial fetch job to complete (timeout ${HEALTH_TIMEOUT}s)..."
+
+job_ok=0
+for ((t=0; t<HEALTH_TIMEOUT; t+=10)); do
+  status=$(kubectl -n security-cdm get job "$JOB_NAME" \
+    -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "")
+  failed=$(kubectl -n security-cdm get job "$JOB_NAME" \
+    -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
+
+  if [ "$status" = "True" ]; then
+    green "  ✓ Init job completed successfully"
+    job_ok=1
+    break
+  fi
+  if [ "$failed" = "True" ]; then
+    red "  ✗ Init job failed"
+    echo "  Logs (init container):"
+    kubectl -n security-cdm logs "job/$JOB_NAME" -c fetch-feeds --tail=30 2>/dev/null || true
+    echo "  Logs (apply container):"
+    kubectl -n security-cdm logs "job/$JOB_NAME" -c apply-configmap --tail=30 2>/dev/null || true
+    yellow "  Rolling back — CronJob will retry on next schedule (hourly)"
+    rollback
+    exit 1
+  fi
+  echo "  [${t}/${HEALTH_TIMEOUT}s] job still running..."
+  sleep 10
+done
+
+if [ "$job_ok" -eq 0 ]; then
+  yellow "  ⚠ Init job did not complete within ${HEALTH_TIMEOUT}s"
+  echo "  Logs (init container):"
+  kubectl -n security-cdm logs "job/$JOB_NAME" -c fetch-feeds --tail=30 2>/dev/null || true
+  echo "  Logs (apply container):"
+  kubectl -n security-cdm logs "job/$JOB_NAME" -c apply-configmap --tail=30 2>/dev/null || true
+  yellow "  Keeping resources deployed — CronJob will retry hourly."
+  yellow "  If issue persists, run: bash scripts/zta-deploy-threat-intel.sh --uninstall"
+fi
+
+# ---------------------------------------------------------------------------
+# Verify ConfigMap was created
+# ---------------------------------------------------------------------------
+if kubectl -n security-cdm get cm threat-intel-blocklist >/dev/null 2>&1; then
+  cidr_count=$(kubectl -n security-cdm get cm threat-intel-blocklist \
+    -o jsonpath='{.metadata.annotations.threat-intel/firehol-count}' 2>/dev/null || echo "?")
+  fqdn_count=$(kubectl -n security-cdm get cm threat-intel-blocklist \
+    -o jsonpath='{.metadata.annotations.threat-intel/urlhaus-count}' 2>/dev/null || echo "?")
+  green "  ✓ ConfigMap threat-intel-blocklist created (CIDRs=$cidr_count FQDNs=$fqdn_count)"
+else
+  yellow "  ⚠ ConfigMap threat-intel-blocklist not found — CronJob will create on next run"
+fi
 
 echo
 green "================================================================"
 green " Threat Intelligence deployed"
 green "================================================================"
+echo
+echo "Log: $LOGFILE"
 echo
 echo "Verify:"
 echo "  kubectl -n security-cdm get cronjob threat-intel-refresh"

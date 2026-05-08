@@ -61,21 +61,30 @@ fi
 # ---------------------------------------------------------------
 # INSTALL — pre-flight
 # ---------------------------------------------------------------
-MIN_FREE_MIB="${TRIVY_MIN_FREE_MIB:-400}"  # operator + DB blob spike
-
-blue "[0/4] Pre-flight: host RAM (need ≥ ${MIN_FREE_MIB} MiB)..."
-if [ -r /proc/meminfo ]; then
-  _avail=$(awk '/MemAvailable:/ {printf "%d\n", $2/1024}' /proc/meminfo)
-  echo "    host MemAvailable: ${_avail} MiB"
-  if [ "${_avail:-0}" -lt "$MIN_FREE_MIB" ]; then
-    red "    ✗ host has only ${_avail} MiB available (need ≥ ${MIN_FREE_MIB} MiB)."
-    red "      Trivy DB initial pull (~80 MiB) will OOM the operator pod."
-    red "      Skip via env: ZTA_REBUILD_SKIP=28-trivy"
-    exit 1
-  fi
-  green "    ✓ ${_avail} MiB available — proceeding"
-else
-  yellow "    /proc/meminfo not readable — skipping RAM gate"
+# Why 1500 MiB (not the previous 400 MiB)?
+#
+# 400 MiB only covered the operator + the initial Trivy DB pull (~80 MiB).
+# It did NOT account for the *concurrent scan jobs* the operator launches
+# right after install, each of which spikes ~500 MiB during DB load. With
+# scanJobsConcurrentLimit=3 (previous default) that's ~1.5 GiB of peak
+# usage on top of the operator. On the 12 GiB lab box this routinely
+# pushed host MemAvailable below 200 MiB, the kube-apiserver lease (5s)
+# missed, and the cluster cascaded into a leader-election storm:
+# cilium-operator / scheduler / controller-manager / spire-server-0 all
+# CrashLooped until the scan jobs finished and RAM was released. See
+# doc/32-deploy-script-troubleshooting.md §7-8.
+#
+# 1500 MiB matches the standard host RAM gate used by spire / tetragon /
+# gatekeeper deploy scripts and is safe even when scanJobsConcurrentLimit
+# is dropped to 1 (the new default in 01-values.yaml).
+#
+# Override with TRIVY_REQUIRED_HOST_MI when you know what you're doing
+# (e.g. dedicated 32 GiB box where 800 MiB is plenty).
+blue "[0/4] Pre-flight: host RAM gate (1500 MiB default, see doc/32 §7.4)..."
+if ! require_host_ram_mi "${TRIVY_REQUIRED_HOST_MI:-1500}" trivy; then
+  red "      Skip step entirely via: ZTA_REBUILD_SKIP=28-trivy"
+  red "      Or free RAM first via:    bash scripts/free-ram-for-tetragon.sh"
+  exit 1
 fi
 
 # ---------------------------------------------------------------

@@ -1,1 +1,0 @@
-error: Get "https://127.0.0.1:36401/api/v1/namespaces/kube-system/pods/hubble-relay-999c5cd6f-vtjzp": read tcp 127.0.0.1:37936->127.0.0.1:36401: read: connection reset by peer - error from a previous attempt: read tcp 127.0.0.1:37926->127.0.0.1:36401: read: connection reset by peer

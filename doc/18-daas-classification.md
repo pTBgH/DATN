@@ -116,10 +116,11 @@ service nó cần (xem ma trận 5W1H ở PR #10).
 | Loại | Workload | Mô tả | Port | Tier |
 |------|----------|-------|------|------|
 | S | `phpmyadmin` | DB UI (admin) | 8080 → 80 (svc) | T3 |
-| S | `kafbat` | Kafka UI (admin) | 8080 → 80 (svc) | T3 |
+| ~~S~~ | ~~`kafbat`~~ | ~~Kafka UI (admin)~~ | ~~8080 → 80 (svc)~~ | ~~T3~~ | (removed — never used)
 
 **Protection surface**: ingress chỉ từ oauth2-proxy. Egress:
-phpmyadmin → data/3306; kafbat → data/9092.
+phpmyadmin → data/3306. (Kafbat removed; see
+`infras/k8s-yaml/03-kafka.yaml` Phần 2.)
 
 ### Namespace `registry` (T3)
 
@@ -174,10 +175,10 @@ oauth2-proxy ──→ security/keycloak (8080)
 oauth2-proxy ──→ monitoring/kibana (5601)
 oauth2-proxy ──→ monitoring/grafana (3000)
 oauth2-proxy ──→ management/phpmyadmin (80)
-oauth2-proxy ──→ management/kafbat (80)
+# oauth2-proxy ──→ management/kafbat (80)   # removed
 
 management/phpmyadmin ──→ data/mysql (3306)
-management/kafbat ──→ data/kafka (9092)
+# management/kafbat ──→ data/kafka (9092)        # removed
 
 vault ──→ kube-system/kube-apiserver (6443)               [auth-delegator]
 security/keycloak ──→ data/mysql (3306)
@@ -223,7 +224,7 @@ DROPPED count:
 | NS đã apply | Expected DROPPED tăng |
 |-------------|------------------------|
 | `monitoring` | Ingress lạ vào prometheus / kibana không qua oauth2-proxy |
-| `management` | Truy cập phpmyadmin/kafbat ngoài oauth2-proxy |
+| `management` | Truy cập phpmyadmin ngoài oauth2-proxy (kafbat removed) |
 | `gateway` | Truy cập kong admin từ ngoài |
 | `vault` | Truy cập 8200/8201 sai serviceAccount |
 | `security` | Truy cập keycloak ngoài bridge cho phép |

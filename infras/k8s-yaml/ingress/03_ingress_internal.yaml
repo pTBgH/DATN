@@ -26,31 +26,31 @@ spec:
                 port:
                   number: 80
 
----
-# ── Kafbat ────────────────────────────────────────────────────────────────────
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ingress-kafbat
-  namespace: management
-  annotations:
-    nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.security.svc.cluster.local/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "http://$http_host/oauth2/start?rd=$escaped_request_uri"
-    nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: kafka.job7189.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: kafbat
-                port:
-                  number: 80
-
+# ── Kafbat (DISABLED: see infras/k8s-yaml/03-kafka.yaml Phần 2) ─────────────
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: ingress-kafbat
+#   namespace: management
+#   annotations:
+#     nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.security.svc.cluster.local/oauth2/auth"
+#     nginx.ingress.kubernetes.io/auth-signin: "http://$http_host/oauth2/start?rd=$escaped_request_uri"
+#     nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
+# spec:
+#   ingressClassName: nginx
+#   rules:
+#     - host: kafka.job7189.local
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: kafbat
+#                 port:
+#                   number: 80
+# 
 ---
 # ── Prometheus ────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1

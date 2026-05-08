@@ -64,7 +64,7 @@ schema (PR #9). Cột "Why" tóm tắt; chi tiết trong audit log Hubble + Falc
 | # | Who | Where → | What/How | Why | L7? | mTLS? | CNP file |
 |---|-----|---------|----------|-----|-----|-------|---------|
 | 16 | `entity=host` | `*/8001 (kong-admin)`, `vault/8200/sys/*` | Admin operations | Operator hands-on | **L7** | — | `30-l7-*.yaml` (PR #10) |
-| 17 | `role=ui,team=data` (kafbat) | `data/kafka:9093` TCP | Kafka admin UI | View topics/consumers | — (Kafka tự auth) | ✓ | `10-data.yaml::allow-kafka-from-kafbat` |
+| ~~17~~ | ~~`role=ui,team=data` (kafbat)~~ | ~~`data/kafka:9093` TCP~~ | ~~Kafka admin UI~~ | ~~View topics/consumers~~ | ~~— (Kafka tự auth)~~ | ~~✓~~ | ~~`10-data.yaml::allow-kafka-from-kafbat`~~ — row removed (Kafka UI never used) |
 
 ### 2.4 Egress ra Internet
 

@@ -13,9 +13,12 @@
 set -euo pipefail
 
 # Danh sach services co the toggle
+# kafbat removed — Kafka UI is no longer deployed in this lab; the manifest
+# in infras/k8s-yaml/03-kafka.yaml (Phần 2) is commented out. To re-enable,
+# uncomment that block AND restore the [kafbat]= line below.
 declare -A SERVICES=(
   [phpmyadmin]="management:deployment/phpmyadmin"
-  [kafbat]="management:deployment/kafbat"
+  # [kafbat]="management:deployment/kafbat"   # disabled (never used)
   [kibana]="monitoring:deployment/kibana"
   [grafana]="monitoring:deployment/grafana"
 )
@@ -75,7 +78,7 @@ show_status() {
   done
   
   echo ""
-  echo -e "${CYAN}Tip:${NC} Tat Kibana + Grafana + phpMyAdmin + Kafbat tiet kiem ~1.28Gi RAM"
+  echo -e "${CYAN}Tip:${NC} Tat Kibana + Grafana + phpMyAdmin tiet kiem ~1.15Gi RAM"
   echo ""
 }
 

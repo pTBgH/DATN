@@ -2,7 +2,7 @@
 # Nginx Ingress chỉ resolve service trong cùng namespace với Ingress resource.
 # Các Ingress ở namespace khác cần ExternalName Service làm alias.
 
-# ── management: phpMyAdmin, Kafbat ────────────────────────────────────────────
+# ── management: phpMyAdmin (Kafbat removed) ──────────────────────────────────
 apiVersion: v1
 kind: Service
 metadata:

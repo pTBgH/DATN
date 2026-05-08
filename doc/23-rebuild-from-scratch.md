@@ -209,7 +209,7 @@ namespaces (base):
   - vault               (vault-0, vault-dev, agent-injector)
   - security            (keycloak, oauth2-proxy, zta-pdp)
   - gateway             (kong-gateway)
-  - management          (phpmyadmin, kafbat)
+  - management          (phpmyadmin)   # kafbat removed
   - monitoring          (prometheus, grafana, kibana, elasticsearch=es-0, hubble-ui, exporters)
   - gatekeeper-system   (gatekeeper audit + controller-manager)
 

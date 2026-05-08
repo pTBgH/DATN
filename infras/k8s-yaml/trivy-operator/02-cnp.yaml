@@ -89,6 +89,46 @@ spec:
     - ports:
       - {port: "443", protocol: TCP}
 ---
+# Scan jobs created by trivy-operator need the same egress as the operator
+# itself: apiserver (write VulnerabilityReport CR) + ghcr.io (download DB).
+# Without this, default-deny blocks scan pods → Init:Error.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-scan-egress
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: trivy-operator
+  egress:
+  # K8s apiserver — write scan results back.
+  - toEntities: [kube-apiserver, host, remote-node]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  - toCIDR: ["10.96.0.0/12", "172.18.0.0/16"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  # Trivy DB download from ghcr.io.
+  - toFQDNs:
+    - matchPattern: "*.ghcr.io"
+    - matchPattern: "ghcr.io"
+    - matchPattern: "*.githubusercontent.com"
+    - matchPattern: "*.fastly.net"
+    - matchPattern: "*.fastlylb.net"
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+  # Fallback broad CIDR for first DB pull (CDN IPs rotate).
+  - toCIDR: ["0.0.0.0/0"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

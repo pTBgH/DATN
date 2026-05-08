@@ -46,7 +46,23 @@ operator:
   # to reduce CR churn (Cilium agents, ES, Prometheus images don't change).
   targetNamespaces: "job7189-apps,vault,security,gateway,data,management"
 
-  scanJobsConcurrentLimit: 3     # Avoid scheduler thrashing on 4-node Kind
+  # Why scanJobsConcurrentLimit=1 (was 3)?
+  #
+  # Each scan job spikes ~500 MiB during DB load. With limit=3 the operator
+  # launches 3 concurrent scans right after install → ~1.5 GiB peak burst
+  # on top of the operator's 200 MiB. On the 12 GiB lab the host RAM
+  # available dropped below 200 MiB, kube-apiserver lease timed out (5s),
+  # and cilium-operator / scheduler / controller-manager / spire-server-0
+  # cascaded into CrashLoopBackOff until the scans finished. See
+  # doc/32-deploy-script-troubleshooting.md §7-8 and the operator pre-flight
+  # check in scripts/zta-deploy-trivy.sh for the full RCA.
+  #
+  # With limit=1 the operator scans serially: ~30 images × ~60s ≈ 30 min
+  # to fully populate VulnerabilityReport CRs. That's acceptable for a
+  # PoC — verify polls non-blockingly and the PDP only needs *some* CRs
+  # to compute a score (not all of them simultaneously). Steady-state RAM
+  # is ~150 MiB (operator + at most 1 active scan job).
+  scanJobsConcurrentLimit: 1
   scanJobTimeout: 5m
   scanJobsRetryDelay: 30s
 

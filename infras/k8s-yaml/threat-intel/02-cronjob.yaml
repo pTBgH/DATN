@@ -52,21 +52,73 @@ spec:
           - name: fetch-feeds
             image: curlimages/curl:8.5.0
             command: ["/bin/sh", "-c"]
+            # Fetch external blocklists with explicit retry handling. Two
+            # important reliability concerns are addressed here:
+            #
+            # 1. Cilium L7 DNS proxy race: when the threat-intel CNP is freshly
+            #    applied, the Cilium agent may not yet have programmed the L7
+            #    DNS proxy for the pod's identity by the time curl runs. The
+            #    initial sleep + curl --retry-all-errors gives the agent time
+            #    to install the policy before we give up on resolution.
+            #
+            # 2. set -o pipefail: the previous version used `set -eu` without
+            #    pipefail, so `curl | grep | sort | head` succeeded with an
+            #    empty file even when curl exited 6 (DNS error). The init
+            #    container then "succeeded" with 0 CIDRs/FQDNs, leaving an
+            #    empty ConfigMap and a CronJob that looked healthy. We now
+            #    fail loudly so the parent CronJob retries on next schedule
+            #    and the operator gets a real diagnostic.
             args:
             - |
-              set -eu
+              set -euo pipefail
+              # Give Cilium agent time to program the freshly-applied CNP /
+              # CCNP before issuing DNS queries through the L7 proxy.
+              echo "[threat-intel] Waiting 15s for Cilium L7 DNS proxy to settle..."
+              sleep 15
+
               echo "[threat-intel] Fetching FireHOL Level1..."
-              curl -sSL --max-time 60 \
-                "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" \
-                | grep -E '^[0-9]+\.' | sort -u | head -2000 > /feeds/firehol.txt
-              echo "[threat-intel] FireHOL: $(wc -l < /feeds/firehol.txt) CIDRs"
+              firehol_ok=0
+              if curl -sSL --max-time 90 --retry 5 --retry-delay 10 \
+                   --retry-all-errors --connect-timeout 15 \
+                   -o /feeds/firehol.raw \
+                   "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"; then
+                firehol_ok=1
+              else
+                echo "[threat-intel] FireHOL fetch failed after retries (curl exit $?)"
+                : > /feeds/firehol.raw
+              fi
+              grep -E '^[0-9]+\.' /feeds/firehol.raw 2>/dev/null \
+                | sort -u | head -2000 > /feeds/firehol.txt || : > /feeds/firehol.txt
+              firehol_count=$(wc -l < /feeds/firehol.txt | tr -d ' ')
+              echo "[threat-intel] FireHOL: ${firehol_count} CIDRs (fetch_ok=${firehol_ok})"
 
               echo "[threat-intel] Fetching URLhaus blocklist..."
-              curl -sSL --max-time 60 \
-                "https://urlhaus.abuse.ch/downloads/hostfile/" \
-                | grep -E '^127\.0\.0\.1' | awk '{print $2}' \
-                | grep -v '^#' | sort -u | head -1000 > /feeds/urlhaus.txt
-              echo "[threat-intel] URLhaus: $(wc -l < /feeds/urlhaus.txt) FQDNs"
+              urlhaus_ok=0
+              if curl -sSL --max-time 90 --retry 5 --retry-delay 10 \
+                   --retry-all-errors --connect-timeout 15 \
+                   -o /feeds/urlhaus.raw \
+                   "https://urlhaus.abuse.ch/downloads/hostfile/"; then
+                urlhaus_ok=1
+              else
+                echo "[threat-intel] URLhaus fetch failed after retries (curl exit $?)"
+                : > /feeds/urlhaus.raw
+              fi
+              grep -E '^127\.0\.0\.1' /feeds/urlhaus.raw 2>/dev/null \
+                | awk '{print $2}' | grep -v '^#' | sort -u | head -1000 \
+                > /feeds/urlhaus.txt || : > /feeds/urlhaus.txt
+              urlhaus_count=$(wc -l < /feeds/urlhaus.txt | tr -d ' ')
+              echo "[threat-intel] URLhaus: ${urlhaus_count} FQDNs (fetch_ok=${urlhaus_ok})"
+
+              # Fail-loud: if BOTH feeds came up empty AND both fetches failed,
+              # surface that to the Job controller so backoffLimit kicks in and
+              # the operator sees Failed=True instead of a silent empty-CM run.
+              # If at least one feed has data, proceed — partial coverage is
+              # better than no coverage.
+              if [ "$firehol_ok" -eq 0 ] && [ "$urlhaus_ok" -eq 0 ]; then
+                echo "[threat-intel] FATAL: both feeds failed to fetch — exiting non-zero"
+                echo "[threat-intel] CronJob will retry on next schedule (hourly)"
+                exit 1
+              fi
             volumeMounts:
             - name: feeds
               mountPath: /feeds

@@ -146,6 +146,22 @@ apply_manifest "$MANIFEST_DIR/02-cronjob.yaml"      "[3/4] CronJob threat-intel-
 apply_manifest "$MANIFEST_DIR/03-ccnp.yaml"         "[4/4] CCNP cnp-threat-intel-egress-deny..."
 apply_manifest "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" "      CNP allow-threat-intel-egress..."
 
+# ---------------------------------------------------------------------------
+# Cilium L7 DNS proxy warm-up
+# ---------------------------------------------------------------------------
+# After applying allow-threat-intel-egress (which puts the threat-intel pod
+# into default-deny egress mode with an L7 DNS rule), the Cilium agent needs
+# a few seconds to install the policy + DNS proxy redirect for the pod's
+# identity. If we trigger the init Job immediately, curl runs before the
+# proxy is ready and DNS UDP packets get dropped at the eBPF datapath —
+# manifesting as `curl: (6) Could not resolve host`.
+#
+# 20s is empirically enough on a 4-node Kind cluster; override with
+# THREAT_INTEL_POLICY_SETTLE_S for slower hosts.
+POLICY_SETTLE="${THREAT_INTEL_POLICY_SETTLE_S:-20}"
+blue "Waiting ${POLICY_SETTLE}s for Cilium to program the new CNP/CCNP..."
+sleep "$POLICY_SETTLE"
+
 echo
 blue "Triggering initial feed fetch..."
 JOB_NAME="threat-intel-init-$(date +%s)"
@@ -155,7 +171,14 @@ kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh \
 # ---------------------------------------------------------------------------
 # Health check — wait for init job to complete (configurable timeout)
 # ---------------------------------------------------------------------------
-HEALTH_TIMEOUT="${THREAT_INTEL_HEALTH_TIMEOUT:-120}"
+# Default 300s budget breakdown (worst-case on a busy Kind lab):
+#   - init container sleep + retries on DNS race  : up to ~120s
+#   - bitnami/kubectl:1.29 image pull (first time) : up to ~60s
+#   - apply container kubectl apply round-trip     :     ~5s
+#   - safety margin                                 : ~115s
+# 120s (the previous default) was too tight: the polling timed out before
+# the apply container even got a chance to log "Building ConfigMap".
+HEALTH_TIMEOUT="${THREAT_INTEL_HEALTH_TIMEOUT:-300}"
 blue "Waiting for initial fetch job to complete (timeout ${HEALTH_TIMEOUT}s)..."
 
 job_ok=0

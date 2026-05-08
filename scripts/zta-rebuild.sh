@@ -190,6 +190,8 @@ STEPS=(
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
   "28-trivy|Deploy Trivy Operator (CDM / PIP 4)|bash scripts/zta-deploy-trivy.sh"
+  "29-threat-intel|Deploy Threat Intelligence feeds (FireHOL + URLhaus)|bash scripts/zta-deploy-threat-intel.sh"
+  "30-observability|Deploy ZTA Grafana dashboard + Prometheus alerting rules|bash scripts/zta-deploy-observability-rules.sh"
   "90-verify|Run 09-verify-zta.sh (final assessment)|do_workload_settle && bash 09-verify-zta.sh"
 )
 

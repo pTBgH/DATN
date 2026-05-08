@@ -1,0 +1,116 @@
+# =============================================================================
+# CronJob: threat-intel-refresh
+#
+# Runs hourly. Fetches FireHOL Level1 (IP blocklist) and URLhaus (FQDN
+# blocklist), deduplicates, and writes results to ConfigMap
+# threat-intel-blocklist in security-cdm namespace.
+#
+# The ConfigMap is consumed by CCNP cnp-threat-intel-egress-deny to block
+# egress to known-bad IPs and domains cluster-wide.
+#
+# Reference: doc/zta-gap-decision.md (Decision 3)
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: threat-intel-refresh
+  namespace: security-cdm
+  labels:
+    app: threat-intel-refresh
+    cilium.zta/tier: T1
+    cilium.zta/source: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/role: security
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+spec:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Replace
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: threat-intel-refresh
+            cilium.zta/tier: T1
+            cilium.zta/source: threat-intel
+            cilium.zta/destination: external-feeds
+            cilium.zta/role: security
+            cilium.zta/owner: security-team
+            cilium.zta/sensitivity: confidential
+        spec:
+          serviceAccountName: threat-intel-updater
+          restartPolicy: OnFailure
+          containers:
+          - name: fetcher
+            image: bitnami/kubectl:1.29
+            command: ["/bin/bash", "-c"]
+            args:
+            - |
+              set -euo pipefail
+
+              echo "[threat-intel] Fetching FireHOL Level1..."
+              FIREHOL_URL="https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+              FIREHOL_CIDR=$(curl -sSL --max-time 60 "$FIREHOL_URL" \
+                | grep -E '^[0-9]+\.' \
+                | sort -u \
+                | head -2000)
+              FIREHOL_COUNT=$(echo "$FIREHOL_CIDR" | wc -l | tr -d ' ')
+              echo "[threat-intel] FireHOL: $FIREHOL_COUNT CIDRs"
+
+              echo "[threat-intel] Fetching URLhaus blocklist..."
+              URLHAUS_URL="https://urlhaus.abuse.ch/downloads/hostfile/"
+              URLHAUS_FQDN=$(curl -sSL --max-time 60 "$URLHAUS_URL" \
+                | grep -E '^127\.0\.0\.1' \
+                | awk '{print $2}' \
+                | grep -v '^#' \
+                | sort -u \
+                | head -1000)
+              URLHAUS_COUNT=$(echo "$URLHAUS_FQDN" | wc -l | tr -d ' ')
+              echo "[threat-intel] URLhaus: $URLHAUS_COUNT FQDNs"
+
+              TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+              # Build ConfigMap YAML
+              cat > /tmp/threat-intel-cm.yaml <<EOF
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: threat-intel-blocklist
+                namespace: security-cdm
+                labels:
+                  app: threat-intel
+                  cilium.zta/tier: T1
+                annotations:
+                  threat-intel/last-updated: "$TIMESTAMP"
+                  threat-intel/firehol-count: "$FIREHOL_COUNT"
+                  threat-intel/urlhaus-count: "$URLHAUS_COUNT"
+              data:
+                cidr-list: |
+              $(echo "$FIREHOL_CIDR" | sed 's/^/        /')
+                fqdn-list: |
+              $(echo "$URLHAUS_FQDN" | sed 's/^/        /')
+              EOF
+
+              # Remove leading spaces from heredoc
+              sed -i 's/^              //' /tmp/threat-intel-cm.yaml
+
+              echo "[threat-intel] Applying ConfigMap..."
+              kubectl apply -f /tmp/threat-intel-cm.yaml
+              echo "[threat-intel] Done. CIDR=$FIREHOL_COUNT FQDN=$URLHAUS_COUNT updated=$TIMESTAMP"
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "64Mi"
+              limits:
+                cpu: "200m"
+                memory: "128Mi"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]

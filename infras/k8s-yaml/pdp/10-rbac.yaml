@@ -20,10 +20,14 @@ kind: ClusterRole
 metadata:
   name: zta-pdp
 rules:
-# Watch pods + patch annotations across all ZTA namespaces
+# Watch pods + patch annotations/labels across all ZTA namespaces
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list", "watch", "patch"]
+# Read VulnerabilityReport CRs from Trivy Operator (CDM / PIP 4)
+- apiGroups: ["aquasecurity.github.io"]
+  resources: ["vulnerabilityreports"]
+  verbs: ["get", "list", "watch"]
 # kopf framework needs events + leases
 - apiGroups: [""]
   resources: ["events"]

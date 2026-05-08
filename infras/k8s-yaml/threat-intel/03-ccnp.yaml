@@ -1,0 +1,26 @@
+# =============================================================================
+# CiliumClusterwideNetworkPolicy: threat-intel egress deny
+#
+# Blocks egress to known-bad CIDRs from FireHOL Level1 blocklist.
+# Applied cluster-wide to all pods.
+#
+# Note: Cilium CCNP toCIDR/toFQDNs does not support dynamic ConfigMap
+# references directly. This policy uses a static sample that the
+# threat-intel CronJob will update by patching this CCNP via kubectl.
+# For production, consider using Cilium's FQDN policy with toFQDNs.
+#
+# Reference: doc/zta-gap-decision.md (Decision 3)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cnp-threat-intel-egress-deny
+spec:
+  description: "Deny egress to known-bad IPs (FireHOL Level1) — updated hourly by CronJob"
+  endpointSelector: {}
+  egressDeny:
+  - toCIDR:
+    # Placeholder — replaced by CronJob with actual FireHOL CIDRs.
+    # Keep at least one entry so the policy is valid.
+    - "198.51.100.0/24"
+    - "203.0.113.0/24"

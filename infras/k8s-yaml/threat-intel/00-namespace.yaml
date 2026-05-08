@@ -1,0 +1,18 @@
+# =============================================================================
+# Threat Intelligence namespace — reuses security-cdm (same as Trivy Operator).
+# CronJob fetches external blocklists (FireHOL Level1 + URLhaus) hourly and
+# stores them in a ConfigMap consumed by CiliumClusterwideNetworkPolicy.
+#
+# Reference: doc/zta-gap-decision.md (Decision 3)
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security-cdm
+  labels:
+    cilium.zta/tier: T1
+    cilium.zta/source: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/role: security
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential

@@ -3,6 +3,9 @@ import type {
   BoardData,
   HiringPipelineResource,
   InterviewResource,
+  PipelineWorkflowResource,
+  ScorecardResource,
+  WorkflowDefinitionResource,
 } from "@/types/hiring";
 
 export const mockPipelines: HiringPipelineResource[] = [
@@ -167,3 +170,67 @@ export const mockInterviews: InterviewResource[] = [
     feedback: null,
   },
 ];
+
+export const mockScorecards: ScorecardResource[] = [
+  {
+    scorecard_id: "sc_01HZX01",
+    application_id: "app_01HZX01",
+    interviewer: { id: "rec_demo_01", name: "Hà Nguyễn" },
+    score_data: { technical: 4, communication: 5, culture_fit: 4 },
+    comment:
+      "Ứng viên trả lời tốt câu hỏi về system design, giao tiếp rõ ràng.",
+    created_at: "2025-09-25T05:00:00.000000Z",
+  },
+  {
+    scorecard_id: "sc_01HZX02",
+    application_id: "app_01HZX01",
+    interviewer: { id: "rec_demo_02", name: "Linh Trần" },
+    score_data: { technical: 3, communication: 4, culture_fit: 5 },
+    comment: "Cần follow-up về kinh nghiệm gRPC.",
+    created_at: "2025-09-25T05:30:00.000000Z",
+  },
+];
+
+export const mockWorkflowDefinitions: WorkflowDefinitionResource[] = [
+  {
+    definition_id: "wfd_send_rejection_email",
+    code: "send_rejection_email",
+    name: "Gửi email từ chối",
+    description: "Tự động gửi email mẫu khi ứng viên vào stage Rejected.",
+    trigger: "stage_enter",
+  },
+  {
+    definition_id: "wfd_notify_hm",
+    code: "notify_hiring_manager",
+    name: "Thông báo Hiring Manager",
+    description: "Slack/email notify HM khi ứng viên vào Offer.",
+    trigger: "stage_enter",
+  },
+  {
+    definition_id: "wfd_schedule_interview",
+    code: "schedule_interview",
+    name: "Tự động đặt lịch phỏng vấn",
+    description: "Khi vào stage Phone Screen, mở booking link cho ứng viên.",
+    trigger: "stage_enter",
+  },
+];
+
+export const mockPipelineWorkflow: PipelineWorkflowResource = {
+  pipeline_id: "pl_01HZX01",
+  rules: [
+    {
+      rule_id: "wfr_01",
+      definition_id: "wfd_send_rejection_email",
+      stage_id: "stg_901",
+      config: { template: "default-rejection-vi" },
+      enabled: true,
+    },
+    {
+      rule_id: "wfr_02",
+      definition_id: "wfd_notify_hm",
+      stage_id: "stg_004",
+      config: { channel: "#hiring-offers" },
+      enabled: true,
+    },
+  ],
+};

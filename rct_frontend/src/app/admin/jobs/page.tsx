@@ -8,8 +8,11 @@ export default async function AdminJobsPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Duyệt tin tuyển dụng</h1>
       <p className="text-sm text-slate-500">
-        {pending.length} tin đang chờ duyệt. Bấm “Duyệt” sẽ gọi
-        `PATCH /api/admin/jobs/{"{id}"}/approve` (mock-only ở skeleton).
+        {pending.length} tin đang chờ duyệt. Bấm “Duyệt” sẽ gọi{" "}
+        <code>PATCH /api/admin/jobs/&#123;id&#125;/approve</code>; “Từ chối” gọi{" "}
+        <code>PATCH /api/admin/jobs/&#123;id&#125;/reject</code> (mock-only ở
+        skeleton — xem <code>adminApi.approveJob</code> /{" "}
+        <code>adminApi.rejectJob</code>).
       </p>
 
       <ul className="space-y-3">

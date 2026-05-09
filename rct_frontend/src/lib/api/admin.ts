@@ -26,6 +26,17 @@ export async function approveJob(jobId: string): Promise<void> {
   });
 }
 
+export async function rejectJob(
+  jobId: string,
+  reason?: string,
+): Promise<void> {
+  if (config.useMock) return Promise.resolve();
+  await apiFetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/reject`, {
+    method: "PATCH",
+    body: reason ? { reason } : undefined,
+  });
+}
+
 export async function listSectors(): Promise<SectorCategory[]> {
   if (config.useMock) return Promise.resolve(mockSectors);
   const r = await apiFetch<{ data: SectorCategory[] }>(

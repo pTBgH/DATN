@@ -116,3 +116,49 @@ export interface CreateScorecardInput {
   score_data: Record<string, number>;
   comment?: string;
 }
+
+/** PUT /api/workspaces/{WID}/pipelines/{PID} */
+export interface UpdatePipelineInput {
+  name?: string;
+  is_default?: boolean;
+  stages?: Array<{
+    stage_id?: string;
+    name: string;
+    color?: string;
+    order?: number;
+  }>;
+}
+
+/**
+ * Workflow definitions are server-defined automation templates that can be
+ * attached to a pipeline (e.g. "Send rejection email", "Notify hiring manager").
+ * Returned by GET /api/workspaces/{WID}/pipelines/workflow-definitions.
+ */
+export interface WorkflowDefinitionResource {
+  definition_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  trigger: "stage_enter" | "stage_exit" | "application_created" | string;
+  config_schema?: Record<string, unknown>;
+}
+
+/** Returned by GET /api/workspaces/{WID}/pipelines/{PID}/workflow */
+export interface PipelineWorkflowResource {
+  pipeline_id: string;
+  rules: Array<{
+    rule_id: string;
+    definition_id: string;
+    stage_id: string;
+    config: Record<string, unknown>;
+    enabled: boolean;
+  }>;
+}
+
+/** POST /api/workspaces/{WID}/pipelines/{PID}/workflow */
+export interface CreateWorkflowRuleInput {
+  definition_id: string;
+  stage_id: string;
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+}

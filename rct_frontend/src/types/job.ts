@@ -106,6 +106,12 @@ export interface CommonMetadataResponse {
   cities: NamedOption[];
 }
 
+/** Returned by GET /api/public/metadata/districts/{cityId} */
+export interface DistrictsResponse {
+  city_id: number;
+  districts: NamedOption[];
+}
+
 /** Generic Laravel paginator */
 export interface Paginated<T> {
   data: T[];

@@ -64,6 +64,35 @@ export const mockMetadataCommon: CommonMetadataResponse = {
   ],
 };
 
+export const mockDistrictsByCity: Record<number, { city_id: number; districts: { id: number; name: string }[] }> = {
+  1: {
+    city_id: 1,
+    districts: [
+      { id: 11, name: "Quận Ba Đình" },
+      { id: 12, name: "Quận Hoàn Kiếm" },
+      { id: 13, name: "Quận Cầu Giấy" },
+      { id: 14, name: "Quận Hai Bà Trưng" },
+    ],
+  },
+  2: {
+    city_id: 2,
+    districts: [
+      { id: 21, name: "Quận 1" },
+      { id: 22, name: "Quận 3" },
+      { id: 23, name: "Quận Bình Thạnh" },
+      { id: 24, name: "Quận Phú Nhuận" },
+    ],
+  },
+  3: {
+    city_id: 3,
+    districts: [
+      { id: 31, name: "Quận Hải Châu" },
+      { id: 32, name: "Quận Thanh Khê" },
+      { id: 33, name: "Quận Sơn Trà" },
+    ],
+  },
+};
+
 export const mockPublicJobs: JobJdResource[] = [
   {
     job_id: "job_01HZX01",

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { hiringApi } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +28,12 @@ export default async function PipelinesPage({
                   {pl.is_default ? " · Default" : null}
                 </div>
               </div>
-              <button className="text-xs text-slate-500 hover:text-brand">
-                Sửa
-              </button>
+              <Link
+                href={`/recruiter/${params.wsId}/pipelines/${pl.pipeline_id}`}
+                className="text-xs text-slate-500 hover:text-brand"
+              >
+                Mở chi tiết →
+              </Link>
             </div>
             <ol className="mt-3 flex flex-wrap gap-2 text-xs">
               {pl.stages?.map((s) => (

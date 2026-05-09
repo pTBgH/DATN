@@ -8,9 +8,10 @@ export default async function ApplicationDetailPage({
 }: {
   params: { wsId: string; applicationId: string };
 }) {
-  const [app, interviews] = await Promise.all([
+  const [app, interviews, scorecards] = await Promise.all([
     hiringApi.getApplicationDetail(params.applicationId),
     hiringApi.listInterviews(params.applicationId),
+    hiringApi.listScorecards(params.applicationId),
   ]);
   return (
     <div className="space-y-6">
@@ -101,6 +102,58 @@ export default async function ApplicationDetailPage({
           {interviews.length === 0 ? (
             <li className="rounded border border-dashed bg-white p-4 text-center text-xs text-slate-400">
               Chưa có lịch phỏng vấn
+            </li>
+          ) : null}
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">
+          Scorecard ({scorecards.length})
+        </h2>
+        <ul className="space-y-2 text-sm">
+          {scorecards.map((sc) => {
+            const total = Object.values(sc.score_data).reduce(
+              (a, b) => a + b,
+              0,
+            );
+            const max = Object.keys(sc.score_data).length * 5;
+            return (
+              <li
+                key={sc.scorecard_id}
+                className="rounded-lg border bg-white p-4"
+              >
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <div className="font-medium">
+                      {sc.interviewer.name}{" "}
+                      <span className="text-xs text-slate-500">
+                        ({total}/{max})
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {new Date(sc.created_at).toLocaleString("vi-VN")}
+                    </div>
+                  </div>
+                </div>
+                <ul className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                  {Object.entries(sc.score_data).map(([k, v]) => (
+                    <li key={k} className="rounded bg-slate-100 px-2 py-1">
+                      {k}: <span className="font-semibold">{v}</span>
+                    </li>
+                  ))}
+                </ul>
+                {sc.comment ? (
+                  <div className="mt-2 text-xs italic text-slate-600">
+                    “{sc.comment}”
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+          {scorecards.length === 0 ? (
+            <li className="rounded border border-dashed bg-white p-4 text-center text-xs text-slate-400">
+              Chưa có scorecard
             </li>
           ) : null}
         </ul>

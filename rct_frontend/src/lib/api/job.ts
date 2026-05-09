@@ -1,5 +1,6 @@
 import { config } from "@/lib/config";
 import {
+  mockDistrictsByCity,
   mockGeneralOptions,
   mockMetadataCommon,
   mockPublicJobs,
@@ -9,6 +10,7 @@ import {
 } from "@/mocks/job";
 import type {
   CommonMetadataResponse,
+  DistrictsResponse,
   GeneralOptionsResponse,
   JobInput,
   JobJdResource,
@@ -62,6 +64,19 @@ export async function getGeneralOptions(): Promise<GeneralOptionsResponse> {
 export async function getMetadataCommon(): Promise<CommonMetadataResponse> {
   if (config.useMock) return Promise.resolve(mockMetadataCommon);
   return apiFetch<CommonMetadataResponse>("/api/public/metadata/common");
+}
+
+export async function getDistrictsByCity(
+  cityId: number,
+): Promise<DistrictsResponse> {
+  if (config.useMock) {
+    return Promise.resolve(
+      mockDistrictsByCity[cityId] ?? { city_id: cityId, districts: [] },
+    );
+  }
+  return apiFetch<DistrictsResponse>(
+    `/api/public/metadata/districts/${cityId}`,
+  );
 }
 
 export async function listWorkspaceJobs(
@@ -136,3 +151,28 @@ export async function updateJob(
     { method: "PUT", body: input },
   );
 }
+
+/**
+ * Status transitions on an existing job:
+ *   - submit  : Draft   -> Pending
+ *   - archive : Published/Closed -> Archived
+ *   - restore : Archived -> Closed
+ */
+async function patchJobStatus(
+  wsId: string,
+  jobId: string,
+  action: "submit" | "archive" | "restore",
+): Promise<JobSubJdResource> {
+  if (config.useMock) return Promise.resolve(mockRecruiterJobs[0]);
+  return apiFetch<JobSubJdResource>(
+    `/api/workspaces/${wsId}/jobs/${encodeURIComponent(jobId)}/${action}`,
+    { method: "PATCH" },
+  );
+}
+
+export const submitExistingJob = (wsId: string, jobId: string) =>
+  patchJobStatus(wsId, jobId, "submit");
+export const archiveJob = (wsId: string, jobId: string) =>
+  patchJobStatus(wsId, jobId, "archive");
+export const restoreJob = (wsId: string, jobId: string) =>
+  patchJobStatus(wsId, jobId, "restore");

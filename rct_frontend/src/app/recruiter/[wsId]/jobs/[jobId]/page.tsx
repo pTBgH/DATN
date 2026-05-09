@@ -34,6 +34,27 @@ export default async function RecruiterJobDetailPage({
         </div>
       </header>
 
+      <section className="rounded-lg border bg-amber-50 p-4 text-sm">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+          Hành động trạng thái
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
+            Submit (Draft → Pending)
+          </button>
+          <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
+            Archive
+          </button>
+          <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
+            Restore
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-amber-700">
+          Mock-only: button thật sẽ gọi <code>PATCH /api/workspaces/&#123;wsId&#125;/jobs/&#123;jobId&#125;/&#123;submit|archive|restore&#125;</code>{" "}
+          (xem <code>jobApi.submitExistingJob/archiveJob/restoreJob</code>).
+        </p>
+      </section>
+
       <section className="grid grid-cols-2 gap-3 rounded-lg border bg-white p-4 text-sm md:grid-cols-4">
         <KV label="Lương min">
           {job.salary_min ? job.salary_min.toLocaleString("vi-VN") : "—"}

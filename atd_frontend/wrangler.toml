@@ -1,0 +1,10 @@
+name = "job7189-atd"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# Build steps:
+#   1. npm run pages:build         # @cloudflare/next-on-pages produces .vercel/output/static
+#   2. npm run pages:deploy        # wrangler pages deploy --project-name=job7189-atd
+#
+# NEXT_PUBLIC_* are inlined at build time; set them in CI/Pages dashboard before pages:build.

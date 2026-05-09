@@ -1,204 +1,191 @@
 % !TEX encoding = UTF-8
-\chapter{Ứng dụng ZTA vào bảo mật hệ thống Microservices}
+\chapter{Ứng dụng Zero Trust vào bảo mật hệ thống Microservices}
 
 %==============================================================================
 % 2.1  ĐẶC ĐIỂM BẢO MẬT ĐẶC THÙ CỦA MICROSERVICES
 %==============================================================================
 \section{Đặc điểm bảo mật đặc thù của Microservices}
 
-Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công (Attack Surface) của hệ thống~\cite{nist800204_microservices,owasp_api2023}. Mục này phân tích năm đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức mà chúng tạo ra cho việc triển khai ZTA.
+Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công của hệ thống \parencite{nist800204_microservices,owasp_api2023}. Theo NIST SP 800-204, độ phức tạp bảo mật chuyển từ \textit{bên trong} ứng dụng nguyên khối ra \textit{mạng lưới giao tiếp} liên dịch vụ; bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \parencite{nist800204_microservices}. Mục này phân tích năm đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức chúng tạo ra cho việc triển khai ZTA.
 
-Theo NIST SP 800-204, kiến trúc Microservices dịch chuyển độ phức tạp bảo mật từ bên trong ứng dụng nguyên khối ra mạng lưới giao tiếp liên dịch vụ, làm bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \cite{nist800204_microservices}.
+\subsection{Sự bùng nổ lưu lượng nội bộ (East-West traffic)}
 
-\subsection{Sự bùng nổ lưu lượng nội bộ (East-West Traffic)}
+Trong kiến trúc đơn khối (monolith), hầu hết giao tiếp diễn ra bên trong bộ nhớ của một tiến trình duy nhất. Khi chuyển sang microservices, các chức năng nghiệp vụ được tách rời, dẫn đến sự bùng nổ của lưu lượng \textbf{East-West} (giao tiếp giữa các dịch vụ nội bộ) so với lưu lượng \textbf{North-South} (client gọi vào hệ thống) \parencite{nist800204_microservices}.
 
-Trong kiến trúc đơn khối (Monolith), hầu hết giao tiếp diễn ra bên trong bộ nhớ của một tiến trình duy nhất. Khi chuyển sang Microservices, các chức năng nghiệp vụ được tách rời, dẫn đến sự bùng nổ của lưu lượng \textbf{East-West} (giao tiếp giữa các dịch vụ nội bộ) so với lưu lượng \textbf{North-South} (client gọi vào hệ thống)~\cite{nist800204_microservices}.
-
-Các công cụ bảo mật truyền thống (tường lửa biên, IPS) chỉ giám sát lưu lượng North-South. Khi kẻ tấn công chiếm quyền một dịch vụ đơn lẻ, chúng có thể tự do di chuyển ngang trong mạng nội bộ bởi các dịch vụ bên trong thường ``mặc định tin tưởng'' nhau qua địa chỉ IP nội bộ \cite{rice2019kubernetes}. Một lỗ hổng tại một dịch vụ không trọng yếu có thể trở thành bàn đạp truy cập trái phép vào cơ sở dữ liệu nhạy cảm.
-
-\begin{leftbar}
-\textbf{Ví dụ trong job7189:} Khi người dùng xem danh sách công việc, request đi qua Kong Gateway → \texttt{job-service} phải gọi sang \texttt{identity-service} để xác thực quyền hạn và \texttt{workspace-service} để lấy thông tin doanh nghiệp. Tường lửa biên chỉ thấy request đầu tiên; toàn bộ trao đổi Token và dữ liệu bên trong nằm ngoài tầm kiểm soát của nó.
-\end{leftbar}
+Các công cụ bảo mật truyền thống (tường lửa biên, IPS) chỉ giám sát lưu lượng North-South. Khi kẻ tấn công chiếm quyền một dịch vụ nội bộ, chúng có thể tự do di chuyển ngang trong mạng vì các dịch vụ bên trong thường ``mặc định tin tưởng'' nhau qua địa chỉ IP nội bộ \parencite{rice2019kubernetes}. Một lỗ hổng tại một dịch vụ không trọng yếu có thể trở thành bàn đạp truy cập trái phép vào cơ sở dữ liệu nhạy cảm.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{images/nsew.png}
-    \caption{Lưu lượng \textit{North-South} (client $\rightarrow$ gateway) và \textit{East-West} (service $\rightarrow$ service) trong kiến trúc Microservices.}
+    \caption{Lưu lượng \textit{North-South} (client $\rightarrow$ gateway) và \textit{East-West} (service $\rightarrow$ service) trong kiến trúc microservices.}
     \label{fig:nsew}
 \end{figure}
 
 
-\subsection{Ephemeral Workloads: Sự lỗi thời của mô hình tin cậy dựa trên IP}
+\subsection{Workload tạm thời (ephemeral) và sự lỗi thời của định danh dựa trên IP}
 
-Trên Kubernetes, các Pod/Container có đặc tính \textbf{tạm thời (ephemeral)}: được khởi tạo, tiêu hủy và mở rộng (scaling) liên tục dựa trên tải~\cite{kubernetes_docs}. Địa chỉ IP của Pod không cố định — một Pod lỗi khi khởi động lại sẽ nhận IP mới. Điều này khiến việc cấu hình tường lửa hay danh sách trắng dựa trên IP trở nên bất khả thi~\cite{spiffe_spec,gilman2017zero}.
+Trên Kubernetes, các Pod/Container có đặc tính \textbf{tạm thời}: được khởi tạo, tiêu huỷ và mở rộng (scaling) liên tục dựa trên tải \parencite{kubernetes_docs}. Địa chỉ IP của Pod không cố định -- một Pod khởi động lại sẽ nhận IP mới. Điều này khiến việc cấu hình tường lửa hay danh sách trắng dựa trên IP trở nên bất khả thi \parencite{spiffe_spec,gilman2017zero}.
 
-Theo nguyên lý ZTA (Chương 1, Tenet 2), hệ thống không thể dựa vào ``vị trí mạng'' để xác lập lòng tin. Định danh phải được gắn chặt vào chính dịch vụ (\textit{Service Identity}) thông qua mTLS hoặc chứng chỉ SPIFFE thay vì các thuộc tính mạng biến đổi \cite{nist800207}.
-
-
-\subsection{Thách thức quản lý thông tin nhạy cảm (Secrets Management)}
-
-Môi trường Microservices yêu cầu một lượng lớn thông tin nhạy cảm (Secrets): mật khẩu database, API Keys bên thứ ba, khóa ký JWT. Nếu các bí mật này được cấu hình cứng (hardcode) trong file \texttt{.env} hoặc lưu trong Kubernetes ConfigMaps, nguy cơ rò rỉ rất cao khi mã nguồn bị lộ hoặc hệ thống quản lý cấu hình bị xâm nhập~\cite{nist800204_microservices,vault_docs}.
-
-Theo nguyên lý ZTA (Chương 1, Tenet 3 — per-session), bí mật phải được quản lý tập trung, cấp phát động với thời gian sống (TTL) ngắn, sinh ra cho từng phiên làm việc cụ thể, và tự động xoay vòng (rotation) để giảm thiểu Blast Radius nếu một dịch vụ bị chiếm quyền \cite{vault_docs}.
+Theo nguyên lý ZTA (Chương~1, Tenet 2), hệ thống không thể dựa vào ``vị trí mạng'' để xác lập lòng tin. Định danh phải được gắn chặt vào chính dịch vụ (\textit{service identity}) thông qua mTLS hoặc chứng chỉ định danh workload thay vì các thuộc tính mạng biến đổi \parencite{nist800207}.
 
 
-\subsection{Rủi ro từ hạ tầng dùng chung (Shared Infrastructure Risk)}
+\subsection{Thách thức quản lý thông tin nhạy cảm (secrets management)}
 
-Microservices thường vận hành trên cụm máy chủ dùng chung (Shared Cluster), tạo ra rủi ro ``thoát khỏi vùng cách ly'' (Isolation Breach)~\cite{rice2019kubernetes,mitre_containers}:
+Môi trường microservices yêu cầu một lượng lớn thông tin nhạy cảm: mật khẩu database, API key bên thứ ba, khoá ký JWT. Nếu các bí mật này được cấu hình cứng trong file \texttt{.env} hoặc lưu trong Kubernetes ConfigMap, nguy cơ rò rỉ rất cao khi mã nguồn bị lộ hoặc hệ thống cấu hình bị xâm nhập \parencite{nist800204_microservices,vault_docs}.
+
+Theo nguyên lý ZTA (Chương~1, Tenet 3 -- per-session), bí mật phải được quản lý tập trung, cấp phát động với thời gian sống ngắn, sinh ra cho \textit{từng phiên kết nối cụ thể}. ``Phiên cụ thể'' được hiểu là: mỗi lần một Pod \texttt{job-service} cần nói chuyện với database, nó nhận một cặp username/password \textit{mới} (có TTL ví dụ 1 giờ); khi Pod bị xoá hoặc lease hết hạn, credential đó tự động bị thu hồi (lệnh \texttt{DROP USER} ở phía database). Hệ thống ZTA hiện tại của đồ án đã đáp ứng yêu cầu này thông qua Vault Database Engine \parencite{vault_docs}: Pod xác thực bằng ServiceAccount JWT, Vault sinh credential MySQL/Postgres, ghi vào \texttt{tmpfs} (\texttt{emptyDir} với \texttt{medium: Memory}) thay vì K8s Secret tĩnh.
+
+
+\subsection{Rủi ro từ hạ tầng dùng chung (shared infrastructure)}
+
+Microservices thường vận hành trên cụm máy chủ dùng chung, tạo ra rủi ro ``thoát khỏi vùng cách ly'' (isolation breach) \parencite{rice2019kubernetes,mitre_containers,nist800190}:
 
 \begin{itemize}
-    \item \textbf{Namespace chỉ là phân chia logic:} Trong Kubernetes, Namespace không phải ranh giới vật lý. Nếu không cấu hình Network Policies chặt chẽ, dịch vụ ở namespace này vẫn có thể quét port và tấn công dịch vụ ở namespace khác.
-    \item \textbf{Node sharing:} Các dịch vụ chia sẻ chung CPU, RAM và kernel trên cùng một Node vật lý. Nếu một container bị chiếm quyền và leo thang đặc quyền (Privilege Escalation) lên kernel, nó có thể kiểm soát mọi container khác trên Node đó.
+    \item \textbf{Namespace chỉ là phân chia logic:} trong Kubernetes, namespace không phải ranh giới mạng vật lý. Nếu không cấu hình \texttt{NetworkPolicy} chặt chẽ, dịch vụ ở namespace này vẫn có thể quét port và tấn công dịch vụ ở namespace khác.
+    \item \textbf{Node sharing:} các container chia sẻ chung CPU, RAM và kernel trên cùng một node. Nếu một container bị chiếm quyền và leo thang đặc quyền lên kernel, nó có thể kiểm soát mọi container khác trên node đó.
 \end{itemize}
 
-Nguyên lý ``Mạng luôn bị coi là đã bị xâm nhập'' (Tenet 1) buộc ta phải bảo vệ từng tài nguyên độc lập với mức độ an toàn của hạ tầng nền bên dưới \cite{nist800207}.
+Nguyên lý ``mạng luôn bị coi là đã bị xâm nhập'' (Tenet 1) buộc phải bảo vệ từng tài nguyên \textit{độc lập} với mức độ an toàn của hạ tầng nền \parencite{nist800207}.
 
 
-\subsection{Danh tính phi con người (Machine Identity) và sự dịch chuyển sang định danh mật mã học}
+\subsection{SPIFFE và SPIRE: định danh mật mã học cho workload}
 
-Trong kỷ nguyên Cloud-native, sự giao tiếp giữa các định danh phi con người (Machine Identities / Workloads) áp đảo hoàn toàn danh tính con người \cite{machine_identity_report}. Việc dựa vào địa chỉ IP làm định danh truyền thống đã hoàn toàn sụp đổ do tính tạm thời của Pod/Container. Nếu không có cơ chế định danh độc lập, hệ thống sẽ rơi vào cạm bẫy ``Bí mật số không'' (Secret Zero problem): Làm sao một dịch vụ chứng minh được nó là ai để xin cấp phát mật khẩu một cách an toàn mà không cần nhúng sẵn một khóa tĩnh vào mã nguồn? \cite{vault_docs}.
+Trong kỷ nguyên cloud-native, lưu lượng giữa các định danh phi con người (machine identity / workload) áp đảo định danh con người \parencite{machine_identity_report}. Việc định danh workload bằng địa chỉ IP đã hết tác dụng, kéo theo bài toán ``Bí mật số không'' (\textit{secret zero problem}): làm sao một dịch vụ chứng minh được nó là ai để xin cấp credential, mà không cần nhúng sẵn một khoá tĩnh vào mã nguồn? \parencite{vault_docs}.
 
-Kiến trúc ZTA giải quyết triệt để thách thức này bằng cách dịch chuyển sang định danh mật mã học. Các giao thức như \textbf{SPIFFE (Secure Production Identity Framework for Everyone)} và máy chủ \textbf{SPIRE} cung cấp cơ chế chứng thực khối lượng công việc (workload attestation) dựa trên đặc tính vật lý (đặc điểm hệ điều hành, namespace) để tự động sinh ra các chứng chỉ X.509 vòng đời ngắn (SVID) \cite{spiffe_spec, spire_docs}. Định danh mật mã học này cho phép các vi dịch vụ thực hiện xác thực chéo (mTLS peer-to-peer) hoàn toàn độc lập với thiết kế mạng lưới \cite{gilman2017zero}.
+Hai khái niệm dưới đây giải bài toán đó:
+
+\begin{itemize}
+    \item \textbf{SPIFFE} (\textit{Secure Production Identity Framework for Everyone}) \parencite{spiffe_spec} là một \textit{tiêu chuẩn} -- không phải phần mềm -- quy định cách viết một định danh workload theo chuẩn URI: \texttt{spiffe://<trust-domain>/<workload-path>}. Mỗi workload có một URI duy nhất trong domain tin cậy của tổ chức, độc lập với địa chỉ IP, hostname hay namespace.
+    \item \textbf{SPIRE} (\textit{SPIFFE Runtime Environment}) \parencite{spire_docs} là một hiện thực mã nguồn mở của tiêu chuẩn SPIFFE. SPIRE gồm hai thành phần: \texttt{spire-server} (CA cấp chứng chỉ) và \texttt{spire-agent} (chạy trên mỗi node, gắn workload với một định danh sau khi xác minh các đặc tính vật lý của nó: namespace Kubernetes, ServiceAccount, image hash\dots). Sau khi xác minh, SPIRE phát hành một \textbf{X.509 SVID} (chứng chỉ X.509 mang URI SPIFFE trong trường \texttt{Subject Alternative Name}) có TTL ngắn (vài giờ).
+\end{itemize}
+
+Nói cách khác, SPIFFE giải bài toán \textit{định danh workload là gì}, còn SPIRE giải bài toán \textit{làm sao cấp định danh đó cho từng Pod một cách tự động}. Với cặp (SPIFFE, SPIRE), workload có thể xác thực lẫn nhau qua mTLS dựa trên định danh mật mã học \textit{độc lập với thiết kế mạng} \parencite{gilman2017zero}.
 
 
 %==============================================================================
-% 2.2  THÁCH THỨC TRIỂN KHAI ZTA TRÊN KUBERNETES
+% 2.2  THÁCH THỨC TRIỂN KHAI ZERO TRUST TRÊN KUBERNETES
 %==============================================================================
-\section{Thách thức triển khai ZTA trên Kubernetes}
+\section{Thách thức triển khai Zero Trust trên Kubernetes}
 
-Sau khi nắm rõ các đặc điểm bảo mật đặc thù của Microservices (Mục 2.1), mục này phân tích bốn thách thức kỹ thuật cụ thể khi áp dụng 7 nguyên lý NIST SP 800-207 (Chương 1, Mục 1.2.1) vào hạ tầng Kubernetes — nơi tính phân tán cao và tính ``phù du'' (ephemeral) tạo ra các bài toán không tồn tại trong mạng doanh nghiệp truyền thống.
+Sau khi nắm rõ các đặc điểm bảo mật của microservices ở Mục~2.1, mục này phân tích bốn thách thức kỹ thuật cụ thể khi áp dụng 7 nguyên lý của NIST SP 800-207 (Chương~1, Mục~1.2.1) vào hạ tầng Kubernetes.
 
-\subsection{Vị trí đặt PEP và mức độ chi tiết kiểm soát (Granularity Problem)}
+\subsection{Vị trí đặt PEP và mức độ chi tiết kiểm soát}
 
-Thách thức lớn nhất là xác định PEP (Chương 1, Mục 1.2.2) nên hoạt động ở tầng nào trong mô hình OSI~\cite{nist800207,kubernetes_docs}:
+Câu hỏi đầu tiên khi thiết kế là: \textit{đặt PEP ở đâu, và kiểm soát ở mức nào?} \parencite{nist800207,kubernetes_docs}. Có ba lựa chọn không thay thế nhau mà bổ trợ cho nhau:
 
-\begin{itemize}
-    \item \textbf{Tầng L3/L4 (Network/Transport):} Công cụ mặc định \texttt{NetworkPolicy} (dựa trên \texttt{iptables}) chỉ kiểm soát qua IP và Port. Tuy nhiên, hàng chục dịch vụ cùng giao tiếp qua cổng 80/443 — kẻ tấn công lợi dụng cổng hợp lệ để di chuyển ngang. \texttt{iptables} không hiểu nội dung gói tin nên không đáp ứng yêu cầu ZTA.
-    
-    \item \textbf{Tầng L7 (Application):} Để thực thi per-request (Tenet 3), PEP phải đọc được HTTP method (GET, POST, DELETE), gRPC headers và giải mã JWT. Nếu lưu lượng được mã hóa mTLS, PEP phải thực hiện TLS Termination → đọc nội dung → mã hóa lại — đòi hỏi kiến trúc proxy phức tạp.
-    
-    \item \textbf{Tầng Runtime:} Ngay cả khi Pod có định danh hợp lệ và gửi API request đúng chuẩn, nó vẫn có thể là Pod đã bị chiếm quyền (Compromised Pod). ZTA đòi hỏi giám sát hành vi thực thi bên trong container — phát hiện khi dịch vụ web đột nhiên gọi \texttt{/bin/sh} hay quét bộ nhớ \cite{cilium_docs}.
-\end{itemize}
+\begin{enumerate}
+    \item \textbf{Tầng L3/L4 (network/transport):} \texttt{NetworkPolicy} mặc định của Kubernetes (trên \texttt{iptables}) chỉ kiểm soát theo IP và port. Khi hàng chục dịch vụ cùng giao tiếp qua cổng 80/443, kẻ tấn công có thể lợi dụng cổng hợp lệ để di chuyển ngang. \texttt{iptables} không hiểu nội dung gói tin và rất khó cập nhật ở quy mô lớn.
+    \item \textbf{Tầng L7 (application):} để thực thi per-request (Tenet 3), PEP phải đọc được HTTP method, gRPC header và giải mã JWT. Nếu lưu lượng được mã hoá mTLS, PEP phải xử lý TLS termination $\rightarrow$ đọc nội dung $\rightarrow$ mã hoá lại -- đòi hỏi kiến trúc proxy phức tạp.
+    \item \textbf{Tầng runtime (kernel-level):} ngay cả khi Pod có định danh hợp lệ và gửi request đúng chuẩn, nó vẫn có thể là Pod đã bị chiếm quyền. Vì vậy ZTA cần thêm một lớp giám sát hành vi thực thi \textit{bên trong} container -- phát hiện khi dịch vụ web đột nhiên gọi \texttt{/bin/sh}, đọc \texttt{/etc/shadow}, hay mở kết nối lạ \parencite{cilium_docs}.
+\end{enumerate}
 
-
-\subsection{Bài toán định danh và lan truyền ngữ cảnh (Identity Problem)}
-
-Trong Kubernetes, khái niệm ``Subject'' (Chủ thể) trở nên phức tạp do sự giao thoa giữa con người và máy móc~\cite{spiffe_spec,machine_identity_report}:
-
-\begin{itemize}
-    \item \textbf{Yếu kém của Workload Identity mặc định:} K8s sử dụng \texttt{ServiceAccount} dưới dạng Bearer Token tĩnh, được mount trực tiếp vào Pod. Token này tồn tại lâu dài, dễ bị đánh cắp, và thiếu cơ chế cryptographic binding — vi phạm nguyên lý ``Không tin cậy ngầm định'' của ZTA.
-    
-    \item \textbf{Đứt gãy ngữ cảnh người dùng (User Context Loss):} Khi request xuyên qua chuỗi 4-5 service (Frontend → Auth → Payment → Database), tại service cuối cùng hệ thống chỉ thấy ``Chủ thể'' là dịch vụ Payment, không còn thấy định danh người dùng ban đầu. Kiến trúc cần cơ chế \textbf{Identity Context Propagation} để PE (Chương 1) có thể đối chiếu cả \textit{người dùng là ai} và \textit{dịch vụ nào đang thực thi} \cite{nist800207}.
-\end{itemize}
+\textbf{Hệ quả thiết kế:} một kiến trúc ZTA hoàn chỉnh phải có \textit{nhiều PEP} đặt ở các tầng khác nhau (gateway biên, mạng nội bộ, runtime), thay vì một PEP duy nhất.
 
 
-\subsection{Hiệu năng, ``Thuế Sidecar'' và Bán kính ảnh hưởng của Sidecarless}
+\subsection{Bài toán định danh và lan truyền ngữ cảnh}
 
-Nguyên lý per-request (Tenet 3) ép buộc kiểm tra mọi gói tin nội bộ. Trong một thời gian dài, mô hình Sidecar Proxy (Istio/Envoy) thống trị bằng cách tiêm một proxy vào mỗi Pod. Nó mang lại mức độ cách ly rủi ro hoàn hảo (không chia sẻ proxy), nhưng tạo ra \textbf{``Thuế Sidecar''}: làm tăng gấp đôi số lần nhảy mạng (network hops) và tiêu tốn lượng CPU/RAM khổng lồ cho toàn cụm \cite{zhu2023meshinsight}.
+Trong Kubernetes, khái niệm ``subject'' (chủ thể) trở nên phức tạp do sự giao thoa giữa con người và máy móc \parencite{spiffe_spec,machine_identity_report}. Có hai vấn đề cần giải quyết, theo thứ tự:
 
-Để khắc phục, kiến trúc \textbf{Sidecarless} (điển hình như Cilium eBPF hay Istio Ambient) đã đẩy việc xử lý L3/L4 xuống nhân hệ điều hành và chuyển xử lý L7 lên một proxy cấp độ Node (per-node proxy) ở userspace \cite{cilium_docs, istio_ambient}. Việc này loại bỏ hoàn toàn lãng phí tài nguyên, nhưng lại tạo ra một thách thức mới về \textbf{Bán kính ảnh hưởng (Blast Radius) và chia sẻ số phận (Shared fate)}.
+\begin{enumerate}
+    \item \textbf{Định danh workload mặc định quá yếu:} Kubernetes cấp \texttt{ServiceAccount} dưới dạng bearer token được mount vào Pod. Token này tồn tại lâu dài, không gắn với chứng chỉ mật mã, dễ bị đánh cắp -- vi phạm nguyên lý ``không tin cậy ngầm định''. Đây là lý do phải thay thế bằng SVID (Mục~2.1.5).
+    \item \textbf{Đứt gãy ngữ cảnh người dùng (user context loss):} khi request xuyên qua chuỗi 4--5 service (frontend $\rightarrow$ auth $\rightarrow$ payment $\rightarrow$ database), tại service cuối cùng hệ thống chỉ thấy ``chủ thể'' là dịch vụ payment, không còn thấy người dùng ban đầu. Kiến trúc cần một cơ chế lan truyền ngữ cảnh người dùng (\textit{identity context propagation}) để PE đối chiếu được \textit{cả} ``người dùng là ai'' \textit{và} ``dịch vụ nào đang thực thi'' \parencite{nist800207}.
+\end{enumerate}
 
-Bởi vì nhiều vi dịch vụ cùng dùng chung một Proxy L7 trên Node, nếu proxy này bị quá tải bộ nhớ hoặc dính lỗ hổng tràn bộ đệm (Buffer overflow), toàn bộ các dịch vụ trên Node đó đều sẽ sụp đổ hoặc bị thỏa hiệp \cite{cilium_docs}. Sự đánh đổi giữa \textit{Tiết kiệm tài nguyên} và \textit{Bán kính ảnh hưởng bảo mật} là yếu tố kỹ thuật then chốt đòi hỏi phải cấu hình giới hạn tài nguyên và phân lập CNI một cách cực kỳ khắt khe trong ZTA.
+Hai vấn đề này không tách rời: định danh workload mạnh (SVID) là tiền đề để PE tin được người gửi request, nhưng vẫn phải kết hợp với JWT người dùng được forward trong một header chuẩn (ví dụ \texttt{Authorization}) để có đủ ngữ cảnh ABAC.
 
 
-\subsection{Ngập lụt dữ liệu và khả năng quan sát (Observability Problem)}
+\subsection{Hiệu năng: ``thuế sidecar'' và đánh đổi của mô hình không sidecar}
 
-Nguyên lý thứ 7 (Thu thập tối đa thông tin)~\cite{nist800207} biến thành bài toán ``tìm kim đáy bể'' trong K8s~\cite{cilium_docs,elk_docs}:
+Nguyên lý per-request (Tenet 3) ép buộc kiểm tra mọi gói tin nội bộ. Trong một thời gian dài, mô hình \textit{sidecar proxy} (Istio/Envoy) thống trị bằng cách tiêm một proxy vào mỗi Pod. Mô hình này có cách ly rủi ro tốt (mỗi Pod một proxy), nhưng tạo ra \textbf{``thuế sidecar''}: tăng gấp đôi số network hop và tốn lượng CPU/RAM rất lớn trên toàn cụm \parencite{zhu2023meshinsight}.
 
-\begin{itemize}
-    \item \textbf{Sự vô nghĩa của IP:} Pod sống chỉ trong 5 phút và IP được cấp phát động. Cảnh báo ``Chặn truy cập từ IP 10.244.1.5 lúc 14:03'' hoàn toàn vô giá trị khi điều tra lúc 15:00 — IP đó có thể đã gán cho dịch vụ khác hoặc biến mất.
-    
-    \item \textbf{Thiếu ngữ cảnh:} Hàng triệu luồng kết nối mỗi giây. Hệ thống Telemetry phải \textbf{gắn nhãn ngữ cảnh tự động} — thay vì log thô ``IP A gọi IP B'', phải lưu dạng: \texttt{Subject (SPIFFE ID) + Resource (Namespace/Pod) + Action (HTTP Method) + Security Posture}. Chỉ khi đó, PE mới có thể tự động hóa Anomaly Detection \cite{elk_docs}.
-\end{itemize}
+Để khắc phục, kiến trúc \textit{không sidecar} (\textit{sidecarless}, ví dụ Cilium hoặc Istio Ambient \parencite{cilium_docs,istio_ambient}) đẩy việc xử lý L3/L4 xuống nhân hệ điều hành (eBPF) và chuyển xử lý L7 lên một proxy chạy ở mức \textit{node} (per-node proxy) trong userspace. Việc này tiết kiệm đáng kể tài nguyên, nhưng phải đánh đổi \textit{bán kính ảnh hưởng} (\textit{blast radius}): khi một proxy node bị quá tải hoặc dính lỗ hổng, mọi workload trên node đó bị ảnh hưởng \parencite{cilium_docs}.
+
+Đồ án chấp nhận đánh đổi này theo hướng cấu hình cẩn thận giới hạn tài nguyên (\texttt{requests}/\texttt{limits}) và phân bổ workload nhạy cảm sang node riêng (taint/toleration), thay vì quay lại mô hình sidecar.
+
+
+\subsection{Khả năng quan sát: ngữ cảnh thay vì IP}
+
+Nguyên lý thứ 7 của NIST (thu thập tối đa thông tin) \parencite{nist800207} biến thành bài toán ``tìm kim đáy bể'' trong Kubernetes \parencite{cilium_docs,elk_docs}. Vấn đề trung tâm là \textit{IP không còn ý nghĩa khi điều tra}: một Pod có thể chỉ sống vài phút, nên cảnh báo ``chặn truy cập từ 10.244.1.5 lúc 14:03'' trở nên vô nghĩa khi điều tra lúc 15:00 -- IP đó đã thuộc về Pod khác hoặc biến mất.
+
+Hệ thống quan sát của ZTA do đó phải \textbf{gắn nhãn ngữ cảnh tự động} cho mỗi flow ngay khi nó được sinh ra: thay vì log thô ``IP A gọi IP B'', phải lưu \textit{(định danh workload nguồn, định danh workload đích, namespace, action, kết quả PE quyết định)}. Trong đồ án, việc này được thực hiện bởi Cilium Hubble: mỗi flow được tự động enrich bằng các nhãn Kubernetes (\texttt{namespace}, \texttt{pod}, \texttt{labels}) và xuất sang Elasticsearch dưới dạng JSON có cấu trúc -- xem chi tiết hiện thực ở Chương~3.
 
 
 %==============================================================================
-% 2.3  ĐỀ XUẤT KHUNG KIẾN TRÚC ZTA 5 LỚP
+% 2.3  ĐỀ XUẤT KHUNG KIẾN TRÚC ZERO TRUST 5 LỚP
 %==============================================================================
 \section{Đề xuất khung kiến trúc Zero Trust cho hệ thống Microservices}
 
-Dựa trên phân tích các thách thức ở Mục 2.1 và 2.2, đồ án đề xuất \textbf{khung kiến trúc ZTA 5 lớp tích hợp}. Kiến trúc này chuyển trọng tâm từ bảo mật mạng biên sang bảo mật thực thể và dữ liệu, đảm bảo mọi luồng giao tiếp đều phải trải qua quy trình: \textbf{Định danh → Đánh giá Tư thế → Xác thực → Cấp quyền → Giám sát}.
+Dựa trên phân tích các thách thức ở Mục~2.1 và 2.2, đồ án đề xuất một \textbf{khung kiến trúc Zero Trust 5 lớp}. Kiến trúc chuyển trọng tâm từ bảo mật mạng biên sang bảo mật theo \textit{thực thể và dữ liệu}, đảm bảo mọi luồng giao tiếp đều phải trải qua quy trình: \textit{định danh $\rightarrow$ đánh giá tư thế $\rightarrow$ xác thực $\rightarrow$ cấp quyền $\rightarrow$ giám sát}.
 
-\subsection{Lớp 1: Định danh đa thực thể (Multi-Entity Identity Layer)}
 
-Lớp định danh đóng vai trò ``gốc tin cậy'' (Root of Trust) cho toàn bộ hệ thống~\cite{spiffe_spec}. Đồ án đề xuất cơ chế \textbf{Dual-Identity} — xác thực kép giữa người dùng và dịch vụ thực thi:
+\subsection{Lớp 1 -- Định danh đa thực thể (multi-entity identity)}
+
+Lớp định danh đóng vai trò ``gốc tin cậy'' cho toàn bộ hệ thống \parencite{spiffe_spec}. Đồ án đề xuất cơ chế \textbf{định danh kép} -- xác thực đồng thời người dùng và workload thực thi:
 
 \begin{itemize}
-    \item \textbf{User Identity (Định danh người dùng):} Sử dụng giao thức \textbf{OIDC (OpenID Connect)}~\cite{oidc_core} qua Keycloak~\cite{keycloak_docs}. Thông tin người dùng được mã hóa trong JWT~\cite{rfc7519_jwt} bao gồm các \texttt{claims} về vai trò (\texttt{roles}), phạm vi (\texttt{scope}), thời gian hết hạn (\texttt{exp}). JWT đóng vai trò bằng chứng định danh cho ``Chủ thể gốc'' (Originator)~\cite{rfc6749_oauth2}.
-    \item \textbf{Workload Identity (Định danh ứng dụng):} Triển khai tiêu chuẩn \textbf{SPIFFE}~\cite{spiffe_spec} thông qua chứng chỉ X.509 ngắn hạn cho mỗi Pod, cấp phát bởi SPIRE~\cite{spire_docs}. Mỗi dịch vụ được cấp một SPIFFE ID dạng:\\
-    \texttt{spiffe://job7189.local/ns/job7189-apps/sa/identity-service}\\
-    xác định chính xác dịch vụ đó là gì, thuộc namespace nào, dùng ServiceAccount nào.
+    \item \textbf{Định danh người dùng:} sử dụng giao thức OpenID Connect \parencite{oidc_core} qua một IdP hỗ trợ chuẩn này. Thông tin người dùng được mã hoá trong JWT \parencite{rfc7519_jwt} bao gồm các claim về vai trò (\texttt{roles}), phạm vi (\texttt{scope}), thời gian hết hạn (\texttt{exp}). JWT đóng vai trò bằng chứng định danh cho ``chủ thể gốc'' (originator) \parencite{rfc6749_oauth2}.
+    \item \textbf{Định danh workload:} hiện thực tiêu chuẩn SPIFFE \parencite{spiffe_spec} qua chứng chỉ X.509 SVID có TTL ngắn cho mỗi Pod, cấp phát bởi SPIRE \parencite{spire_docs}. Mỗi dịch vụ có một SPIFFE ID dạng:
+    \begin{center}\texttt{spiffe://<trust-domain>/ns/<namespace>/sa/<service-account>}\end{center}
+    xác định chính xác dịch vụ là gì, ở namespace nào, dùng ServiceAccount nào.
 \end{itemize}
 
-Khi request được gửi, hệ thống kiểm tra tính hợp lệ của \textit{cả} JWT (người dùng có quyền?) \textit{và} SVID (dịch vụ gửi request có phải dịch vụ chính thống?). Việc kết hợp này ngăn tấn công Impersonation ngay cả khi một trong hai yếu tố bị thỏa hiệp.
+Khi request được gửi, hệ thống kiểm tra tính hợp lệ của \textit{cả} JWT (người dùng có quyền không?) \textit{và} SVID (dịch vụ gửi request có phải dịch vụ chính thống không?). Kết hợp này ngăn tấn công \textit{impersonation} ngay cả khi một trong hai yếu tố bị thoả hiệp.
 
-\subsubsection*{Cấu trúc JWT}
+\subsubsection*{Cấu trúc JWT minh hoạ}
 
-Khi người dùng đăng nhập thành công, IdP (Keycloak) trả về Access Token dạng JWT gồm 3 phần (Header, Payload, Signature). Phần Payload chứa các claim mà PE dùng để ra quyết định:
+Khi người dùng đăng nhập thành công, IdP trả về Access Token dạng JWT gồm 3 phần (header, payload, signature). Phần payload chứa các claim mà PE dùng để ra quyết định:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{json}
 {
   "exp": 1713245000,
   "iat": 1713235000,
-  "iss": "https://auth.job7189.local/realms/job7189",
-  "sub": "user123",
-  "email": "recruiter@company.com",
+  "iss": "https://auth.example.local/realms/zta-poc",
+  "sub": "user-123",
+  "email": "recruiter@example.com",
   "realm_access": {
     "roles": ["recruiter", "manager"]
   }
 }
 \end{minted}
-\caption{Cấu trúc Payload của JWT — PE sử dụng \texttt{roles} làm đầu vào cho mô hình ABAC}
+\caption{Cấu trúc payload của JWT — PE sử dụng \texttt{roles} làm đầu vào cho mô hình ABAC}
 \label{lst:jwt_payload}
 \end{listing}
 
-\subsubsection*{Cấu trúc SPIFFE ID}
 
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{text}
-spiffe://job7189.local/ns/job7189-apps/sa/identity-service
-  |             |              |                |
-  scheme   trust domain    namespace      serviceaccount
-\end{minted}
-\caption{Cấu trúc SPIFFE ID — định danh ứng dụng gắn chặt vào Namespace và ServiceAccount}
-\label{lst:spiffe_id}
-\end{listing}
+\subsection{Lớp 2 -- Đánh giá tư thế và tình báo đe doạ (CDM \& threat intel)}
+\label{subsec:cdm}
 
-
-\subsection{Lớp 2: Đánh giá Tư thế và Tình báo Đe dọa (Posture \& Threat Intel Layer)}
-
-Theo NIST SP 800-207, chỉ xác thực định danh là chưa đủ. Lớp thứ hai cung cấp \textit{dữ liệu ngữ cảnh liên tục} cho PE (Chương 1, Mục 1.2.2)~\cite{nist800207}:
+NIST SP 800-207 và SP 800-137 \parencite{nist800207,nist800137} mô tả \textbf{CDM} (\textit{Continuous Diagnostics and Mitigation}) là một nhóm các Data Source liên tục báo cáo \textit{tư thế bảo mật} của tài nguyên cho PE. Trong môi trường container, CDM gồm tối thiểu hai loại nguồn dữ liệu:
 
 \begin{itemize}
-    \item \textbf{Đánh giá Workload Posture:} Tích hợp các công cụ CDM (Continuous Diagnostics and Mitigation) như Trivy, Kube-bench. PE tự động từ chối luồng giao tiếp nếu container đang chạy Image chứa lỗ hổng CVE nghiêm trọng (CVSS > 7.0), bất kể SVID có hợp lệ.
-    \item \textbf{Đánh giá thiết bị End-User:} MDM (Mobile Device Management) báo cáo tình trạng thiết bị (mã hóa ổ cứng, bản vá OS, jailbreak) để PE ra quyết định có điều kiện (Chương 1, Mục 1.2.3 — phản ứng động).
-    \item \textbf{Threat Intelligence:} Nguồn cấp IoC (Indicators of Compromise) bên ngoài — IP đen, chữ ký mã độc, chứng chỉ đã thỏa hiệp — được truyền trực tiếp vào PE và PEP để cập nhật rule \textit{Deny} theo thời gian thực.
+    \item \textbf{Posture của workload:} mức độ tổn thương của image (CVE), việc tuân thủ baseline (CIS Benchmark), việc chạy với \texttt{privileged}/\texttt{hostNetwork}\dots Trong đồ án, posture lấy từ Trivy Operator \parencite{trivy_operator} dưới dạng CR \texttt{VulnerabilityReport}: PDP đếm \texttt{report.summary.criticalCount} và \texttt{highCount} để giảm Trust Score (chi tiết ở Mục~\ref{subsec:trust_score}).
+    \item \textbf{Tình báo đe doạ ngoài (threat intelligence):} các feed CIDR/FQDN/SHA256 được cập nhật định kỳ. Đồ án dùng hai feed không yêu cầu credential: \textit{FireHOL Level1} \parencite{firehol_level1} cho danh sách CIDR độc hại và \textit{URLhaus} (abuse.ch) \parencite{urlhaus} cho danh sách FQDN. Một CronJob trong namespace \texttt{security-cdm} fetch hai feed, ghi vào ConfigMap \texttt{threat-intel-blocklist}, rồi patch \texttt{CiliumClusterwideNetworkPolicy} để cập nhật blocklist egress mỗi giờ.
 \end{itemize}
 
+\noindent\textit{Phạm vi:} đánh giá thiết bị end-user (MDM/EDR) và CAEP cho session-level revocation \parencite{openid_caep} là phần mở rộng đáng tích hợp trong tương lai; chi tiết ở Chương kết luận.
 
-\subsection{Lớp 3: Thực thi Chính sách đa tầng (Multi-layer Enforcement Layer)}
 
-Để đảm bảo ``phòng thủ chiều sâu'' (Defense in Depth), lớp thực thi được thiết kế thành \textbf{ba rào cản PEP độc lập}, ánh xạ trực tiếp từ mô hình NIST (Chương 1, Mục 1.2.2)~\cite{nist800207}:
+\subsection{Lớp 3 -- Thực thi chính sách đa tầng (multi-layer enforcement)}
+
+Để đảm bảo \textit{phòng thủ chiều sâu}, lớp thực thi gồm ba rào cản PEP độc lập, ánh xạ trực tiếp từ mô hình NIST (Chương~1, Mục~1.2.2) \parencite{nist800207}:
 
 \begin{itemize}
-    \item \textbf{PEP Tầng Biên (Edge Enforcement):} API Gateway (Kong) kiểm tra chữ ký JWT tại tầng North-South. Request không có JWT hợp lệ bị từ chối ngay tại cổng, trước khi đạt đến bất kỳ backend service nào.
-    
-    \item \textbf{PEP Tầng Mạng (Network-level Enforcement):} Cilium eBPF hoạt động trực tiếp tại kernel, đánh chặn gói tin ngay tại Network Stack. Ở tầng L3/L4 (IP, Port), eBPF thực thi policy \textbf{hoàn toàn trong kernel}. Tuy nhiên, ở tầng L7 (HTTP method, path), eBPF không thể phân tích nội dung gói tin trực tiếp do giới hạn của hộp cát eBPF đối với xử lý chuỗi. Thay vào đó, Cilium bẻ lái (redirect) các kết nối L7 lên một \textbf{Envoy proxy chạy ở mức node} (per-node proxy) trong userspace --- khác với mô hình Sidecar truyền thống (Istio) ở chỗ chỉ cần \textbf{một proxy trên mỗi node} thay vì một proxy trên mỗi Pod, giảm đáng kể ``Thuế Sidecar'' (Mục 2.2.3). So sánh kiến trúc eBPF với iptables truyền thống được minh họa trong Hình~\ref{fig:ebpf_hostrouting}.
-    
-    \item \textbf{PEP Tầng Runtime (bổ sung sau):} Tetragon eBPF \textit{được thiết kế} để giám sát system calls bên trong container. Khi triển khai đầy đủ, nếu tiến trình thực hiện hành vi bất thường (truy cập \texttt{/etc/passwd}, gọi \texttt{/bin/sh}, mở kết nối outbound lạ), PEP này sẽ ngắt tiến trình ngay lập tức bằng SIGKILL — \textit{trước khi} kernel thực thi syscall.
+    \item \textbf{PEP biên (edge):} API Gateway xác thực JWT ở tầng North-South. Request không có JWT hợp lệ bị từ chối ngay tại cổng, trước khi đạt tới bất kỳ backend service nào.
+    \item \textbf{PEP mạng (network-level):} Cilium eBPF chạy trực tiếp trong kernel, đánh chặn gói tin tại network stack. Ở tầng L3/L4 (IP, port), eBPF thực thi policy hoàn toàn trong kernel. Ở tầng L7 (HTTP method, path), Cilium chuyển tiếp kết nối sang một Envoy proxy ở mức node (per-node proxy) -- giảm \textit{thuế sidecar} so với mô hình mỗi Pod một proxy. So sánh kiến trúc eBPF với \texttt{iptables} truyền thống được minh hoạ ở Hình~\ref{fig:ebpf_hostrouting}.
+    \item \textbf{PEP runtime:} Tetragon \parencite{tetragon_docs} hoặc tương đương, giám sát system call bên trong container. Khi tiến trình thực hiện hành vi bất thường (gọi \texttt{/bin/sh} từ một container web không nên có shell, mở kết nối outbound lạ\dots), PEP runtime \texttt{SIGKILL} tiến trình ngay tại kernel, trước khi syscall hoàn tất.
 \end{itemize}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{images/ebpf_hostrouting (date).png}
-    \caption{So sánh đường đi gói tin: iptables truyền thống (trái) và eBPF host-routing của Cilium (phải) — giảm số lần chuyển ngữ cảnh giữa kernel và userspace}
+    \caption{So sánh đường đi gói tin: \texttt{iptables} truyền thống (trái) và eBPF host-routing của Cilium (phải) -- giảm số lần chuyển ngữ cảnh giữa kernel và userspace.}
     \label{fig:ebpf_hostrouting}
 \end{figure}
 
-\subsubsection*{Policy as Code: Ví dụ thực thi chính sách bằng OPA/Rego}
+\subsubsection*{Policy as Code: ví dụ thực thi chính sách bằng OPA/Rego}
 
-Để hiện thực hóa nguyên tắc ``Allow-Explicit'', chính sách được viết dưới dạng mã (Policy as Code). Ví dụ: chỉ cho phép \texttt{GET /api/v1/internal/workspaces/*} nếu thỏa mãn đồng thời 4 điều kiện — workload identity đúng, user role phù hợp, action chính xác, và workload không có lỗ hổng:
+Để hiện thực hoá nguyên tắc \textit{cho phép tường minh} (allow-explicit), chính sách được viết dưới dạng mã (\textit{policy as code}). Ví dụ: chỉ cho phép \texttt{GET /api/v1/internal/workspaces/*} nếu thoả mãn đồng thời 4 điều kiện -- workload identity đúng, user role phù hợp, action chính xác, và workload không có CVE Critical:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{text}
@@ -207,14 +194,14 @@ package authz.internal_api
 default allow = false
 
 allow {
-    # 1. Kiểm tra Workload Identity (SVID)
-    input.workload_id == "spiffe://job7189.local/ns/job7189-apps/sa/job-service"
-    # 2. Kiểm tra Action và Resource
+    # 1. Workload Identity (SVID)
+    input.workload_id == "spiffe://example.local/ns/zta-apps/sa/job-service"
+    # 2. Action và Resource
     input.request.method == "GET"
     startswith(input.request.path, "/api/v1/internal/workspaces/")
-    # 3. Kiểm tra User Identity (JWT) — chủ thể gốc phải có role recruiter
+    # 3. User Identity (JWT) — chủ thể gốc phải có role recruiter
     "recruiter" in jwt_claims.roles
-    # 4. Kiểm tra Workload Posture
+    # 4. Workload Posture
     input.workload_posture.vulnerabilities.critical == 0
 }
 \end{minted}
@@ -223,191 +210,214 @@ allow {
 \end{listing}
 
 
-\subsection{Lớp 4: Quản trị Bí mật Động (Dynamic Secret Layer)}
+\subsection{Lớp 4 -- Quản trị bí mật động (dynamic secret)}
 
-Khung kiến trúc loại bỏ hoàn toàn bí mật tĩnh (Static Secrets) trong file \texttt{.env} hay K8s Secrets~\cite{vault_docs,nist800204_microservices}. Thay vào đó:
+Khung kiến trúc loại bỏ hoàn toàn bí mật tĩnh trong file \texttt{.env} hay K8s Secret \parencite{vault_docs,nist800204_microservices}. Thay vào đó:
 
 \begin{itemize}
-    \item \textbf{JIT Credentials (Cấp quyền tức thời):} HashiCorp Vault đóng vai trò PA (Chương 1, Mục 1.2.2). Thay vì lưu mật khẩu database cố định, dịch vụ sử dụng Workload Identity (ServiceAccount) để yêu cầu Vault sinh tài khoản MySQL tạm thời với TTL cực ngắn (ví dụ: 1 giờ).
-    \item \textbf{Tự động xoay vòng (Auto-rotation):} Mọi chứng chỉ và khóa mật mã được thay đổi liên tục. Khi lease hết hạn, Vault tự động revoke credential cũ ({\texttt{DROP USER}}) và cấp credential mới — giảm giá trị của thông tin bị đánh cắp xuống mức tối thiểu \cite{vault_docs}.
-    \item \textbf{tmpfs (Memory-only storage):} Credential được ghi lên \texttt{emptyDir} với \texttt{medium: Memory}, không bao giờ chạm ổ đĩa — tránh bị đọc lại sau khi Pod bị xóa.
+    \item \textbf{JIT credential:} HashiCorp Vault đóng vai trò Policy Administrator (Chương~1, Mục~1.2.2). Thay vì lưu mật khẩu database cố định, dịch vụ dùng workload identity (ServiceAccount JWT) để yêu cầu Vault sinh tài khoản MySQL/Postgres tạm thời với TTL ngắn (ví dụ 1 giờ).
+    \item \textbf{Lease và auto-rotation:} mỗi credential do Vault cấp đi kèm một \textbf{lease}. Lease là một bản ghi gồm \texttt{lease\_id}, \texttt{ttl} và \texttt{renewable}; nó đại diện cho ``hợp đồng'' giữa Vault và Pod đang dùng credential. Khi lease hết hạn (hoặc Pod bị xoá), Vault tự động \texttt{revoke} -- tức ra lệnh cho database \texttt{DROP USER} -- nên ngay cả khi credential bị đánh cắp, kẻ tấn công chỉ có thời gian sử dụng ngắn \parencite{vault_docs}.
+    \item \textbf{Lưu credential trên \texttt{tmpfs}:} Vault Agent ghi credential lên \texttt{emptyDir} với \texttt{medium: Memory}, không bao giờ chạm ổ đĩa -- tránh bị đọc lại sau khi Pod bị xoá.
 \end{itemize}
 
 
+\subsection{Lớp 5 -- Quan sát và phân tích hành vi (observability \& analytics)}
+\label{subsec:trust_score}
 
-
-\subsection{Lớp 5: Quan sát và Phân tích hành vi (Observability \& Analytics Layer)}
-
-Trong ZTA, Continuous Monitoring (Tenet 7) không phải là hậu kiểm mà là \textbf{đầu vào trực tiếp} cho PE để ra quyết định theo thời gian thực~\cite{nist800207,openid_caep}:
+Trong ZTA, quan sát liên tục (Tenet 7) không phải là hậu kiểm mà là \textbf{đầu vào trực tiếp} cho PE \parencite{nist800207,openid_caep}. Lớp này gồm ba thành phần:
 
 \begin{itemize}
-    \item \textbf{Centralized Logging (EFK Stack):} Tổng hợp Logs từ API Gateway, eBPF, Runtime vào Elasticsearch. Filebeat thu thập log từ các namespace bảo mật trọng điểm và gắn metadata Kubernetes (pod name, namespace, node) \cite{elk_docs}.
-    
-    \item \textbf{Metrics \& Alerting (Prometheus + Grafana):} Thu thập metrics từ Cilium Hubble (dropped packets, forwarded packets), node-exporter (CPU, RAM) và application endpoints. Grafana dashboard hiển thị Security Metrics theo thời gian thực \cite{cilium_docs}.
-    
-    \item \textbf{Vòng lặp phản hồi (Feedback Loop):} Hệ thống UEBA theo dõi hành vi Subject. Nếu phát hiện anomaly (ví dụ: service gửi 100 request /admin trong 1 giây), nó gửi tín hiệu tới PE để giảm Trust Score và yêu cầu PEP ngắt kết nối ngay lập tức — không cần sự can thiệp của con người.
+    \item \textbf{Tập trung log:} Filebeat thu thập log từ API Gateway, Cilium, Tetragon và mã ứng dụng vào Elasticsearch; tự động gắn metadata Kubernetes (pod, namespace, node, image) thay vì chỉ lưu IP \parencite{elk_docs}.
+    \item \textbf{Metric và cảnh báo:} Prometheus thu metric từ Cilium Hubble (gói bị drop, gói được forward), node-exporter (CPU, RAM) và endpoint ứng dụng. Các \texttt{PrometheusRule} sinh \texttt{ALERTS{...}} cho điều kiện bất thường; Grafana dashboard hiển thị các alert đang firing.
+    \item \textbf{Vòng phản hồi (feedback loop):} một module phân tích hành vi (UEBA) theo dõi các chỉ số bảo mật. Nếu phát hiện anomaly (ví dụ: một service gửi >100 request \texttt{/admin} trong 1 giây, hay một image có CVE Critical mới phát hiện), nó tác động lên \textbf{Trust Score} của workload (xem dưới đây) để PEP điều chỉnh quyết định cho các flow tiếp theo.
 \end{itemize}
+
+\subsubsection*{Trust Score: nguồn gốc và cách hiện thực trong đồ án}
+
+Khái niệm \textbf{Trust Score} -- một con số tổng hợp đại diện cho ``mức độ tin cậy'' của một subject ở thời điểm hiện tại -- xuất hiện trong nhiều mô hình ZTA hiện đại. Tài liệu nguồn gốc bao gồm:
+\begin{itemize}
+    \item Mô hình \textit{BeyondCorp} của Google \parencite{ward2014beyondcorp}: ``trust tier'' tính theo trạng thái thiết bị + người dùng, dùng làm đầu vào quyết định truy cập.
+    \item DoD ZT Reference Architecture v2.0 \parencite{dod_zt_ra2022}: ``trust algorithm'' tổng hợp identity + posture + behavior thành điểm số liên tục.
+    \item NIST SP 800-207 \parencite{nist800207} mô tả ``trust algorithm'' của PE (Mục 3.3) tổng hợp Data Source thành quyết định.
+\end{itemize}
+
+Trong đồ án này, do giới hạn tài nguyên (RAM 12\,GiB) và thời gian PoC, Trust Score được hiện thực với \textbf{2 đầu vào} (chứ không phải toàn bộ 4 đầu vào lý tưởng) theo Quyết định 1 ở \texttt{doc/zta-gap-decision.md}:
+\begin{enumerate}
+    \item \textit{Label coverage}: PDP kiểm tra 6 nhãn ZTA bắt buộc trên Pod (\texttt{cilium.zta/tier,source,destination,role,owner,sensitivity}).
+    \item \textit{CVE severity}: PDP đọc CR \texttt{VulnerabilityReport} do Trivy Operator phát hành cho image của Pod; lấy \texttt{criticalCount} và \texttt{highCount}.
+\end{enumerate}
+
+Công thức điểm:
+\[
+\text{score} = \max\!\Big(0,\ 100 - 30 \cdot \frac{\text{missing\_labels}}{6} - 50 \cdot \mathbb{1}[\text{has\_critical\_cve}] - 20 \cdot \mathbb{1}[\text{has\_high\_cve}]\Big)
+\]
+
+Điểm số được rời rạc hoá thành 3 \textit{bucket}: \texttt{high} ($\geq 80$), \texttt{medium} ($\geq 50$), \texttt{low} (còn lại). PDP gắn nhãn \texttt{cilium.zta/score-bucket=high|medium|low} lên Pod -- từ đó \texttt{CiliumNetworkPolicy} có thể \texttt{matchLabels} để chỉ cho phép Pod \texttt{score-bucket=high} truy cập các route nhạy cảm. Nói cách khác, Trust Score \textit{thực sự} ảnh hưởng đến PEP, không chỉ là một metric cho dashboard.
 
 
 \subsection{Sơ đồ luồng dữ liệu tổng thể}
 
-Quy trình xử lý một yêu cầu truy cập qua 5 lớp ZTA~\cite{nist800207}:
+Quy trình xử lý một yêu cầu truy cập qua 5 lớp ZTA \parencite{nist800207}:
 
 \begin{enumerate}
-    \item \textbf{Xác thực biên \& Đánh giá Thiết bị:} Người dùng gửi request kèm JWT. Kong Gateway xác thực chữ ký, MDM báo cáo tư thế thiết bị.
-    \item \textbf{Định danh \& Kiểm tra Workload:} Request vào mạng nội bộ. PEP eBPF đánh chặn, yêu cầu xác thực SVID. Đồng thời, hệ thống quét lỗ hổng (Trivy) báo cáo trạng thái Container Image.
-    \item \textbf{Truy vấn chính sách:} PE (OPA) đối soát: JWT + SVID + Threat Intel + Workload Posture → Allow/Deny.
-    \item \textbf{Cấp bí mật động:} Dịch vụ đích gửi ServiceAccount tới Vault → nhận JIT database credential → truy xuất dữ liệu.
-    \item \textbf{Giám sát Runtime (bổ sung sau):} Runtime PEP (Tetragon) được tích hợp ở giai đoạn tiếp theo để giám sát hành vi tiến trình. Dữ liệu sẽ đẩy về EFK/Prometheus để cập nhật Trust Score.
+    \item \textbf{Xác thực biên \& đánh giá thiết bị:} người dùng gửi request kèm JWT. API Gateway xác thực chữ ký; nếu có MDM, MDM báo cáo tư thế thiết bị.
+    \item \textbf{Định danh \& kiểm tra workload:} request vào mạng nội bộ. PEP eBPF đánh chặn, yêu cầu xác thực SVID. Đồng thời Trivy Operator báo cáo trạng thái image qua \texttt{VulnerabilityReport}.
+    \item \textbf{Quyết định chính sách:} PE (OPA) đối soát: JWT + SVID + threat-intel + posture $\rightarrow$ allow/deny.
+    \item \textbf{Cấp bí mật động:} dịch vụ đích dùng ServiceAccount để xin Vault $\rightarrow$ nhận credential JIT $\rightarrow$ truy xuất dữ liệu.
+    \item \textbf{Giám sát runtime:} PEP runtime giám sát hành vi tiến trình; sự kiện đẩy về EFK/Prometheus và cập nhật Trust Score qua PDP.
 \end{enumerate}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{images/proposed_architecture_flow.png}
-    \caption{Sơ đồ luồng dữ liệu xử lý yêu cầu truy cập qua 5 lớp Zero Trust đề xuất}
+    \caption{Sơ đồ luồng dữ liệu xử lý yêu cầu truy cập qua 5 lớp Zero Trust đề xuất.}
     \label{fig:proposed_architecture}
 \end{figure}
 
 
 \subsection{Đối sánh khung đề xuất với NIST SP 800-207}
 
+Bảng~\ref{tab:nist_comparison} đối sánh từng thành phần của NIST với một bộ công nghệ \textit{cụ thể được đồ án sử dụng} (chi tiết ở Chương~3) và trạng thái đáp ứng. Cột ``công nghệ'' chỉ là \textit{minh hoạ một lựa chọn khả thi}, không phải khuyến nghị bắt buộc.
+
 \begin{table}[H]
 \centering
 \caption{Đối sánh khung kiến trúc 5 lớp đề xuất với tiêu chuẩn NIST SP 800-207}
 \label{tab:nist_comparison}
-\begin{tabularx}{\textwidth}{|p{3.5cm}|p{4.5cm}|c|p{2.5cm}|}
+\begin{tabularx}{\textwidth}{|p{3.5cm}|X|c|p{2.0cm}|}
 \hline
-\textbf{Thành phần NIST} & \textbf{Khung đề xuất} & \textbf{Trạng thái} & \textbf{Tham chiếu} \\
+\textbf{Thành phần NIST} & \textbf{Công nghệ minh hoạ trong đồ án} & \textbf{Trạng thái} & \textbf{Lớp} \\
 \hline
-Policy Engine (PE) & OPA Rego + Keycloak & Đáp ứng & Lớp 3 \\
+Policy Engine (PE) & OPA Rego (giải mã JWT, đối soát ABAC) & Đáp ứng & 3 \\
 \hline
-Policy Enforcement Point & Kong + Cilium eBPF + Tetragon (bổ sung sau) & Đáp ứng một phần & Lớp 3 \\
+Policy Administrator (PA) & HashiCorp Vault (lease, auto-rotate) & Đáp ứng & 4 \\
 \hline
-Subject Identity & JWT (OIDC) + SPIFFE SVID & Đáp ứng & Lớp 1 \\
+Policy Enforcement Point (PEP) & Kong Gateway (biên) + Cilium eBPF (mạng) + Tetragon (runtime) & Đáp ứng & 3 \\
 \hline
-Resource Identity & SPIFFE URI + K8s Labels & Đáp ứng & Lớp 1 \\
+Subject identity & JWT (OIDC qua Keycloak) + SPIFFE/SPIRE SVID & Đáp ứng & 1 \\
 \hline
-Device/Workload Assessment & Trivy, Kube-bench, MDM & Bổ sung & Lớp 2 \\
+Resource identity & SPIFFE URI + nhãn Kubernetes & Đáp ứng & 1 \\
 \hline
-Threat Intelligence & External Feeds → OPA/Cilium & Bổ sung & Lớp 2 \\
+CDM (workload posture) & Trivy Operator (\texttt{VulnerabilityReport}) & Đáp ứng & 2 \\
 \hline
-Session Management & Vault (JIT / TTL / Rotation) & Đáp ứng & Lớp 4 \\
+CDM (device posture) & MDM/EDR & Out-of-scope & 2 \\
 \hline
-Data Collection & EFK + Prometheus + Grafana & Đáp ứng & Lớp 5 \\
+Threat intelligence & FireHOL Level1 + URLhaus $\rightarrow$ Cilium CCNP & Đáp ứng & 2 \\
+\hline
+Session management & Vault (JIT / TTL / rotation) & Đáp ứng & 4 \\
+\hline
+Continuous monitoring & EFK + Prometheus + Grafana + PDP score-bucket & Đáp ứng & 5 \\
+\hline
+Session-level revocation (CAEP) & -- & Out-of-scope & 5 \\
 \hline
 \end{tabularx}
 \end{table}
+
+Hai thành phần \textit{out-of-scope} (MDM/EDR và CAEP) là phần mở rộng đáng làm trong tương lai và được nêu ở chương kết luận.
 
 
 %==============================================================================
 % 2.4  MÔ HÌNH CHÍNH SÁCH (POLICY MODEL)
 %==============================================================================
-\section{Mô hình Chính sách cho Microservices}
+\section{Mô hình chính sách cho Microservices}
 
-Mô hình chính sách là thành phần cốt lõi của PE, chuyển hóa các mục tiêu bảo mật cấp cao thành luật thực thi (Enforcement Rules) cụ thể.
+Mô hình chính sách là thành phần cốt lõi của PE: chuyển hoá các mục tiêu bảo mật cấp cao thành luật thực thi (\textit{enforcement rule}) cụ thể.
 
-\subsection{Tiếp cận ABAC (Attribute-Based Access Control)}
+\subsection{Tiếp cận ABAC (attribute-based access control)}
 
-Thay vì RBAC tĩnh, đồ án đề xuất mô hình \textbf{ABAC}~\cite{nist_abac} để đạt độ chi tiết (granularity) cần thiết cho ZTA. Quyết định truy cập được tính toán dựa trên bốn nhóm thuộc tính~\cite{nist_abac,nist800207}:
+Thay vì RBAC tĩnh, đồ án dùng mô hình \textbf{ABAC} \parencite{nist_abac} để đạt độ chi tiết cần thiết cho ZTA. Quyết định truy cập được tính từ bốn nhóm thuộc tính \parencite{nist_abac,nist800207}:
 
 \begin{itemize}
-    \item \textbf{Subject Attributes:} Claims trong JWT (\texttt{email\_verified}, \texttt{department}) + ServiceAccount (\texttt{SPIFFE ID}).
-    \item \textbf{Resource Attributes:} Endpoint (URL), Namespace, Labels trên tài nguyên.
-    \item \textbf{Action Attributes:} HTTP method (\texttt{GET}, \texttt{POST}, \texttt{DELETE}), gRPC procedure.
-    \item \textbf{Environmental Attributes:} Thời gian (giờ làm việc), vị trí (IP/VPC), Trust Score của thiết bị.
+    \item \textbf{Subject attributes:} các claim trong JWT (\texttt{email\_verified}, \texttt{department}\dots) + ServiceAccount/SPIFFE ID.
+    \item \textbf{Resource attributes:} endpoint (URL), namespace, các nhãn trên tài nguyên.
+    \item \textbf{Action attributes:} HTTP method (\texttt{GET}, \texttt{POST}, \texttt{DELETE}\dots), gRPC procedure.
+    \item \textbf{Environmental attributes:} thời gian (giờ làm việc), vị trí (IP/VPC), Trust Score của workload.
 \end{itemize}
 
 \begin{leftbar}
 \textbf{Công thức quyết định:}
-\[ Decision = f(\text{Subject}, \text{Resource}, \text{Action}, \text{Environment}) \]
+\[ \text{Decision} = f(\text{Subject}, \text{Resource}, \text{Action}, \text{Environment}) \]
 \end{leftbar}
 
 
-\subsection{Nguyên tắc Deny-All và Allow-Explicit}
+\subsection{Nguyên tắc mặc định từ chối, cho phép tường minh}
 
-Đây là bước hiện thực hóa Tenet 3 (Đặc quyền tối thiểu) của NIST~\cite{nist800207}:
+Đây là bước hiện thực hoá Tenet 3 (đặc quyền tối thiểu) của NIST \parencite{nist800207}:
 
 \begin{itemize}
-    \item \textbf{Deny-All:} Mọi luồng giao tiếp giữa Microservices mặc định bị chặn hoàn toàn ngay khi khởi tạo.
-    \item \textbf{Allow-Explicit:} Chỉ những kết nối được khai báo rõ ràng trong policy mới được phép. Nếu service bị tấn công, kẻ địch không thể thực hiện trinh sát (Reconnaissance) vì các kết nối không khai báo trước bị PEP hủy bỏ (Drop) ngay lập tức \cite{nist800207}.
+    \item \textbf{Mặc định từ chối (default deny):} mọi luồng giao tiếp giữa microservices mặc định bị chặn ngay khi khởi tạo.
+    \item \textbf{Cho phép tường minh (allow-explicit):} chỉ những kết nối được khai báo rõ ràng trong policy mới được phép. Nếu một service bị tấn công, kẻ địch không thể trinh sát vì các kết nối không khai báo trước bị PEP drop ngay \parencite{nist800207}.
 \end{itemize}
 
 
-\subsection{Vòng đời Chính sách (Policy Lifecycle)}
+\subsection{Vòng đời chính sách (policy lifecycle)}
 
-Chính sách không phải thực thể tĩnh mà trải qua vòng đời khép kín~\cite{opa_docs,gatekeeper_docs}:
+Chính sách không phải là thực thể tĩnh mà trải qua vòng đời khép kín \parencite{opa_docs,gatekeeper_docs}:
 
 \begin{enumerate}
-    \item \textbf{Định nghĩa (Definition):} Viết dưới dạng Policy as Code (Rego, CiliumNetworkPolicy YAML). Quản lý phiên bản qua Git để đảm bảo truy vết và rollback.
-    
-    \item \textbf{Phân phối (Distribution):} PA phân phối luật xuống các PEP (API Gateway, eBPF agent) trên toàn cụm thông qua Kubernetes Control Plane.
-    
-    \item \textbf{Thực thi (Enforcement):} PEP chặn request và đối chiếu với tập luật tại chỗ → Allow/Deny theo thời gian thực.
-    
-    \item \textbf{Kiểm soát và Điều chỉnh (Audit \& Feedback):} Mọi quyết định (cả Allow lẫn Deny) đều được ghi log. Nếu Observability Layer phát hiện chuỗi lệnh Deny bất thường từ một service, hệ thống tự động giảm Trust Score xuống 0 và thu hồi mọi quyền đang có.
+    \item \textbf{Định nghĩa:} viết dưới dạng policy as code (Rego, \texttt{CiliumNetworkPolicy} YAML). Quản lý phiên bản qua Git để truy vết và rollback.
+    \item \textbf{Phân phối:} PA phân phối luật xuống các PEP (API Gateway, eBPF agent) trên toàn cụm thông qua control plane Kubernetes.
+    \item \textbf{Thực thi:} PEP chặn request và đối chiếu với tập luật tại chỗ -- allow/deny theo thời gian thực.
+    \item \textbf{Kiểm soát \& điều chỉnh:} mọi quyết định (cả allow lẫn deny) đều được log. Khi observability layer phát hiện chuỗi deny bất thường từ một service, PDP giảm Trust Score của service đó xuống bucket \texttt{low} -- các route nhạy cảm tự động ngưng phục vụ.
 \end{enumerate}
 
 
 %==============================================================================
-% 2.5  QUY TRÌNH TRIỂN KHAI KIẾN TRÚC ZERO TRUST
+% 2.5  QUY TRÌNH TRIỂN KHAI ZERO TRUST
 %==============================================================================
-\section{Quy trình triển khai kiến trúc Zero Trust}
+\section{Quy trình triển khai Zero Trust}
 
-NIST SP 800-207 (Mục~7) nhấn mạnh chuyển đổi sang Zero Trust là \emph{lộ trình dài hạn, tuần tự và lặp lại}, không phải sự kiện đơn lẻ. Bật ZTA toàn hệ thống cùng lúc gây gián đoạn nghiêm trọng \cite{nist800207}. Đồ án đề xuất quy trình \textbf{4 giai đoạn}, mỗi giai đoạn có đầu ra và tiêu chí hoàn thành (Bảng~\ref{tab:deployment_phases}).
+NIST SP 800-207 (Mục~7) nhấn mạnh chuyển đổi sang Zero Trust là \emph{lộ trình dài hạn, tuần tự và lặp lại}, không phải sự kiện đơn lẻ. Bật ZTA toàn hệ thống cùng lúc gây gián đoạn nghiêm trọng \parencite{nist800207}. Đồ án đề xuất quy trình \textbf{4 giai đoạn}, mỗi giai đoạn có đầu ra và tiêu chí hoàn thành (Bảng~\ref{tab:deployment_phases}).
 
-\paragraph{Giai đoạn 1 -- Chuẩn bị và Lập kế hoạch.} Xây bức tranh toàn cảnh trước khi thay đổi: (i) \emph{kiểm kê tài sản} (data, compute, subjects) gắn nhãn nhạy cảm; (ii) \emph{lập bản đồ luồng} N-S, E-W, data-out để có Ma trận truy cập; (iii) \emph{đánh giá hiện trạng} (SSO, secrets, NetworkPolicy, observability) tìm gap; (iv) \emph{lựa chọn công nghệ} -- ánh xạ logic NIST PE/PA/PEP sang công cụ thực tế (Bảng~\ref{tab:nist_comparison}).
+\paragraph{Giai đoạn 1 -- Chuẩn bị và lập kế hoạch.} Xây bức tranh toàn cảnh trước khi thay đổi: (i) \emph{kiểm kê tài sản} (data, compute, subject) gắn nhãn nhạy cảm; (ii) \emph{lập bản đồ luồng} N-S, E-W, data-out để có ma trận truy cập; (iii) \emph{đánh giá hiện trạng} (SSO, secret, NetworkPolicy, observability) tìm gap; (iv) \emph{lựa chọn công nghệ} -- ánh xạ logic NIST PE/PA/PEP sang công cụ thực tế (Bảng~\ref{tab:nist_comparison}).
 
 \paragraph{Giai đoạn 2 -- Triển khai thí điểm.} Áp dụng ZTA cho phạm vi nhỏ có kiểm soát:
 \begin{enumerate}
-    \item \textbf{Gốc tin cậy:} IdP (Keycloak), Secret Manager (Vault với Dynamic Secret + K8s Auth), Workload Identity (SA hoặc SPIFFE/SPIRE) -- xem Hình~\ref{fig:vault_dynamic_secret_concept}.
-    \item \textbf{Default Deny:} áp \texttt{ingress: []} / \texttt{egress: []} cho namespace thí điểm, sau đó mở allow-rules \emph{theo thứ tự ưu tiên} DNS → Vault → DB → Gateway, dùng Hubble xác minh.
-    \item \textbf{Edge PEP:} API Gateway gắn JWT plugin, CORS, rate-limit; gửi request không token phải nhận 401.
-    \item \textbf{Dynamic secrets:} Vault Database Engine + Agent Injector; xác minh \texttt{/vault/secrets/.env.db} có username ngẫu nhiên + lease ID.
-    \item \textbf{Đánh giá pilot:} kiểm tra correctness (200 OK với microsegmentation), latency (<5\,ms), khả năng debug.
+    \item \textbf{Gốc tin cậy:} IdP, Vault (Database Engine + K8s Auth), workload identity (SPIFFE/SPIRE) -- xem Hình~\ref{fig:vault_dynamic_secret_concept}.
+    \item \textbf{Mặc định từ chối:} áp \texttt{ingress: []} / \texttt{egress: []} cho namespace thí điểm, sau đó mở allow-rule \emph{theo thứ tự ưu tiên} DNS $\rightarrow$ Vault $\rightarrow$ DB $\rightarrow$ Gateway, dùng Hubble xác minh.
+    \item \textbf{PEP biên:} API Gateway gắn JWT plugin, CORS, rate-limit; request không token phải nhận \texttt{401}.
+    \item \textbf{Bí mật động:} Vault Database Engine + Agent Injector; xác minh \texttt{/vault/secrets/.env.db} có username ngẫu nhiên + \texttt{lease\_id}.
+    \item \textbf{Đánh giá pilot:} kiểm tra correctness (\texttt{200 OK} với microsegmentation), latency ($<5\,\text{ms}$), khả năng debug.
 \end{enumerate}
+
+\paragraph{Giai đoạn 3 -- Mở rộng.} Sau khi pilot ổn định, mở rộng \emph{theo chiều ngang} (namespace by namespace, dùng ma trận truy cập sinh allow-rule) và \emph{theo chiều sâu} (nâng L3/L4 lên L7 HTTP method/path, ServiceAccount-based policy, mTLS không sidecar / WireGuard). Đồng thời triển khai observability toàn diện (EFK + Prometheus/Grafana + PrometheusRule).
+
+\paragraph{Giai đoạn 4 -- Vận hành và cải tiến liên tục.} ZTA là \emph{vòng lặp cải tiến} chứ không phải trạng thái đích:
+\begin{itemize}
+    \item \textbf{Hằng ngày:} dashboard Grafana (drop, lease count, restart), log Kibana, Hubble UI.
+    \item \textbf{Theo tuần/tháng/quý:} review policy drop, cập nhật ma trận truy cập, audit Vault/IdP/gateway role.
+    \item \textbf{Pen-test \& diễn tập:} Pod ``attacker'' kiểm tra microsegmentation; mô phỏng credential leak; incident response drill.
+    \item \textbf{Cập nhật công nghệ:} theo dõi CVE Cilium/Vault/IdP; nâng cấp khi có tính năng bảo mật mới.
+\end{itemize}
+
+Một điểm cần thiết kế đúng từ đầu là \textit{nguồn cấp credential động} (Vault + Database Engine), vì nó là nền tảng để các giai đoạn sau bỏ được mọi credential tĩnh. Hình~\ref{fig:vault_dynamic_secret_concept} minh hoạ luồng cấp credential này: workload xin Vault dùng ServiceAccount JWT, Vault tạo user MySQL có TTL ngắn, sinh \texttt{lease}, ghi credential lên \texttt{tmpfs} của Pod.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\textwidth]{images/1576778435-vault-db.png}
-    \caption{Quá trình Vault cấp Dynamic Secret cho database -- service xác thực bằng SA, Vault trả credential tạm thời.}
+    \includegraphics[width=0.9\textwidth]{images/1576778435-vault-db.png}
+    \caption{Quá trình Vault cấp credential động cho database -- service xác thực bằng ServiceAccount JWT, Vault trả credential tạm thời với \texttt{lease\_id} và TTL ngắn.}
     \label{fig:vault_dynamic_secret_concept}
 \end{figure}
 
-\paragraph{Giai đoạn 3 -- Mở rộng.} Sau khi pilot ổn định, mở rộng \emph{theo chiều ngang} (namespace by namespace, dùng Ma trận truy cập sinh allow-rules) và \emph{theo chiều sâu} (nâng L3/L4 lên L7 HTTP method/path, ServiceAccount-based policy, mTLS sidecarless / WireGuard). Đồng thời triển khai Observability toàn diện (EFK + Prometheus/Grafana + Alertmanager).
-
-\paragraph{Giai đoạn 4 -- Vận hành và Cải tiến liên tục.} ZTA là \emph{vòng lặp cải tiến} chứ không phải trạng thái đích:
-\begin{itemize}
-    \item \textbf{Daily:} dashboard Grafana (drops, lease count, restart), log Kibana, Hubble UI.
-    \item \textbf{Weekly/Monthly/Quarterly:} review policy drops, cập nhật Ma trận truy cập, audit Vault/Keycloak/Kong roles.
-    \item \textbf{Pen-test \& diễn tập:} Pod ``attacker'' kiểm tra microsegmentation; mô phỏng credential leak; incident response drill.
-    \item \textbf{Cập nhật công nghệ:} theo dõi CVE Cilium/Vault/Keycloak; nâng cấp khi có tính năng bảo mật mới.
-\end{itemize}
-
-\vspace{0.3cm}
-
-
-\vspace{0.5cm}
-
 \begin{table}[H]
 \centering
-\caption{Tóm tắt 4 giai đoạn triển khai ZTA — Mục tiêu, Đầu ra và Tiêu chí hoàn thành}
+\caption{Tóm tắt 4 giai đoạn triển khai Zero Trust -- mục tiêu, đầu ra và tiêu chí hoàn thành}
 \label{tab:deployment_phases}
 \begin{tabularx}{\textwidth}{|c|p{2.5cm}|X|X|}
 \hline
 \textbf{\#} & \textbf{Giai đoạn} & \textbf{Đầu ra chính} & \textbf{Tiêu chí hoàn thành} \\
 \hline
-1 & Chuẩn bị \& Lập kế hoạch & Danh mục tài sản, Bản đồ luồng, Security Baseline, Kế hoạch triển khai & Mọi tài sản đã được phân loại mức nhạy cảm; Gap analysis hoàn tất \\
+1 & Chuẩn bị \& lập kế hoạch & Danh mục tài sản, bản đồ luồng, security baseline, kế hoạch triển khai & Mọi tài sản đã được phân loại nhạy cảm; gap analysis hoàn tất \\
 \hline
-2 & Triển khai thí điểm & IdP, Vault, Default Deny + Allow-rules cho 1 namespace, API Gateway JWT & Service thí điểm hoạt động bình thường với ZTA; Latency tăng <5ms \\
+2 & Triển khai thí điểm & IdP, Vault, mặc định từ chối + allow-rule cho 1 namespace, API Gateway JWT & Service thí điểm hoạt động với ZTA; latency tăng $<5\,\text{ms}$ \\
 \hline
-3 & Mở rộng & Microsegmentation toàn bộ namespace, L7 policy, Dynamic secrets 7 services, EFK+Prometheus & 100\% services sử dụng dynamic credentials; Default Deny áp dụng mọi namespace \\
+3 & Mở rộng & Microsegmentation toàn bộ namespace, L7 policy, dynamic secret cho mọi service, EFK+Prometheus, Trust Score binding & 100\% service dùng credential động; mặc định từ chối áp dụng mọi namespace \\
 \hline
-4 & Cải tiến liên tục & Dashboard giám sát, Policy review cycle, Pen-test reports & Pen-test không vượt được microsegmentation; Mean Time to Detect < 5 phút \\
+4 & Cải tiến liên tục & Dashboard giám sát, chu kỳ review policy, pen-test report & Pen-test không vượt được microsegmentation; mean time to detect $<5$ phút \\
 \hline
 \end{tabularx}
 \end{table}
 
 
 \begin{leftbar}
-\textbf{Cầu nối sang Chương 3:} Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng job7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 node — theo đúng lộ trình 4 giai đoạn đã đề xuất.
+\textbf{Cầu nối sang Chương 3:} Chương~2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương~3 sẽ tiến hành \textit{thiết kế chi tiết} (yêu cầu, nguyên tắc, ánh xạ NIST $\rightarrow$ công cụ, ma trận truy cập, mô hình phân lớp) và sau đó \textit{triển khai thực nghiệm} khung kiến trúc này trên một hệ thống microservices cụ thể, theo đúng lộ trình 4 giai đoạn đã đề xuất.
 \end{leftbar}

@@ -58,14 +58,281 @@ Về dữ liệu, hệ thống áp dụng mô hình phân tán theo dịch vụ 
 
 Về giám sát, chương này chỉ giới thiệu ngắn gọn: hệ thống có lớp quan sát tập trung để thu thập log/metrics phục vụ vận hành và điều tra sự cố; phần cấu hình và kiểm chứng monitoring sẽ được trình bày cụ thể ở các bước sau (đặc biệt tại Bước 5 và Bước 6).
 
-Từ bức tranh tổng quan ở trên, các mục tiếp theo sẽ đi theo trình tự triển khai: kiểm kê tài sản và luồng giao dịch, thiết lập gốc tin cậy, áp chính sách truy cập, vi phân đoạn mạng, và cuối cùng là quan sát - xác minh để đánh giá hiệu quả Zero Trust trong thực nghiệm.
+Từ bức tranh tổng quan ở trên, hai mục tiếp theo trả lời hai câu hỏi tách biệt: \textbf{(1) thiết kế ZTA cho job7189 \textit{trông như thế nào}} (Mục~\ref{sec:zta_design}), và \textbf{(2) triển khai thiết kế đó \textit{theo trình tự nào}} (Mục~\ref{sec:zta_roadmap}). Sau đó các Bước 1--6 sẽ đi vào chi tiết từng giai đoạn triển khai.
 
 %==============================================================================
-% 3.1  LỘ TRÌNH TRIỂN KHAI THEO NIST SP 800-207
+% 3.1  THIẾT KẾ ZERO TRUST CHO HỆ THỐNG JOB7189
+%==============================================================================
+\section{Thiết kế Zero Trust cho hệ thống job7189}
+\label{sec:zta_design}
+
+Mục này trình bày \textbf{thiết kế chi tiết} của kiến trúc Zero Trust áp dụng cho hệ thống job7189, đi qua đầy đủ các bước thiết kế: yêu cầu, nguyên tắc, mô hình logic, mô hình phân lớp, ánh xạ công cụ, ma trận truy cập, mô hình triển khai vật lý, các quyết định kiến trúc đáng chú ý, và các ràng buộc/giới hạn thiết kế. Toàn bộ phần triển khai (Mục~\ref{sec:zta_roadmap} và các Bước 1--6) sau đó \textit{hiện thực hoá} thiết kế này.
+
+\subsection{Yêu cầu thiết kế (design requirements)}
+\label{subsec:design_requirements}
+
+Yêu cầu thiết kế bắt nguồn từ phát biểu bài toán ở đầu chương, kết hợp các nguyên lý NIST SP 800-207 \parencite{nist800207} và bối cảnh ràng buộc của một đồ án PoC.
+
+\paragraph{Yêu cầu chức năng (functional).}
+\begin{enumerate}[label=R-F\arabic*., leftmargin=1.6cm]
+    \item \textbf{Định danh kép, ngắn hạn:} mỗi truy cập phải mang \textit{cả} định danh người dùng (JWT từ IdP) \textit{và} định danh workload (X.509 SVID hoặc ServiceAccount JWT) -- không tin cậy ngầm theo IP/subnet.
+    \item \textbf{Mặc định từ chối, cho phép tường minh:} mọi flow E-W và mọi quyết định admission đều phải được khai báo tường minh; thiếu khai báo $\rightarrow$ deny.
+    \item \textbf{Kiểm soát đa tầng:} có ít nhất 4 PEP độc lập (biên N-S, mạng E-W, admission, runtime), không phụ thuộc vào một sản phẩm duy nhất.
+    \item \textbf{Bí mật động:} mọi credential database phải có TTL ngắn (đơn vị giờ), được sinh JIT theo workload, tự động \texttt{revoke} khi lease hết hạn -- tuyệt đối không có credential database trong YAML hay file ảnh.
+    \item \textbf{Quan sát theo ngữ cảnh:} mọi flow và mọi quyết định PE phải được log kèm \textit{định danh workload} và \textit{tên service}, không chỉ IP. Log có thể truy cứu sau ít nhất 30 ngày.
+    \item \textbf{Vòng lặp thích ứng:} tư thế bảo mật (label coverage, CVE) của workload phải ảnh hưởng \textit{trực tiếp} đến quyền truy cập của workload đó (binding qua label, không chỉ là metric trên dashboard).
+\end{enumerate}
+
+\paragraph{Yêu cầu phi chức năng (non-functional).}
+\begin{enumerate}[label=R-N\arabic*., leftmargin=1.6cm]
+    \item \textbf{Độ trễ thấp:} latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở tầng L4 và $\leq 30\,\text{ms}$ ở tầng L7 cho 95-percentile.
+    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm Kind 4 node (\textbf{tổng RAM 12\,GiB}, headroom mục tiêu $\geq 1.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md}.
+    \item \textbf{Tự phục hồi:} pipeline triển khai (\texttt{zta-rebuild.sh}) có thể chạy lại từ một bước bất kỳ mà không cần xoá toàn bộ cluster; mỗi bước có \texttt{ZTA\_REBUILD\_SKIP=...} cho chế độ low-RAM.
+    \item \textbf{Có thể quan sát từ ngoài:} mọi metric/dashboard phải truy cập được qua trình duyệt mà không cần \texttt{kubectl port-forward} thủ công.
+    \item \textbf{Mã hoá in-transit và at-rest:} mọi flow nội bộ giữa namespace nhạy cảm phải mã hoá (mTLS hoặc WireGuard); credential lưu trên \texttt{tmpfs} thay vì K8s Secret on-disk.
+\end{enumerate}
+
+
+\subsection{Nguyên tắc thiết kế (design principles)}
+
+Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-207 \parencite{nist800207} thành 7 nguyên tắc thiết kế cho job7189. Mỗi nguyên tắc \textit{không thay thế} tenet gốc mà giải thích nó \textit{trong ngữ cảnh microservices trên Kubernetes}.
+
+\begin{table}[H]
+\centering
+\caption{Bảy nguyên tắc thiết kế của job7189 (cụ thể hoá 7 tenets NIST SP 800-207)}
+\label{tab:design_principles}
+\begin{tabularx}{\textwidth}{|p{0.5cm}|p{4.0cm}|X|}
+\hline
+\textbf{\#} & \textbf{Tenet NIST} & \textbf{Cụ thể hoá trong job7189} \\
+\hline
+1 & Mọi nguồn dữ liệu và dịch vụ tính toán đều là tài nguyên & Coi mỗi container, ServiceAccount, image digest, database schema là một tài nguyên có chính sách riêng. Không có ``vùng tin cậy'' nội bộ. \\
+\hline
+2 & Mọi giao tiếp đều phải an toàn bất kể vị trí mạng & Toàn bộ flow E-W chạy qua Cilium PEP, mã hoá mTLS hoặc WireGuard giữa node; flow N-S qua Kong + TLS đầu cuối. \\
+\hline
+3 & Truy cập tài nguyên cấp theo từng phiên & Vault sinh credential database mới mỗi lease 1h; SPIRE cấp SVID mỗi 6h; JWT người dùng có \texttt{exp} ngắn. \\
+\hline
+4 & Truy cập được kiểm soát bằng chính sách động & PE đối soát đồng thời JWT + SVID + label \texttt{cilium.zta/score-bucket} (do PDP gắn động dựa trên CVE) -- chính sách thay đổi theo tư thế bảo mật. \\
+\hline
+5 & Doanh nghiệp giám sát toàn diện tài sản và mạng & Filebeat thu log + Hubble flow + Prometheus metric về ES/Prom; mỗi flow log có context (namespace, pod, image). \\
+\hline
+6 & Toàn bộ xác thực và uỷ quyền là động và bắt buộc & Không có token tĩnh: K8s ServiceAccount token được rotate, JWT có \texttt{exp}, SVID có TTL ngắn. Mọi quyết định đi qua PE. \\
+\hline
+7 & Doanh nghiệp thu thập tối đa thông tin để cải tiến & Hubble flow shipper xuất 30--90 ngày sang ES; PrometheusRule sinh \texttt{ALERTS{...}} cho điều kiện bất thường; Grafana dashboard hiển thị các alert đang firing. \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Mô hình logic: PE / PA / PEP cho job7189}
+\label{subsec:logic_model}
+
+Đồ án không sử dụng một sản phẩm duy nhất nào đóng vai trò ``ZTA''. Thay vào đó, ba thành phần logic của NIST SP 800-207 (PE -- ra quyết định, PA -- biên dịch quyết định, PEP -- thực thi tại data plane) được \textit{phân rã} thành nhiều dịch vụ chuyên trách, mỗi dịch vụ có một loại quyết định/thực thi cụ thể. Hình~\ref{fig:logic_design_model} tóm tắt mô hình logic này; ánh xạ chi tiết sang công cụ được nêu trong Bảng~\ref{tab:nist_to_tool} ở Mục~\ref{subsec:nist_to_tool}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize\sffamily,
+  blk/.style={draw, rounded corners=2pt, minimum height=8mm, text width=4.6cm, align=center, inner sep=4pt},
+  pe/.style={blk, fill=red!10, draw=red!60},
+  pa/.style={blk, fill=blue!10, draw=blue!60},
+  pep/.style={blk, fill=green!12, draw=green!60},
+  pip/.style={blk, fill=orange!18, draw=orange!70},
+  flow/.style={->, >=Latex, thick},
+]
+
+\node[pe] (pe1) at (0,3) {\textbf{PE — Quyết định}\\Keycloak | Vault Policies | Cilium CRD\\Gatekeeper | PDP | ImagePolicy};
+\node[pa] (pa1) at (0,1) {\textbf{PA — Biên dịch quyết định}\\Vault Agent Injector | Cilium agent\\SPIRE Controller | cert-manager};
+\node[pep] (pep1) at (0,-1.2) {\textbf{PEP — Thực thi tại data plane}\\Kong (N-S) | Cilium (E-W L3/L4/L7)\\Sigstore (admission) | Tetragon (runtime)\\Vault Agent (secret)};
+
+\node[pip] (pip1) at (-5.2,1) {\textbf{PIP — Data Sources}\\Trivy VR | FireHOL Level1\\URLhaus | Hubble flow\\Audit log | Filebeat};
+
+\draw[flow] (pip1) -- node[above,font=\scriptsize\sffamily]{posture, IoC, behavior} (pe1.west);
+\draw[flow] (pe1) -- node[right,font=\scriptsize\sffamily]{policy CR / annotation} (pa1);
+\draw[flow] (pa1) -- node[right,font=\scriptsize\sffamily]{eBPF prog | sidecar | SVID | TLS cert} (pep1);
+\draw[flow,dashed] (pep1.west) .. controls (-6,-1.2) and (-6,0.2) .. node[left,font=\scriptsize\sffamily]{flow log, syscall, drop} (pip1.south);
+
+\end{tikzpicture}
+\caption{Mô hình logic ZTA cho job7189 -- ba khối ngang là ba thành phần logic của NIST (PE/PA/PEP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PE; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát.}
+\label{fig:logic_design_model}
+\end{figure}
+
+Đáng chú ý là vòng \textit{phản hồi đứt nét} từ PEP về PIP: dữ liệu flow của Hubble, syscall của Tetragon và drop của Cilium được ship về Elasticsearch/Prometheus, sau đó chính các dữ liệu này lại trở thành ngữ cảnh đầu vào cho PE ở chu kỳ tiếp theo (ví dụ: PDP đọc \texttt{VulnerabilityReport} của Trivy để cập nhật \texttt{score-bucket}). Đây là điểm khác biệt cơ bản giữa ZTA và bảo mật chu vi: \textit{quyết định không tĩnh, mà chạy trong vòng lặp khép kín}.
+
+
+\subsection{Mô hình phân lớp 5 lớp cho job7189}
+\label{subsec:5layer_design}
+
+Khung 5 lớp được đề xuất ở Chương~2 (Mục~2.3) được hiện thực hoá cho job7189 như Hình~\ref{fig:5layer_design}. Mỗi lớp có \textit{ranh giới trách nhiệm} riêng và giao tiếp với các lớp khác qua các điểm tích hợp xác định trước:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize\sffamily,
+  layer/.style={draw, rounded corners=2pt, minimum height=9mm, text width=14.4cm, align=left, inner sep=4pt},
+  l1/.style={layer, fill=blue!8, draw=blue!50},
+  l2/.style={layer, fill=orange!12, draw=orange!60},
+  l3/.style={layer, fill=green!10, draw=green!50},
+  l4/.style={layer, fill=red!10, draw=red!50},
+  l5/.style={layer, fill=violet!10, draw=violet!60},
+]
+\node[l5] (l5) at (0,0)   {\textbf{Lớp 5 — Quan sát \& phân tích:} EFK (Elasticsearch + Filebeat + Kibana), Prometheus + Grafana, Hubble UI, PrometheusRule (alert), Hubble flow shipper $\rightarrow$ ES (30--90 ngày).};
+\node[l4] (l4) at (0,1.0) {\textbf{Lớp 4 — Bí mật động:} Vault dual-mode (\texttt{vault-dev} Transit auto-unseal + \texttt{vault-prod}), Vault Agent Injector, sidecar render \texttt{tmpfs/.env}.};
+\node[l3] (l3) at (0,2.0) {\textbf{Lớp 3 — Thực thi đa tầng:} Kong (N-S, JWT) | Cilium eBPF (E-W L3/L4 + L7) | Sigstore policy-controller (admission) | Tetragon (runtime).};
+\node[l2] (l2) at (0,3.0) {\textbf{Lớp 2 — CDM \& Threat Intel:} Trivy Operator (\texttt{VulnerabilityReport}), Gatekeeper Constraint (label/image baseline), threat-intel CronJob (FireHOL + URLhaus) $\rightarrow$ Cilium CCNP.};
+\node[l1] (l1) at (0,4.0) {\textbf{Lớp 1 — Định danh đa thực thể:} Keycloak (user, OIDC/SAML, dual realm) | SPIRE/SPIFFE (workload SVID) | Vault K8s Auth (workload SA token).};
+
+\draw[->, >=Latex, dashed, gray] (l1.east) ++(0.05,0) -- ++(0.7,0) |- (l5.east);
+\node[gray, font=\scriptsize\sffamily] at (8.1,2.0) {phản hồi};
+
+\end{tikzpicture}
+\caption{Mô hình phân lớp 5 lớp ZTA cho job7189 -- mỗi lớp có ranh giới trách nhiệm; mũi tên đứt nét bên phải là vòng phản hồi từ Lớp 5 (quan sát) ngược về Lớp 1 (định danh) qua việc giảm Trust Score / thu hồi credential.}
+\label{fig:5layer_design}
+\end{figure}
+
+Bảng~\ref{tab:layer_to_tool} ở Mục~\ref{subsec:5layer_mapping} liệt kê đầy đủ các công cụ thuộc mỗi lớp.
+
+
+\subsection{Ma trận truy cập (access matrix)}
+\label{subsec:access_matrix}
+
+Ma trận truy cập là thiết kế \textit{trung tâm} của ZTA cho job7189: mỗi ô trong ma trận quy định một subject được phép thực hiện hành động nào trên một resource cụ thể. Ma trận này được biên dịch thành \texttt{CiliumNetworkPolicy} ở Bước~4 và \texttt{kong.yml} ở Bước~3. Bảng~\ref{tab:access_matrix} là phiên bản rút gọn (chỉ flow \textit{cho phép}, mọi flow còn lại bị deny mặc định).
+
+\begin{table}[H]
+\centering
+\caption{Ma trận truy cập rút gọn cho job7189 (chỉ liệt kê flow được cho phép)}
+\label{tab:access_matrix}
+\small
+\begin{tabularx}{\textwidth}{|p{2.6cm}|p{3.6cm}|p{2.4cm}|X|}
+\hline
+\textbf{Subject} & \textbf{Resource} & \textbf{Action} & \textbf{Điều kiện (ngữ cảnh)} \\
+\hline
+External user & Kong Gateway (\texttt{:443}) & HTTPS GET/POST & TLS hợp lệ + JWT IdP có \texttt{exp} chưa hết hạn \\
+\hline
+Kong Gateway & 7 service trong \texttt{job7189-apps} & HTTP per-route & JWT \texttt{aud} = service tương ứng + path khớp route \\
+\hline
+\texttt{job-service} & \texttt{identity-service} & \texttt{GET /api/v1/internal/users/*} & SVID \texttt{spiffe://zta.job7189/.../sa/job-service} + \texttt{score-bucket=high} \\
+\hline
+\texttt{hiring-service} & \texttt{candidate-service} & \texttt{GET /api/v1/internal/candidates/*} & SVID \texttt{spiffe://zta.job7189/.../sa/hiring-service} + \texttt{score-bucket} $\in$ \{\texttt{high},\texttt{medium}\} \\
+\hline
+Mọi service \texttt{job7189-apps} & \texttt{mysql.data:3306} & MySQL protocol & Credential do Vault sinh (\texttt{lease\_id} hợp lệ, TTL $\leq 1\text{h}$) \\
+\hline
+Mọi service \texttt{job7189-apps} & \texttt{vault-prod.vault:8200} & HTTPS POST \texttt{/v1/auth/k8s/login} & K8s SA token được bind đúng SA name của Pod \\
+\hline
+Mọi service \texttt{job7189-apps} & DNS (kube-system \texttt{:53}) & UDP/TCP 53 & FQDN nằm trong allowlist (\texttt{*.job7189-apps}, \texttt{vault.vault}, \texttt{mysql.data}\dots) \\
+\hline
+Mọi pod & Internet egress & Bất kỳ & FQDN/CIDR \textit{không} có trong threat-intel blocklist (FireHOL Level1 + URLhaus) \\
+\hline
+Filebeat (DS) & \texttt{elasticsearch.monitoring:9200} & HTTPS POST & TLS từ \texttt{ClusterIssuer: zta-internal-ca} \\
+\hline
+Hubble relay & \texttt{elasticsearch.monitoring:9200} & HTTPS POST flow log & TLS + index \texttt{hubble-flows-YYYY.MM.DD} \\
+\hline
+Quản trị viên (\texttt{7189\_internal}) & Grafana, Kibana, Hubble UI & HTTPS GET & JWT realm \texttt{7189\_internal} + role \texttt{admin} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textit{Mọi flow không xuất hiện trong ma trận trên đều bị mặc định từ chối.} Phiên bản đầy đủ của ma trận (kèm 16+ \texttt{CiliumNetworkPolicy} và \texttt{CiliumClusterwideNetworkPolicy}) được trình bày trong Bước~4 (Mục~3.5).
+
+
+\subsection{Ánh xạ NIST $\rightarrow$ công cụ và quyết định lựa chọn}
+\label{subsec:tool_decisions}
+
+Mỗi vai trò NIST trong job7189 được hiện thực bằng một công cụ cụ thể; lý do lựa chọn được tóm tắt ở Bảng~\ref{tab:tool_decision}. Ánh xạ chi tiết hơn được trình bày trong Mục~\ref{subsec:nist_to_tool}.
+
+\begin{table}[H]
+\centering
+\caption{Quyết định lựa chọn công cụ cho từng vai trò ZTA của job7189}
+\label{tab:tool_decision}
+\begin{tabularx}{\textwidth}{|p{2.4cm}|p{3.4cm}|X|}
+\hline
+\textbf{Vai trò} & \textbf{Lựa chọn} & \textbf{Lý do} \\
+\hline
+PEP biên & Kong Gateway (DB-less) & Hỗ trợ JWT plugin, JWKS từ Keycloak, declarative \texttt{kong.yml}; nhẹ hơn Istio Gateway. \\
+\hline
+PEP mạng & Cilium eBPF + Hubble & L3/L4/L7 trong kernel, không sidecar, có Hubble cho observability tự nhiên; thay Calico để tránh phụ thuộc \texttt{iptables}. \\
+\hline
+PEP admission & Sigstore policy-controller + OPA Gatekeeper & policy-controller verify chữ ký Cosign; Gatekeeper kiểm constraint về label/image. \\
+\hline
+PEP runtime & Tetragon & eBPF kprobe, kernel-level kill; nhẹ hơn Falco trên cụm 12\,GiB. \\
+\hline
+PA bí mật & HashiCorp Vault dual-mode + Agent Injector & Vault Database Engine sinh MySQL JIT; Agent Injector mutate Pod để inject sidecar render \texttt{tmpfs}. \\
+\hline
+PA workload identity & SPIRE Controller-Manager + \texttt{ClusterSPIFFEID} CRD & SPIFFE chuẩn hoá định danh; SPIRE cấp X.509 SVID có TTL ngắn. \\
+\hline
+PA chứng chỉ TLS & cert-manager + \texttt{ClusterIssuer} riêng & Tự rotate chứng chỉ Ingress + Vault TLS; tránh thao tác thủ công. \\
+\hline
+PE người dùng & Keycloak (dual realm) & Realm \texttt{7189\_internal} cho admin, \texttt{job7189} cho end-user; tách rủi ro giữa nhân viên và khách. \\
+\hline
+PE workload posture & PDP Controller (Python kopf) & Tự code: tổng hợp 2 input (label + Trivy CVE) thành \texttt{score-bucket}; bind vào Cilium qua label, không cần thêm sản phẩm thương mại. \\
+\hline
+PIP CDM & Trivy Operator & VulnerabilityReport CR là chuẩn de-facto; nhẹ; không yêu cầu API key bên ngoài. \\
+\hline
+PIP threat intel & FireHOL Level1 + URLhaus & Hai feed miễn phí, không token, refresh được mỗi giờ qua CronJob; đủ chứng minh closed loop. \\
+\hline
+PIP observability & EFK + Prometheus + Grafana + Hubble & Bộ ``CNCF chuẩn''; Hubble flow là điểm sáng riêng do Cilium cấp. \\
+\hline
+\end{tabularx}
+\end{table}
+
+
+\subsection{Mô hình triển khai vật lý (deployment view)}
+\label{subsec:deployment_view}
+
+\paragraph{Cụm Kubernetes.} job7189 chạy trên một cụm Kind 4 node (\textbf{1 control-plane + 3 worker}, tổng RAM 12\,GiB). CNI mặc định bị disable (\texttt{disableDefaultCNI: true}) để Cilium tiếp quản hoàn toàn data plane mạng \parencite{cilium_docs}. Mỗi worker chạy: \texttt{cilium-agent}, \texttt{tetragon}, \texttt{spire-agent}, \texttt{filebeat}, \texttt{node-exporter} (5 DaemonSet bắt buộc).
+
+\paragraph{Phân bố namespace.} 9 namespace được nhóm theo trách nhiệm:
+\begin{itemize}
+    \item \textit{Ranh giới} -- \texttt{ingress-nginx}, \texttt{gateway} (PEP biên + reverse proxy).
+    \item \textit{Định danh \& chính sách} -- \texttt{security} (Keycloak, PDP), \texttt{cosign-system}, \texttt{gatekeeper-system}, \texttt{spire}, \texttt{cert-manager}.
+    \item \textit{Bí mật} -- \texttt{vault} (Vault dual-mode + injector).
+    \item \textit{Ứng dụng} -- \texttt{job7189-apps} (7 service + Redis), \texttt{data} (MySQL, Kafka).
+    \item \textit{Quan sát} -- \texttt{monitoring} (EFK + Prometheus + Grafana).
+    \item \textit{Hạ tầng K8s} -- \texttt{kube-system} (Cilium, Tetragon, metrics-server).
+    \item \textit{CDM/threat-intel} -- \texttt{security-cdm} (Trivy Operator + threat-intel CronJob).
+\end{itemize}
+
+Bản đồ chi tiết được trình bày ở Hình~\ref{fig:namespace_map} (Mục~\ref{subsec:namespace_map}).
+
+\paragraph{Image provenance.} Mỗi image của 7 service backend được Cosign ký offline trong phase \texttt{22-cosign-sign}; Sigstore policy-controller \texttt{ClusterImagePolicy} chặn admission nếu image không có chữ ký. Pipeline này đảm bảo \textit{cùng một image digest} mới được phép admit -- không thể substitute bằng image cùng tên nhưng nội dung khác.
+
+
+\subsection{Quyết định kiến trúc đáng chú ý (key architectural decisions)}
+\label{subsec:key_decisions}
+
+Đồ án ghi lại các \textit{quyết định kiến trúc} có ảnh hưởng lan toả đến nhiều phần thiết kế. Các quyết định này được lưu trong \texttt{doc/zta-gap-decision.md} làm tài liệu nguồn:
+
+\begin{enumerate}
+    \item \textbf{Trust Score 2-input thay vì 4-input đầy đủ} (Quyết định 1): chỉ tổng hợp \textit{label coverage} + \textit{CVE severity}, bỏ qua \textit{kill event Tetragon} và \textit{IoC match} vì hai input này đã được xử lý ở các tầng khác (Tetragon \texttt{SIGKILL} ở kernel; IoC match ở \texttt{CiliumClusterwideNetworkPolicy} egress). Output là 3 bucket (\texttt{high/medium/low}) thay vì số 0--100, để bind được vào \texttt{matchLabels} của Cilium.
+    \item \textbf{Không cài Alertmanager} (Quyết định 2): chỉ deploy \texttt{PrometheusRule} + Grafana panel hiển thị \texttt{ALERTS{...}}; bỏ Alertmanager để tiết kiệm $\sim$80\,MiB RAM và tránh \textit{production concern} (Slack/PagerDuty routing) vốn không thuộc phạm vi PoC.
+    \item \textbf{Threat-intel feed không token} (Quyết định 3): chọn FireHOL Level1 (CIDR) + URLhaus (FQDN) -- cả hai miễn phí, không cần API key, refresh 1h/lần qua CronJob; tránh phụ thuộc credential ngoài.
+    \item \textbf{RAM budget 12\,GiB không tăng} (Quyết định 4): mọi quyết định khác (chọn Tetragon thay Falco, tắt Alertmanager, không cấu hình Trust Score 4-input\dots) đều xuất phát từ ràng buộc này. Tổng RAM thêm cho phase Trivy + threat-intel + Grafana dashboard là $\sim$200\,MiB.
+    \item \textbf{Vault dual-mode (Transit auto-unseal):} \texttt{vault-dev} đóng vai trò Transit cho \texttt{vault-prod} -- khi \texttt{vault-prod} restart, nó tự động unseal qua \texttt{vault-dev}; loại bỏ thao tác thủ công trong PoC.
+    \item \textbf{ServiceAccount-based microsegmentation:} \texttt{CiliumNetworkPolicy} \texttt{matchLabels} dùng \texttt{io.kubernetes.pod.namespace} + \texttt{io.cilium.k8s.policy.serviceaccount} thay vì pod label tự khai báo -- để chính sách không thể bị bypass bằng cách tự gắn label.
+\end{enumerate}
+
+
+\subsection{Hạn chế và phạm vi thiết kế (design constraints \& scope)}
+
+Thiết kế hiện tại chấp nhận một số giới hạn rõ ràng, ghi lại để tránh hiểu nhầm \textit{PoC} là \textit{Zero Trust Enterprise}:
+
+\begin{itemize}
+    \item \textbf{Không có MDM/EDR:} thiết bị end-user (laptop) không được đánh giá; PE không có dữ liệu posture của thiết bị truy cập. Đây là phần đáng tích hợp ở môi trường production thật.
+    \item \textbf{Không có CAEP / session-level revocation:} OpenID CAEP \parencite{openid_caep} chưa được triển khai; PE chỉ thu hồi quyền theo TTL của JWT/SVID, không phải theo sự kiện thay đổi posture.
+    \item \textbf{Trust Score 2-input:} các input \textit{kill event} và \textit{IoC match} không trực tiếp ảnh hưởng score; lý do trình bày ở quyết định 1 phía trên.
+    \item \textbf{Tetragon thay Falco do RAM:} đánh đổi giữa số lượng built-in rule và bộ nhớ lab; rule set chính được tự viết qua \texttt{TracingPolicy}.
+    \item \textbf{Cụm Kind, không phải bare-metal:} mạng L2 mô phỏng qua Docker bridge; một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG\dots) không được kiểm chứng trong đồ án.
+\end{itemize}
+
+Sau khi nắm thiết kế tổng thể, mục tiếp theo (\ref{sec:zta_roadmap}) trình bày \textit{trình tự các bước} hiện thực hoá thiết kế này, theo đúng khuyến nghị của NIST SP 800-207 Mục 7.
+
+
+%==============================================================================
+% 3.2  LỘ TRÌNH TRIỂN KHAI THEO NIST SP 800-207
 %==============================================================================
 \section{Lộ trình triển khai Zero Trust theo NIST SP 800-207}
+\label{sec:zta_roadmap}
 
-NIST SP 800-207 (Mục 7 -- ``Migrating to a Zero Trust Architecture'') khuyến nghị doanh nghiệp triển khai ZTA theo một lộ trình tuần tự, không phải ``bật tắt một công tắc duy nhất'' \cite{nist800207}. Hệ thống job7189 tuân thủ lộ trình 6 giai đoạn sau:
+NIST SP 800-207 (Mục 7 -- ``Migrating to a Zero Trust Architecture'') khuyến nghị doanh nghiệp triển khai ZTA theo một lộ trình tuần tự, không phải ``bật tắt một công tắc duy nhất'' \parencite{nist800207}. Hệ thống job7189 tuân thủ lộ trình 6 giai đoạn sau:
 
 \begin{table}[H]
 \centering
@@ -99,19 +366,19 @@ Lộ trình này đảm bảo rằng mỗi giai đoạn là \textbf{tiền đề
 \section{Tổng quan kiến trúc và vai trò từng dịch vụ}
 \label{sec:system_overview_roles}
 
-Trước khi đi sâu vào từng bước triển khai, mục này đưa ra một \textit{bản đồ duy nhất} ánh xạ \textbf{mọi dịch vụ} đang chạy trong cụm job7189 đến: (i) namespace mà nó cư trú, (ii) lớp ZTA mà nó đảm nhiệm trong khung 5 lớp đề xuất ở Chương 2, (iii) vai trò NIST SP 800-207 (PE/PA/PEP)~\cite{nist800207}, và (iv) tầng OSI mà nó kiểm soát. Mục đích là trả lời câu hỏi: \emph{``Khi tôi nhìn cụm job7189 đang chạy, dịch vụ nào đang đảm nhiệm việc gì?''}
+Trước khi đi sâu vào từng bước triển khai, mục này đưa ra một \textit{bản đồ duy nhất} ánh xạ \textbf{mọi dịch vụ} đang chạy trong cụm job7189 đến: (i) namespace mà nó cư trú, (ii) lớp ZTA mà nó đảm nhiệm trong khung 5 lớp đề xuất ở Chương 2, (iii) vai trò NIST SP 800-207 (PE/PA/PEP)~\parencite{nist800207}, và (iv) tầng OSI mà nó kiểm soát. Mục đích là trả lời câu hỏi: \emph{``Khi tôi nhìn cụm job7189 đang chạy, dịch vụ nào đang đảm nhiệm việc gì?''}
 
 \subsection{Mô hình logic NIST và ánh xạ tới công cụ thực tế}
 \label{subsec:nist_to_tool}
 
-NIST SP 800-207 (Hình 2 trong báo cáo) tách kiến trúc ZTA thành ba thành phần logic~\cite{nist800207}:
+NIST SP 800-207 (Hình 2 trong báo cáo) tách kiến trúc ZTA thành ba thành phần logic~\parencite{nist800207}:
 \begin{itemize}
   \item \textbf{Policy Engine (PE):} bộ não quyết định cấp/từ chối truy cập dựa trên định danh, ngữ cảnh, posture.
   \item \textbf{Policy Administrator (PA):} biên dịch quyết định của PE thành cấu hình cụ thể cho data plane (sinh credential, sinh chứng chỉ, đẩy policy ra agent\dots).
   \item \textbf{Policy Enforcement Point (PEP):} đặt giữa subject và resource, thực thi quyết định: cho phép, chặn, log.
 \end{itemize}
 
-Trong job7189, \emph{không có một component nào đóng cả ba vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\cite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
+Trong job7189, \emph{không có một component nào đóng cả ba vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\parencite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
 
 \begin{table}[H]
 \centering
@@ -137,7 +404,7 @@ Trong job7189, \emph{không có một component nào đóng cả ba vai trò} --
   \item \textbf{Cilium Operator + cilium-agent} -- biên dịch \texttt{CiliumNetworkPolicy} thành eBPF program nạp vào kernel mỗi node.
   \item \textbf{SPIRE Controller-Manager} (spire/) -- biên dịch \texttt{ClusterSPIFFEID} CRD thành SVID X.509.
   \item \textbf{Sigstore policy-controller (mutating webhook)} -- mutate Pod spec để tagged với verification result.
-  \item \textbf{cert-manager}~\cite{cert_manager_docs} (cert-manager/) -- biên dịch \texttt{Certificate} CRD thành chứng chỉ TLS thật trong Secret.
+  \item \textbf{cert-manager}~\parencite{cert_manager_docs} (cert-manager/) -- biên dịch \texttt{Certificate} CRD thành chứng chỉ TLS thật trong Secret.
   \item \textbf{Kong Admin API (DB-less)} -- biên dịch \texttt{kong.yml} declarative config thành routing rules.
 \end{itemize} \\
 \hline
@@ -341,7 +608,7 @@ Prom + Grafana & Scrape 7 service + Cilium + Vault + PDP + node-exporter + ksm; 
 
 \subsection{Danh mục tài sản: 7 microservice, 5 namespace}
 
-Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \textit{Kind} gồm \textbf{1 Control Plane + 3 Worker nodes}. Cụm được tắt CNI mặc định (\texttt{disableDefaultCNI: true}) để Cilium eBPF tiếp quản hoàn toàn mặt phẳng dữ liệu mạng \cite{cilium_docs}.
+Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \textit{Kind} gồm \textbf{1 Control Plane + 3 Worker nodes}. Cụm được tắt CNI mặc định (\texttt{disableDefaultCNI: true}) để Cilium eBPF tiếp quản hoàn toàn mặt phẳng dữ liệu mạng \parencite{cilium_docs}.
 
 \begin{table}[H]
 \centering
@@ -435,11 +702,11 @@ No runtime monitoring & Persistent backdoor & Cao & EFK + Hubble: mọi traffic 
 %==============================================================================
 \section{Bước 2: Thiết lập gốc tin cậy -- Identity Layer}
 
-Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}~\cite{nist800207}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity)~\cite{keycloak_docs}, Vault (Workload Secrets)~\cite{vault_docs}, và Kubernetes ServiceAccount (Workload Identity)~\cite{kubernetes_docs,spiffe_spec}.
+Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}~\parencite{nist800207}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity)~\parencite{keycloak_docs}, Vault (Workload Secrets)~\parencite{vault_docs}, và Kubernetes ServiceAccount (Workload Identity)~\parencite{kubernetes_docs,spiffe_spec}.
 
 \subsection{Keycloak: User Identity qua OIDC/JWT}
 
-Keycloak~\cite{keycloak_docs} được triển khai tại namespace \texttt{security} dưới dạng custom image (\texttt{job7189/keycloak-custom:v1.0}), hoạt động \textbf{internal-only} với domain \texttt{auth.job7189.local}. Hệ thống sử dụng kiến trúc \textbf{Dual-Realm} với hai realm phục vụ hai nhóm chủ thể đăng nhập khác nhau:
+Keycloak~\parencite{keycloak_docs} được triển khai tại namespace \texttt{security} dưới dạng custom image (\texttt{job7189/keycloak-custom:v1.0}), hoạt động \textbf{internal-only} với domain \texttt{auth.job7189.local}. Hệ thống sử dụng kiến trúc \textbf{Dual-Realm} với hai realm phục vụ hai nhóm chủ thể đăng nhập khác nhau:
 
 \begin{itemize}
     \item \textbf{Realm \texttt{7189\_internal}} (baked vào image qua \texttt{realm-infra.json}): phục vụ quản trị viên hệ thống và oauth2-proxy. Chỉ các SysAdmin có tài khoản tại realm này, dùng để truy cập các dashboard nội bộ (Hubble, Kibana, Grafana, phpMyAdmin).
@@ -491,7 +758,7 @@ kubectl create secret generic app-secrets --namespace=security \\
 \label{lst:credential_gen}
 \end{listing}
 
-\textbf{Quy trình xác thực OIDC/JWT}~\cite{oidc_core,rfc7519_jwt,rfc6749_oauth2}\textbf{:}
+\textbf{Quy trình xác thực OIDC/JWT}~\parencite{oidc_core,rfc7519_jwt,rfc6749_oauth2}\textbf{:}
 \begin{enumerate}
     \item Client gọi Keycloak endpoint \texttt{/realms/job7189/protocol/openid-connect/token} với OAuth 2.0 flow.
     \item Keycloak trả về Access Token (JWT) chứa: \texttt{sub}, \texttt{iss}, \texttt{realm\_access.roles}, \texttt{exp}.
@@ -537,7 +804,7 @@ $ curl -s -H "Authorization: Bearer $TOKEN" \
 
 \subsection{HashiCorp Vault: Workload Identity và Dynamic Secrets}
 
-Vault~\cite{vault_docs} được triển khai theo mô hình \textbf{Dual-Vault Architecture}: Vault Dev (Transit Auto-Unseal engine) + Vault Production (TLS, PVC 2Gi):
+Vault~\parencite{vault_docs} được triển khai theo mô hình \textbf{Dual-Vault Architecture}: Vault Dev (Transit Auto-Unseal engine) + Vault Production (TLS, PVC 2Gi):
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{text}
@@ -708,7 +975,7 @@ $ vault read -format=json database/creds/identity-service
 
 \subsection{Kong Gateway: PEP cho North-South -- JWT validation và route-level enforcement}
 
-Kong Gateway 3.6 được triển khai ở chế độ DB-less (Declarative Mode), toàn bộ cấu hình trong file \texttt{kong.yml} mount qua ConfigMap~\cite{kong_docs}. Kong đóng vai trò PEP tại tầng biên (Edge), xác thực JWT~\cite{rfc7519_jwt} từ Keycloak realm \texttt{job7189} cho mọi request North-South.
+Kong Gateway 3.6 được triển khai ở chế độ DB-less (Declarative Mode), toàn bộ cấu hình trong file \texttt{kong.yml} mount qua ConfigMap~\parencite{kong_docs}. Kong đóng vai trò PEP tại tầng biên (Edge), xác thực JWT~\parencite{rfc7519_jwt} từ Keycloak realm \texttt{job7189} cho mọi request North-South.
 
 \begin{leftbar}
 \textbf{Nguyên tắc ZTA:} Không tồn tại bất kỳ hình thức ``\textit{trusted internal bypass}'' nào. Ngay cả khi client nằm trong mạng nội bộ, mọi request đến route yêu cầu xác thực đều bắt buộc phải mang JWT hợp lệ -- không có IP whitelist, không có basic auth, không có ngoại lệ.
@@ -800,11 +1067,11 @@ Ingress rule tách biệt domain cho API và Authentication:
 %==============================================================================
 \section{Bước 4: Triển khai Microsegmentation -- Cilium Network Policy}
 
-Đây là phần \textbf{cốt lõi} của kiến trúc Zero Trust: chuyển từ ``Flat Network'' (mạng phẳng, mọi Pod tự do giao tiếp) sang ``Microsegmented Network'' (mỗi Pod bị cô lập, chỉ giao tiếp qua các kênh được khai báo tường minh). Hệ thống sử dụng \textbf{CiliumNetworkPolicy} với công nghệ eBPF hoạt động tại tầng kernel \cite{cilium_docs}.
+Đây là phần \textbf{cốt lõi} của kiến trúc Zero Trust: chuyển từ ``Flat Network'' (mạng phẳng, mọi Pod tự do giao tiếp) sang ``Microsegmented Network'' (mỗi Pod bị cô lập, chỉ giao tiếp qua các kênh được khai báo tường minh). Hệ thống sử dụng \textbf{CiliumNetworkPolicy} với công nghệ eBPF hoạt động tại tầng kernel \parencite{cilium_docs}.
 
 \subsection{Quy trình triển khai microsegmentation}
 
-Microsegmentation được triển khai qua script \texttt{apply-zta-microsegmentation.sh} theo thứ tự nghiêm ngặt~\cite{cilium_docs,nist800207}:
+Microsegmentation được triển khai qua script \texttt{apply-zta-microsegmentation.sh} theo thứ tự nghiêm ngặt~\parencite{cilium_docs,nist800207}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -1096,7 +1363,7 @@ Mọi service & Mọi service khác & * & -- & \textbf{$\times$} \\
 
 \subsection{Xác minh: Hubble observe và test Pod}
 
-\textbf{Hubble CLI} -- công cụ quan sát traffic thời gian thực của Cilium~\cite{hubble_docs}:
+\textbf{Hubble CLI} -- công cụ quan sát traffic thời gian thực của Cilium~\parencite{hubble_docs}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -1158,7 +1425,7 @@ $ kubectl exec allowed-client -n job7189-apps -- \
 
 \subsection{EFK Stack: thu thập security event}
 
-EFK (Elasticsearch + Filebeat + Kibana) được triển khai tại namespace \texttt{monitoring}~\cite{elk_docs}:
+EFK (Elasticsearch + Filebeat + Kibana) được triển khai tại namespace \texttt{monitoring}~\parencite{elk_docs}:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1206,7 +1473,7 @@ filebeat.yml: |-
 
 \subsection{Prometheus + Grafana: Security Metrics thời gian thực}
 
-\textbf{Prometheus} (v2.51.0)~\cite{prometheus_docs} được cấu hình scrape từ 5 nguồn:
+\textbf{Prometheus} (v2.51.0)~\parencite{prometheus_docs} được cấu hình scrape từ 5 nguồn:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1226,7 +1493,7 @@ scrape_configs:
 \label{lst:prometheus}
 \end{listing}
 
-\textbf{Grafana} (v10.4.0)~\cite{grafana_docs} kết nối Prometheus làm default datasource:
+\textbf{Grafana} (v10.4.0)~\parencite{grafana_docs} kết nối Prometheus làm default datasource:
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1253,7 +1520,7 @@ datasources:
 
 \subsection{Tetragon Runtime Security (đã triển khai)}
 
-Tetragon DaemonSet~\cite{tetragon_docs,ebpf_io} được áp dụng trong phase \texttt{10-tetragon}. 5 \texttt{TracingPolicy} hiện hành chặn các binary phá hoại điển hình (\texttt{/bin/sh}, \texttt{curl}, \texttt{wget}, \texttt{nc}, \texttt{socat}, \texttt{ssh})~\cite{crowdstrike_lotl} trong 4 namespace nhạy cảm \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}; chế độ ENFORCE gửi \texttt{Sigkill} ngay tại kernel.
+Tetragon DaemonSet~\parencite{tetragon_docs,ebpf_io} được áp dụng trong phase \texttt{10-tetragon}. 5 \texttt{TracingPolicy} hiện hành chặn các binary phá hoại điển hình (\texttt{/bin/sh}, \texttt{curl}, \texttt{wget}, \texttt{nc}, \texttt{socat}, \texttt{ssh})~\parencite{crowdstrike_lotl} trong 4 namespace nhạy cảm \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}; chế độ ENFORCE gửi \texttt{Sigkill} ngay tại kernel.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
@@ -1277,13 +1544,13 @@ spec:
 \label{lst:tetragon_policy}
 \end{listing}
 
-\subsection{Alertmanager pipeline (chưa kích hoạt)}
+\subsection{PrometheusRule + Grafana panel thay cho Alertmanager}
 
-Prometheus alerting rules đã chuẩn bị sẵn (\texttt{CiliumPolicyDropRate > 100/min}, \texttt{VaultLeaseRevocationRate > 50/h}, \texttt{PodRestartCount > 5/10min}) và Alertmanager routing (Slack/email/PagerDuty) là phần mở rộng tương lai. Hiện tại các alert được hiển thị trên Grafana và đẩy log qua EFK -- vận hành thủ công ở quy mô lab.
+Theo Quyết định~2 trong \texttt{doc/zta-gap-decision.md}, đồ án \emph{cố ý không cài Alertmanager}. Thay vào đó, các \texttt{PrometheusRule} CR sinh \texttt{ALERTS\{...\}} (ví dụ \texttt{CiliumPolicyDropRate > 100/min}, \texttt{VaultLeaseRevocationRate > 50/h}, \texttt{PodRestartCount > 5/10min}, \texttt{ZTAImageHasCriticalCVE}, \texttt{ZTAPodScoreBucketLow}) và một panel Grafana \textit{``ZTA Active Alerts''} truy vấn trực tiếp \texttt{ALERTS\{alertstate="firing"\}}. Lý do: PoC chỉ cần chứng minh \emph{observability loop tồn tại}, không cần routing tới Slack/PagerDuty -- vốn là production concern và tốn $\sim$80\,MiB RAM. Chi tiết bộ rule xem Mục~\ref{subsec:obs_rules}.
 
 \subsection{Cilium mTLS và WireGuard (chưa kích hoạt)}
 
-mTLS sidecarless và WireGuard được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên Kind 4-node 12 GiB (\texttt{enable-wireguard: false}, \texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\cite{cilium_docs,kind_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\cite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\cite{istio_ambient,zhu2023meshinsight}.
+mTLS sidecarless và WireGuard được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên Kind 4-node 12 GiB (\texttt{enable-wireguard: false}, \texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kind_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
 
 
 %==============================================================================
@@ -1390,7 +1657,7 @@ Continuous Auth & Xác thực một lần, JWT tồn tại suốt phiên & \text
 
 \subsection{Đánh giá mức độ trưởng thành của hệ thống job7189 theo CISA ZTMM 2.0}
 
-Việc áp dụng công nghệ CNCF mã nguồn mở đã giúp hệ thống job7189 đạt được những bước tiến dài trên thang đo trưởng thành của CISA ZTMM 2.0 \cite{cisa_ztmm2023}. ZTMM cung cấp khung đánh giá bao gồm 5 trụ cột chức năng (Identity, Devices, Networks, Applications \& Workloads, Data) và 3 năng lực xuyên suốt (Visibility \& Analytics, Automation \& Orchestration, Governance), được sắp xếp trên 4 cấp độ trưởng thành: Traditional, Initial, Advanced, Optimal \cite{cisa_ztmm2023}.
+Việc áp dụng công nghệ CNCF mã nguồn mở đã giúp hệ thống job7189 đạt được những bước tiến dài trên thang đo trưởng thành của CISA ZTMM 2.0 \parencite{cisa_ztmm2023}. ZTMM cung cấp khung đánh giá bao gồm 5 trụ cột chức năng (Identity, Devices, Networks, Applications \& Workloads, Data) và 3 năng lực xuyên suốt (Visibility \& Analytics, Automation \& Orchestration, Governance), được sắp xếp trên 4 cấp độ trưởng thành: Traditional, Initial, Advanced, Optimal \parencite{cisa_ztmm2023}.
 
 Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 
@@ -1414,28 +1681,28 @@ Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 \hline
 \endlastfoot
 
-\textbf{Identity}~\cite{keycloak_docs,spiffe_spec,spire_docs,vault_docs} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
+\textbf{Identity}~\parencite{keycloak_docs,spiffe_spec,spire_docs,vault_docs} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
 \hline
 \textbf{Devices} & Quét lỗ hổng Container Image qua Trivy. Baseline Kube-bench (kế hoạch). Chưa triển khai EDR/MDM cho thiết bị End-User. & \textbf{Initial:} Do giới hạn PoC, hệ thống chủ yếu kiểm tra Workload Posture. Chưa tích hợp quản lý thiết bị End-User (Laptop, Mobile). \\
 \hline
-\textbf{Networks}~\cite{cilium_docs,ebpf_io,hubble_docs} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway $\leftrightarrow$ Applications, (2) Applications $\leftrightarrow$ Vault, (3) Applications $\leftrightarrow$ Database (MySQL), (4) Applications $\leftrightarrow$ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) $\leftrightarrow$ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
+\textbf{Networks}~\parencite{cilium_docs,ebpf_io,hubble_docs} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway $\leftrightarrow$ Applications, (2) Applications $\leftrightarrow$ Vault, (3) Applications $\leftrightarrow$ Database (MySQL), (4) Applications $\leftrightarrow$ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) $\leftrightarrow$ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
 \hline
-\textbf{Applications \& Workloads}~\cite{kong_docs,tetragon_docs,owasp_api2023} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
+\textbf{Applications \& Workloads}~\parencite{kong_docs,tetragon_docs,owasp_api2023} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
 \hline
-\textbf{Data}~\cite{vault_docs,nist800204_microservices} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
+\textbf{Data}~\parencite{vault_docs,nist800204_microservices} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
 \hline
 \end{longtable}
 
 \textbf{Năng lực xuyên suốt (Cross-cutting Capabilities):}
 \begin{itemize}
-    \item \textbf{Tầm nhìn \& Phân tích (Visibility \& Analytics)}~\cite{elk_docs,prometheus_docs,grafana_docs,hubble_docs}\textbf{:} EFK Stack (Elasticsearch 8, Filebeat, Kibana) tập trung log từ API Gateway, Network Policy, Runtime. Prometheus + Grafana theo dõi metrics. Cilium Hubble UI hình dung flow lưu lượng. Mọi event đều gắn ngữ cảnh SPIFFE ID, Namespace, Pod name.
-  \item \textbf{Tự động hóa \& Điều phối (Automation \& Orchestration)}~\cite{helm_docs,helmfile_docs}\textbf{:} Helmfile quản lý declarative deployment. Vault Agent Injector tự động inject secrets. CiliumNetworkPolicy auto-update dựa trên labels. Giảm các bước manual.
-    \item \textbf{Quản trị (Governance)}~\cite{kubernetes_docs,gatekeeper_docs,opa_docs}\textbf{:} RBAC Kubernetes trên từng namespace. Vault Policy kiểm soát quyền hạn dịch vụ. Kong Plugin enforce JWT. Nguyên tắc "Allow-Explicit" thay vì "Deny-Exception".
+    \item \textbf{Tầm nhìn \& Phân tích (Visibility \& Analytics)}~\parencite{elk_docs,prometheus_docs,grafana_docs,hubble_docs}\textbf{:} EFK Stack (Elasticsearch 8, Filebeat, Kibana) tập trung log từ API Gateway, Network Policy, Runtime. Prometheus + Grafana theo dõi metrics. Cilium Hubble UI hình dung flow lưu lượng. Mọi event đều gắn ngữ cảnh SPIFFE ID, Namespace, Pod name.
+  \item \textbf{Tự động hóa \& Điều phối (Automation \& Orchestration)}~\parencite{helm_docs,helmfile_docs}\textbf{:} Helmfile quản lý declarative deployment. Vault Agent Injector tự động inject secrets. CiliumNetworkPolicy auto-update dựa trên labels. Giảm các bước manual.
+    \item \textbf{Quản trị (Governance)}~\parencite{kubernetes_docs,gatekeeper_docs,opa_docs}\textbf{:} RBAC Kubernetes trên từng namespace. Vault Policy kiểm soát quyền hạn dịch vụ. Kong Plugin enforce JWT. Nguyên tắc "Allow-Explicit" thay vì "Deny-Exception".
 \end{itemize}
 
 \textbf{Khoảng trống chính cần bổ sung để đạt Optimal hoàn toàn:}
 \begin{enumerate}
-  \item \textbf{CAEP (Continuous Access Evaluation Profile)}~\cite{openid_caep,nist800207}\textbf{:} Hiện tại JWT chỉ được xác thực một lần (lúc request đến). Chưa có cơ chế thu hồi token giữa phiên khi ngữ cảnh thay đổi (IP, hành vi anomaly). Cần tích hợp ITDR (Identity Threat Detection and Response) hoặc real-time policy engine (bổ sung sau).
+  \item \textbf{CAEP (Continuous Access Evaluation Profile)}~\parencite{openid_caep,nist800207}\textbf{:} Hiện tại JWT chỉ được xác thực một lần (lúc request đến). Chưa có cơ chế thu hồi token giữa phiên khi ngữ cảnh thay đổi (IP, hành vi anomaly). Cần tích hợp ITDR (Identity Threat Detection and Response) hoặc real-time policy engine (bổ sung sau).
   \item \textbf{EDR/MDM cho thiết bị End-User:} Chưa kiểm tra tình trạng sức khỏe của laptop/mobile client trước khi cấp access. Cần HTTPS client certificate binding hoặc device-posture check tại Keycloak plugin (bổ sung sau).
   \item \textbf{Encryption in-transit cho E-W traffic:} Cilium mesh-auth (mTLS sidecarless) đang ở kế hoạch nhưng chưa triển khai để tránh tăng complexity. Hiện tại dựa vào Network Policy Allow-list (bổ sung sau).
   \item \textbf{Automated threat response:} Chưa có playbook tự động (SOAR) để detect anomaly và terminate session. Ví dụ: UEBA phát hiện 100 failed logins → auto-lock account → alert (bổ sung sau).
@@ -1484,7 +1751,7 @@ Trước khi mở rộng sang các module ZTA Phase~4, mục này làm rõ \text
     \item Trong vòng đời chạy: \texttt{vault-agent} renew lease mỗi $TTL/2$. Khi lease cuối cùng hết hạn (hoặc bị admin revoke), agent đăng ký lease mới với credential khác → \texttt{env-loader} viết lại \texttt{.env} → \texttt{env-watcher} gọi \texttt{reload-db} → Laravel reconnect MySQL với credential mới mà không cần restart Pod.
 \end{enumerate}
 
-\textbf{Vì sao không inject thẳng env vars vào Pod?} Mô hình truyền thống dùng \texttt{Secret} của Kubernetes và \texttt{envFrom: secretRef} chỉ đọc một lần lúc start. Khi Vault rotate credential, Pod không thấy thay đổi cho tới khi restart -- vi phạm luận điểm ``per-session per-request access'' của ZTA Tenet 3 \cite{nist800207}. Cấu trúc 4 sidecar đảm bảo mỗi Pod có thể \textit{đổi credential trong khi đang chạy} mà không hề downtime.
+\textbf{Vì sao không inject thẳng env vars vào Pod?} Mô hình truyền thống dùng \texttt{Secret} của Kubernetes và \texttt{envFrom: secretRef} chỉ đọc một lần lúc start. Khi Vault rotate credential, Pod không thấy thay đổi cho tới khi restart -- vi phạm luận điểm ``per-session per-request access'' của ZTA Tenet 3 \parencite{nist800207}. Cấu trúc 4 sidecar đảm bảo mỗi Pod có thể \textit{đổi credential trong khi đang chạy} mà không hề downtime.
 
 
 %==============================================================================
@@ -1493,12 +1760,12 @@ Trước khi mở rộng sang các module ZTA Phase~4, mục này làm rõ \text
 \section{Lớp ZTA mở rộng -- Phase 4: Supply chain, Workload attestation và Adaptive loop}
 \label{sec:phase4}
 
-Các Bước 2--6 ở trên hoàn thiện \textit{Identity}, \textit{Network} và \textit{Observability} -- ba trụ cột cốt lõi để hệ thống đạt mức trưởng thành \emph{Advanced} trên CISA ZTMM~\cite{cisa_ztmm2023}. Phase~4 bổ sung bốn module để hệ thống tiến gần \emph{Optimal}: \textbf{(a)} ký + xác thực image (supply-chain)~\cite{newman2022sigstore,sigstore_docs}, \textbf{(b)} cấp định danh mật mã ngắn hạn cho từng workload~\cite{spiffe_spec,spire_docs}, \textbf{(c)} kiểm soát admission có khả năng mở rộng~\cite{opa_docs,gatekeeper_docs,k8s_admission_controllers}, và \textbf{(d)} đóng vòng lặp đáp ứng (adaptive feedback loop)~\cite{nist800207}.
+Các Bước 2--6 ở trên hoàn thiện \textit{Identity}, \textit{Network} và \textit{Observability} -- ba trụ cột cốt lõi để hệ thống đạt mức trưởng thành \emph{Advanced} trên CISA ZTMM~\parencite{cisa_ztmm2023}. Phase~4 bổ sung bốn module để hệ thống tiến gần \emph{Optimal}: \textbf{(a)} ký + xác thực image (supply-chain)~\parencite{newman2022sigstore,sigstore_docs}, \textbf{(b)} cấp định danh mật mã ngắn hạn cho từng workload~\parencite{spiffe_spec,spire_docs}, \textbf{(c)} kiểm soát admission có khả năng mở rộng~\parencite{opa_docs,gatekeeper_docs,k8s_admission_controllers}, và \textbf{(d)} đóng vòng lặp đáp ứng (adaptive feedback loop)~\parencite{nist800207}.
 
 \subsection{Image provenance: Cosign + Sigstore policy-controller}
 \label{subsec:cosign}
 
-\textbf{Vấn đề:} Trước Phase~4, mọi Deployment chỉ chốt image qua tag (\texttt{:v1.0})~\cite{kubernetes_docs}. Kẻ tấn công có thể (i) đẩy image mới đè cùng tag \texttt{(:latest)} vào registry nội bộ \texttt{172.17.0.1:5000}; (ii) build image chứa backdoor mà không ai hay~\cite{cisa_solarwinds}; (iii) replay image cũ (đã có CVE) khi rollback~\cite{newman2022sigstore}.
+\textbf{Vấn đề:} Trước Phase~4, mọi Deployment chỉ chốt image qua tag (\texttt{:v1.0})~\parencite{kubernetes_docs}. Kẻ tấn công có thể (i) đẩy image mới đè cùng tag \texttt{(:latest)} vào registry nội bộ \texttt{172.17.0.1:5000}; (ii) build image chứa backdoor mà không ai hay~\parencite{cisa_solarwinds}; (iii) replay image cũ (đã có CVE) khi rollback~\parencite{newman2022sigstore}.
 
 \textbf{Giải pháp được triển khai:}
 
@@ -1530,12 +1797,12 @@ spec:
 \label{lst:cip}
 \end{listing}
 
-Khi triển khai chuyển từ \texttt{dryrun} sang \texttt{deny}, Gatekeeper sẽ chặn ngay tại API server bất kỳ Deployment nào không thoả 3 ràng buộc trên (chính sách \emph{fail closed})~\cite{gatekeeper_docs,opa_docs,k8s_admission_controllers}. Đây là PEP độc lập với Cilium Network Policy -- thuộc tầng PEP \emph{Admission} (cùng họ với PEP Edge và PEP Network)~\cite{nist800207}.
+Khi triển khai chuyển từ \texttt{dryrun} sang \texttt{deny}, Gatekeeper sẽ chặn ngay tại API server bất kỳ Deployment nào không thoả 3 ràng buộc trên (chính sách \emph{fail closed})~\parencite{gatekeeper_docs,opa_docs,k8s_admission_controllers}. Đây là PEP độc lập với Cilium Network Policy -- thuộc tầng PEP \emph{Admission} (cùng họ với PEP Edge và PEP Network)~\parencite{nist800207}.
 
 \subsection{Workload attestation với SPIRE}
 \label{subsec:spire}
 
-ServiceAccount token trong Kubernetes là JWT có thời hạn dài và không gắn cryptographic root~\cite{kubernetes_docs,rfc7519_jwt}. Một token bị leak qua log có thể được tái sử dụng đến khi Pod bị xoá~\cite{machine_identity_report}. SPIRE thay thế cơ chế này bằng X.509 SVID ngắn hạn (15--60 phút) gắn SPIFFE ID dạng \texttt{spiffe://zta.job7189/ns/<ns>/sa/<sa>}~\cite{spiffe_spec,spire_docs}.
+ServiceAccount token trong Kubernetes là JWT có thời hạn dài và không gắn cryptographic root~\parencite{kubernetes_docs,rfc7519_jwt}. Một token bị leak qua log có thể được tái sử dụng đến khi Pod bị xoá~\parencite{machine_identity_report}. SPIRE thay thế cơ chế này bằng X.509 SVID ngắn hạn (15--60 phút) gắn SPIFFE ID dạng \texttt{spiffe://zta.job7189/ns/<ns>/sa/<sa>}~\parencite{spiffe_spec,spire_docs}.
 
 \textbf{Kiến trúc đã triển khai} (script \texttt{scripts/zta-deploy-spire.sh}):
 
@@ -1550,39 +1817,104 @@ ServiceAccount token trong Kubernetes là JWT có thời hạn dài và không g
   \end{itemize}
 \end{itemize}
 
-\textbf{Quan hệ với mTLS đề xuất ở Bước 5:} SPIRE \emph{cung cấp danh tính} (SVID) còn Cilium mesh-auth \emph{tiêu thụ danh tính} đó cho TLS handshake~\cite{cilium_docs,spire_docs}. Nếu cluster chuyển sang \texttt{mesh-auth-enabled=true}, mỗi flow E-W bắt buộc đính kèm SVID hợp lệ -- địch không thể giả dạng workload chỉ bằng thay nhãn pod~\cite{istio_ambient}.
+\textbf{Quan hệ với mTLS đề xuất ở Bước 5:} SPIRE \emph{cung cấp danh tính} (SVID) còn Cilium mesh-auth \emph{tiêu thụ danh tính} đó cho TLS handshake~\parencite{cilium_docs,spire_docs}. Nếu cluster chuyển sang \texttt{mesh-auth-enabled=true}, mỗi flow E-W bắt buộc đính kèm SVID hợp lệ -- địch không thể giả dạng workload chỉ bằng thay nhãn pod~\parencite{istio_ambient}.
 
-\subsection{PDP Controller -- Adaptive Trust Loop}
+\subsection{PDP Controller -- Adaptive Trust Loop (cập nhật theo code mới nhất)}
 \label{subsec:pdp}
 
-Cilium Network Policy là tĩnh: vận hành viên viết YAML, áp dụng, xong~\cite{cilium_docs}. Khi label của Pod thay đổi (ví dụ ai đó vô tình gỡ \texttt{cilium.zta/tier=T0}), policy không tự cảnh báo. PDP Controller (PR~\#13) đóng vòng lặp này bằng cơ chế kopf-based watcher (Python)~\cite{nist800207,nist_abac}.
+Cilium Network Policy là tĩnh: vận hành viên viết YAML, áp dụng, xong~\parencite{cilium_docs}. Khi label của Pod thay đổi (ví dụ ai đó vô tình gỡ \texttt{cilium.zta/tier=T0}), policy không tự cảnh báo. PDP Controller đóng vòng lặp này bằng cơ chế kopf-based watcher (Python)~\parencite{nist800207,nist_abac}, hiện thực hoá quyết định Trust Score 2-input ở Mục~\ref{subsec:trust_score} của Chương 2.
+
+\textbf{Trạng thái hiện tại (cập nhật theo code mới nhất, file \texttt{infras/pdp/pdp\_controller.py}):} PDP đã được mở rộng sang giai đoạn~2 -- ngoài label coverage, nó còn đọc CR \texttt{VulnerabilityReport} do Trivy Operator phát hành để đánh giá CVE posture của image. Score được rời rạc hoá thành 3 \textit{bucket} (\texttt{high/medium/low}) và \textit{ghi xuống Pod như một label} (chứ không chỉ annotation), từ đó Cilium \texttt{matchLabels} có thể bind được.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{python}
-# infras/pdp/pdp_controller.py (trích logic chính)
-@kopf.on.update('pods', labels={'app': kopf.PRESENT})
-async def on_pod_label_update(diff, name, namespace, body, **_):
+# infras/pdp/pdp_controller.py (trích logic chính, cập nhật code mới nhất)
+def evaluate_labels(labels):
     expected = {'cilium.zta/tier','cilium.zta/source','cilium.zta/destination',
                 'cilium.zta/role','cilium.zta/owner','cilium.zta/sensitivity'}
-    actual = set(body['metadata'].get('labels', {}).keys())
-    missing = expected - actual
-    score = max(0, 100 - 15 * len(missing))   # 0..100
-    patch_pod_annotation(namespace, name,
-        {'cilium.zta/trust-score': str(score)})
-    if missing:
-        emit_event('LabelDrift', namespace, name, missing)
-        PDP_DRIFT_TOTAL.inc()
+    missing = expected - set(labels.keys())
+    return len(missing), sorted(missing)
+
+def compute_score(missing_count, has_critical, has_high):
+    score = 100 - 30 * (missing_count / 6)
+    if has_critical: score -= 50
+    if has_high:     score -= 20
+    return max(0, int(round(score)))
+
+def score_to_bucket(score):
+    if score >= 80: return 'high'
+    if score >= 50: return 'medium'
+    return 'low'
+
+@kopf.on.create('v1','pods')
+@kopf.on.update('v1','pods', field='metadata.labels')
+def on_pod_event(meta, namespace, name, **_):
+    labels = meta.get('labels', {}) or {}
+    missing, _ = evaluate_labels(labels)
+    crit, high = cve_counts_for_pod(namespace, name)  # đọc Trivy VR cache
+    score  = compute_score(missing, crit > 0, high > 0)
+    bucket = score_to_bucket(score)
+    patch_pod_trust(api, namespace, name, score, bucket)  # patch label + annotation
 \end{minted}
-\caption{PDP Controller: tính trust-score và phát Event ``LabelDrift'' khi thiếu nhãn}
+\caption{PDP Controller phiên bản mới -- tổng hợp label coverage + Trivy CVE → 3 bucket trust}
 \label{lst:pdp_logic}
 \end{listing}
 
-PDP expose 3 metrics qua \texttt{/metrics} (Prometheus)~\cite{prometheus_docs}: \texttt{pdp\_label\_compliance}, \texttt{pdp\_label\_drift\_total}, \texttt{pdp\_trust\_score}. Khi tích hợp với Alertmanager, một drift đơn lẻ có thể trigger workflow tự động: gắn cờ Pod, scale 0 nếu trust-score $< 40$, gửi alert sang Slack~\cite{nist800207}.
+\paragraph{Vòng lặp khép kín thực sự.} Sau khi PDP gắn nhãn \texttt{cilium.zta/score-bucket=high|medium|low}, các \texttt{CiliumNetworkPolicy} cho route nhạy cảm (ví dụ \texttt{cnp-block-low-trust-to-vault}) sẽ \texttt{matchLabels} chính xác bucket này -- nghĩa là Trust Score \textit{thực sự} ảnh hưởng đến PEP, không chỉ là metric trên dashboard. Đây là điểm khác biệt lớn so với phiên bản trước (annotation-only) đã được nêu trong \texttt{doc/33-zta-gap-analysis.md} (gap §1).
+
+PDP expose 4 metric qua \texttt{/metrics} (Prometheus)~\parencite{prometheus_docs}: \texttt{pdp\_label\_compliance}, \texttt{pdp\_label\_drift\_total}, \texttt{pdp\_trust\_score}, \texttt{pdp\_score\_bucket\_changes\_total}. PrometheusRule (Mục~\ref{subsec:obs_rules}) chuyển các metric này thành \texttt{ALERTS{...}} hiển thị trên Grafana mà không cần Alertmanager.
+
+\subsection{Trivy Operator -- nguồn dữ liệu CVE cho PDP}
+\label{subsec:trivy}
+
+Trivy Operator~\parencite{trivy_operator} được triển khai ở phase \texttt{28-trivy} của \texttt{zta-rebuild.sh} (script \texttt{scripts/zta-deploy-trivy.sh}). Sau khi cài, mọi Pod trong cluster đều được scan tự động; kết quả ghi vào CR \texttt{VulnerabilityReport} trong namespace của Pod. PDP đọc các CR này định kỳ (mỗi 30 giây) qua API \texttt{aquasecurity.github.io/v1alpha1} và cache theo cặp (\texttt{namespace}, \texttt{pod\_name}).
+
+Một số ví dụ alert đáng chú ý:
+\begin{itemize}
+    \item \texttt{ZTAImageHasCriticalCVE} -- bất kỳ Pod nào có \texttt{report.summary.criticalCount > 0}.
+    \item \texttt{ZTAPodScoreBucketLow} -- Pod đi vào bucket \texttt{low} (score $<50$).
+    \item \texttt{ZTAImageNotScanned} -- image của Pod chưa có \texttt{VulnerabilityReport} sau 5 phút từ lúc Pod ready.
+\end{itemize}
+
+Script \texttt{zta-deploy-trivy.sh} hỗ trợ biến \texttt{ZTA\_REBUILD\_SKIP=trivy} để tắt phase này khi RAM lab cạn (\texttt{require\_host\_ram\_mi} thấp hơn ngưỡng) -- baseline ZTA vẫn chạy với input duy nhất là label coverage, score sẽ chỉ phản ánh độ phủ nhãn.
+
+\subsection{Threat-Intel feeds -- cập nhật blocklist động cho Cilium}
+\label{subsec:threat_intel}
+
+Phase \texttt{29-threat-intel} (script \texttt{scripts/zta-deploy-threat-intel.sh}) hiện thực Quyết định~3 trong \texttt{doc/zta-gap-decision.md}: tích hợp hai feed miễn phí, không token vào blocklist của Cilium.
+
+\begin{itemize}
+    \item \textbf{FireHOL Level1}~\parencite{firehol_level1} -- danh sách CIDR độc hại (botnet, scanner, brute-force source).
+    \item \textbf{URLhaus} (abuse.ch)~\parencite{urlhaus} -- danh sách FQDN phát tán mã độc (host file format).
+\end{itemize}
+
+Pipeline được hiện thực qua một CronJob trong namespace \texttt{security-cdm}, chạy mỗi giờ một lần:
+
+\begin{enumerate}
+    \item Fetch hai feed qua HTTPS, normalize thành danh sách CIDR và danh sách FQDN.
+    \item Ghi kết quả vào ConfigMap \texttt{threat-intel-blocklist} (key \texttt{cidr-list} và \texttt{fqdn-list}).
+    \item Patch \texttt{CiliumClusterwideNetworkPolicy} \texttt{cnp-threat-intel-egress-deny} (kiểu \texttt{merge}) với danh sách CIDR/FQDN mới.
+    \item Audit lineage: log của CronJob được ship sang Elasticsearch ở index \texttt{threat-intel-feed-*}, lưu lại số entry mỗi lần refresh để truy vết.
+\end{enumerate}
+
+Hệ quả: nếu một image bị tiêm shell và cố gắng \texttt{curl} sang một CIDR có trong FireHOL Level1, Cilium drop ngay tại tầng L3 trước khi kết nối được thiết lập -- không cần PE phải ra quyết định ABAC.
+
+\subsection{Observability rules -- thay thế Alertmanager bằng PrometheusRule + Grafana}
+\label{subsec:obs_rules}
+
+Theo Quyết định~2 trong \texttt{doc/zta-gap-decision.md}, đồ án \textit{không} cài Alertmanager (lý do: tiết kiệm $\sim$80\,MiB RAM và Alertmanager là production concern). Phase \texttt{zta-deploy-observability-rules.sh} thay thế bằng:
+
+\begin{itemize}
+    \item Một bộ \texttt{PrometheusRule} CR sinh ra các alert có \texttt{label severity}, \texttt{ztapillar} và \texttt{component}.
+    \item Một panel Grafana \textit{``ZTA Active Alerts''} truy vấn \texttt{ALERTS\{alertstate="firing"\}} -- panel này thay vai trò UI cho Alertmanager.
+\end{itemize}
+
+Toàn bộ rule set tập trung vào 4 trục: \textit{identity} (Keycloak/Vault failed login), \textit{posture} (Trivy CVE, label drift), \textit{enforcement} (Cilium drop spike, Tetragon kill rate), \textit{secrets} (Vault lease lifecycle). Báo cáo ghi rõ ràng tại đây để giảng viên/người đọc không hiểu nhầm thiếu Alertmanager là thiếu observability.
 
 \subsection{Hubble flow → Elasticsearch (audit trail dài hạn)}
 \label{subsec:hubble_export}
 
-Hubble (Cilium-native flow visibility)~\cite{hubble_docs} mặc định lưu flow trong ring buffer 4096 events/agent -- vài phút traffic spike có thể overwrite hết evidence~\cite{cilium_docs}. PR~\#21 thêm pipeline:
+Hubble (Cilium-native flow visibility)~\parencite{hubble_docs} mặc định lưu flow trong ring buffer 4096 events/agent -- vài phút traffic spike có thể overwrite hết evidence~\parencite{cilium_docs}. PR~\#21 thêm pipeline:
 
 \[
 \text{cilium-agent} \xrightarrow{\text{file rotate 10MB×5}} 
@@ -1592,7 +1924,7 @@ Hubble (Cilium-native flow visibility)~\cite{hubble_docs} mặc định lưu flo
 
 Script \texttt{scripts/zta-deploy-hubble-export.sh} mặc định chỉ deploy filebeat shipper (an toàn cho Kind cluster). Cờ \texttt{--enable-cilium-export} mới patch ConfigMap \texttt{kube-system/cilium-config} với \texttt{hubble-export-file-path: /var/run/cilium/hubble/events.log}; nếu rollout Cilium DS thất bại, script tự động revert patch để tránh CrashLoopBackOff dây chuyền.
 
-Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, drop reason) đều được persist 30--90 ngày, có thể truy vấn qua Kibana cho điều tra retroactive~\cite{elk_docs,nist800207}.
+Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, drop reason) đều được persist 30--90 ngày, có thể truy vấn qua Kibana cho điều tra retroactive~\parencite{elk_docs,nist800207}.
 
 
 %==============================================================================
@@ -1600,7 +1932,7 @@ Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, d
 %==============================================================================
 \section{Quy trình triển khai tự động (Deployment Pipeline)}
 
-Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestrator duy nhất} -- \texttt{scripts/zta-rebuild.sh} -- gồm 16 phase, mỗi phase tương ứng một script con (Infrastructure as Code)~\cite{helm_docs,helmfile_docs,kind_docs}. Pipeline bắt đầu từ \texttt{kind delete} (phase~00) và kết thúc khi \texttt{09-verify-zta.sh} pass đủ Test 0--Test 6 (phase~90):
+Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestrator duy nhất} -- \texttt{scripts/zta-rebuild.sh} -- gồm 16 phase, mỗi phase tương ứng một script con (Infrastructure as Code)~\parencite{helm_docs,helmfile_docs,kind_docs}. Pipeline bắt đầu từ \texttt{kind delete} (phase~00) và kết thúc khi \texttt{09-verify-zta.sh} pass đủ Test 0--Test 6 (phase~90):
 
 \begin{table}[H]
 \centering
@@ -1636,7 +1968,7 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 \hline
 \texttt{24-hubble-export} & \texttt{zta-deploy-hubble-export.sh --enable-cilium-export} & DaemonSet filebeat-shipper, patch \texttt{cilium-config} bật \texttt{hubble-export-file-path}, index template \texttt{hubble-flows-*}. \\
 \hline
-\texttt{26-gatekeeper} & \texttt{zta-deploy-gatekeeper.sh} & OPA Gatekeeper + 3 ConstraintTemplate Rego (\texttt{ztarequiredlabels}, \texttt{ztablockhostmounts}, \texttt{ztarestrictprivileged} -- tương đồng với Pod Security Standard \textit{Restricted}~\cite{k8s_pod_security_standards}) + 3 ConstraintTemplate image (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) -- \texttt{enforcementAction: dryrun}. \\
+\texttt{26-gatekeeper} & \texttt{zta-deploy-gatekeeper.sh} & OPA Gatekeeper + 3 ConstraintTemplate Rego (\texttt{ztarequiredlabels}, \texttt{ztablockhostmounts}, \texttt{ztarestrictprivileged} -- tương đồng với Pod Security Standard \textit{Restricted}~\parencite{k8s_pod_security_standards}) + 3 ConstraintTemplate image (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) -- \texttt{enforcementAction: dryrun}. \\
 \hline
 \texttt{27-pdp} & \texttt{zta-deploy-pdp.sh} & PDP Controller (Python kopf) trong namespace \texttt{security}: watch label drift, tính \texttt{pdp\_trust\_score}, expose Prometheus metrics. \\
 \hline
@@ -1664,7 +1996,7 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 \section{Khả năng tự phục hồi của pipeline triển khai ZTA}
 \label{sec:resource_budget_lessons}
 
-Cluster ZTA chạy đồng thời nhiều \emph{control loop có leader-election} (\texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager}) đều dựa trên \texttt{coordination.k8s.io/Lease} mặc định 5\,s~\cite{kubernetes_docs}. Khi \texttt{kube-apiserver} chậm hơn 5\,s (thường do fsync etcd hoặc tải đột biến), nhóm này \emph{đồng thời} mất leadership trong cùng cửa sổ -- chuỗi enforcement Zero Trust tạm thời ``tan rã'': Cilium ngừng reconcile NetworkPolicy/Identity, SPIRE ngừng cấp SVID, admission chain bị phớt qua. Pipeline có nhiệm vụ \emph{dập sớm} cascade này thay vì để cluster tự ổn định.
+Cluster ZTA chạy đồng thời nhiều \emph{control loop có leader-election} (\texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager}) đều dựa trên \texttt{coordination.k8s.io/Lease} mặc định 5\,s~\parencite{kubernetes_docs}. Khi \texttt{kube-apiserver} chậm hơn 5\,s (thường do fsync etcd hoặc tải đột biến), nhóm này \emph{đồng thời} mất leadership trong cùng cửa sổ -- chuỗi enforcement Zero Trust tạm thời ``tan rã'': Cilium ngừng reconcile NetworkPolicy/Identity, SPIRE ngừng cấp SVID, admission chain bị phớt qua. Pipeline có nhiệm vụ \emph{dập sớm} cascade này thay vì để cluster tự ổn định.
 
 Pipeline triển khai trang bị bốn cơ chế phòng vệ độc lập, ánh xạ tới Bảng~\ref{tab:defense_matrix}:
 
@@ -1687,4 +2019,4 @@ Pipeline triển khai trang bị bốn cơ chế phòng vệ độc lập, ánh 
 \end{tabularx}
 \end{table}
 
-Bốn cơ chế phối hợp theo thứ tự (1)→(4): pre-flight giữ điều kiện tài nguyên đủ trước khi auto-recovery hoạt động, tránh chu trình uninstall--reinstall vô tận. Tổng quan, pipeline không chỉ cài đặt mà còn cam kết ``chuỗi enforcement luôn ở trạng thái xác định'' -- đồng nhất với nguyên tắc \emph{fail closed} của Zero Trust~\cite{nist800207,kubernetes_docs}. Phép đo định lượng dưới hai cấu hình tài nguyên được trình bày ở Chương~4 (Mục~\ref{subsec:cpu_starvation_eval}).
+Bốn cơ chế phối hợp theo thứ tự (1)→(4): pre-flight giữ điều kiện tài nguyên đủ trước khi auto-recovery hoạt động, tránh chu trình uninstall--reinstall vô tận. Tổng quan, pipeline không chỉ cài đặt mà còn cam kết ``chuỗi enforcement luôn ở trạng thái xác định'' -- đồng nhất với nguyên tắc \emph{fail closed} của Zero Trust~\parencite{nist800207,kubernetes_docs}. Phép đo định lượng dưới hai cấu hình tài nguyên được trình bày ở Chương~4 (Mục~\ref{subsec:cpu_starvation_eval}).

@@ -99,12 +99,18 @@
 % 7. TÀI LIỆU THAM KHẢO VÀ HYPERLINK (PHẢI NẰM CUỐI CÙNG)
 %======================================================================
 \usepackage{csquotes}
+% Trích dẫn theo chuẩn APA (author-year). Dùng biblatex-apa: cài kèm
+% TeX Live Full (FROM texlive/texlive:latest đã có sẵn). \parencite cho
+% trích dẫn dạng (Tác giả, năm); \textcite cho dạng Tác giả (năm).
 \usepackage[
-    backend=biber,      
-    style=numeric,      
-    sorting=none,       
-    giveninits=true     
+    backend=biber,
+    style=apa,
+    sortcites=true,
+    sorting=nyt,
+    natbib=true,
+    giveninits=false
 ]{biblatex}
+\DeclareLanguageMapping{english}{english-apa}
 \addbibresource{bibliography.bib}
 
 \usepackage{url}        

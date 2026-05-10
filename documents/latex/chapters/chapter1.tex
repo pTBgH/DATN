@@ -10,7 +10,7 @@
 
 Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ chu vi (Perimeter-based defense)}, hay còn gọi là chiến lược ``Lâu đài và Hào nước'' (Castle-and-Moat). Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng cốt lõi là cấp quyền truy cập chủ yếu dựa trên vị trí mạng (network location) \parencite{kindervag2010build,jericho2004}.
 
-Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ (chia VLAN, tường lửa nội bộ, kiểm tra HTTP header như \texttt{x-header-id} hoặc API key tĩnh), mô hình này bộc lộ ba hạn chế cốt lõi khi đối mặt với hạ tầng cloud-native hiện đại:
+Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ (chia VLAN, tường lửa nội bộ, các cơ chế định danh tĩnh ở tầng ứng dụng), mô hình này bộc lộ ba hạn chế cốt lõi khi đối mặt với hạ tầng cloud-native hiện đại:
 
 \begin{itemize}
     \item \textbf{Sự tin cậy ngầm định (Implicit Trust):} Theo NIST SP 800-207, một khi kẻ tấn công hoặc mối đe doạ nội bộ (insider threat) đã có chỗ đứng bên trong mạng, các hệ thống thường mặc định coi mọi giao tiếp xuất phát từ dải IP nội bộ là an toàn \parencite{nist800207}.
@@ -36,12 +36,12 @@ Zero Trust & ZT & Tập hợp các \textit{nguyên tắc} an ninh mạng định
 \hline
 Zero Trust Architecture & ZTA & \textit{Kế hoạch} an ninh mạng của tổ chức tận dụng các nguyên tắc Zero Trust để kiểm soát truy cập tới tài sản, bao gồm: quan hệ giữa các thành phần, thiết kế luồng công việc và chính sách truy cập. ZTA được hiện thực hoá thông qua các công cụ như IdP, PEP và hệ thống quan sát. \\
 \hline
-Zero Trust Enterprise & ZTE & Trạng thái khi cơ sở hạ tầng (mạng, thiết bị, nhân sự) và các \textit{chính sách} của tổ chức đã được triển khai theo ZTA. NIST nhấn mạnh ZTE là một \textit{lộ trình} chuyển đổi diễn ra trong nhiều năm, không phải sản phẩm. Đồ án này xây dựng một \textit{Proof of Concept (PoC)}, chưa phải một ZTE đầy đủ. \\
+Zero Trust Enterprise & ZTE & Trạng thái khi cơ sở hạ tầng (mạng, thiết bị, nhân sự) và các \textit{chính sách} của tổ chức đã được triển khai theo ZTA. NIST nhấn mạnh ZTE là một \textit{lộ trình} chuyển đổi diễn ra trong nhiều năm, không phải sản phẩm. \\
 \hline
 \end{tabularx}
 \end{table}
 
-NIST SP 800-207 (Mục 2.1) đúc kết hai giả định nền tảng cho mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
+Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207 (Mục 2.1), có thể rút ra hai tư tưởng cốt lõi xuyên suốt mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
 \begin{enumerate}
     \item \textbf{Mạng luôn bị coi là đã bị xâm nhập} (the network is viewed as compromised).
     \item \textbf{Mọi truy cập đều phải được xác thực và uỷ quyền} một cách rõ ràng trên cơ sở \textit{từng yêu cầu} (per-request), không được phụ thuộc vào vị trí mạng của chủ thể.
@@ -66,7 +66,7 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 \hline
 1 & Mọi thứ đều là tài nguyên & Máy chủ, container, API endpoint, database - tất cả đều là tài nguyên cần bảo vệ riêng biệt. \\
 \hline
-2 & Bảo mật không phụ thuộc vị trí & Giao tiếp nội bộ (cùng subnet) vẫn phải mã hóa và xác thực như traffic từ Internet. \\
+2 & Bảo mật không phụ thuộc vị trí mạng & Không tồn tại vùng mạng được mặc định tin cậy; giao tiếp nội bộ phải được kiểm soát và xác thực với cùng mức độ chặt chẽ như lưu lượng từ bên ngoài. \\
 \hline
 3 & Cấp quyền theo phiên (\textit{per-session}) & Quyền truy cập được cấp tối thiểu (Least Privilege), đánh giá lại mỗi phiên, thu hồi ngay sau khi hoàn thành. \\
 \hline
@@ -76,7 +76,7 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 \hline
 6 & Xác thực liên tục & Không chỉ xác thực lần đầu - xác thực lại khi thực hiện hành động nhạy cảm. \\
 \hline
-7 & Thu thập tối đa dữ liệu & Logs, metrics, traces từ mọi thành phần - làm đầu vào cho việc cải thiện thuật toán tin cậy. \\
+7 & Thu thập tối đa dữ liệu & Thu thập dữ liệu trạng thái về tài sản, hạ tầng mạng và truyền thông để cung cấp đầu vào cho việc ra quyết định và liên tục cải thiện tư thế bảo mật. \\
 \hline
 \end{tabularx}
 \end{table}
@@ -93,7 +93,7 @@ Ba thành phần thực thi cốt lõi bao gồm \parencite{nist800207}:
 \end{itemize}
 
 \textbf{Các nguồn dữ liệu hỗ trợ (Data Sources).}
-Để PE có cơ sở ra quyết định chính xác, NIST SP 800-207 (Hình 2) liệt kê các nguồn dữ liệu đầu vào mà PE có thể truy vấn. Một số tài liệu khác (bản dịch ABAC theo NIST SP 800-162 \parencite{nist_abac}, các bài báo của Cisco hay Forrester) gọi những nguồn này là \textit{Policy Information Point} (PIP). Trong báo cáo này, để đồng bộ với các tài liệu vận hành trong code-base, các thuật ngữ PIP và nguồn dữ liệu được dùng thay thế cho nhau. Một số nguồn dữ liệu quan trọng nhất bao gồm:
+Để PE có cơ sở ra quyết định chính xác, NIST SP 800-207 (Hình 2) liệt kê các nguồn dữ liệu đầu vào mà PE có thể truy vấn. Một số tài liệu khác (bản dịch ABAC theo NIST SP 800-162 \parencite{nist_abac}, các bài báo của Cisco hay Forrester) gọi những nguồn này là \textit{Policy Information Point} (PIP). Trong phạm vi báo cáo này, hai thuật ngữ được sử dụng thay thế cho nhau. Một số nguồn dữ liệu quan trọng nhất bao gồm:
 \begin{itemize}
     \item \textit{Hệ thống quản lý danh tính (ID Management):} cung cấp thuộc tính của người dùng và dịch vụ (IdP, PKI).
     \item \textit{Hệ thống đánh giá tư thế liên tục (Continuous Diagnostics and Mitigation -- CDM):} cung cấp trạng thái an toàn của thiết bị và workload (mức vá lỗ, lỗ hổng CVE, tuân thủ baseline).
@@ -148,7 +148,7 @@ Cách tiếp cận phổ biến hơn -- và được chuẩn hoá bởi cả NIS
 
 \subsection{Ví dụ: ánh xạ từ mô hình logic NIST sang công nghệ mã nguồn mở}
 
-Bảng~\ref{tab:nist_cncf_mapping} trình bày một ánh xạ \textit{minh hoạ} từ các thành phần logic NIST sang công nghệ mã nguồn mở trong hệ sinh thái Cloud Native Computing Foundation (CNCF) \parencite{kubernetes_docs,cncf_swp}. Ánh xạ này không phải là duy nhất -- mỗi hạ tầng (cloud, on-prem, máy ảo, container) có thể chọn bộ công cụ khác -- nhưng nó cho thấy ZTA yêu cầu sự phối hợp của nhiều tầng. Cách đồ án cụ thể chọn công cụ (và vì sao) được trình bày trong Chương~3.
+Bảng~\ref{tab:nist_cncf_mapping} trình bày một ánh xạ \textit{minh hoạ} từ các thành phần logic NIST sang công nghệ mã nguồn mở trong hệ sinh thái Cloud Native Computing Foundation (CNCF) \parencite{kubernetes_docs,cncf_swp}. Ánh xạ này không phải là duy nhất -- mỗi hạ tầng (cloud, on-prem, máy ảo, container) có thể chọn bộ công cụ khác -- nhưng nó cho thấy ZTA yêu cầu sự phối hợp của nhiều tầng.
 
 \begin{table}[H]
 \centering
@@ -182,8 +182,6 @@ Data Source (Observability) & SIEM/log + metrics + flow visibility \parencite{el
 \hline
 \end{tabularx}
 \end{table}
-
-Một số dịch vụ trong bảng trên (ví dụ module kiểm soát admission và tình báo đe doạ) hiện mới ở mức thiết kế trong PoC, phần hiện thực đầy đủ được mô tả trong Chương~3.
 
 %==============================================================================
 % 1.4  CISA ZTMM
@@ -254,7 +252,7 @@ Cần nhấn mạnh: các biện pháp truyền thống vẫn có cách xử lý
 
 \subsection{Bảng đe dọa và biện pháp đối phó ZTA}
 
-Bảng~\ref{tab:threat_countermeasure} liệt kê một số mối đe doạ điển hình trong môi trường microservices và \textit{những nhóm biện pháp} ZTA tương ứng. Cột biện pháp chỉ mô tả đặc điểm kiến trúc, không nhắc tên sản phẩm cụ thể -- việc lựa chọn sản phẩm được bàn trong Chương~3.
+Bảng~\ref{tab:threat_countermeasure} liệt kê một số mối đe doạ điển hình trong môi trường microservices và \textit{những nhóm biện pháp} ZTA tương ứng. Cột biện pháp chỉ mô tả đặc điểm kiến trúc, không khoá vào sản phẩm cụ thể.
 
 \begin{table}[H]
 \centering
@@ -323,7 +321,7 @@ Impact & T1496 \textit{Resource Hijacking} (cryptominer), T1499 \textit{Endpoint
 \end{tabularx}
 \end{table}
 
-Đây là ánh xạ \textit{kiến trúc} -- nghĩa là chỉ ra \textit{cần có kiểu PEP/PIP nào} để cắt đứt từng tactic, không khóa vào một sản phẩm cụ thể. Cách đồ án hiện thực các PEP/PIP này, kèm theo kết quả kiểm thử từng technique, được trình bày trong Chương~3.
+Đây là ánh xạ \textit{kiến trúc} -- nghĩa là chỉ ra \textit{cần có kiểu PEP/PIP nào} để cắt đứt từng tactic, không khóa vào một sản phẩm cụ thể.
 
 \subsection{So sánh ZTA với mô hình Perimeter-based}
 

@@ -446,7 +446,7 @@ Bảng~\ref{tab:layer_to_tool} trình bày góc nhìn ``từ trên xuống'' the
 \end{tabularx}
 \end{table}
 
-\subsection{Bản đồ namespace -- ``Ai đắp vào đâu''}
+\subsection{Bản đồ namespace: phân bố workload theo phân vùng logic}
 \label{subsec:namespace_map}
 
 Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất cả Workload đang chạy. Mỗi khối là một namespace; mỗi dòng bên trong là một Deployment/StatefulSet/DaemonSet với loại workload và số replica thực tế khi pipeline \texttt{zta-rebuild.sh} hoàn tất phase~\texttt{27-pdp}.
@@ -1010,7 +1010,7 @@ services:
 \end{listing}
 
 \begin{leftbar}
-\textbf{Lưu ý giới hạn PoC:} Ví dụ trên có thể chứa khóa công khai RSA tĩnh trong \texttt{kong.yml}. Cách làm này chỉ phù hợp cho môi trường thử nghiệm. Trong môi trường production, Kong nên lấy khóa xác thực động qua JWKS endpoint của Keycloak để tránh rủi ro lệch khóa khi IdP xoay vòng chứng chỉ (bổ sung sau).
+\textbf{Lưu ý giới hạn PoC:} Ví dụ trên có thể chứa khóa công khai RSA tĩnh trong \texttt{kong.yml}. Cách làm này chỉ phù hợp cho môi trường thử nghiệm. Trong môi trường production, Kong nên lấy khóa xác thực động qua JWKS endpoint của Keycloak để tránh rủi ro lệch khóa khi IdP xoay vòng chứng chỉ; nội dung này được đưa vào phần hướng phát triển ở Kết luận.
 \end{leftbar}
 
 \begin{table}[H]
@@ -1548,7 +1548,7 @@ spec:
 
 Theo Quyết định~2 trong \texttt{doc/zta-gap-decision.md}, đồ án \emph{cố ý không cài Alertmanager}. Thay vào đó, các \texttt{PrometheusRule} CR sinh \texttt{ALERTS\{...\}} (ví dụ \texttt{CiliumPolicyDropRate > 100/min}, \texttt{VaultLeaseRevocationRate > 50/h}, \texttt{PodRestartCount > 5/10min}, \texttt{ZTAImageHasCriticalCVE}, \texttt{ZTAPodScoreBucketLow}) và một panel Grafana \textit{``ZTA Active Alerts''} truy vấn trực tiếp \texttt{ALERTS\{alertstate="firing"\}}. Lý do: PoC chỉ cần chứng minh \emph{observability loop tồn tại}, không cần routing tới Slack/PagerDuty -- vốn là production concern và tốn $\sim$80\,MiB RAM. Chi tiết bộ rule xem Mục~\ref{subsec:obs_rules}.
 
-\subsection{Cilium mTLS và WireGuard (chưa kích hoạt)}
+\subsection{Cilium mTLS và WireGuard}
 
 mTLS sidecarless và WireGuard được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên Kind 4-node 12 GiB (\texttt{enable-wireguard: false}, \texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kind_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
 
@@ -1579,7 +1579,7 @@ vault lease revoke -prefix database/creds/identity-service
 \label{lst:vault_rotation_test}
 \end{listing}
 
-\subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống (chỉnh sửa sau)}
+\subsection{Tổng hợp trạng thái các Pod và thành phần hệ thống}
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -1819,16 +1819,16 @@ ServiceAccount token trong Kubernetes là JWT có thời hạn dài và không g
 
 \textbf{Quan hệ với mTLS đề xuất ở Bước 5:} SPIRE \emph{cung cấp danh tính} (SVID) còn Cilium mesh-auth \emph{tiêu thụ danh tính} đó cho TLS handshake~\parencite{cilium_docs,spire_docs}. Nếu cluster chuyển sang \texttt{mesh-auth-enabled=true}, mỗi flow E-W bắt buộc đính kèm SVID hợp lệ -- địch không thể giả dạng workload chỉ bằng thay nhãn pod~\parencite{istio_ambient}.
 
-\subsection{PDP Controller -- Adaptive Trust Loop (cập nhật theo code mới nhất)}
+\subsection{PDP Controller -- Adaptive Trust Loop}
 \label{subsec:pdp}
 
 Cilium Network Policy là tĩnh: vận hành viên viết YAML, áp dụng, xong~\parencite{cilium_docs}. Khi label của Pod thay đổi (ví dụ ai đó vô tình gỡ \texttt{cilium.zta/tier=T0}), policy không tự cảnh báo. PDP Controller đóng vòng lặp này bằng cơ chế kopf-based watcher (Python)~\parencite{nist800207,nist_abac}, hiện thực hoá quyết định Trust Score 2-input ở Mục~\ref{subsec:trust_score} của Chương 2.
 
-\textbf{Trạng thái hiện tại (cập nhật theo code mới nhất, file \texttt{infras/pdp/pdp\_controller.py}):} PDP đã được mở rộng sang giai đoạn~2 -- ngoài label coverage, nó còn đọc CR \texttt{VulnerabilityReport} do Trivy Operator phát hành để đánh giá CVE posture của image. Score được rời rạc hoá thành 3 \textit{bucket} (\texttt{high/medium/low}) và \textit{ghi xuống Pod như một label} (chứ không chỉ annotation), từ đó Cilium \texttt{matchLabels} có thể bind được.
+\textbf{Trạng thái hiện tại:} PDP đã được mở rộng sang giai đoạn~2 -- ngoài label coverage, nó còn đọc CR \texttt{VulnerabilityReport} do Trivy Operator phát hành để đánh giá CVE posture của image. Score được rời rạc hoá thành 3 \textit{bucket} (\texttt{high/medium/low}) và \textit{ghi xuống Pod như một label} (chứ không chỉ annotation), từ đó Cilium \texttt{matchLabels} có thể bind được.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{python}
-# infras/pdp/pdp_controller.py (trích logic chính, cập nhật code mới nhất)
+# infras/pdp/pdp_controller.py (trích logic chính)
 def evaluate_labels(labels):
     expected = {'cilium.zta/tier','cilium.zta/source','cilium.zta/destination',
                 'cilium.zta/role','cilium.zta/owner','cilium.zta/sensitivity'}

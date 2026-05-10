@@ -62,6 +62,8 @@ dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app
 |------|----------|
 | [`00-PRECHECK.md`](00-PRECHECK.md) | Checklist OPS phải pass trước khi chạy `.sh` thật trên VM |
 | [`ANSWERS.md`](ANSWERS.md) | Trả lời 2 câu hỏi: control-plane impact + tên user `ptb` vs `7189` |
+| [`TAILSCALE-SETUP.md`](TAILSCALE-SETUP.md) | Hướng dẫn từ A-Z: tạo tailnet, auth key, ACL, fill `config.env` |
+| [`REGISTRY-DECISION.md`](REGISTRY-DECISION.md) | Docker registry đặt ở đâu (khẳng định: ngoài K8s, trên Ubuntu host) |
 | [`scripts/README.md`](scripts/README.md) | Cách dùng các script `.sh` (idempotent + rollback) |
 
 ### Architecture & rationale

@@ -85,7 +85,7 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 
 Theo NIST SP 800-207 (Mục 3.1), kiến trúc logic của Zero Trust tách biệt hoàn toàn giữa \textbf{mặt phẳng điều khiển (control plane)} và \textbf{mặt phẳng dữ liệu (data plane)} \parencite{nist800207}.
 
-Ba thành phần thực thi cốt lõi bao gồm \parencite{nist800207}:
+Ba thành phần thực thi cốt lõi bao gồm:
 \begin{itemize}
     \item \textbf{Policy Engine (PE) -- Động cơ chính sách:} chịu trách nhiệm đưa ra quyết định cuối cùng về việc cấp quyền truy cập. PE sử dụng \textit{thuật toán tin cậy (trust algorithm)} để đánh giá rủi ro của từng yêu cầu dựa trên chính sách của tổ chức và dữ liệu đầu vào.
     \item \textbf{Policy Administrator (PA) -- Quản trị chính sách:} thiết lập hoặc ngắt kết nối theo phán quyết của PE. PA tạo ra các thông tin xác thực động (token, credential) và gửi lệnh cấu hình xuống mặt phẳng dữ liệu.
@@ -280,7 +280,7 @@ Danh sách trên không đầy đủ -- môi trường phát triển thực tế
 \subsection{Ánh xạ MITRE ATT\&CK Containers Matrix sang các lớp phòng thủ của Zero Trust}
 \label{subsec:mitre_mapping}
 
-MITRE Corporation duy trì \textit{ATT\&CK Matrix for Enterprise -- Containers Platform} \parencite{mitre_containers,mitre_containers_matrix} liệt kê đầy đủ các \textit{tactic} (mục đích của kẻ tấn công) và \textit{technique} (kỹ thuật cụ thể) đã quan sát được trong môi trường Kubernetes/Docker thực tế. Mục này chạy qua toàn bộ các tactic của ma trận -- từ \textit{Initial Access} đến \textit{Impact} -- và chỉ ra lớp PEP nào trong kiến trúc Zero Trust có thể cắt đứt kỹ thuật đó. Các ID \texttt{T1xxx} được giữ nguyên theo MITRE Containers Matrix \parencite{mitre_containers_matrix}.
+MITRE Corporation duy trì \textit{ATT\&CK Matrix for Enterprise -- Containers Platform} \parencite{mitre_containers} liệt kê đầy đủ các \textit{tactic} (mục đích của kẻ tấn công) và \textit{technique} (kỹ thuật cụ thể) đã quan sát được trong môi trường Kubernetes/Docker thực tế. Mục này chạy qua toàn bộ các tactic của ma trận -- từ \textit{Initial Access} đến \textit{Impact} -- và chỉ ra lớp PEP nào trong kiến trúc Zero Trust có thể cắt đứt kỹ thuật đó. Các ID \texttt{T1xxx} được giữ nguyên theo MITRE Containers Matrix.
 
 \begin{table}[H]
 \centering
@@ -304,7 +304,7 @@ Credential Access & T1552.007 \textit{Container API Credentials}, T1528 \textit{
 \hline
 Discovery & T1613 \textit{Container and Resource Discovery}, T1046 \textit{Network Service Discovery}, T1018 \textit{Remote System Discovery}. & PEP Mạng (default deny + allow explicit); chính sách egress L7 cấm API server. \\
 \hline
-Lateral Movement & T1610 \textit{Deploy Container} (deploy pod mới từ pod đã chiếm), T1021 \textit{Remote Services}. & PEP Mạng (chính sách L3/L4/L7 theo workload identity); mTLS workload-to-workload. \\
+Lateral Movement & T1550.001 \textit{Use Alternate Authentication Material: Application Access Token}, T1021 \textit{Remote Services}. & PEP Mạng (chính sách L3/L4/L7 theo workload identity); mTLS workload-to-workload. \\
 \hline
 Collection & T1530 \textit{Data from Cloud Storage}, T1602 \textit{Data from Configuration Repository}. & PIP CDM phát hiện cấu hình rò rỉ; PEP egress chia kiểm soát theo namespace. \\
 \hline

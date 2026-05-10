@@ -14,9 +14,11 @@
 | A3 | Disk space: Windows host ≥ 150 GB free (3 VM × 50 GB) | `dir D:\` hoặc disk gì bạn cài VM | **≥ 150 GB free** |
 | A4 | Disk space: Ubuntu host ≥ 70 GB free | `df -h /var/lib/libvirt` hoặc nơi cài VM | **≥ 70 GB free** |
 | A5 | VMware Workstation Player/Pro đã hoạt động bình thường, đã từng chạy ít nhất 1 VM thành công | (kinh nghiệm) | OK |
-| A6 | Tailscale account có sẵn, account của bạn admin của tailnet | https://login.tailscale.com/admin/machines | OK |
+| A6 | Tailscale account có sẵn, account của bạn admin của tailnet | https://login.tailscale.com/admin/machines | OK — xem [`TAILSCALE-SETUP.md`](TAILSCALE-SETUP.md) nếu chưa có |
 | A7 | Ubuntu host vẫn truy cập internet (cần để VM pull image lúc bootstrap) | `curl -I https://google.com` | 200 |
 | A8 | Có 1 reusable Tailscale auth key, tag `tag:zta-cluster` (chưa expire) | https://login.tailscale.com/admin/settings/keys | OK |
+| A9 | Tailscale đã cài trên Ubuntu host và có IP `100.64.x.y` | `tailscale ip -4` trên Ubuntu host | trả về IP CGNAT |
+| A10 | Docker registry (`registry:2`) chạy trên Ubuntu host port 5000 | `curl http://localhost:5000/v2/_catalog` trên Ubuntu host | trả về JSON — xem [`REGISTRY-DECISION.md`](REGISTRY-DECISION.md) |
 
 ---
 

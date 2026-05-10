@@ -6,9 +6,13 @@ cascade — xem `doc/incident-falco-tetragon-ram-overcommit.md`,
 `doc/incident-gatekeeper-probe-webhook-stuck.md`) sang **4 VM Debian 13
 chạy kubeadm**, phân bố trên 2 host vật lý nối nhau qua Tailscale.
 
-> **Trạng thái:** Đây là tài liệu kế hoạch (planning-only). Chưa có
-> script, manifest, hay file infrastructure mới được commit. Sau khi user
-> duyệt plan, mới triển khai và viết script tự động.
+> **Trạng thái (2026-05-10):** Phần script thực thi đã được viết
+> trong `scripts/`. Đọc `00-PRECHECK.md` và `ANSWERS.md` trước khi
+> chạy bất kỳ `.sh` nào.
+>
+> sizing srv04 đã được **giảm từ 6 GB → 4 GB** theo yêu cầu user (Ubuntu
+> host cần RAM cho app khác). ES + Prometheus move sang srv02/03 với
+> emptyDir.
 
 ---
 
@@ -43,14 +47,26 @@ chạy kubeadm**, phân bố trên 2 host vật lý nối nhau qua Tailscale.
 | `7189srv01` | Windows | 2.0 GB | 1 | control-plane (etcd, apiserver, scheduler, ctrl-mgr) |
 | `7189srv02` | Windows | 4.5 GB | 2 | generic worker (K8s tự schedule) |
 | `7189srv03` | Windows | 5.0 GB | 2 | generic worker (K8s tự schedule) |
-| `7189srv04` | Ubuntu | 6.0 GB | 2 | data tier always-on (vault-dev, vault-prod, MySQL, Kafka, ES, Prometheus, SPIRE server, docker-registry) |
+| `7189srv04` | Ubuntu | **4.0 GB** | 2 | data tier always-on (vault-dev, vault-prod, MySQL, Kafka, SPIRE server, docker-registry) — ES + Prometheus move sang srv02/03 |
 
-Tổng: **17.5 GB / 7 vCPU**. Windows host dùng 11.5/12.8 GB. Ubuntu host
-dùng 6/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ).
+Tổng: **15.5 GB / 7 vCPU**. Windows host dùng 11.5/12.8 GB. Ubuntu host
+dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app khác).
 
 ---
 
-## Index 13 file
+## Index
+
+### Operational checklists (đọc TRƯỚC khi chạy)
+
+| File | Mục đích |
+|------|----------|
+| [`00-PRECHECK.md`](00-PRECHECK.md) | Checklist OPS phải pass trước khi chạy `.sh` thật trên VM |
+| [`ANSWERS.md`](ANSWERS.md) | Trả lời 2 câu hỏi: control-plane impact + tên user `ptb` vs `7189` |
+| [`TAILSCALE-SETUP.md`](TAILSCALE-SETUP.md) | Hướng dẫn từ A-Z: tạo tailnet, auth key, ACL, fill `config.env` |
+| [`REGISTRY-DECISION.md`](REGISTRY-DECISION.md) | Docker registry đặt ở đâu (khẳng định: ngoài K8s, trên Ubuntu host) |
+| [`scripts/README.md`](scripts/README.md) | Cách dùng các script `.sh` (idempotent + rollback) |
+
+### Architecture & rationale
 
 | # | File | Trả lời câu hỏi |
 |---|------|------------------|
@@ -92,8 +108,8 @@ dùng 6/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ).
 | `vault-prod` | vault | 2 Gi | Stateful + co-locate với vault-dev cho low-latency unseal call |
 | MySQL | data | ~10 Gi | Stateful database |
 | Kafka | data | ~5 Gi | StatefulSet broker |
-| Elasticsearch | monitoring | ~25 Gi | Logs + Hubble flow sink |
-| Prometheus | monitoring | ~8 Gi | Metric TSDB |
+| ~~Elasticsearch~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv04** — srv04 chỉ còn 4 GB; ES dock heap 256 Mi trên worker, accept restart data loss |
+| ~~Prometheus~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv04** — retention 6h, accept restart data loss |
 | `docker-registry` | registry | ~8 Gi | Tránh re-pull 7 Laravel images khi srv02/03 reboot |
 | SPIRE server | spire | ~1 Gi | Workload identity DB (sqlite) |
 

@@ -42,9 +42,9 @@ Hệ quả:
 
 ## 3. Tại sao multi-VM giải quyết
 
-Mỗi VM = **kernel độc lập + RAM riêng**. Khi pod nặng trên VM `w-obs`
-(Tetragon DS, ELK, Prometheus) làm pressure ở đó, etcd trên VM `cp1` không
-hề bị ảnh hưởng. Kubernetes scheduler bây giờ TRÁNH được node sắp full RAM
+Mỗi VM = **kernel độc lập + RAM riêng**. Khi pod nặng trên VM `7189srv04`
+(vault-prod, MySQL, Kafka, ES, Prometheus) làm pressure ở đó, etcd trên
+VM `7189srv01` không hề bị ảnh hưởng. Kubernetes scheduler bây giờ TRÁNH được node sắp full RAM
 một cách thật sự (vì kubelet trên node đó báo `MemoryPressure=true`, đẩy
 NoSchedule taint).
 
@@ -68,7 +68,7 @@ Ngoài ra:
 | Startup-to-cluster-ready | < 3 phút | ~5 phút (kubeadm + cilium + join) |
 | Failure blast radius | Whole cluster | 1 node only |
 | Tetragon DS RAM | ~256 Mi/node × 4 = 1 GiB chung kernel | 256 Mi/node × 4 = 1 GiB phân tán ở 4 kernel |
-| OOMKill cascade tới control-plane | THẤY rồi (3 incident) | Khó xảy ra (cp1 cô lập) |
+| OOMKill cascade tới control-plane | THẤY rồi (3 incident) | Khó xảy ra (7189srv01 cô lập) |
 | Reproducibility (zero state → cluster up) | `kind delete && create` | `kubeadm reset && init && join × 3` |
 | Tailscale-aware nodeIP | N/A (Kind tự gen `172.18.x`) | Phải set `--node-ip=100.64.x.y` |
 | LoadBalancer / Ingress | hostPort 80/443 mapped vào worker3 | NodePort + Tailscale exit / MetalLB |
@@ -86,9 +86,9 @@ Ngoài ra:
 
 | Ngày | Việc | Output |
 |------|------|--------|
-| D+0 | Tạo 4 VM, cài Debian 12, Tailscale auth | 4 host SSH-able qua tailnet |
+| D+0 | Tạo 4 VM, cài Debian 13 "Trixie", Tailscale auth | 4 host SSH-able qua tailnet |
 | D+1 | Run `06-debian-base-prep.md` (containerd, sysctl, kubeadm) | `kubeadm init` ready |
-| D+2 | `kubeadm init` cp1 + join 3 worker + Cilium 1.19 | `kubectl get nodes` 4 Ready |
+| D+2 | `kubeadm init` 7189srv01 + join 3 worker + Cilium 1.19 | `kubectl get nodes` 4 Ready |
 | D+3 | Adapt + run `02-deploy-infrastructure.sh` → `03-deploy-microservices.sh` → `05-seed-databases.sh` | App layer up |
 | D+4 | `08-harden-security.sh` (mTLS only, WireGuard SKIP — Tailscale đã làm) → `09-verify-zta.sh` | Verify pass 35-50 test |
 | D+5 | `10-deploy-tetragon.sh` + `--full-enforcement` (SPIRE, Cosign, Hubble export, Gatekeeper) | Optimal ZTA |

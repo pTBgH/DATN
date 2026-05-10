@@ -49,13 +49,16 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.requests.memory=90Mi \
   --set controller.resources.limits.cpu=500m \
   --set controller.resources.limits.memory=256Mi \
-  --set controller.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=zta.workload.tier \
-  --set controller.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
-  --set controller.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=apps \
   --wait --timeout 5m
 ```
 
-Truy cập từ admin laptop: `https://w-apps.<tailnet>.ts.net:30001/`.
+> Không pin ingress-nginx vào node cụ thể — K8s scheduler chọn worker phù
+> hợp dựa trên RAM. Nếu sau này muốn ép, dùng `nodeSelector:
+> kubernetes.io/hostname: 7189srv02` trong values.
+
+Truy cập từ admin laptop: `https://7189srv02.<tailnet>.ts.net:30001/`
+(thay `7189srv02` bằng bất kỳ worker nào ingress đang chạy — K8s scheduler
+tự đặt).
 
 ## 4. metrics-server
 
@@ -116,7 +119,7 @@ kubectl get sc
 ## 6. In-cluster Docker Registry
 
 Từ `infras/k8s-yaml/12-docker-registry.yaml` (đã có sẵn). Adapt:
-- NodeAffinity `tier=apps`
+- NodeAffinity `kubernetes.io/hostname=7189srv04` (always-on, có PVC)
 - Service NodePort 30005
 
 ```bash
@@ -129,11 +132,11 @@ kubectl apply -f infras/k8s-yaml/12-docker-registry-multi-vm.yaml
 
 Trên TẤT CẢ 4 VM:
 ```bash
-sudo mkdir -p /etc/containerd/certs.d/w-apps.<tailnet>.ts.net:30005
-sudo tee /etc/containerd/certs.d/w-apps.<tailnet>.ts.net:30005/hosts.toml <<'EOF'
-server = "http://w-apps.<tailnet>.ts.net:30005"
+sudo mkdir -p /etc/containerd/certs.d/7189srv04.<tailnet>.ts.net:30005
+sudo tee /etc/containerd/certs.d/7189srv04.<tailnet>.ts.net:30005/hosts.toml <<'EOF'
+server = "http://7189srv04.<tailnet>.ts.net:30005"
 
-[host."http://w-apps.<tailnet>.ts.net:30005"]
+[host."http://7189srv04.<tailnet>.ts.net:30005"]
   capabilities = ["pull", "resolve"]
   skip_verify = true
 EOF
@@ -183,8 +186,8 @@ kubectl delete pvc smoke-test
 
 # Test 2: cross-node pod-to-pod
 ```bash
-kubectl run alpine-1 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"w-data"}}}' --command -- sleep 600
-kubectl run alpine-2 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"w-obs"}}}' --command -- sleep 600
+kubectl run alpine-1 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"7189srv02"}}}' --command -- sleep 600
+kubectl run alpine-2 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"7189srv04"}}}' --command -- sleep 600
 kubectl wait --for=condition=Ready pod/alpine-1 pod/alpine-2 --timeout=120s
 IP1=$(kubectl get pod alpine-1 -o jsonpath='{.status.podIP}')
 kubectl exec alpine-2 -- ping -c 3 $IP1
@@ -200,7 +203,7 @@ kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
 hubble observe --pod default/alpine-2 --since 5m
 ```
 
-Phải thấy ICMP forwarded từ alpine-2 (w-obs) → alpine-1 (w-data) qua VXLAN.
+Phải thấy ICMP forwarded từ alpine-2 (7189srv04) → alpine-1 (7189srv02) qua VXLAN.
 
 ## 10. Snapshot baseline
 

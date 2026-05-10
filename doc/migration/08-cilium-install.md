@@ -12,7 +12,7 @@ helm repo update cilium
 ## 2. Values file `cilium-values-multi-vm.yaml`
 
 Khác biệt so với `k8s-management/cilium/cilium-values.yaml` cũ:
-- `k8sServiceHost`/`k8sServicePort` cố định Tailscale IP của cp1.
+- `k8sServiceHost`/`k8sServicePort` cố định Tailscale IP của `7189srv01`.
 - `tunnelProtocol=vxlan` (mặc định, ghi rõ).
 - `encryption.enabled=false` (tắt WireGuard, vì Tailscale lo).
 - `kubeProxyReplacement=true` (kubeadm đã skip kube-proxy).
@@ -81,7 +81,7 @@ operator:
       operator: Exists
       effect: NoSchedule
   nodeSelector:
-    kubernetes.io/hostname: cp1
+    kubernetes.io/hostname: 7189srv01
 
 # Resource limits cho cilium-agent (DaemonSet)
 resources:
@@ -141,11 +141,11 @@ kubectl get nodes
 ```
 Kỳ vọng:
 ```
-NAME    STATUS  ROLES           AGE  VERSION
-cp1     Ready   control-plane   15m  v1.30.0
-w-data  Ready   <none>          12m  v1.30.0
-w-apps  Ready   <none>          12m  v1.30.0
-w-obs   Ready   <none>          12m  v1.30.0
+NAME       STATUS  ROLES           AGE  VERSION
+7189srv01  Ready   control-plane   15m  v1.30.0
+7189srv02  Ready   <none>          12m  v1.30.0
+7189srv03  Ready   <none>          12m  v1.30.0
+7189srv04  Ready   <none>          12m  v1.30.0
 ```
 
 ## 6. Hubble UI

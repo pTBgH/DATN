@@ -1,98 +1,123 @@
-# 03. VM Sizing — Phân bổ RAM/CPU/Disk
+# 03 — VM sizing
 
-## 1. Ngân sách 2 host vật lý
+## 1. Ngân sách host
 
-| Host | Tổng RAM | RAM cho VM | Tổng vCPU | vCPU cho VM | Ghi chú |
-|------|----------|-----------|-----------|-------------|---------|
-| Windows (laptop) | 16 GB | **12.8 GB** | 6 cores | **5 vCPU** | 3.2 GB + 1 core dành cho Windows host + Edge + IDE |
-| Ubuntu desktop (Resolute 26) | 8 GB | **~6.0 GB** | 4 cores | **3 vCPU** | 2.0 GB + 1 core dành cho Ubuntu host + GNOME |
+| Host | Total | Allocatable cho VMs | Lý do giảm |
+|------|-------|---------------------|-------------|
+| Windows (16 GB / 6 core) | 16 GB / 6 vCPU | **12.8 GB / 5 vCPU** | 3.2 GB cho Windows + VMware overhead, giữ 1 core cho host UI |
+| Ubuntu (8 GB / 4 core, DDR3) | 8 GB / 4 vCPU | **6.0 GB / 2 vCPU** | 2.0 GB cho Ubuntu + VMware overhead; giảm 3→2 vCPU vì CPU cũ |
 
-Total RAM cho VM: 18.8 GB. Total vCPU: 8.
+Tổng ngân sách: 18.8 GB / 7 vCPU. Plan dưới đây dùng 17.5 GB / 7 vCPU
+(headroom 1.3 GB).
 
-> User ghi "tối đa 12.8 GB cho VM" trên Windows — đó là con số trần. Nên
-> giữ ~10.5-11.5 GB cấp phát thực để có 1.3 GB headroom cho VMware vmware-vmx
-> process + page-file thrashing.
+---
 
 ## 2. Sizing chi tiết
 
-| VM | Host | RAM (cấp phát) | RAM (workload est.) | vCPU | Disk | Network |
-|----|------|----------------|----------------------|------|------|---------|
-| `cp1` | Win | **2.0 GB** | ~1.7 GB | 1 | 30 GB thin | NAT + Tailscale |
-| `w-data` | Win | **5.0 GB** | ~3.4 GB (limits) | 2 | 60 GB thin (PVC neo ở đây) | NAT + Tailscale |
-| `w-apps` | Win | **4.5 GB** | ~2.4 GB (req), 5.7 GB (limits) | 2 | 50 GB thin | NAT + Tailscale |
-| `w-obs` | Ubuntu | **6.0 GB** | ~3.3 GB (req), 6.0 GB (limits) | 3 | 60 GB thin (ELK PVC) | NAT + Tailscale |
-| **Tổng** | | **17.5 GB** | | **8 vCPU** | 200 GB | |
+| VM | Host | RAM | vCPU | Disk | Vai trò |
+|----|------|-----|------|------|---------|
+| `7189srv01` | Windows | **2.0 GB** | 1 | 40 GB ext4 | control-plane only |
+| `7189srv02` | Windows | **4.5 GB** | 2 | 50 GB ext4 | generic worker |
+| `7189srv03` | Windows | **5.0 GB** | 2 | 50 GB ext4 | generic worker |
+| `7189srv04` | Ubuntu  | **6.0 GB** | 2 | 80 GB ext4 | data tier always-on |
+| **Sum** |  | **17.5 GB** | **7** | **220 GB** | |
 
-Còn lại: Windows 12.8 - 11.5 = **1.3 GB headroom**, Ubuntu 6.0 GB cấp đúng
-trần (không spare). Nếu Ubuntu pressure quá mạnh, giảm Tetragon limit hoặc
-`elasticsearch -Xmx` xuống 256 Mi.
+> **Disk thin-provisioned** (VMware tùy chọn `Allocate all disk space now=No`).
+> Giúp 4 VM tổng 220 GB GHI THỰC TẾ chỉ ~50 GB ban đầu.
 
-## 3. Disk layout từng VM
+---
 
-### `cp1` (30 GB)
-```
-/         15 GB  ext4 (root)
-/var/lib/etcd   5 GB  ext4 (mount riêng — etcd cần I/O ổn định)
-/var/lib/containerd   8 GB  ext4 (image pull cache)
-swap     2 GB  (file, vm.swappiness=10)
-```
+## 3. Workload RAM estimate per VM
 
-### `w-data` (60 GB)
-```
-/         15 GB  ext4
-/var/lib/containerd   10 GB  ext4
-/var/lib/job7189-mysql      15 GB  ext4 (PVC mount qua local-path-provisioner)
-/var/lib/job7189-vault       3 GB  ext4
-/var/lib/job7189-kafka      10 GB  ext4
-/var/lib/job7189-keycloak    3 GB  ext4
-swap                          4 GB
-```
+### 7189srv01 (2.0 GB)
 
-### `w-apps` (50 GB)
-```
-/         15 GB  ext4
-/var/lib/containerd   25 GB  ext4 (chứa 7 Laravel image × ~600 MB)
-/var/lib/job7189-registry    8 GB  ext4 (in-cluster docker-registry)
-swap                          2 GB
-```
+| Component | req | limit |
+|-----------|-----|-------|
+| etcd | 100 Mi | 200 Mi |
+| kube-apiserver | 256 Mi | 512 Mi |
+| kube-scheduler | 50 Mi | 128 Mi |
+| kube-controller-manager | 100 Mi | 256 Mi |
+| coredns | 70 Mi | 170 Mi |
+| cilium-agent (DS) | 128 Mi | 256 Mi |
+| kubelet/containerd reserved | 200 Mi | — |
+| OS Debian 13 reserved | ~250 Mi | — |
+| **Total** | **~1.15 GB** | **~1.55 GB** |
 
-### `w-obs` (60 GB)
-```
-/         15 GB  ext4
-/var/lib/containerd   10 GB  ext4
-/var/lib/job7189-elasticsearch 25 GB  ext4 (logs + Hubble flow sink)
-/var/lib/job7189-prometheus    8 GB  ext4
-swap                            2 GB
-```
+Headroom 850 MB cho spike (etcd compaction, leader election storm).
 
-> Không dùng LVM (user yêu cầu "không LVM hay gì cả"). Nếu cần resize sau
-> này, mở rộng vmdk + `growpart` + `resize2fs`.
+### 7189srv02 (4.5 GB)
 
-## 4. CPU pinning chiến lược (optional)
+K8s scheduler tự đặt — ước tính chiếm:
 
-VMware Workstation Pro hỗ trợ "Reserved CPU" + "Number of cores per
-processor". Đề xuất:
+| Component | req | limit |
+|-----------|-----|-------|
+| Cilium agent (DS) | 128 Mi | 256 Mi |
+| Tetragon (DS) | 256 Mi | 384 Mi |
+| Filebeat (DS) | 100 Mi | 200 Mi |
+| spire-agent (DS) | 64 Mi | 128 Mi |
+| spiffe-csi-driver (DS) | 64 Mi | 128 Mi |
+| node-exporter (DS) | 32 Mi | 64 Mi |
+| 3-4 Laravel apps | ~600 Mi | ~1.6 GB |
+| Kong + ingress + cert-manager | ~400 Mi | ~800 Mi |
+| Kibana hoặc Grafana hoặc Hubble Relay | ~256 Mi | ~512 Mi |
+| Cilium operator hoặc Gatekeeper hoặc PDP | ~128 Mi | ~256 Mi |
+| OS Debian 13 reserved | ~300 Mi | — |
+| **Total** | **~2.3 GB** | **~4.2 GB** |
 
-- Windows host (6 cores total):
-  - VMware overhead + host: 1 core
-  - cp1: 1 vCPU (1 core)
-  - w-data: 2 vCPU (2 cores)
-  - w-apps: 2 vCPU (2 cores)
-  - **Tổng: 6 cores đúng** (không over-allocate vì 6 = 6).
+Headroom 300 MB. Bookkeep: K8s scheduler dùng request, không limit.
 
-- Ubuntu host (4 cores total):
-  - GNOME + host: 1 core
-  - w-obs: 3 vCPU (3 cores)
-  - **Tổng: 4 cores**.
+### 7189srv03 (5.0 GB)
 
-Nếu cảm thấy w-obs eBPF + ELK quá ngốn CPU, tắt GNOME (boot multi-user)
-và dồn 4 vCPU.
+Tương tự srv02, có thể chứa thêm 3-4 Laravel + Keycloak (~512 Mi) hoặc
+Hubble UI + Gatekeeper. Tổng ~2.6 GB req / ~4.6 GB limit. Headroom
+400 MB.
 
-## 5. Kubelet system-reserved
+### 7189srv04 (6.0 GB)
 
-Trên mọi VM, kubelet cần được cấu hình:
+| Component | req | limit |
+|-----------|-----|-------|
+| vault-dev (RAM-only) | 128 Mi | 256 Mi |
+| vault-prod | 256 Mi | 512 Mi |
+| MySQL | 256 Mi | 512 Mi |
+| Kafka | 256 Mi | 512 Mi |
+| Elasticsearch | 384 Mi | 768 Mi |
+| Prometheus | 256 Mi | 512 Mi |
+| SPIRE server | 256 Mi | 512 Mi |
+| docker-registry | 256 Mi | 512 Mi |
+| Cilium agent (DS) | 128 Mi | 256 Mi |
+| Tetragon (DS) | 256 Mi | 384 Mi |
+| Filebeat (DS) | 100 Mi | 200 Mi |
+| spire-agent + spiffe-csi (DS) | 128 Mi | 256 Mi |
+| node-exporter (DS) | 32 Mi | 64 Mi |
+| OS Debian 13 reserved | ~300 Mi | — |
+| **Total** | **~3.0 GB** | **~5.3 GB** |
+
+Headroom 700 MB cho spike (ES JVM heap, vault-prod startup).
+
+---
+
+## 4. CPU pinning (gợi ý — VMware)
+
+Windows host (6 core total):
+- 1 core riêng cho Windows host (ưu tiên cho desktop UI)
+- 1 core cho `7189srv01`
+- 2 core cho `7189srv02`
+- 2 core cho `7189srv03`
+
+Ubuntu host (4 core total):
+- 1 core riêng cho Ubuntu host + VMware
+- 2 core cho `7189srv04`
+- (1 core dự phòng — đừng dùng để tránh thrashing)
+
+VMware Workstation Pro `Edit virtual machine settings → Processors →
+Virtualize CPU performance counters: OFF` để tiết kiệm ~5% CPU.
+
+---
+
+## 5. Kubelet system-reserved (mỗi VM)
+
 ```yaml
-# /var/lib/kubelet/config.yaml (kubeadm tự gen, edit phần này)
+# /var/lib/kubelet/config.yaml
 systemReserved:
   cpu: "100m"
   memory: "256Mi"
@@ -104,65 +129,55 @@ kubeReserved:
 evictionHard:
   memory.available: "200Mi"
   nodefs.available: "10%"
+  imagefs.available: "10%"
 ```
 
-Mục đích: pod KHÔNG được phép dùng hết tới byte cuối cùng — luôn chừa
-512 Mi cho systemd + kubelet + containerd. Đây là điểm Kind không có
-(Kind không expose được cgroup root → không enforce reserved → hậu quả
-là 3 incident OOM cascade ở doc cũ).
+Mục đích: bảo vệ kubelet + containerd khi pod xài hết RAM (nguyên nhân
+gốc của incident #1 — cascade OOM kill metrics-server 137 lần).
+
+---
 
 ## 6. Swap policy
 
-User cũ trên `doc/06-resource-budget.md`: swap 4 GB, swappiness 60 →
-**đổi xuống 10**, kubelet `failSwapOn=false` (mặc định K8s 1.30 chấp nhận
-swap).
+Debian 13 mặc định có swapfile 1 GB (`/swap.img`). Cluster k8s 1.30 hỗ
+trợ swap (beta) qua flag `failSwapOn=false` + `KubeletConfiguration:
+{ memorySwap: { swapBehavior: LimitedSwap } }`.
 
-```bash
-# /etc/sysctl.d/99-zta.conf
-vm.swappiness = 10
-vm.overcommit_memory = 1   # giống K8s khuyến nghị
-vm.panic_on_oom = 0
-kernel.panic = 10
-fs.inotify.max_user_watches = 524288    # cho Filebeat + cilium-monitor
-fs.inotify.max_user_instances = 8192
-```
+Trong môi trường này:
+- `vm.swappiness = 10` (giảm xu hướng swap vì swap chậm hơn RAM)
+- `failSwapOn = false` (kubeadm cho phép node có swap)
+- KHÔNG bật swap aggressive — chỉ làm safety net khi RAM gần hết
 
-Với `swappiness=10`, kernel chỉ swap khi RAM thực sự cạn. Pod Burstable
-(MySQL, Laravel) sẽ là ứng viên đầu tiên — chấp nhận được vì I/O của ELK
-(Elasticsearch) đã chiếm rất nhiều page-cache.
+Apply trong `06-debian-base-prep.md` § sysctl.
 
-## 7. Bảng tóm tắt sizing (paste vào VMware)
+---
 
-```
-+---------+--------+-------+---------+--------+----------+
-| VM      | Host   | RAM   | vCPU    | Disk   | NIC mode |
-+---------+--------+-------+---------+--------+----------+
-| cp1     | Win    | 2048  | 1       | 30 GB  | NAT      |
-| w-data  | Win    | 5120  | 2       | 60 GB  | NAT      |
-| w-apps  | Win    | 4608  | 2       | 50 GB  | NAT      |
-| w-obs   | Ubuntu | 6144  | 3       | 60 GB  | NAT      |
-+---------+--------+-------+---------+--------+----------+
-```
+## 7. Bảng config VMware (copy-paste khi tạo VM)
 
-Tất cả VM dùng **chế độ thin-provisioned** disk + **EFI firmware**
-(BIOS legacy cũng OK, nhưng EFI cho phép secure boot nếu sau này muốn
-SBOM-attestation chap 26).
+| Field | 7189srv01 | 7189srv02 | 7189srv03 | 7189srv04 |
+|-------|-----------|-----------|-----------|-----------|
+| Memory (MB) | 2048 | 4608 | 5120 | 6144 |
+| Processors → Number of cores | 1 | 2 | 2 | 2 |
+| Hard disk (GB) | 40 | 50 | 50 | 80 |
+| Network adapter | NAT (VMnet8) | NAT (VMnet8) | NAT (VMnet8) | NAT |
+| Guest OS | Debian 12.x 64-bit | Debian 12.x 64-bit | Debian 12.x 64-bit | Debian 12.x 64-bit |
+| Hypervisor host | Windows | Windows | Windows | Ubuntu |
 
-## 8. Phương án dự phòng nếu RAM không đủ
+> VMware chưa có preset "Debian 13" — chọn "Debian 12.x 64-bit" cũng
+> work, kernel + userspace là 13 sau khi cài.
 
-Nếu trong lúc deploy, VM `w-obs` OOM:
-1. **Giảm Elasticsearch heap** từ 384 Mi → 256 Mi (`-Xmx256m`).
-2. **Tắt Kibana** (`kubectl scale -n monitoring deploy/kibana --replicas=0`)
-   — query qua `kubectl exec` của ES.
-3. **Giảm Tetragon limit** xuống 256 Mi nhưng **không** đi dưới 256 Mi
-   (đã có incident OOM ở 256 Mi).
-4. **Đẩy Gatekeeper sang w-data** nếu nó là pod nặng nhất còn lại — chấp
-   nhận latency admission cao hơn vì cross-VM.
+---
 
-Nếu w-data OOM (Vault/MySQL):
-1. **Tắt Kafka** nếu không demo event flow → tiết kiệm ~512 Mi.
-2. **Kafka và Vault DB engine không thể giảm sâu hơn**, nếu vẫn chật thì
-   migrate Keycloak sang w-obs (nhưng lúc đó w-obs cũng chật).
+## 8. Fallback nếu Windows host bị over-allocated
 
-Cuối cùng: nếu phương án trên không đủ, tăng RAM Ubuntu host từ 8 GB lên
-16 GB (đây là khuyến nghị strong nhất nếu user có thể nâng phần cứng).
+Nếu sau khi chạy 1 tuần thấy Windows host swap thrash:
+
+| Option | Action | Tác động |
+|--------|--------|----------|
+| A | Giảm srv02 RAM 4.5 → 4.0 GB | Tetragon có thể OOMKill — chỉnh request xuống |
+| B | Move ingress-nginx + Kong xuống srv04 | srv04 thêm tải, srv02/03 nhẹ hơn |
+| C | Tắt Hubble UI / Kibana | Tiết kiệm ~512 Mi |
+| D | Thêm `--full-enforcement=false` | Không chạy SPIRE + sigstore + Tetragon TracingPolicy phase 2 |
+
+Hiện tại plan giả định Option A-C không cần thiết vì 11.5 / 12.8 GB
+đã có 1.3 GB headroom.

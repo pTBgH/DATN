@@ -1,14 +1,14 @@
 # 12. Runbook — Recovery / Disaster Scenarios
 
-## 1. cp1 chết (apiserver unreachable)
+## 1. 7189srv01 chết (apiserver unreachable)
 
 **Triệu chứng**: `kubectl get nodes` báo
 `The connection to the server 100.64.10.1:6443 was refused`.
 
 **Step 1: Xác định lỗi**
 ```bash
-ssh debian@cp1.<tailnet>.ts.net  # Tailscale có on?
-ssh debian@cp1.<tailnet>.ts.net 'tailscale status; sudo systemctl status kubelet containerd'
+ssh debian@7189srv01.<tailnet>.ts.net  # Tailscale có on?
+ssh debian@7189srv01.<tailnet>.ts.net 'tailscale status; sudo systemctl status kubelet containerd'
 ```
 
 | Lỗi | Hành động |
@@ -23,7 +23,7 @@ ssh debian@cp1.<tailnet>.ts.net 'tailscale status; sudo systemctl status kubelet
 (Backup từ `07-kubeadm-bootstrap.md` §10 — phải có sẵn `kubeadm-pki-backup-*.tar.gz`)
 
 ```bash
-# Trên cp1, dừng kubelet/static pods
+# Trên 7189srv01, dừng kubelet/static pods
 sudo kubeadm reset --force
 sudo rm -rf /etc/cni/net.d /var/lib/cni
 sudo systemctl restart containerd
@@ -36,14 +36,15 @@ sudo tar xzf /root/kubeadm-pki-backup-*.tar.gz -C /
 #  từ snapshot là cách dễ nhất.)
 ```
 
-→ **Khuyến nghị**: tạo VMware snapshot `cp1-baseline` ngay sau khi cluster
-ổn định. Restore = "Snapshot Manager → revert to cp1-baseline" → up trong
-2 phút.
+→ **Khuyến nghị**: tạo VMware snapshot `7189srv01-baseline` ngay sau khi
+cluster ổn định. Restore = "Snapshot Manager → revert to
+7189srv01-baseline" → up trong 2 phút.
 
 **Step 3: Worker trở lại**
 
 Worker không cần can thiệp — kubelet sẽ retry connection với apiserver,
-thành công ngay khi cp1 up. Nếu node đứng `NotReady` sau 5 phút:
+thành công ngay khi `7189srv01` up. Nếu node đứng `NotReady` sau 5
+phút:
 ```bash
 ssh debian@<worker>.<tailnet>.ts.net 'sudo systemctl restart kubelet'
 ```
@@ -88,7 +89,7 @@ ssh debian@<bad-node>.<tailnet>.ts.net 'free -h; ps aux --sort=-%mem | head -10'
 
 **Step 2**: Giảm tải tạm
 ```bash
-# Nếu w-obs: giảm Elasticsearch heap
+# Nếu 7189srv04: giảm Elasticsearch heap
 kubectl -n monitoring set env statefulset/elasticsearch-master ES_JAVA_OPTS="-Xmx256m -Xms256m"
 kubectl -n monitoring rollout restart sts/elasticsearch-master
 
@@ -148,9 +149,9 @@ kubectl delete pod -n data mysql-0 --force --grace-period=0
 
 **Triệu chứng**: Worker mới không join được, lỗi `token has expired`.
 
-**Step 1**: Tạo token mới trên cp1
+**Step 1**: Tạo token mới trên 7189srv01
 ```bash
-ssh debian@cp1.<tailnet>.ts.net
+ssh debian@7189srv01.<tailnet>.ts.net
 sudo kubeadm token create --print-join-command
 # Output:
 # kubeadm join 100.64.10.1:6443 --token abc.xyz \
@@ -235,7 +236,10 @@ KHÔNG cần re-cài Debian/Tailscale/containerd — những thứ đó persiste
 
 ## 10. VMware host crash (Windows BSOD)
 
-**Triệu chứng**: 3 VM (cp1, w-data, w-apps) đột ngột tắt.
+**Triệu chứng**: 3 VM trên Windows host (`7189srv01`, `7189srv02`,
+`7189srv03`) đột ngột tắt. **`7189srv04` trên Ubuntu host vẫn chạy —
+stateful workload (vault-dev, vault-prod, MySQL, etc.) tiếp tục khả dụng
+với những pod đã chạy, nhưng cluster api không reachable.**
 
 **Step 1**: Reboot Windows host. VMware Workstation **không** auto-start
 VM mặc định — phải bật riêng:
@@ -244,7 +248,7 @@ VM mặc định — phải bật riêng:
 
 Hoặc CLI ở Windows:
 ```powershell
-& "C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" -T ws start "C:\path\to\cp1.vmx" nogui
+& "C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" -T ws start "C:\path\to\7189srv01.vmx" nogui
 ```
 
 **Step 2**: Sau khi 3 VM up, cluster sẽ tự heal — apiserver online, kubelet
@@ -270,7 +274,7 @@ sudo tailscale up --auth-key=tskey-NEW... --advertise-tags=tag:zta-cluster --hos
 
 | Triệu chứng | Trang | Xử lý |
 |-------------|-------|-------|
-| `kubectl` connection refused | §1 | Restart cp1 |
+| `kubectl` connection refused | §1 | Restart 7189srv01 |
 | Cross-VM pod 100% drop | §2 | Reset Tailscale |
 | Pod Evicted hàng loạt | §3 | Giảm tải / tăng RAM |
 | Node NotReady > 5 min | §4 | Power on VM |

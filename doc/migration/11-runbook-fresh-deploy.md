@@ -7,24 +7,27 @@
 
 ### Trên VMware Workstation (Windows host)
 
-1. Tải Debian 12 netinst ISO từ https://www.debian.org/distrib/netinst.
-2. Tạo 3 VM theo `03-vm-sizing.md` §7:
+1. Tải Debian 13 "Trixie" netinst ISO từ https://www.debian.org/distrib/netinst.
+2. Tạo 3 VM trên Windows host theo `03-vm-sizing.md` §7:
 
 | VM | RAM (MB) | vCPU | Disk (GB) | NIC mode |
 |----|----------|------|-----------|----------|
-| cp1 | 2048 | 1 | 30 | NAT |
-| w-data | 5120 | 2 | 60 | NAT |
-| w-apps | 4608 | 2 | 50 | NAT |
+| 7189srv01 | 2048 | 1 | 40 | NAT |
+| 7189srv02 | 4608 | 2 | 50 | NAT |
+| 7189srv03 | 5120 | 2 | 50 | NAT |
 
 3. Cài Debian server-only (không GNOME, không web server):
-   - Hostname: `cp1`, `w-data`, `w-apps` tương ứng
+   - Hostname: `7189srv01`, `7189srv02`, `7189srv03` tương ứng
    - User `debian` (password tạm; sẽ đổi thành SSH key only)
    - Đánh dấu **chỉ "SSH server" + "standard system utilities"** trong
      tasksel (tránh cài thêm package vô ích)
 
 ### Trên VMware Workstation (Ubuntu host)
 
-4. VM `w-obs`: 6144 MB / 3 vCPU / 60 GB / NAT.
+4. Trên Ubuntu host, tạo `7189srv04`: 6144 MB / 2 vCPU / 80 GB / NAT.
+   Hostname: `7189srv04`. Đây là VM **always-on** chứa tất cả stateful
+   workload (vault-dev, vault-prod, MySQL, Kafka, ES, Prometheus,
+   docker-registry, SPIRE server).
 
 ### Common cho 4 VM
 
@@ -39,7 +42,7 @@
 ## Phase 1 — Bootstrap K8s (30 phút)
 
 ```bash
-# Trên cp1
+# Trên 7189srv01
 sudo kubeadm config images pull --kubernetes-version v1.30.0
 sudo kubeadm init --config=/root/kubeadm-config.yaml --skip-phases=addon/kube-proxy --upload-certs
 
@@ -51,8 +54,8 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 echo "<paste join command output>" > /tmp/kubeadm-join.cmd
 ```
 
-Trên 3 worker (w-data, w-apps, w-obs) — chạy lệnh join (xem
-`07-kubeadm-bootstrap.md` §5).
+Trên 3 worker (`7189srv02`, `7189srv03`, `7189srv04`) — chạy lệnh join
+(xem `07-kubeadm-bootstrap.md` §5).
 
 ```bash
 # Verify từ admin laptop
@@ -74,11 +77,8 @@ helm upgrade --install cilium cilium/cilium \
 # Wait for nodes Ready
 kubectl wait node --all --for=condition=Ready --timeout=300s
 
-# Label nodes
-kubectl label node cp1     zta.workload.tier=control-plane
-kubectl label node w-data  zta.workload.tier=data
-kubectl label node w-apps  zta.workload.tier=apps
-kubectl label node w-obs   zta.workload.tier=observability
+# Label node always-on (không dùng tier-based labels cho stateless)
+kubectl label node 7189srv04 zta.workload.always-on=true
 ```
 
 Cài Gateway API, cert-manager, ingress-nginx, metrics-server,
@@ -96,11 +96,11 @@ bash doc/migration/scripts/01-cluster-bringup.sh    # placeholder name
 kubectl apply -f infras/k8s-yaml/12-docker-registry-multi-vm.yaml
 
 # Build + push 7 Laravel
-ZTA_REGISTRY_HOST="w-apps.<tailnet>.ts.net:30005" \
+ZTA_REGISTRY_HOST="7189srv04.<tailnet>.ts.net:30005" \
   bash 04-build-and-push-images.sh
 
 # Verify
-curl -s http://w-apps.<tailnet>.ts.net:30005/v2/_catalog | jq
+curl -s http://7189srv04.<tailnet>.ts.net:30005/v2/_catalog | jq
 ```
 
 ## Phase 4 — ZTA stack (60-90 phút)
@@ -149,11 +149,12 @@ Kỳ vọng:
 ## Phase 7 — Demo / live test
 
 ```bash
-# Test JWT enforcement qua Tailscale
-curl -i https://w-apps.<tailnet>.ts.net:30001/api/v1/jobs
+# Test JWT enforcement qua Tailscale (thay 7189srv02 bằng worker nào
+# ingress-nginx đang chạy — K8s scheduler tự đặt):
+curl -i https://7189srv02.<tailnet>.ts.net:30001/api/v1/jobs
 # Kỳ vọng: 401 (no JWT)
 
-curl -i https://w-apps.<tailnet>.ts.net:30001/api/v1/jobs \
+curl -i https://7189srv02.<tailnet>.ts.net:30001/api/v1/jobs \
   -H "Authorization: Bearer $(...)"
 # Kỳ vọng: 200
 

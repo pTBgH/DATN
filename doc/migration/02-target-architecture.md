@@ -1,196 +1,176 @@
-# 02. Target Architecture — Topology mới
+# 02 — Kiến trúc mục tiêu
 
-## 1. Sơ đồ vật lý + logic
+## 1. Sơ đồ topology
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Internet (DERP relay của Tailscale)                                    │
-│         ▲                          ▲                                    │
-│         │ tailscale (WG)           │ tailscale (WG)                     │
-│         │                          │                                    │
-│  ┌──────┴───────────────────┐   ┌──┴───────────────────────────────┐    │
-│  │ Host 1: Windows (16 GB)  │   │ Host 2: Ubuntu desktop (8 GB)    │    │
-│  │  - VMware Workstation    │   │  - VMware Workstation            │    │
-│  │  - Tailscale on host?    │   │  - Tailscale on host?            │    │
-│  │     (no — chỉ trong VM)  │   │     (no — chỉ trong VM)          │    │
-│  │                          │   │                                  │    │
-│  │  ┌─VMnet8 (NAT) 192.168.X/24─┐ │ ┌─VMnet8 (NAT) 192.168.Y/24──┐  │    │
-│  │  │                          │ │ │                            │  │    │
-│  │  │  cp1 VM (Debian 12)      │ │ │  w-obs VM (Debian 12)      │  │    │
-│  │  │  ┌──────────────────┐    │ │ │  ┌──────────────────┐      │  │    │
-│  │  │  │ ens33 (NAT)      │    │ │ │  │ ens33 (NAT)      │      │  │    │
-│  │  │  │ tailscale0 100.64.10.1   │ │  │ tailscale0 100.64.10.4   │      │
-│  │  │  │ kubelet, etcd,   │    │ │ │  │ kubelet, ELK,    │      │  │    │
-│  │  │  │ apiserver, ctrl  │    │ │ │  │ Tetragon, SPIRE, │      │  │    │
-│  │  │  │ scheduler, cilium│    │ │ │  │ Gatekeeper, PDP, │      │  │    │
-│  │  │  └──────────────────┘    │ │ │  │ Hubble export    │      │  │    │
-│  │  │                          │ │ │  └──────────────────┘      │  │    │
-│  │  │  w-data VM (Debian 12)   │ │ │                            │  │    │
-│  │  │  ┌──────────────────┐    │ │ │                            │  │    │
-│  │  │  │ tailscale0 100.64.10.2   │ │  │                          │  │    │
-│  │  │  │ MySQL, Vault,    │    │ │ │                            │  │    │
-│  │  │  │ Keycloak, Kafka  │    │ │ │                            │  │    │
-│  │  │  └──────────────────┘    │ │ │                            │  │    │
-│  │  │                          │ │ │                            │  │    │
-│  │  │  w-apps VM (Debian 12)   │ │ │                            │  │    │
-│  │  │  ┌──────────────────┐    │ │ │                            │  │    │
-│  │  │  │ tailscale0 100.64.10.3   │ │  │                          │  │    │
-│  │  │  │ 7 Laravel,       │    │ │ │                            │  │    │
-│  │  │  │ Kong, Redis,     │    │ │ │                            │  │    │
-│  │  │  │ ingress-nginx,   │    │ │ │                            │  │    │
-│  │  │  │ in-cluster reg.  │    │ │ │                            │  │    │
-│  │  │  └──────────────────┘    │ │ │                            │  │    │
-│  │  └──────────────────────────┘ │ └────────────────────────────┘  │    │
-│  └──────────────────────────────┘ └─────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────── Windows host (16 GB / 6 core) ──────────────────────┐
+│                                                                            │
+│  ┌─────────────┐  ┌─────────────────┐  ┌─────────────────┐                 │
+│  │  7189srv01  │  │   7189srv02     │  │   7189srv03     │                 │
+│  │ (cp/master) │  │ (worker, 4.5 G) │  │ (worker, 5.0 G) │                 │
+│  │  2.0 G/1c   │  │       2c        │  │       2c        │                 │
+│  │             │  │                 │  │                 │                 │
+│  │ tailscale0  │  │ tailscale0      │  │ tailscale0      │                 │
+│  │ 100.64.10.1 │  │ 100.64.10.2     │  │ 100.64.10.3     │                 │
+│  │ ens33 (NAT) │  │ ens33 (NAT)     │  │ ens33 (NAT)     │                 │
+│  └──────┬──────┘  └─────────┬───────┘  └─────────┬───────┘                 │
+│         │                   │                    │                         │
+│         └───────────VMnet8 (NAT) ────────────────┘                         │
+│                          │                                                  │
+│                          v                                                  │
+│                    Internet (image pull)                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                          │
+                  Tailscale WireGuard (E2E encrypt)
+                  100.64.0.0/10 — DERP relay khi cần
+                          │
+┌─────────────────────────v───────────────────────────────────────────────────┐
+│                  Ubuntu host (8 GB / 4 core, DDR3)                          │
+│                                                                             │
+│            ┌──────────────────────────────────────┐                         │
+│            │              7189srv04               │                         │
+│            │       (worker, 6.0 G, 2 vCPU)        │                         │
+│            │     "always-on" data + stateful      │                         │
+│            │                                      │                         │
+│            │   tailscale0  100.64.10.4            │                         │
+│            │   ens33 (VMware NAT trên Ubuntu)     │                         │
+│            └──────────────────────────────────────┘                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
+            ServiceCIDR 10.96.0.0/12
+            apiserver advertise = 100.64.10.1 (Tailscale IP của srv01)
 ```
 
-> Tailscale IP `100.64.10.x` là placeholder. Tailscale tự cấp; bạn ghi
-> chú lại thật trong `/etc/hosts` hoặc set MagicDNS hostname.
+---
 
 ## 2. Vai trò từng VM
 
-### `cp1` — Control Plane
+### 7189srv01 — control-plane
 
-| Pod | NS | RAM req / lim |
-|-----|-----|---------------|
-| kube-apiserver | kube-system | 700/1024 Mi |
-| etcd | kube-system | 256/512 Mi |
-| kube-controller-manager | kube-system | 256/384 Mi |
-| kube-scheduler | kube-system | 192/256 Mi |
-| coredns × 2 | kube-system | 70/170 Mi |
-| metrics-server | kube-system | 50/100 Mi |
-| cilium-operator | kube-system | 128/256 Mi |
-| cilium-agent (DS, mỗi node) | kube-system | 128/256 Mi |
-| **Subtotal** | | **~1.7 / 2.9 GiB** |
+- **Pods**: kube-apiserver, etcd, kube-scheduler, kube-controller-manager,
+  cilium-agent (DS), kube-proxy/cilium-DSR, coredns (1 trên 2 replica)
+- **KHÔNG chạy**: workload thường (taint
+  `node-role.kubernetes.io/control-plane:NoSchedule` giữ nguyên — không
+  remove taint như kind setup). Tetragon DS có thể skip `7189srv01` (xem
+  `10`).
+- **Resource**: 2.0 GB / 1 vCPU. Có thể tăng lên 2.5 GB nếu etcd compaction
+  hay bị memory pressure (xem `12-runbook-recovery.md`).
 
-VM size: **2.0 GB** RAM (sát nhưng sẽ tune kubelet `--system-reserved`
-+ `--kube-reserved` để eviction conservative). Nếu quá sát → bump lên
-2.5 GB và giảm `w-data` xuống 4.5 GB.
+### 7189srv02 / 7189srv03 — generic worker (Windows)
 
-NoSchedule taint: `node-role.kubernetes.io/control-plane:NoSchedule`
-giữ nguyên — chỉ apiserver/etcd/scheduler chạy ở đây.
+- **Pods**: 7 Laravel apps (identity, workspace, job, hiring, candidate,
+  communication, storage), Kong, Redis, ingress-nginx, oauth2-proxy,
+  cert-manager (3), Keycloak (Deployment H2-in-memory, stateless),
+  Grafana, Kibana, Hubble Relay/UI, Gatekeeper (2), sigstore
+  policy-controller, PDP controller, Hubble shipper, kube-state-metrics,
+  metrics-server, Cilium operator, coredns (replica 2).
+- **Phân bổ**: K8s scheduler tự cân — KHÔNG nodeAffinity.
+- **DS chạy trên cả 2**: cilium-agent, tetragon, spire-agent, filebeat,
+  spiffe-csi-driver, node-exporter.
 
-### `w-data` — Data tier
+### 7189srv04 — data tier always-on (Ubuntu)
 
-| Pod | NS | RAM req / lim |
-|-----|-----|---------------|
-| MySQL | data | 256/512 Mi |
-| Kafka (single broker) | data | 256/512 Mi |
-| Vault prod | vault | 256/512 Mi |
-| Vault dev (transit) | vault | 128/256 Mi |
-| Vault agent injector | vault | 64/128 Mi |
-| Keycloak | security | 512/1024 Mi |
-| cilium-agent | kube-system | 128/256 Mi |
-| filebeat (DS) | monitoring | 100/200 Mi |
-| **Subtotal** | | **~1.7 / 3.4 GiB** |
+- **Pin nodeAffinity `kubernetes.io/hostname=7189srv04`**:
+  - `vault-dev` (Transit engine, RAM-only — KHÔNG được restart)
+  - `vault-prod` (StatefulSet, PVC 2 Gi)
+  - MySQL (StatefulSet, PVC ~10 Gi)
+  - Kafka (StatefulSet, PVC ~5 Gi)
+  - Elasticsearch (StatefulSet, PVC ~25 Gi)
+  - Prometheus (Deployment, PVC ~8 Gi)
+  - SPIRE server (StatefulSet, PVC ~1 Gi)
+  - in-cluster docker-registry (Deployment, PVC ~8 Gi)
+- **DS chạy đầy đủ**: cilium-agent, tetragon, spire-agent, filebeat,
+  spiffe-csi-driver, node-exporter.
+- **Không pin** Hubble shipper / Filebeat shipper sink — DS tự đặt.
 
-VM size: **5.0 GB** RAM (limits có thể bù trên swap nhưng nên đủ).
+> **Lý do co-locate vault-dev + vault-prod**: vault-dev chạy `-dev mode`
+> RAM-only và phục vụ Transit engine cho auto-unseal vault-prod
+> (`doc/03-identity-layer.md` mục "Dual-Vault Architecture"). Pod restart
+> = mất Transit key = vault-prod không tự unseal được. Đặt cả hai trên
+> srv04 (always-on host) tối ưu uptime + giảm latency unseal call.
 
-Pinning: PVC của MySQL/Vault/Kafka neo vào VM này qua local-path-provisioner
-(xem `05-storage-and-registry.md`). NodeSelector + nodeAffinity bằng label
-`zta.workload.tier=data`.
+---
 
-### `w-apps` — Application tier
+## 3. Workload placement matrix
 
-| Pod | NS | RAM req / lim |
-|-----|-----|---------------|
-| 7 Laravel × 4 container/pod | job7189-apps | 1.3/3.9 GiB |
-| Redis (shared) | job7189-apps | 64/192 Mi |
-| Kong DB-less | gateway | 128/256 Mi |
-| oauth2-proxy | security | 32/64 Mi |
-| ingress-nginx | ingress-nginx | 90/256 Mi |
-| In-cluster docker-registry | registry | 256/512 Mi |
-| cert-manager × 3 | cert-manager | 64×3 / 128×3 Mi |
-| cilium-agent | kube-system | 128/256 Mi |
-| filebeat (DS) | monitoring | 100/200 Mi |
-| **Subtotal** | | **~2.4 / 5.7 GiB** |
+| Workload | NS | NodeAffinity | Lý do |
+|----------|-----|--------------|--------|
+| etcd, apiserver, scheduler, ctrl-mgr | kube-system | control-plane (auto) | static pod trên srv01 |
+| coredns | kube-system | (anywhere) | 2 replicas, K8s tự đặt |
+| cilium-agent | kube-system | DS (mọi node) | — |
+| cilium-operator | kube-system | (anywhere) | 1 replica, K8s tự đặt |
+| metrics-server | kube-system | (anywhere) | — |
+| cert-manager (3) | cert-manager | (anywhere) | — |
+| ingress-nginx | ingress-nginx | (anywhere, ≥1) | NodePort 30001/30003 — Tailscale IP của node nào nhận thì client tới đó |
+| **vault-dev** | **vault** | **`hostname=7189srv04`** | always-on, không restart |
+| **vault-prod** | **vault** | **`hostname=7189srv04`** | PVC + co-locate vault-dev |
+| **MySQL** | **data** | **`hostname=7189srv04`** | PVC stateful |
+| **Kafka** | **data** | **`hostname=7189srv04`** | PVC stateful |
+| Keycloak | security | (anywhere) | Deployment H2-in-memory, stateless |
+| 7 Laravel apps | job7189-apps | (anywhere) | stateless |
+| Kong | job7189-apps | (anywhere) | DB-less |
+| Redis | job7189-apps | (anywhere) | session cache, có thể mất |
+| oauth2-proxy | job7189-apps | (anywhere) | stateless |
+| **Elasticsearch** | **monitoring** | **`hostname=7189srv04`** | PVC ~25 Gi |
+| Kibana | monitoring | (anywhere) | stateless, gọi ES qua Service |
+| **Prometheus** | **monitoring** | **`hostname=7189srv04`** | PVC TSDB |
+| Grafana | monitoring | (anywhere) | stateless DB sqlite emptyDir |
+| node-exporter | monitoring | DS | — |
+| kube-state-metrics | monitoring | (anywhere) | stateless |
+| Filebeat | monitoring | DS | đọc /var/log của node |
+| Hubble Relay | kube-system | (anywhere) | stateless |
+| Hubble UI | kube-system | (anywhere) | stateless |
+| Hubble shipper (filebeat→ES) | monitoring | (anywhere) | gọi ES qua Service trên srv04 |
+| **SPIRE server** | **spire** | **`hostname=7189srv04`** | sqlite PVC |
+| SPIRE controller-manager | spire | (anywhere) | stateless |
+| spire-agent | spire | DS | — |
+| spiffe-csi-driver | spire | DS | — |
+| Tetragon | kube-system | DS (skip srv01 — option) | eBPF kernel hooks |
+| Gatekeeper (2) | gatekeeper-system | (anywhere) | webhook stateless |
+| sigstore policy-controller | cosign-system | (anywhere) | webhook stateless |
+| PDP controller | zta-pdp | (anywhere) | Python kopf, stateless |
+| **docker-registry** | **registry** | **`hostname=7189srv04`** | PVC images |
 
-VM size: **4.5 GB** RAM. Nếu Laravel limits căng hơn dự kiến (PHP-FPM hot
-runs, OPcache), tăng lên 5.0 GB và bù bằng cách giảm `cp1` headroom.
+---
 
-### `w-obs` — Observability + Security tier (Ubuntu host)
+## 4. Failover behavior
 
-| Pod | NS | RAM req / lim |
-|-----|-----|---------------|
-| Elasticsearch single-node | monitoring | 384/768 Mi |
-| Kibana | monitoring | 256/512 Mi |
-| Prometheus | monitoring | 256/512 Mi |
-| Grafana | monitoring | 256/512 Mi |
-| node-exporter (DS) | monitoring | 32/64 Mi |
-| kube-state-metrics | monitoring | 32/64 Mi |
-| Tetragon DS | kube-system | 256/384 Mi |
-| Tetragon-operator | kube-system | 64/128 Mi |
-| Gatekeeper controller-manager | gatekeeper-system | 256/384 Mi |
-| Gatekeeper audit | gatekeeper-system | 256/384 Mi |
-| SPIRE server | spire | 256/512 Mi |
-| SPIRE controller-manager | spire | 192/256 Mi |
-| SPIRE agent (DS) | spire | 128/256 Mi |
-| spiffe-csi-driver (DS) | spire | 64/128 Mi |
-| sigstore policy-controller | cosign-system | 192/256 Mi |
-| PDP controller | security | 128/256 Mi |
-| Hubble exporter shipper | kube-system | 100/200 Mi |
-| cilium-agent | kube-system | 128/256 Mi |
-| filebeat (DS) | monitoring | 100/200 Mi |
-| **Subtotal** | | **~3.3 / 6.0 GiB** |
+| Sự kiện | Tác động |
+|---------|----------|
+| `7189srv01` chết | Cluster control-plane DOWN. Workload pods vẫn chạy nhưng không scale, không reschedule, kubectl không respond. Recover: power-on lại, hoặc restore từ etcd snapshot. |
+| `7189srv02` chết | K8s scheduler reschedule các stateless pod sang srv03 / srv04. Stateful pod (nếu vô tình nằm srv02 — không nên xảy ra) sẽ Pending. |
+| `7189srv03` chết | Tương tự srv02. |
+| `7189srv04` chết | **Cụm mất tất cả data**: vault-prod sealed, MySQL down, Kafka down, ES down, registry down → 7 Laravel apps fail healthcheck. Recover: power-on srv04, vault-prod auto-unseal khi vault-dev sống, MySQL/Kafka/ES tự bind lại PVC. |
+| Tailscale rớt | Tất cả node mất kết nối — apiserver bind 100.64.10.1 không reach được. K8s restart liên tục. Recover: `tailscale up --auth-key=...` lại. |
+| Windows host crash | 3 VM (srv01-03) đồng thời chết → cluster control-plane DOWN. srv04 (Ubuntu) vẫn sống nhưng vô dụng. |
+| Ubuntu host crash | srv04 chết → mất data (xem trên). |
 
-VM size: **6.0 GB** RAM. Đây là VM nặng nhất — ELK + 2 eBPF stack
-(Cilium agent + Tetragon DS) + Gatekeeper + SPIRE.
+---
 
-## 3. Pod placement strategy
+## 5. Rationale các quyết định lớn
 
-Không dùng nodeSelector cứng cho mọi pod (chế độ hard-affinity dễ làm
-scheduler bí). Thay vào đó:
+1. **Tách control-plane ra `7189srv01` riêng**: tránh trường hợp Kind cũ
+   nơi etcd + apiserver + workload chung 1 kernel → Tetragon eBPF buffer
+   ăn RAM kéo etcd OOM (incident #1).
+2. **Giữ workload stateless trên Windows host**: Windows host có RAM
+   nhiều hơn (16 GB), CPU nhiều hơn (6 core) — phù hợp chạy 7 Laravel +
+   Kong + Tetragon DS.
+3. **Pin tất cả stateful lên Ubuntu host**: Ubuntu host được user ít tắt
+   → data tier có uptime cao nhất. Trade-off: nếu Ubuntu host crash thì
+   mất tất cả data, nhưng đó là rủi ro chấp nhận được cho thesis env.
+4. **Không tier-based affinity cho stateless**: K8s scheduler đã đủ
+   thông minh (LeastAllocated, NodeResourcesFit). Affinity thừa chỉ làm
+   khó scheduler — và khi srv02 chết, các pod stateless sẽ pile-up trên
+   srv03 / srv04 thay vì stuck Pending.
 
-1. **Label node** sau khi join:
-   ```
-   kubectl label node cp1     zta.workload.tier=control-plane
-   kubectl label node w-data  zta.workload.tier=data
-   kubectl label node w-apps  zta.workload.tier=apps
-   kubectl label node w-obs   zta.workload.tier=observability
-   ```
-2. **Soft preferred affinity** trong manifest của workload:
-   - MySQL/Vault/Kafka/Keycloak → prefer `tier=data`
-   - 7 Laravel + Kong → prefer `tier=apps`
-   - ELK/Tetragon/SPIRE/Gatekeeper → prefer `tier=observability`
-3. **DaemonSet (cilium, filebeat, node-exporter, tetragon, spire-agent,
-   spiffe-csi-driver)** chạy trên **mọi worker** (loại trừ cp1 bằng
-   tolerations chỉ cho node có taint role).
+---
 
-## 4. Map sang ZTA layer (xem `doc/02-architecture-layers.md`)
+## 6. Open questions
 
-| Lớp ZTA | Component chính | VM |
-|---------|----------------|----|
-| L1 Identity (User) | Keycloak | w-data |
-| L1 Identity (Workload) | SPIRE + Cilium mesh-auth | w-obs (server), all workers (agent) |
-| L2 Posture | Trivy, Threat Intel | w-obs |
-| L3 PEP North-South | Kong + Nginx | w-apps |
-| L3 PEP East-West | Cilium | tất cả |
-| L3 PEP Runtime | Tetragon | w-obs (DS chạy ở cả 4 nhưng "owner" là w-obs) |
-| L3 Admission | Gatekeeper, sigstore | w-obs |
-| L4 Secrets | Vault dual | w-data |
-| L5 Logs | Elasticsearch + Kibana + Filebeat | w-obs |
-| L5 Metrics | Prometheus + Grafana | w-obs |
-| L5 Network flows | Hubble Relay/UI + exporter | tất cả (Relay), w-obs (exporter sink) |
-
-## 5. Failover behavior
-
-| Sự cố | Triệu chứng | Ảnh hưởng | Recovery |
-|-------|-------------|-----------|----------|
-| VM `cp1` chết | apiserver unreachable | Toàn bộ kubectl fail. Pod đang chạy vẫn OK, không reschedule được. | Khởi động lại VM. etcd self-heal sau khi up. |
-| VM `w-data` chết | MySQL/Vault offline | App layer 5xx. | Khởi động lại VM. PVC re-mount, app retry. |
-| VM `w-apps` chết | Frontend/API 502 | Demo down. | Khởi động lại. |
-| VM `w-obs` chết | Mất logs + alerts. Tetragon TracingPolicy không enforce trên các node? | Cilium mesh-auth vẫn OK (agent local). Tetragon agent local trên các node khác vẫn bắt syscall, chỉ mất pod tetragon-operator + log sink. | Khởi động lại. |
-| Tailscale rớt giữa 2 host | cross-host pod-to-pod 100% drop | Pod cùng host vẫn OK. Hubble drop count tăng. | `tailscale up --reset` trên VM mất kết nối. |
-| Cả Windows host crash | 3 VM (cp1 + w-data + w-apps) chết | Cluster mất quorum. | Reboot Windows host, các VM auto-start nếu set "Power on this VM when the host starts". |
-
-## 6. Câu hỏi mở liên quan
-
-- **HA cho cp1?** Hiện chỉ 1 control-plane. Single-point-of-failure.
-  Để HA cần thêm 2 cp nữa (3 etcd) và LB ảo (kube-vip) — quá nặng cho
-  20.8 GB ngân sách. Chấp nhận single cp, viết plan recovery khi cp chết
-  (xem `12-runbook-recovery.md`).
-- **Cilium ClusterMesh hoặc kube-vip?** Không cần ở giai đoạn này.
-- **Có cần MetalLB không?** Hiện đang publish service qua NodePort + map
-  Tailscale Funnel/Serve cho external access. Nếu user cần `LoadBalancer`
-  type Service tự động cấp IP, thêm MetalLB vào w-apps về sau.
+1. HA control-plane? — KHÔNG (tài nguyên không đủ cho 3 cp). Single cp +
+   etcd snapshot daily là đủ.
+2. ClusterMesh (cilium multi-cluster)? — KHÔNG. Đây là 1 cluster duy
+   nhất, multi-VM.
+3. MetalLB? — KHÔNG. ingress-nginx NodePort 30001/30003 là đủ. Khi cần
+   external IP, dùng Tailscale IP của bất kỳ worker nào (Funnel optional).

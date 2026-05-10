@@ -1,10 +1,18 @@
 # 06. Debian Base Prep — chuẩn bị mỗi VM
 
-> Mục tiêu: từ Debian 12 minimal vừa cài xong → trạng thái sẵn sàng
-> `kubeadm init` hoặc `kubeadm join`.
+> Mục tiêu: từ Debian 13 "Trixie" minimal vừa cài xong → trạng thái sẵn
+> sàng `kubeadm init` hoặc `kubeadm join`.
 
-Chạy script bên dưới trên **cả 4 VM** (`cp1`, `w-data`, `w-apps`, `w-obs`).
-Không idempotent 100% nhưng re-run an toàn (skip step đã làm).
+Chạy script bên dưới trên **cả 4 VM** (`7189srv01`, `7189srv02`,
+`7189srv03`, `7189srv04`). Không idempotent 100% nhưng re-run an toàn
+(skip step đã làm).
+
+## Distro cụ thể
+
+Debian 13 "Trixie" (released 2025-08, kernel ≥ 6.12). Kernel mới hỗ trợ
+CO-RE eBPF đủ cho Tetragon. Tải ISO từ https://www.debian.org/distrib/.
+Nếu cluster cuối bạn còn dùng ISO Debian 12 "Bookworm", các bước dưới đây
+vẫn chạy — chỉ cần thay `$(lsb_release -cs)` về `bookworm`.
 
 ## 1. Tạo user `debian` và sudo passwordless (nếu chưa)
 
@@ -20,7 +28,7 @@ Mỗi VM dùng SSH key duy nhất từ admin laptop:
 # trên admin laptop
 ssh-copy-id debian@<vm-vmware-nat-ip>
 # Sau khi tailscale up:
-ssh debian@cp1.<tailnet>.ts.net
+ssh debian@7189srv01.<tailnet>.ts.net
 ```
 
 ## 2. Cập nhật + cài tool chung
@@ -47,9 +55,9 @@ sudo tailscale up \
   --accept-dns=true
 
 # Verify
-tailscale ip -4    # phải in 100.64.10.X
+tailscale ip -4         # phải in 100.64.10.X
 tailscale status
-ping -c 3 cp1      # MagicDNS phải resolve (ngoại trừ chính cp1 dĩ nhiên)
+ping -c 3 7189srv01     # MagicDNS phải resolve (ngoại trừ chính node đó)
 ```
 
 > Nếu user không muốn để key trong shell history, đặt vào `/root/.ts-key`
@@ -64,7 +72,7 @@ sudo sed -i.bak '/\sswap\s/s/^/#/' /etc/fstab
 free -h | grep -i swap   # phải hiển thị 0
 ```
 
-Hoặc nếu muốn giữ swap (recommended cho VM nhỏ — `cp1` 2 GB hơi sát):
+Hoặc nếu muốn giữ swap (recommended cho VM nhỏ — `7189srv01` 2 GB hơi sát):
 ```bash
 # /etc/sysctl.d/99-zta.conf
 vm.swappiness = 10
@@ -104,8 +112,8 @@ sudo sysctl --system
 
 ## 6. containerd 1.7 + runc
 
-Debian 12 repo `bookworm` có containerd 1.6, đủ cho K8s 1.30 nhưng kém
-một số CRI feature. Dùng package từ Docker:
+Debian 13 repo `trixie` có containerd 1.7, đủ cho K8s 1.30. Nếu muốn
+phiên bản mới nhất (1.7.x) thì dùng package từ Docker:
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
@@ -147,7 +155,7 @@ sudo apt-mark hold kubelet kubeadm kubectl
 sudo systemctl enable kubelet
 ```
 
-## 8. Helm (chỉ cần trên admin laptop hoặc cp1)
+## 8. Helm (chỉ cần trên admin laptop hoặc 7189srv01)
 
 ```bash
 curl -fsSL https://baltocdn.com/helm/signing.asc \
@@ -161,7 +169,7 @@ helm version
 
 ## 9. Pre-flight check trước khi `kubeadm init`
 
-Trên `cp1`:
+Trên `7189srv01`:
 ```bash
 # Verify mỗi yêu cầu
 echo "[1/8] containerd"; sudo systemctl is-active containerd
@@ -171,14 +179,14 @@ echo "[4/8] modules";    lsmod | grep -E 'overlay|br_netfilter' | wc -l
 echo "[5/8] sysctl";     sysctl net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward
 echo "[6/8] tailscale";  tailscale ip -4 | head -1
 echo "[7/8] hostname";   hostname; cat /etc/hostname
-echo "[8/8] DNS resolve"; getent hosts cp1 || echo "MagicDNS not set"
+echo "[8/8] DNS resolve"; getent hosts 7189srv01 || echo "MagicDNS not set"
 ```
 
 ## 10. Hostname và `/etc/hosts`
 
 Set hostname đúng tên VM (không phải `debian`):
 ```bash
-sudo hostnamectl set-hostname cp1     # tương tự w-data, w-apps, w-obs
+sudo hostnamectl set-hostname 7189srv01    # tương tự 7189srv02..04
 echo "127.0.0.1 $(hostname)" | sudo tee -a /etc/hosts
 ```
 
@@ -187,7 +195,7 @@ echo "127.0.0.1 $(hostname)" | sudo tee -a /etc/hosts
 VMware Workstation NAT có thể đổi IP DHCP của VM. Tailscale IP **ổn định**
 nên cluster nội bộ không vấn đề, nhưng SSH từ laptop qua VMware NAT IP
 sẽ rớt. Có 3 hướng:
-- **A (recommended)**: SSH luôn qua Tailscale hostname (`cp1.<tailnet>.ts.net`)
+- **A (recommended)**: SSH luôn qua Tailscale hostname (`7189srv01.<tailnet>.ts.net`)
   → IP NAT đổi không sao.
 - **B**: cấu hình DHCP reservation trong VMware:
   - Win: Edit → Virtual Network Editor → VMnet8 → DHCP Settings → Add static.
@@ -213,7 +221,7 @@ sudo systemctl status open-vm-tools 2>/dev/null \
 
 Sau khi 4 VM cài xong base, từ admin laptop:
 ```bash
-for vm in cp1 w-data w-apps w-obs; do
+for vm in 7189srv01 7189srv02 7189srv03 7189srv04; do
   echo "=== $vm ==="
   ssh debian@$vm.<tailnet>.ts.net 'echo OK; systemctl is-active containerd kubelet; tailscale ip -4'
 done

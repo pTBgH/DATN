@@ -16,22 +16,22 @@ fallback nếu tắc), thấy nhau qua IP `100.64.0.0/10` bất kể host vật 
 ## 2. Sơ đồ luồng gói
 
 ```
-                ┌─── pod-A trên cp1 ──┐                ┌─── pod-B trên w-obs ──┐
-                │  10.244.1.5         │                │ 10.244.4.7           │
-                └─────┬───────────────┘                └─────┬─────────────────┘
-                      │                                      │
-                      ▼                                      ▼
-               cilium-agent cp1                         cilium-agent w-obs
-                      │ encap VXLAN                          │
-                      │ outer src=100.64.10.1                │
-                      │ outer dst=100.64.10.4 (UDP/8472)     │
-                      ▼                                      ▼
-               tailscaled cp1                           tailscaled w-obs
-                      │ WG src=100.64.10.1                   │
-                      │ WG dst=100.64.10.4 (UDP/41641)       │
-                      ▼                                      ▼
-                 ens33 NAT                              ens33 NAT
-              192.168.139.10                          192.168.227.10
+         ┌─── pod-A trên 7189srv01 ──┐         ┌─── pod-B trên 7189srv04 ──┐
+         │  10.244.1.5               │         │ 10.244.4.7                │
+         └─────┬─────────────────────┘         └─────┬─────────────────────┘
+               │                                     │
+               ▼                                     ▼
+        cilium-agent 7189srv01                cilium-agent 7189srv04
+               │ encap VXLAN                         │
+               │ outer src=100.64.10.1               │
+               │ outer dst=100.64.10.4 (UDP/8472)    │
+               ▼                                     ▼
+        tailscaled 7189srv01                  tailscaled 7189srv04
+               │ WG src=100.64.10.1                  │
+               │ WG dst=100.64.10.4 (UDP/41641)      │
+               ▼                                     ▼
+          ens33 NAT                              ens33 NAT
+        192.168.139.10                         192.168.227.10
                       │                                      │
                       └────────► Internet ◄──────────────────┘
                           (DERP relay nếu peer-to-peer fail)
@@ -46,10 +46,10 @@ Bật MagicDNS trong admin console (`https://login.tailscale.com/admin/dns`)
 để 4 VM thấy nhau bằng tên ngắn:
 
 ```
-cp1.<tailnet>.ts.net      → 100.64.10.1
-w-data.<tailnet>.ts.net   → 100.64.10.2
-w-apps.<tailnet>.ts.net   → 100.64.10.3
-w-obs.<tailnet>.ts.net    → 100.64.10.4
+7189srv01.<tailnet>.ts.net  → 100.64.10.1
+7189srv02.<tailnet>.ts.net  → 100.64.10.2
+7189srv03.<tailnet>.ts.net  → 100.64.10.3
+7189srv04.<tailnet>.ts.net  → 100.64.10.4
 ```
 
 ACL khuyến nghị (`https://login.tailscale.com/admin/acls`):
@@ -84,7 +84,7 @@ Auth keys (mỗi VM chỉ cần 1 lần):
 2. Tạo **reusable, ephemeral=false, tagged tag:zta-cluster**, expiry 90 ngày
 3. Lưu thành 1 secret duy nhất, dùng chung cho 4 VM:
    ```
-   sudo tailscale up --auth-key=tskey-auth-XXXX --advertise-tags=tag:zta-cluster --hostname=cp1
+   sudo tailscale up --auth-key=tskey-auth-XXXX --advertise-tags=tag:zta-cluster --hostname=7189srv01
    ```
 
 ## 4. Cilium nodeIP override
@@ -101,7 +101,7 @@ KUBELET_KUBEADM_ARGS="--container-runtime-endpoint=unix:///run/containerd/contai
 ```
 (thay X cho từng VM)
 
-### Trên cp1, `kubeadm-config.yaml` cho `kubeadm init`:
+### Trên 7189srv01, `kubeadm-config.yaml` cho `kubeadm init`:
 
 ```yaml
 apiVersion: kubeadm.k8s.io/v1beta3
@@ -124,8 +124,8 @@ networking:
 apiServer:
   certSANs:
     - "100.64.10.1"
-    - "cp1"
-    - "cp1.<tailnet>.ts.net"
+    - "7189srv01"
+    - "7189srv01.<tailnet>.ts.net"
     - "127.0.0.1"
     - "localhost"
   extraArgs:
@@ -210,15 +210,15 @@ Multi-VM: NodePort tự nhiên reachable trên IP Tailscale của bất kỳ wor
 nào. Để demo từ máy admin (laptop) qua Tailscale:
 
 ```
-http://w-apps.<tailnet>.ts.net:30000     # Kong
-https://w-apps.<tailnet>.ts.net:30001    # Ingress
-http://w-data.<tailnet>.ts.net:30002    # Vault UI (debug)
+http://7189srv02.<tailnet>.ts.net:30000  # Kong
+https://7189srv02.<tailnet>.ts.net:30001 # Ingress
+http://7189srv04.<tailnet>.ts.net:30002  # Vault UI (debug, srv04 always-on)
 ```
 
 Tùy chọn ingress chính:
 - Ingress-nginx Service NodePort 30001 → tự động trên 4 worker
 - Hoặc bật **Tailscale Funnel** trên 1 worker để có URL
-  `https://w-apps.<tailnet>.ts.net` mà không cần port 30001 — đẹp hơn cho
+  `https://7189srv02.<tailnet>.ts.net` mà không cần port 30001 — đẹp hơn cho
   demo public.
 
 ## 6. Hubble Relay/UI khi cross-VM
@@ -245,13 +245,13 @@ Kiểm tra:
 ```bash
 sudo tailscale status
 resolvectl status
-nslookup cp1   # phải trả 100.64.10.1
+nslookup 7189srv01   # phải trả 100.64.10.1
 ```
 
 Coredns trong cluster cũng resolve được tên Tailscale nhờ upstream
 forward `/etc/resolv.conf` → `100.100.100.100`. Tuy nhiên để app trong
-pod resolve `cp1` không đáng tin → giữ nguyên Service ClusterIP DNS
-`mysql.data.svc.cluster.local` thay vì `w-data:3306`.
+pod resolve `7189srv01` không đáng tin → giữ nguyên Service ClusterIP DNS
+`mysql.data.svc.cluster.local` thay vì `7189srv04:3306`.
 
 ## 8. Firewall trên Debian VM
 
@@ -259,7 +259,7 @@ iptables/nftables cần mở:
 
 | Port | Proto | Direction | Mục đích |
 |------|-------|-----------|----------|
-| 6443 | TCP | inbound (cp1 only) | apiserver |
+| 6443 | TCP | inbound (7189srv01 only) | apiserver |
 | 10250 | TCP | inbound | kubelet |
 | 10256 | TCP | inbound | kube-proxy / cilium |
 | 8472 | UDP | inbound | Cilium VXLAN |
@@ -282,11 +282,11 @@ sudo ufw enable
 
 ```bash
 # Trên mọi VM
-ping -c 3 cp1                          # MagicDNS phải resolve
+ping -c 3 7189srv01                    # MagicDNS phải resolve
 ping -c 3 100.64.10.1                  # IP trực tiếp
 nc -vz 100.64.10.1 6443                # apiserver port (sau kubeadm init)
 
-# Trên cp1
+# Trên 7189srv01
 curl -k https://100.64.10.1:6443/version
 kubectl get nodes -o wide              # cột INTERNAL-IP phải là 100.64.10.X
 ```

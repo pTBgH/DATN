@@ -1,15 +1,15 @@
-# 07. kubeadm Bootstrap — init cp1 + join 3 worker
+# 07. kubeadm Bootstrap — init 7189srv01 + join 3 worker
 
 > Tiền điều kiện: `06-debian-base-prep.md` chạy xong cho cả 4 VM.
 
-## 1. Pull pre-required images (cp1)
+## 1. Pull pre-required images (7189srv01)
 
 Pre-pull để `kubeadm init` không tốn 5-7 phút download:
 ```bash
 sudo kubeadm config images pull --kubernetes-version v1.30.0
 ```
 
-## 2. Tạo `kubeadm-config.yaml` trên cp1
+## 2. Tạo `kubeadm-config.yaml` trên 7189srv01
 
 ```bash
 TAILNET_DOMAIN="<your-tailnet>.ts.net"   # đổi cho khớp tailnet
@@ -38,8 +38,8 @@ networking:
 apiServer:
   certSANs:
     - "${CP_TS_IP}"
-    - "cp1"
-    - "cp1.${TAILNET_DOMAIN}"
+    - "7189srv01"
+    - "7189srv01.${TAILNET_DOMAIN}"
     - "127.0.0.1"
     - "localhost"
   extraArgs:
@@ -92,28 +92,28 @@ LƯU lệnh này lại — sẽ paste vào worker.
 
 ## 4. Cấu hình kubeconfig cho user `debian`
 
-Trên cp1:
+Trên 7189srv01:
 ```bash
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 kubectl get --raw=/healthz   # kỳ vọng: ok
-kubectl get nodes            # cp1 NotReady (chưa có CNI)
+kubectl get nodes            # 7189srv01 NotReady (chưa có CNI)
 ```
 
 Copy kubeconfig về admin laptop:
 ```bash
 # trên admin laptop
 mkdir -p ~/.kube
-scp debian@cp1.${TAILNET_DOMAIN}:/home/debian/.kube/config ~/.kube/config-job7189
+scp debian@7189srv01.${TAILNET_DOMAIN}:/home/debian/.kube/config ~/.kube/config-job7189
 export KUBECONFIG=~/.kube/config-job7189
 kubectl get nodes
 ```
 
 ## 5. Join 3 worker
 
-Trên TỪNG worker (`w-data`, `w-apps`, `w-obs`):
+Trên TỪNG worker (`7189srv02`, `7189srv03`, `7189srv04`):
 ```bash
 WORKER_TS_IP="$(tailscale ip -4 | head -1)"
 
@@ -127,7 +127,7 @@ nodeRegistration:
     node-ip: "${WORKER_TS_IP}"
 discovery:
   bootstrapToken:
-    apiServerEndpoint: "<CP1_TS_IP>:6443"
+    apiServerEndpoint: "<srv01_TS_IP>:6443"
     token: "<TOKEN_FROM_kubeadm_init>"
     caCertHashes:
       - "sha256:<HASH_FROM_kubeadm_init>"
@@ -150,7 +150,7 @@ EOF
 sudo kubeadm join --config=/root/kubeadm-join.yaml
 ```
 
-Nếu token đã hết hạn (>24h), tạo lại trên cp1:
+Nếu token đã hết hạn (>24h), tạo lại trên 7189srv01:
 ```bash
 sudo kubeadm token create --print-join-command
 ```
@@ -164,34 +164,39 @@ kubectl get nodes -o wide
 
 Kỳ vọng:
 ```
-NAME    STATUS     ROLES           AGE  VERSION  INTERNAL-IP
-cp1     NotReady   control-plane   5m   v1.30.0  100.64.10.1
-w-data  NotReady   <none>          1m   v1.30.0  100.64.10.2
-w-apps  NotReady   <none>          1m   v1.30.0  100.64.10.3
-w-obs   NotReady   <none>          1m   v1.30.0  100.64.10.4
+NAME       STATUS     ROLES           AGE  VERSION  INTERNAL-IP
+7189srv01  NotReady   control-plane   5m   v1.30.0  100.64.10.1
+7189srv02  NotReady   <none>          1m   v1.30.0  100.64.10.2
+7189srv03  NotReady   <none>          1m   v1.30.0  100.64.10.3
+7189srv04  NotReady   <none>          1m   v1.30.0  100.64.10.4
 ```
 
 `NotReady` là đúng — vì chưa có CNI. Sang `08-cilium-install.md`.
 
-## 7. Label nodes theo tier
+## 7. Labels (mức tối thiểu)
 
-Sau khi tất cả Ready (sau khi cài Cilium):
+Không dùng tier-based label cho stateless workloads (để K8s scheduler tự
+lo). Chỉ cần 1 label đánh dấu node always-on để stateful pin vào:
+
 ```bash
-kubectl label node cp1     zta.workload.tier=control-plane
-kubectl label node w-data  zta.workload.tier=data
-kubectl label node w-apps  zta.workload.tier=apps
-kubectl label node w-obs   zta.workload.tier=observability
+# srv04 đã có sẵn kubernetes.io/hostname=7189srv04 — dùng trực tiếp.
+# Thêm label để kiểm tra/dễ đổi node always-on sau này:
+kubectl label node 7189srv04 zta.workload.always-on=true
 ```
+
+Stateful workload manifest sử dụng `kubernetes.io/hostname=7189srv04`
+(xem `05-storage-and-registry.md`).
 
 ## 8. Taint cleanup
 
-Mặc định cp1 có taint `node-role.kubernetes.io/control-plane:NoSchedule`.
-**Giữ nguyên** — chỉ pod quan trọng (apiserver/etcd/scheduler/cilium-agent)
-mới có toleration này.
+Mặc định `7189srv01` có taint
+`node-role.kubernetes.io/control-plane:NoSchedule`. **Giữ nguyên** — chỉ
+pod quan trọng (apiserver/etcd/scheduler/cilium-agent) mới có toleration
+này.
 
-Nếu sau này quá thiếu vCPU và bạn muốn cho phép pod nhẹ chạy ở cp1:
+Nếu sau này quá thiếu vCPU và bạn muốn cho phép pod nhẹ chạy ở srv01:
 ```bash
-kubectl taint node cp1 node-role.kubernetes.io/control-plane:NoSchedule-
+kubectl taint node 7189srv01 node-role.kubernetes.io/control-plane:NoSchedule-
 ```
 KHÔNG khuyến nghị — vì etcd cần I/O không bị nhiễu.
 
@@ -216,10 +221,10 @@ init:
 sudo tar czf /root/kubeadm-pki-backup-$(date +%F).tar.gz /etc/kubernetes/pki /etc/kubernetes/admin.conf
 sudo chmod 600 /root/kubeadm-pki-backup-*.tar.gz
 # scp về admin laptop
-scp debian@cp1.${TAILNET_DOMAIN}:/root/kubeadm-pki-backup-*.tar.gz ~/cluster-backup/
+scp debian@7189srv01.${TAILNET_DOMAIN}:/root/kubeadm-pki-backup-*.tar.gz ~/cluster-backup/
 ```
 
-Cần backup này nếu `cp1` chết và phải khôi phục từ snapshot etcd.
+Cần backup này nếu `7189srv01` chết và phải khôi phục từ snapshot etcd.
 
 ## 11. kubeadm reset (rollback)
 
@@ -232,4 +237,4 @@ sudo ipvsadm --clear 2>/dev/null || true
 sudo systemctl restart containerd
 ```
 
-Rồi quay lại bước 2 (cp1) hoặc bước 5 (worker).
+Rồi quay lại bước 2 (7189srv01) hoặc bước 5 (worker).

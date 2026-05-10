@@ -45,6 +45,30 @@ phai phan van giua `doc/` va `docs/`.
 | 31 | `31-falco-deprecated.md` | (PR #22 — **DEPRECATED** 2026-05) — Falco runtime detection thay thế bằng Tetragon, giữ làm thesis evidence |
 | 32 | `32-deploy-script-troubleshooting.md` | **MOI** (PR #24) — Deploy script recovery: --reset, --uninstall, RAM pre-flight, cluster cascade fix |
 
+## Migration (Kind → Multi-VM kubeadm)
+
+Chuyen tu Kind 1-host sang 4 VM Debian + kubeadm + Tailscale overlay
+(motivation: 3 incident OOM cascade tren single-host 12 GiB).
+
+Folder: `doc/migration/` (xem `doc/migration/README.md` cho index 13 file).
+
+| # | File | Chu de |
+|---|------|--------|
+| 00 | `migration/README.md` | Index + nguyen tac thiet ke + open questions |
+| 01 | `migration/01-context-and-rationale.md` | Vi sao bo Kind, trade-off Kind vs multi-VM |
+| 02 | `migration/02-target-architecture.md` | Topology, vai tro tung VM, pod placement |
+| 03 | `migration/03-vm-sizing.md` | RAM/CPU/disk tung VM, fit ngan sach 12.8+8 GB |
+| 04 | `migration/04-network-tailscale-cilium.md` | Tailscale + VMware NAT + Cilium VXLAN |
+| 05 | `migration/05-storage-and-registry.md` | local-path-provisioner + in-cluster registry |
+| 06 | `migration/06-debian-base-prep.md` | Cai dat Debian 12 cho moi VM |
+| 07 | `migration/07-kubeadm-bootstrap.md` | kubeadm init cp1 + join 3 worker |
+| 08 | `migration/08-cilium-install.md` | Cilium 1.19 voi Tailscale-aware nodeIP |
+| 09 | `migration/09-cluster-services-bringup.md` | Gateway API, cert-manager, ingress, metrics-server |
+| 10 | `migration/10-zta-pipeline-adaptations.md` | Thay doi script ZTA cho external cluster |
+| 11 | `migration/11-runbook-fresh-deploy.md` | Day-0 runbook end-to-end (~5h) |
+| 12 | `migration/12-runbook-recovery.md` | Recovery cho 12 disaster scenarios |
+| 13 | `migration/13-validation-checklist.md` | 7 nhom check verify thanh cong |
+
 ## Incident reports (operational fixes)
 
 Mot file moi cho moi failure mode da gap khi rebuild. Format:

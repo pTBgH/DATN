@@ -112,13 +112,9 @@ Ba thành phần thực thi cốt lõi bao gồm \parencite{nist800207}:
 
 Mỗi yêu cầu (request) trong hệ thống ZTA đều trải qua một vòng đời truy cập \textit{đánh giá liên tục}. Khác biệt lớn nhất so với mô hình cũ là cách ZTA xử lý \textit{rủi ro phát sinh giữa chừng phiên làm việc}. Trong mô hình truyền thống, sau khi người dùng đăng nhập, hệ thống cấp \textit{access token} (ví dụ JWT \parencite{rfc7519_jwt}) với thời gian sống (TTL) cố định; trong suốt khoảng thời gian đó, mọi truy cập kèm token hợp lệ đều được chấp nhận -- hệ thống \textit{mù} trước các thay đổi như thiết bị bị compromise hay hành vi bất thường.
 
-ZTA khắc phục điểm yếu này bằng \textbf{Bảo mật thích ứng (adaptive security)} \parencite{nist800207}. Một hiện thực cụ thể của triết lý này là \textbf{Continuous Access Evaluation Profile (CAEP)} \parencite{openid_caep} -- một đặc tả do OpenID Foundation duy trì, cho phép IdP \textit{phát tín hiệu thay đổi ngữ cảnh} (session-revoke, token-claims-change, credential-change, device-compliance-change\dots) cho các phần mềm đóng vai trò PEP, để PEP ngắt phiên ngay cả khi token hiện tại chưa hết hạn. Một vòng đời truy cập theo CAEP thường gồm các bước:
-\begin{enumerate}
-    \item \textbf{Chặn bắt (Intercept):} Chủ thể gửi request. PEP nằm trên đường dữ liệu tạm giữ lưu lượng và chuyển metadata lên PA/PE \parencite{nist800207}.
-    \item \textbf{Đánh giá ngữ cảnh (Evaluate):} PE truy vấn các nguồn dữ liệu (IdP, CDM, threat-intel\dots) và chạy thuật toán tin cậy trên tổ hợp \{danh tính, thiết bị, ngữ cảnh, hành vi\} \parencite{nist800207,nist_abac}.
-    \item \textbf{Thực thi (Enforce):} Nếu đủ tin cậy, PE báo PA tạo session và mở luồng tại PEP. Ngược lại, PEP từ chối và ghi log \parencite{nist800207}.
-    \item \textbf{Giám sát và thu hồi thích ứng (continuous adaptive monitoring):} đây là điểm cốt lõi của CAEP. Sau khi luồng đã mở, hệ thống quan sát rút trích hành vi và tư thế bảo mật của cả người dùng và thiết bị. Nếu phát hiện thay đổi ngữ cảnh đáng nghi (một module phân tích hành vi như \textit{User and Entity Behavior Analytics -- UEBA} phát hiện download dữ liệu bất thường; thiết bị bị vô hiệu hóa EDR; địa chỉ IP rủi ro\dots), IdP sẽ phát sự kiện CAEP để PEP ngắt phiên (session termination) và vô hiệu hóa token hiện hành ngay lập tức \parencite{openid_caep}.
-\end{enumerate}
+ZTA khắc phục điểm yếu này bằng \textbf{Bảo mật thích ứng (adaptive security)} \parencite{nist800207}: PEP nằm trên đường dữ liệu tiếp tục đánh giá ngữ cảnh sau khi phiên đã được mở, kết hợp đầu vào từ IdP, nguồn dữ liệu trạng thái và tình báo đe doạ, và \textit{thu hồi quyền truy cập giữa chừng phiên} khi tập trạng thái thay đổi theo hướng bất lợi.
+
+Một hiện thực cụ thể cho tầng triển khai này là \textbf{Continuous Access Evaluation Profile (CAEP)} \parencite{openid_caep} -- đặc tả do OpenID Foundation duy trì, mô tả một mô hình dựa trên sự kiện (event-driven) cho phép IdP phát tín hiệu thay đổi ngữ cảnh (\textit{session-revoke}, \textit{token-claims-change}, \textit{credential-change}, \textit{device-compliance-change}\dots) tới các PEP đã đăng ký lắng nghe, để PEP ngắt phiên ngay cả khi token hiện tại chưa hết TTL. Điểm đáng chú ý là vòng lặp này \textit{không đòi hỏi PEP phải polling IdP}: một module phân tích hành vi (\textit{User and Entity Behavior Analytics -- UEBA}) hoặc cơ chế đánh giá thiết bị (EDR/MDM) khi phát hiện bất thường sẽ yêu cầu IdP phát sự kiện, từ đó PEP vô hiệu hóa token còn hiệu lực \parencite{openid_caep}.
 
 \subsection{Ba hướng triển khai theo NIST}
 
@@ -237,20 +233,20 @@ Nếu 5 trụ cột là các lĩnh vực bảo vệ thiết yếu, thì 3 năng 
 %==============================================================================
 % 1.5  MÔ HÌNH ĐE DỌA VÀ SO SÁNH
 %==============================================================================
-\section{Mô hình đe dọa trước khi triển khai ZTA}
+\section{Mô hình đe dọa và yêu cầu bảo mật}
 
 \subsection{Bề mặt tấn công của Microservices}
 
 Việc chia nhỏ ứng dụng nguyên khối thành Microservices mở rộng đáng kể bề mặt tấn công \parencite{nist800204_microservices,owasp_api2023}:
 \begin{itemize}
     \item \textbf{Khủng hoảng định danh:} hệ thống có hàng trăm dịch vụ cần giao tiếp nội bộ. Nếu định danh dịch vụ dựa trên IP/subnet, kẻ tấn công dễ dàng giả mạo (spoofing) \parencite{spiffe_spec,machine_identity_report}.
-    \item \textbf{Biến môi trường bị rò rỉ (secrets sprawl):} mật khẩu database và API key thường được cấp tĩnh, tồn tại vô thời hạn trong các file cấu hình \texttt{.env}, K8s Secret hay trong build pipeline. Đây là một \textit{nguồn rò rỉ} phổ biến (push nhầm \texttt{.env} kèm credential thật vào git, log loại 5xx in cả connection string, image đóng gói kèm credential build-time…) khiến việc rotate hoặc thu hồi cực kì tốn công \parencite{vault_docs,nist800204_microservices}.
+    \item \textbf{Biến môi trường bị rò rỉ (secrets sprawl):} mật khẩu database và API key thường được cấp tĩnh, tồn tại vô thời hạn trong các file cấu hình, K8s Secret hay trong build pipeline. Đây là một \textit{nguồn rò rỉ} phổ biến (lộ qua kho mã nguồn, qua log hệ thống hoặc đóng gói kèm image build-time) khiến việc xoay vòng (rotate) hoặc thu hồi cực kì tốn công \parencite{vault_docs,nist800204_microservices}.
     \item \textbf{Rủi ro hạ tầng dùng chung:} nhiều container chạy chung trên một node vật lý; nếu một dịch vụ bị leo thang đặc quyền (\textit{container escape}), mục tiêu kế tiếp thường là bản thân node hoặc các container cùng node \parencite{rice2019kubernetes,mitre_containers,nist800190}.
 \end{itemize}
 
-Cần nhấn mạnh: các biện pháp truyền thống vẫn có cách xử lý các rủi ro trên (áp dụng vault dạng on-prem, bắt buộc \texttt{.env.example} thay \texttt{.env} và kiểm soát bằng pre-commit, quét image trong CI/CD…). ZTA \textit{không thay thế} các biện pháp đó, mà bổ sung cả về \textit{triết lý} (không tin tưởng ngầm định) và cả \textit{công cụ} (cung cấp credential JIT cho mọi workload, không chỉ cho quản trị viên).
+Cần nhấn mạnh: các biện pháp truyền thống vẫn có cách xử lý các rủi ro trên (áp dụng vault dạng on-prem, kiểm soát biến bí mật qua pre-commit hook, quét image trong CI/CD…). ZTA \textit{không thay thế} các biện pháp đó, mà bổ sung cả về \textit{triết lý} (không tin tưởng ngầm định) và cả \textit{công cụ} (cung cấp credential JIT cho mọi workload, không chỉ cho quản trị viên).
 
-\subsection{Bảng đe dọa và biện pháp đối phó ZTA}
+\subsection{Yêu cầu bảo mật và nhóm biện pháp Zero Trust tương ứng}
 
 Bảng~\ref{tab:threat_countermeasure} liệt kê một số mối đe doạ điển hình trong môi trường microservices và \textit{những nhóm biện pháp} ZTA tương ứng. Cột biện pháp chỉ mô tả đặc điểm kiến trúc, không khoá vào sản phẩm cụ thể.
 
@@ -262,11 +258,11 @@ Bảng~\ref{tab:threat_countermeasure} liệt kê một số mối đe doạ đi
 \hline
 \textbf{Nhóm đe doạ} & \textbf{Mô tả và ví dụ} & \textbf{Nhóm biện pháp trong kiến trúc Zero Trust} \\
 \hline
-Đánh cắp thông tin xác thực (credential theft) & Đánh cắp mật khẩu dài hạn từ file cấu hình, log, hoặc biến môi trường bị đẩy nhầm lên kho code. & Cấp credential động (JIT) có thời hạn ngắn cho từng workload; loại bỏ credential tĩnh trong cấu hình \dots \\
+Đánh cắp thông tin xác thực (credential theft) & Đánh cắp mật khẩu dài hạn từ file cấu hình, log hệ thống hoặc các biến bí mật bị rò rỉ qua kho mã nguồn. & Cấp credential động (JIT) có thời hạn ngắn cho từng workload; loại bỏ credential tĩnh trong cấu hình \dots \\
 \hline
 Chiếm đoạt phiên (token theft, AiTM) & Đánh cắp JWT/session token đã vượt MFA qua kỹ thuật \textit{adversary-in-the-middle} \parencite{microsoft_aitm} để phát lại từ nơi khác. & Đánh giá truy cập liên tục (CAEP); ràng buộc thiết bị (device binding); thu hồi phiên ngay khi ngữ cảnh IP/hành vi thay đổi \dots \\
 \hline
-Living off the Land (LotL) & Kẻ tấn công không dùng mã độc mà lạm dụng công cụ hợp pháp sẵn có trong container (\texttt{curl}, \texttt{sh}, \texttt{wget}, \texttt{nc}…) \parencite{crowdstrike_lotl}. & Giám sát syscall ở mức kernel; phân tích hành vi (UEBA); image tối thiểu (distroless) loại bỏ shell, đọc-only filesystem \dots \\
+Living off the Land (LotL) & Kẻ tấn công không dùng mã độc mà lạm dụng các công cụ hợp pháp sẵn có trong container (shell, tiện ích mạng, tiện ích hệ thống) \parencite{crowdstrike_lotl}. & Giám sát syscall ở mức kernel; phân tích hành vi (UEBA); image tối thiểu (distroless) loại bỏ shell, đọc-only filesystem \dots \\
 \hline
 Di chuyển ngang (lateral movement) & Kẻ tấn công sử dụng workload đã chiếm để quét và xâm nhập dịch vụ nội bộ khác. & Phân đoạn vi mô (\textit{micro-segmentation}); chính sách \textit{mặc định từ chối} (default deny) ở mức L3/L4/L7; mã hoá mTLS theo workload identity \dots \\
 \hline
@@ -274,7 +270,7 @@ Leo thang đặc quyền (privilege escalation) & Kẻ tấn công lấy đượ
 \hline
 Trích xuất dữ liệu (data exfiltration) & Đẩy lén dữ liệu nhạy cảm ra ngoài (DNS tunneling, presigned URL rò rỉ, push log bên ngoài…). & Lọc lưu lượng đầu ra (\textit{egress filtering}) theo CIDR/FQDN; tích hợp tình báo đe doạ để cập nhật blocklist động \dots \\
 \hline
-Tấn công chuỗi cung ứng (supply chain) & Image nội bộ/upstream bị thay thế bằng bản có backdoor; rollback về image có CVE cũ \parencite{cisa_solarwinds,newman2022sigstore}. & PEP admission kiểm tra chữ ký số của image, ghim digest \texttt{@sha256:}, quét CVE trước khi admit \dots \\
+Tấn công chuỗi cung ứng (supply chain) & Image nội bộ/upstream bị thay thế bằng bản có backdoor; rollback về image có CVE cũ \parencite{cisa_solarwinds,newman2022sigstore}. & PEP admission kiểm tra chữ ký số của image, ghim digest bất biến, quét CVE trước khi admit \dots \\
 \hline
 \end{tabularx}
 \end{table}
@@ -302,7 +298,7 @@ Persistence & T1525 \textit{Implant Internal Image}, T1053.007 \textit{Scheduled
 \hline
 Privilege Escalation & T1611 \textit{Escape to Host}, T1610 \textit{Deploy Container} (lạm dụng \texttt{privileged: true}). & Constraint cấm \texttt{privileged}, \texttt{hostNetwork}; PEP Runtime phát hiện syscall thay đổi namespace. \\
 \hline
-Defense Evasion & T1610 \textit{Deploy Container} với image không chữ ký, T1564.006 \textit{Hide Artifacts: Run Virtual Instance}, T1562 \textit{Impair Defenses}. & PEP Admission (bắt buộc digest \texttt{@sha256:}, chữ ký hiệu lực); audit log và quan sát liên tục. \\
+Defense Evasion & T1610 \textit{Deploy Container} với image không chữ ký, T1562 \textit{Impair Defenses}. & PEP Admission (bắt buộc digest bất biến và chữ ký số hiệu lực); audit log và quan sát liên tục. \\
 \hline
 Credential Access & T1552.007 \textit{Container API Credentials}, T1528 \textit{Steal Application Access Token}, T1212 \textit{Exploitation for Credential Access}. & Cấp credential JIT (Vault); thu hồi phiên qua CAEP \parencite{openid_caep}. \\
 \hline

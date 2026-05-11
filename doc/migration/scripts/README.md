@@ -256,7 +256,46 @@ ls -la /usr/local/bin/kubeadm /usr/local/bin/kubelet /usr/local/bin/kubectl
 echo $PATH | tr ':' '\n' | grep -i local
 ```
 Nếu binaries có nhưng PATH thiếu: `export PATH="/usr/local/bin:$PATH"`
-hoặc relogin shell.
+hoặc relogin shell. Script v2 đã tự normalize PATH ở `lib/common.sh`.
+
+### Step 7 verify báo "containerd: command not found" + auto-rollback
+
+Triệu chứng (đã từng xảy ra trên srv01):
+```
+2026-...Z [STEP ] [7/7] Verify
+doc/migration/scripts/01-host-prep.sh: line 299: containerd: command not found
+2026-...Z [ERROR] Failed at line 299: head -1
+2026-...Z [WARN ] Auto-rollback ON — undoing recorded actions in reverse order
+```
+
+Nguyên nhân (3 bug cascade — đã fix trong v2):
+1. `sudo -E` preserve PATH của user → `/usr/bin/containerd` không nằm trong PATH → verify line fail.
+2. Verify line nằm trong `$(...)` substitution → ERR trap fire trong subshell, **không exit script** → script tiếp tục, các verify line khác cũng fail → rollback chạy **nhiều lần**.
+3. `mark_done` viết marker file nhưng rollback KHÔNG dọn marker → run tiếp theo skip step đó, dù binary đã bị rollback xóa → **state không nhất quán**.
+
+Recovery nếu bạn vẫn còn ở trạng thái cũ:
+```bash
+# Trên VM bị stuck:
+sudo rm -f ~/.zta-migration/done.* ~/.zta-migration/*.state
+# Verify cluster state (nên sạch):
+ls /usr/bin/containerd /usr/local/bin/kube* 2>/dev/null
+# Pull patch v2 và chạy lại — script tự kiểm tra binary presence khi gặp marker:
+cd ~/projects/DATN && git pull
+sudo HOSTNAME_OVERRIDE=7189srv01 -E bash doc/migration/scripts/01-host-prep.sh
+```
+
+Fix v2 đã làm trong `lib/common.sh`:
+- `shopt -s inherit_errexit` → errexit propagate vào `$()`.
+- `mark_done` tự động register rollback "rm marker" → rollback dọn marker.
+- `already_done_and "<key>" "<presence-check>"` → check cả marker VÀ binary presence; nếu marker stale, tự xóa và redo step.
+- `migration_end` clear rollback stack → exit normal không trigger stale undo.
+- `_zta_rollback` clear stack sau khi chạy → không re-run nhiều lần.
+- `_zta_on_err` `exit "$rc"` explicit + disable ERR trap re-entry.
+- PATH normalize: `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` prepend ngay đầu mỗi script.
+
+Fix v2 trong `01-host-prep.sh`:
+- STEP 7 verify dùng `_verify_probe` helper: subshell ALWAYS exit 0; log `<label>: not found` nếu binary thiếu, không trigger ERR trap.
+- STEP 5+6 skip-condition: dùng `already_done_and` thay vì `already_done` — defense-in-depth nếu marker còn nhưng binary đã bị xóa.
 
 ---
 

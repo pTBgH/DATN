@@ -38,29 +38,33 @@ log_step "Pre-flight: helm + kubectl + nodes"
 
 # Auto-install helm if missing. This script needs helm but the upstream
 # host-prep (01) does not install it (helm is only needed on the host
-# that runs this script — typically srv01).
+# that runs this script — typically srv01). We install via the official
+# tarball at get.helm.sh rather than baltocdn.com/apt — the apt CDN
+# (baltocdn.com) is blocked / unresolvable on some networks while the
+# release tarball CDN (get.helm.sh) works wherever dl.k8s.io worked in 01.
+HELM_VERSION="${HELM_VERSION:-v3.16.4}"
 if ! command -v helm >/dev/null 2>&1; then
-  log_warn "  helm not found — installing via Helm's official apt repo"
+  log_warn "  helm not found — installing ${HELM_VERSION} from get.helm.sh"
   if [ "${ZTA_DRY_RUN}" = "1" ]; then
-    log_dry "$ apt-get install helm (dry-run; not executed)"
+    log_dry "$ install helm ${HELM_VERSION} to /usr/local/bin (dry-run; not executed)"
   else
     if ! [ "$(id -u)" -eq 0 ]; then
-      log_err "  helm install needs root — re-run with: sudo -E bash $0"
+      log_err "  helm install writes to /usr/local/bin and needs root."
+      log_err "  Re-run with: sudo -E bash $0"
       exit 1
     fi
-    HELM_KEYRING=/usr/share/keyrings/helm.asc
-    HELM_LIST=/etc/apt/sources.list.d/helm-stable-debian.list
-    if [ ! -s "${HELM_KEYRING}" ]; then
-      curl -fsSL https://baltocdn.com/helm/signing.asc | tee "${HELM_KEYRING}" >/dev/null
-    fi
-    if [ ! -f "${HELM_LIST}" ]; then
-      printf 'deb [arch=%s signed-by=%s] https://baltocdn.com/helm/stable/debian/ all main\n' \
-        "$(dpkg --print-architecture)" "${HELM_KEYRING}" \
-        | tee "${HELM_LIST}" >/dev/null
-    fi
-    apt-get update -qq -o Dir::Etc::sourcelist="sources.list.d/helm-stable-debian.list" \
-                       -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
-    apt-get install -y helm
+    HELM_ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+    case "${HELM_ARCH}" in
+      amd64|x86_64) HELM_ARCH="amd64" ;;
+      arm64|aarch64) HELM_ARCH="arm64" ;;
+      *) log_warn "  unknown ARCH '${HELM_ARCH}' — defaulting to amd64"; HELM_ARCH="amd64" ;;
+    esac
+    HELM_TGZ="/tmp/helm-${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz"
+    HELM_URL="https://get.helm.sh/helm-${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz"
+    step "Download helm ${HELM_VERSION}" curl -fsSL --retry 3 -o "${HELM_TGZ}" "${HELM_URL}"
+    step "Extract helm" tar -xzf "${HELM_TGZ}" -C /tmp "linux-${HELM_ARCH}/helm"
+    step "Install helm -> /usr/local/bin" install -m 0755 "/tmp/linux-${HELM_ARCH}/helm" /usr/local/bin/helm
+    rm -rf "${HELM_TGZ}" "/tmp/linux-${HELM_ARCH}"
     log_ok "  installed helm: $(helm version --short 2>/dev/null || echo unknown)"
   fi
 fi

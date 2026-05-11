@@ -73,9 +73,13 @@ case "${TARGET_PHASE}" in
   01-host-prep)
     log_warn "Rolling back 01-host-prep (best-effort)"
     if [ "${FORCE}" = "1" ]; then
-      try_step "remove kubeadm/kubelet/kubectl" bash -c \
-        'apt-mark unhold kubelet kubeadm kubectl 2>/dev/null || true; apt-get remove -y kubelet kubeadm kubectl || true'
-      try_step "remove kubernetes apt repo" rm -f /etc/apt/sources.list.d/kubernetes.list /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      try_step "stop kubelet" bash -c 'systemctl stop kubelet 2>/dev/null || true; systemctl disable kubelet 2>/dev/null || true'
+      try_step "remove kubeadm/kubelet/kubectl binaries" rm -f /usr/local/bin/kubeadm /usr/local/bin/kubelet /usr/local/bin/kubectl
+      try_step "remove crictl + config" bash -c 'rm -f /usr/local/bin/crictl /etc/crictl.yaml'
+      try_step "remove CNI plugins" rm -rf /opt/cni/bin
+      try_step "remove kubelet systemd unit" rm -f /etc/systemd/system/kubelet.service /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+      try_step "remove legacy kubernetes apt repo (if any)" rm -f /etc/apt/sources.list.d/kubernetes.list /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      try_step "systemctl daemon-reload" systemctl daemon-reload
       try_step "remove containerd config" rm -f /etc/containerd/config.toml
       try_step "remove sysctl/modules" bash -c \
         'rm -f /etc/sysctl.d/99-zta.conf /etc/modules-load.d/k8s.conf; sysctl --system >/dev/null'

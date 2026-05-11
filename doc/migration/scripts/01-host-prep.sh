@@ -156,7 +156,7 @@ log_info "  swap will remain enabled with swappiness=10 (failSwapOn=false in kub
 
 # ===== STEP 5: containerd 1.7 + SystemdCgroup + pause:3.9 =====
 log_step "[5/7] containerd"
-if ! already_done "containerd-installed"; then
+if ! already_done_and "containerd-installed" 'command -v containerd'; then
   if ! command -v containerd >/dev/null 2>&1; then
     KEYRING_DIR="/etc/apt/keyrings"
     install -m 0755 -d "${KEYRING_DIR}"
@@ -169,7 +169,7 @@ if ! already_done "containerd-installed"; then
     step "Install containerd.io" apt-get install -y containerd.io
     register_rollback "apt-get remove -y containerd.io"
   else
-    log_info "  containerd already installed: $(containerd --version | head -1)"
+    log_info "  containerd already installed: $(containerd --version 2>/dev/null | head -1 || echo unknown)"
   fi
 
   # Generate config (idempotent — only write if differs / missing)
@@ -213,7 +213,7 @@ CRICTL_VERSION="${CRICTL_VERSION:-v1.30.1}"
 CNI_PLUGINS_VERSION="${CNI_PLUGINS_VERSION:-v1.5.1}"
 KUBE_RELEASE_TEMPLATE_VERSION="${KUBE_RELEASE_TEMPLATE_VERSION:-v0.18.0}"
 
-if ! already_done "kube-installed"; then
+if ! already_done_and "kube-installed" '[ -x /usr/local/bin/kubeadm ] && [ -x /usr/local/bin/kubelet ] && [ -x /usr/local/bin/kubectl ]'; then
   # 6a) kubeadm, kubelet, kubectl binaries -> /usr/local/bin/
   KUBE_INSTALLED_VER=""
   if command -v kubeadm >/dev/null 2>&1; then
@@ -295,14 +295,33 @@ else
 fi
 
 # ===== STEP 7: verify =====
+# Verify is INFORMATIONAL ONLY. Failures here must NOT trigger rollback.
+# Disable ERR trap and use defensive evaluation for every probe.
 log_step "[7/7] Verify"
-log_info "  containerd: $(containerd --version | head -1)"
-log_info "  kubeadm   : $(kubeadm version -o short 2>/dev/null || true)"
-log_info "  kubelet   : $(kubelet --version 2>/dev/null || true)"
-log_info "  kubectl   : $(kubectl version --client -o yaml 2>/dev/null | awk '/gitVersion/ {print $2; exit}' || true)"
-log_info "  crictl    : $(crictl --version 2>/dev/null | head -1 || true)"
+trap - ERR
+
+_verify_probe() {
+  # Echo "<label>: <output-of-cmd>" with graceful fallback. The inner
+  # command group ALWAYS exits 0 (note the `; true`), so the surrounding
+  # substitution and log_info cannot fail even with errexit / pipefail /
+  # inherit_errexit enabled.
+  local label="$1"; shift
+  local out
+  out="$( { "$@" 2>/dev/null; true; } | head -1 || true )"
+  log_info "  ${label}: ${out:-not found}"
+}
+
+_verify_probe "containerd" bash -c 'command -v containerd >/dev/null && containerd --version'
+_verify_probe "kubeadm   " bash -c 'command -v kubeadm    >/dev/null && kubeadm version -o short'
+_verify_probe "kubelet   " bash -c 'command -v kubelet    >/dev/null && kubelet --version'
+_verify_probe "kubectl   " bash -c 'command -v kubectl    >/dev/null && kubectl version --client -o yaml | awk "/gitVersion/ {print \$2; exit}"'
+_verify_probe "crictl    " bash -c 'command -v crictl     >/dev/null && crictl --version'
+_verify_probe "tailscale " bash -c 'command -v tailscale  >/dev/null && tailscale ip -4'
 log_info "  CNI dir   : $(ls /opt/cni/bin/ 2>/dev/null | wc -l) plugin(s) in /opt/cni/bin"
-log_info "  tailscale : $(tailscale ip -4 2>/dev/null | head -1 || echo '(not authed)')"
+
+# Re-arm ERR trap before migration_end so any post-verify catastrophe
+# (there shouldn't be any) is still caught.
+trap '_zta_on_err $LINENO "$BASH_COMMAND"' ERR
 
 migration_end
 log_ok "Host prep complete on $(hostname). Re-run safely with 'bash $0' anytime."

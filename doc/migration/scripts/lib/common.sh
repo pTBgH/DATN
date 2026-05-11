@@ -21,6 +21,25 @@
 
 # ===== Strict mode (caller must already set this; we re-set defensively) =====
 set -Eeuo pipefail
+# Propagate errexit into command substitutions $(...) so a failure inside
+# `$(cmd1 | cmd2)` fails the enclosing command and triggers the ERR trap
+# in the parent shell (not just the subshell, which can't terminate the
+# script via `exit`). Required by Bash >= 4.4.
+shopt -s inherit_errexit 2>/dev/null || true
+
+# ===== PATH normalization =====
+# `sudo -E` preserves the invoker's PATH, which may exclude /usr/bin etc.
+# Ensure standard system bins are findable for verify steps & general use.
+_zta_path_prepend() {
+  case ":${PATH:-}:" in *":$1:"*) ;; *) PATH="$1:${PATH:-}" ;; esac
+}
+_zta_path_prepend /sbin
+_zta_path_prepend /bin
+_zta_path_prepend /usr/sbin
+_zta_path_prepend /usr/bin
+_zta_path_prepend /usr/local/sbin
+_zta_path_prepend /usr/local/bin
+export PATH
 
 # ===== Constants =====
 ZTA_STATE_DIR="${ZTA_STATE_DIR:-${HOME}/.zta-migration}"
@@ -89,6 +108,8 @@ migration_start() {
 
 migration_end() {
   trap - ERR
+  # Empty the rollback stack — phase succeeded, no need to undo on later exit
+  ZTA_ROLLBACK_STACK=()
   local elapsed=$(( $(date +%s) - ZTA_PHASE_START_EPOCH ))
   log_ok "Phase '${ZTA_PHASE_NAME}' completed successfully in ${elapsed}s"
   # Mark the phase as completed so subsequent rollback skips it unless forced
@@ -96,6 +117,9 @@ migration_end() {
 }
 
 _zta_on_err() {
+  local rc=$?
+  # Disable further ERR firing while we handle this one (avoid re-entry).
+  trap - ERR
   ZTA_FAILED_LINE="$1"
   ZTA_FAILED_CMD="$2"
   log_err "Failed at line ${ZTA_FAILED_LINE}: ${ZTA_FAILED_CMD}"
@@ -108,6 +132,10 @@ _zta_on_err() {
   else
     log_warn "Auto-rollback OFF — re-run with ZTA_AUTO_ROLLBACK=1 or use 99-rollback.sh"
   fi
+  # Exit explicitly so the script doesn't limp along after rollback.
+  # (`set -e` does NOT propagate failures from command substitutions $(...)
+  # by default, so the ERR trap can fire without bash exiting.)
+  exit "${rc:-1}"
 }
 
 _zta_on_exit() {
@@ -143,6 +171,8 @@ _zta_rollback() {
     # Best-effort; never fail the rollback itself
     bash -c "${cmd}" || log_warn "    rollback[$i] returned non-zero — continuing"
   done
+  # Drain the stack so a re-fired ERR trap (or manual call) doesn't re-run.
+  ZTA_ROLLBACK_STACK=()
   log_warn "Rollback finished."
 }
 
@@ -181,8 +211,31 @@ already_done() {
   [ -f "${ZTA_STATE_DIR}/done.${key}" ]
 }
 mark_done() {
+  # Record completion AND register a rollback to remove the marker on failure.
+  # This ensures rollback leaves the system in a consistent state: if the
+  # phase later fails and rollback undoes the install, the marker is also
+  # removed so a subsequent re-run will redo this step.
   local key="$1"
   printf '%s\n' "$(ts)" > "${ZTA_STATE_DIR}/done.${key}"
+  register_rollback "rm -f ${ZTA_STATE_DIR}/done.${key}"
+}
+
+# Like already_done, but ALSO requires a presence check (e.g., binary in PATH,
+# file exists) so we never skip a step whose marker is stale (binary was
+# removed by an earlier failed-rollback before the marker-cleanup fix).
+# Usage: already_done_and 'kube-installed' 'command -v kubeadm'
+already_done_and() {
+  local key="$1"; shift
+  if ! already_done "${key}"; then
+    return 1
+  fi
+  if eval "$*" >/dev/null 2>&1; then
+    return 0
+  fi
+  log_warn "  marker 'done.${key}' present but presence-check failed: $*"
+  log_warn "  removing stale marker; step will be redone"
+  rm -f "${ZTA_STATE_DIR}/done.${key}"
+  return 1
 }
 
 # ===== Pre-flight assertions =====

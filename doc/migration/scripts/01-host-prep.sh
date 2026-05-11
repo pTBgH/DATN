@@ -11,8 +11,17 @@
 #   3. Set hostname (if HOSTNAME_OVERRIDE is set)
 #   4. Tune swap + sysctl + modules
 #   5. Install containerd 1.7 with SystemdCgroup + pause:3.9
-#   6. Install kubelet/kubeadm/kubectl ${KUBE_MINOR}
+#   6. Install kubelet/kubeadm/kubectl ${KUBE_VERSION} (binary download)
+#      + crictl + CNI plugins + kubelet systemd unit
 #   7. Verify
+#
+# Why binary download instead of apt? Debian 13 (Trixie) uses sqv (Sequoia
+# PGP) to verify apt repo signatures and rejects v3 OpenPGP signature
+# packets from 2026-02-01. The pkgs.k8s.io repo still signs InRelease with
+# v3 packets => apt-get update fails with:
+#   "Signature Packet v3 is not considered secure since 2026-02-01T00:00:00Z"
+# Binary releases on dl.k8s.io are signed via SHA256 sums (not GPG packets)
+# and are the *official* alternative install method documented by k8s.
 #
 # Each step registers a ROLLBACK action. On ERR, all actions are
 # undone in reverse order. Idempotency markers are stored in
@@ -186,28 +195,100 @@ else
   log_info "  already done (containerd-installed)"
 fi
 
-# ===== STEP 6: kubeadm + kubelet + kubectl =====
-log_step "[6/7] kubeadm/kubelet/kubectl ${KUBE_MINOR}"
+# ===== STEP 6: kubeadm + kubelet + kubectl + crictl + CNI =====
+# Install via binary download from dl.k8s.io (NOT apt repo) — Debian Trixie
+# rejects v3 GPG packets used by pkgs.k8s.io InRelease since 2026-02-01.
+log_step "[6/7] kubeadm/kubelet/kubectl ${KUBE_VERSION} (binary install)"
+
+# Detect architecture (typically amd64 on x86_64 VMs)
+ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+case "${ARCH}" in
+  amd64|x86_64) ARCH="amd64" ;;
+  arm64|aarch64) ARCH="arm64" ;;
+  *) log_warn "Unknown ARCH '${ARCH}' — defaulting to amd64"; ARCH="amd64" ;;
+esac
+
+# Versions for ancillary tooling — pinned to a 1.30.x-compatible patch.
+CRICTL_VERSION="${CRICTL_VERSION:-v1.30.1}"
+CNI_PLUGINS_VERSION="${CNI_PLUGINS_VERSION:-v1.5.1}"
+KUBE_RELEASE_TEMPLATE_VERSION="${KUBE_RELEASE_TEMPLATE_VERSION:-v0.18.0}"
+
 if ! already_done "kube-installed"; then
-  KEY_FILE="/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
-  LIST_FILE="/etc/apt/sources.list.d/kubernetes.list"
-  if [ ! -f "${KEY_FILE}" ]; then
-    step "Add k8s apt key" bash -c \
-      "curl -fsSL https://pkgs.k8s.io/core:/stable:/v${KUBE_MINOR}/deb/Release.key | gpg --dearmor -o ${KEY_FILE}"
-    register_rollback "rm -f ${KEY_FILE}"
+  # 6a) kubeadm, kubelet, kubectl binaries -> /usr/local/bin/
+  KUBE_INSTALLED_VER=""
+  if command -v kubeadm >/dev/null 2>&1; then
+    KUBE_INSTALLED_VER="$(kubeadm version -o short 2>/dev/null | sed 's/^v//' || true)"
   fi
-  EXPECTED_LIST="deb [signed-by=${KEY_FILE}] https://pkgs.k8s.io/core:/stable:/v${KUBE_MINOR}/deb/ /"
-  if [ ! -f "${LIST_FILE}" ] || [ "$(cat "${LIST_FILE}")" != "${EXPECTED_LIST}" ]; then
-    printf '%s\n' "${EXPECTED_LIST}" > "${LIST_FILE}"
-    register_rollback "rm -f ${LIST_FILE}"
+  if [ "${KUBE_INSTALLED_VER}" != "${KUBE_VERSION}" ]; then
+    for bin in kubeadm kubelet kubectl; do
+      step "Download ${bin} v${KUBE_VERSION} (${ARCH})" curl -fsSL --retry 3 -o "/usr/local/bin/${bin}.new" \
+        "https://dl.k8s.io/release/v${KUBE_VERSION}/bin/linux/${ARCH}/${bin}"
+      step "Install ${bin}" bash -c "chmod +x /usr/local/bin/${bin}.new && mv -f /usr/local/bin/${bin}.new /usr/local/bin/${bin}"
+    done
+    register_rollback "rm -f /usr/local/bin/kubeadm /usr/local/bin/kubelet /usr/local/bin/kubectl"
+  else
+    log_info "  kubeadm/kubelet/kubectl ${KUBE_VERSION} already installed"
   fi
 
-  step "apt update for k8s repo" apt-get update
-  step "Install k8s tooling"     apt-get install -y kubelet kubeadm kubectl
-  step "apt-mark hold"           apt-mark hold kubelet kubeadm kubectl
-  register_rollback "apt-mark unhold kubelet kubeadm kubectl || true; apt-get remove -y kubelet kubeadm kubectl || true"
+  # 6b) crictl (kubeadm preflight needs it)
+  if ! command -v crictl >/dev/null 2>&1; then
+    step "Download crictl ${CRICTL_VERSION} (${ARCH})" curl -fsSL --retry 3 -o /tmp/crictl.tgz \
+      "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-${ARCH}.tar.gz"
+    step "Install crictl" tar -C /usr/local/bin -xzf /tmp/crictl.tgz
+    rm -f /tmp/crictl.tgz
+    register_rollback "rm -f /usr/local/bin/crictl"
+  else
+    log_info "  crictl already installed: $(crictl --version 2>/dev/null | head -1 || echo unknown)"
+  fi
 
+  # crictl runtime endpoint config (avoids the "using default endpoints" warning)
+  CRICTL_CFG=/etc/crictl.yaml
+  if [ ! -f "${CRICTL_CFG}" ]; then
+    cat > "${CRICTL_CFG}" <<'EOF'
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 10
+debug: false
+EOF
+    register_rollback "rm -f ${CRICTL_CFG}"
+  fi
+
+  # 6c) CNI plugins -> /opt/cni/bin (Cilium replaces most but pause sandbox needs loopback)
+  CNI_DIR="/opt/cni/bin"
+  if [ ! -f "${CNI_DIR}/loopback" ]; then
+    mkdir -p "${CNI_DIR}"
+    step "Download CNI plugins ${CNI_PLUGINS_VERSION} (${ARCH})" curl -fsSL --retry 3 -o /tmp/cni.tgz \
+      "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz"
+    step "Extract CNI plugins" tar -C "${CNI_DIR}" -xzf /tmp/cni.tgz
+    rm -f /tmp/cni.tgz
+    register_rollback "rm -rf ${CNI_DIR}"
+  else
+    log_info "  CNI plugins already present at ${CNI_DIR}"
+  fi
+
+  # 6d) kubelet systemd unit + 10-kubeadm.conf drop-in
+  KUBELET_UNIT=/etc/systemd/system/kubelet.service
+  KUBEADM_DROPIN_DIR=/etc/systemd/system/kubelet.service.d
+  KUBEADM_DROPIN="${KUBEADM_DROPIN_DIR}/10-kubeadm.conf"
+
+  if [ ! -f "${KUBELET_UNIT}" ]; then
+    step "Fetch kubelet.service template" bash -c \
+      "curl -fsSL --retry 3 https://raw.githubusercontent.com/kubernetes/release/${KUBE_RELEASE_TEMPLATE_VERSION}/cmd/krel/templates/latest/kubelet/kubelet.service | sed 's|/usr/bin|/usr/local/bin|g' > ${KUBELET_UNIT}"
+    register_rollback "rm -f ${KUBELET_UNIT}"
+  fi
+
+  if [ ! -f "${KUBEADM_DROPIN}" ]; then
+    mkdir -p "${KUBEADM_DROPIN_DIR}"
+    step "Fetch 10-kubeadm.conf drop-in" bash -c \
+      "curl -fsSL --retry 3 https://raw.githubusercontent.com/kubernetes/release/${KUBE_RELEASE_TEMPLATE_VERSION}/cmd/krel/templates/latest/kubeadm/10-kubeadm.conf | sed 's|/usr/bin|/usr/local/bin|g' > ${KUBEADM_DROPIN}"
+    register_rollback "rm -f ${KUBEADM_DROPIN}"
+  fi
+
+  step "systemctl daemon-reload" systemctl daemon-reload
   step "Enable kubelet" systemctl enable kubelet
+  # NB: don't `start` yet — kubelet without /etc/kubernetes/bootstrap-kubelet.conf
+  # would crashloop. kubeadm init/join will create that config then start kubelet.
+
   mark_done "kube-installed"
 else
   log_info "  already done (kube-installed)"
@@ -218,6 +299,9 @@ log_step "[7/7] Verify"
 log_info "  containerd: $(containerd --version | head -1)"
 log_info "  kubeadm   : $(kubeadm version -o short 2>/dev/null || true)"
 log_info "  kubelet   : $(kubelet --version 2>/dev/null || true)"
+log_info "  kubectl   : $(kubectl version --client -o yaml 2>/dev/null | awk '/gitVersion/ {print $2; exit}' || true)"
+log_info "  crictl    : $(crictl --version 2>/dev/null | head -1 || true)"
+log_info "  CNI dir   : $(ls /opt/cni/bin/ 2>/dev/null | wc -l) plugin(s) in /opt/cni/bin"
 log_info "  tailscale : $(tailscale ip -4 2>/dev/null | head -1 || echo '(not authed)')"
 
 migration_end

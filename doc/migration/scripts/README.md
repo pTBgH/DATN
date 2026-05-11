@@ -112,8 +112,11 @@ State files trong `~/.zta-migration/`:
 | `CP_HOSTNAME` | `7189srv01` | Hostname của control-plane VM |
 | `WORKER_HOSTNAMES` | `7189srv02 7189srv03 7189srv04` | Space-separated |
 | `DATA_NODE` | `7189srv04` | Node được pin stateful |
-| `KUBE_VERSION` | `1.30.0` | Full k8s version |
-| `KUBE_MINOR` | `1.30` | minor cho apt repo |
+| `KUBE_VERSION` | `1.30.14` | Full k8s patch version, dùng cho binary download từ `dl.k8s.io` |
+| `KUBE_MINOR` | `1.30` | minor (legacy field, không còn dùng cho apt repo) |
+| `CRICTL_VERSION` | `v1.30.1` | crictl pinned compatible với KUBE_VERSION |
+| `CNI_PLUGINS_VERSION` | `v1.5.1` | CNI plugins (loopback, host-local, ...) |
+| `KUBE_RELEASE_TEMPLATE_VERSION` | `v0.18.0` | kubelet.service template từ `kubernetes/release` |
 | `CILIUM_VERSION` | `1.19.1` | |
 | `POD_CIDR` | `10.244.0.0/16` | Tránh conflict với `100.64/10` Tailscale |
 | `SVC_CIDR` | `10.96.0.0/12` | |
@@ -197,6 +200,63 @@ ZTA_DRY_RUN=1 bash doc/migration/scripts/04-cilium-install.sh
 
 `ZTA_DRY_RUN=1` log mỗi lệnh nhưng skip thực thi. Pre-flight check vẫn
 chạy (đó là điều chúng ta MUỐN — verify môi trường).
+
+---
+
+## Troubleshooting
+
+### `01-host-prep.sh` lỗi ở step "apt update for k8s repo"
+
+Triệu chứng (Debian 13 Trixie, từ 2026-02-01):
+
+```
+W: OpenPGP signature verification failed: ... pkgs.k8s.io ...
+   Sub-process /usr/bin/sqv returned an error code (1), error message is:
+   Error: Policy rejected packet type
+   Caused by:
+       Signature Packet v3 is not considered secure since 2026-02-01T00:00:00Z
+E: The repository 'https://pkgs.k8s.io/core:/stable:/v1.30/deb  InRelease' is not signed.
+```
+
+Nguyên nhân: Debian 13 dùng `sqv` (Sequoia PGP) làm signature verifier
+mặc định cho apt, reject GPG v3 packets sau 2026-02-01. Repo
+`pkgs.k8s.io` vẫn ký bằng v3 → bị block.
+
+Fix: script đã chuyển sang **binary install từ `dl.k8s.io`** (không qua
+apt). Pull commit mới và re-run:
+
+```bash
+cd ~/projects/DATN
+git pull
+sudo HOSTNAME_OVERRIDE=7189srvXX -E bash doc/migration/scripts/01-host-prep.sh
+```
+
+Script idempotent — phần đã done (Tailscale, sysctl, containerd) bị
+skip, chỉ chạy lại STEP 6 mới.
+
+Nếu trên máy đã có legacy apt repo từ run cũ bị fail:
+
+```bash
+sudo rm -f /etc/apt/sources.list.d/kubernetes.list /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+sudo apt-get update
+```
+
+### Tailscale IP CGNAT khác `100.64.10.x`
+
+Tailscale gán IP từ `100.64.0.0/10` ngẫu nhiên. Ví dụ user của bạn dùng
+`100.114.68.15`. KHÔNG sao — script `02-control-plane-init.sh` tự đọc
+`tailscale ip -4` runtime, không hardcode IP. config.env không cần
+declare CP_TS_IP.
+
+### `kubelet: command not found` sau khi 01-host-prep.sh ok
+
+Có thể PATH chưa include `/usr/local/bin/`. Kiểm tra:
+```bash
+ls -la /usr/local/bin/kubeadm /usr/local/bin/kubelet /usr/local/bin/kubectl
+echo $PATH | tr ':' '\n' | grep -i local
+```
+Nếu binaries có nhưng PATH thiếu: `export PATH="/usr/local/bin:$PATH"`
+hoặc relogin shell.
 
 ---
 

@@ -259,10 +259,29 @@ EOF
     mkdir -p "${CNI_DIR}"
     step "Download CNI plugins ${CNI_PLUGINS_VERSION} (${ARCH})" curl -fsSL --retry 3 -o /tmp/cni.tgz \
       "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-${ARCH}-${CNI_PLUGINS_VERSION}.tgz"
-    step "Extract CNI plugins" tar -C "${CNI_DIR}" -xzf /tmp/cni.tgz
+    # --no-same-owner: the upstream containernetworking/plugins tarball is built
+    # by a non-root user (UID 1001 GID 127 as of v1.5.1). Without this flag, tar
+    # preserves that ownership on extraction, leaving /opt/cni/bin owned by
+    # UID 1001 GID 127. Cilium's init containers (e.g. mount-cgroup) run with
+    # capabilities.drop=ALL — even though they exec as UID 0, dropping
+    # CAP_DAC_OVERRIDE means root can no longer bypass DAC, so `cp /usr/bin/...
+    # /hostbin/cilium-mount` fails with "Permission denied" because /hostbin
+    # (the host's /opt/cni/bin) is owned by UID 1001. Forcing extraction under
+    # root:root is the simplest, most idiomatic fix.
+    step "Extract CNI plugins (--no-same-owner)" tar --no-same-owner -C "${CNI_DIR}" -xzf /tmp/cni.tgz
+    # Defensive chown in case --no-same-owner is silently ignored (some old
+    # tar builds) or the directory itself was created with a non-root owner.
+    chown -R root:root /opt/cni
     rm -f /tmp/cni.tgz
     register_rollback "rm -rf ${CNI_DIR}"
   else
+    # Defensive: if a previous run left /opt/cni owned by UID 1001 (the
+    # tarball's original owner), normalize it on every invocation so Cilium
+    # init containers can write to /hostbin without CAP_DAC_OVERRIDE.
+    if [ "$(stat -c '%U' /opt/cni/bin 2>/dev/null)" != "root" ]; then
+      log_warn "  /opt/cni/bin is owned by $(stat -c '%U:%G' /opt/cni/bin) — fixing to root:root"
+      chown -R root:root /opt/cni
+    fi
     log_info "  CNI plugins already present at ${CNI_DIR}"
   fi
 

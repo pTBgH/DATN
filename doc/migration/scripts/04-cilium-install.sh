@@ -25,8 +25,46 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 load_config "${SCRIPT_DIR}/config.env"
 migration_start "04-cilium-install"
 
+# If running as root (e.g. via `sudo -E` to auto-install helm), fall back
+# to the cluster-admin kubeconfig that step 02 created. Otherwise kubectl
+# tries /root/.kube/config which doesn't exist after a fresh kubeadm init.
+if [ -z "${KUBECONFIG:-}" ] && [ "$(id -u)" -eq 0 ] && [ -f /etc/kubernetes/admin.conf ]; then
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+  log_info "  using KUBECONFIG=/etc/kubernetes/admin.conf (running as root)"
+fi
+
 # ===== Pre-flight =====
 log_step "Pre-flight: helm + kubectl + nodes"
+
+# Auto-install helm if missing. This script needs helm but the upstream
+# host-prep (01) does not install it (helm is only needed on the host
+# that runs this script — typically srv01).
+if ! command -v helm >/dev/null 2>&1; then
+  log_warn "  helm not found — installing via Helm's official apt repo"
+  if [ "${ZTA_DRY_RUN}" = "1" ]; then
+    log_dry "$ apt-get install helm (dry-run; not executed)"
+  else
+    if ! [ "$(id -u)" -eq 0 ]; then
+      log_err "  helm install needs root — re-run with: sudo -E bash $0"
+      exit 1
+    fi
+    HELM_KEYRING=/usr/share/keyrings/helm.asc
+    HELM_LIST=/etc/apt/sources.list.d/helm-stable-debian.list
+    if [ ! -s "${HELM_KEYRING}" ]; then
+      curl -fsSL https://baltocdn.com/helm/signing.asc | tee "${HELM_KEYRING}" >/dev/null
+    fi
+    if [ ! -f "${HELM_LIST}" ]; then
+      printf 'deb [arch=%s signed-by=%s] https://baltocdn.com/helm/stable/debian/ all main\n' \
+        "$(dpkg --print-architecture)" "${HELM_KEYRING}" \
+        | tee "${HELM_LIST}" >/dev/null
+    fi
+    apt-get update -qq -o Dir::Etc::sourcelist="sources.list.d/helm-stable-debian.list" \
+                       -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+    apt-get install -y helm
+    log_ok "  installed helm: $(helm version --short 2>/dev/null || echo unknown)"
+  fi
+fi
+
 require_cmd helm kubectl || exit 1
 
 if ! kubectl cluster-info --request-timeout=10s >/dev/null 2>&1; then

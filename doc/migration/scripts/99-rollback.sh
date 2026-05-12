@@ -11,15 +11,19 @@
 #      → fully wipes that phase even if marked completed.
 #
 # IMPORTANT: This script is destructive on the LOCAL VM only.
-# - For 02-control-plane-init: runs `kubeadm reset --force` → cluster gone
-# - For 03-worker-join:        runs `kubeadm reset --force` → leaves cluster
-# - For 04-cilium-install:     `helm uninstall cilium -n kube-system`
-# - For 05-cluster-services:   `helm uninstall` of each release
-# - For 01-host-prep:          best-effort revert of containerd/kubeadm install
+# - For control-plane:    runs `kubeadm reset --force` → cluster gone
+# - For worker-join:      runs `kubeadm reset --force` → leaves cluster
+# - For cilium:           `helm uninstall cilium -n kube-system`
+# - For cluster-services: `helm uninstall` of each release
+# - For host-prep:        best-effort revert of containerd/kubeadm install
+#
+# Phase names after the refactor: host-prep | control-plane | worker-join |
+#                                 cilium | cluster-services
+# Legacy names (01-host-prep, 02-control-plane-init, ...) still accepted.
 #
 # Usage:
 #   sudo -E bash doc/migration/scripts/99-rollback.sh                 # auto
-#   sudo -E bash doc/migration/scripts/99-rollback.sh --force --phase=02-control-plane-init
+#   sudo -E bash doc/migration/scripts/99-rollback.sh --force --phase=control-plane
 
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,6 +61,17 @@ if [ -z "${TARGET_PHASE}" ]; then
   exit 1
 fi
 
+# Normalize legacy phase names to the new short names so users can pass
+# either `--phase=01-host-prep` or `--phase=host-prep`. Must happen BEFORE
+# state-file lookup so we read the correct file.
+case "${TARGET_PHASE}" in
+  01-host-prep)          TARGET_PHASE="host-prep" ;;
+  02-control-plane-init) TARGET_PHASE="control-plane" ;;
+  03-worker-join)        TARGET_PHASE="worker-join" ;;
+  04-cilium-install)     TARGET_PHASE="cilium" ;;
+  05-cluster-services)   TARGET_PHASE="cluster-services" ;;
+esac
+
 STATE_FILE="${ZTA_STATE_DIR}/${TARGET_PHASE}.state"
 log_info "Rolling back phase: ${TARGET_PHASE}"
 [ -f "${STATE_FILE}" ] && log_info "  state: $(cat "${STATE_FILE}")" || log_info "  (no state file)"
@@ -70,8 +85,8 @@ fi
 
 # ===== Per-phase rollback procedures =====
 case "${TARGET_PHASE}" in
-  01-host-prep)
-    log_warn "Rolling back 01-host-prep (best-effort)"
+  host-prep)
+    log_warn "Rolling back host-prep (best-effort)"
     if [ "${FORCE}" = "1" ]; then
       try_step "stop kubelet" bash -c 'systemctl stop kubelet 2>/dev/null || true; systemctl disable kubelet 2>/dev/null || true'
       try_step "remove kubeadm/kubelet/kubectl binaries" rm -f /usr/local/bin/kubeadm /usr/local/bin/kubelet /usr/local/bin/kubectl
@@ -90,7 +105,7 @@ case "${TARGET_PHASE}" in
     fi
     ;;
 
-  02-control-plane-init)
+  control-plane)
     log_warn "Rolling back control-plane (kubeadm reset)"
     try_step "kubeadm reset" kubeadm reset --force
     try_step "remove CNI"     rm -rf /etc/cni/net.d /var/lib/cni
@@ -101,7 +116,7 @@ case "${TARGET_PHASE}" in
     try_step "remove user kubeconfig" rm -f "${USER_HOME}/.kube/config"
     ;;
 
-  03-worker-join)
+  worker-join)
     log_warn "Rolling back worker join (kubeadm reset)"
     try_step "kubeadm reset" kubeadm reset --force
     try_step "remove CNI"     rm -rf /etc/cni/net.d /var/lib/cni
@@ -109,7 +124,7 @@ case "${TARGET_PHASE}" in
     try_step "remove join YAML" rm -f /root/kubeadm-join.yaml /etc/kubernetes/zta-join.cmd
     ;;
 
-  04-cilium-install)
+  cilium)
     log_warn "Rolling back Cilium"
     try_step "helm uninstall cilium" bash -c \
       'helm uninstall cilium -n kube-system >/dev/null 2>&1 || true'
@@ -117,7 +132,7 @@ case "${TARGET_PHASE}" in
     log_warn "Nodes will become NotReady until Cilium re-installs."
     ;;
 
-  05-cluster-services)
+  cluster-services)
     log_warn "Rolling back cluster services"
     for release_ns in \
       "metrics-server kube-system" \
@@ -132,13 +147,13 @@ case "${TARGET_PHASE}" in
     log_warn "local-path-provisioner is left installed — delete manually if needed."
     ;;
 
-  00-status|99-rollback)
+  00-status|99-rollback|status|rollback)
     log_warn "Phase '${TARGET_PHASE}' has no state changes — nothing to roll back."
     ;;
 
   *)
     log_err "Unknown phase: ${TARGET_PHASE}"
-    log_err "Known: 01-host-prep | 02-control-plane-init | 03-worker-join | 04-cilium-install | 05-cluster-services"
+    log_err "Known: host-prep | control-plane | worker-join | cilium | cluster-services"
     exit 1
     ;;
 esac

@@ -284,6 +284,67 @@ sudo chown -R root:root /opt/cni
 kubectl -n kube-system delete pods -l k8s-app=cilium    # recreate
 ```
 
+### Lỗi: worker NotReady sau khi reboot — kubelet active nhưng apiserver unreachable
+
+**Triệu chứng:** sau khi 1 VM worker reboot (host crash, manual reboot,
+power loss…), node chuyển `NotReady` và stay đó. Trên CP:
+
+```bash
+kubectl get node 7189srv04
+# NAME        STATUS     ROLES    AGE   VERSION
+# 7189srv04   NotReady   <none>   23h   v1.30.0
+```
+
+Nếu chạy lại bootstrap.sh trên worker:
+
+```bash
+sudo -E bash doc/migration/scripts/bootstrap.sh --server=04 --yes
+# host-prep OK (skip nhanh)
+# worker-join FAIL — log nói "API server unreachable: https://100.X.Y.Z:6443"
+```
+
+**Root cause**: KHÔNG phải kubernetes. `kubelet` đã chạy + `kubeconfig`
+còn nguyên, nhưng Tailscale daemon (`tailscaled`) chưa establish lại
+mesh tới CP sau reboot → kubelet không heartbeat được → node marked
+NotReady. Vài phút sau khi Tailscale wake các peer, mọi thứ tự khỏi.
+
+**Diagnose nhanh (chạy trên worker)**:
+
+```bash
+# 1. Tailscaled daemon còn sống không, journal recent có lỗi gì?
+sudo systemctl status tailscaled --no-pager | head -10
+sudo journalctl -u tailscaled --since "10 min ago" --no-pager | tail -30
+
+# 2. Test peer-to-peer tới CP (KHÔNG dùng ICMP — Tailscale gửi qua DERP):
+tailscale status | head -10
+tailscale ping 7189srv01
+
+# 3. Khi tsping OK, test apiserver:
+curl -k --max-time 5 https://100.114.68.15:6443/livez
+# Expected: ok
+```
+
+**Fix**:
+
+| Triệu chứng từ output | Action |
+|----------------------|--------|
+| `tailscale status` không thấy peer srv01 + journal stuck ở "magicsock: home is now derp-..." | `sudo systemctl restart tailscaled` |
+| `tailscale ping 7189srv01` work nhưng `curl 6443` timeout | đợi 1-2 phút, kubelet sẽ tự reconnect; hoặc `sudo systemctl restart kubelet` để force |
+| `tailscale ping 7189srv01` fail mọi cách | check internet trên worker (`ping 1.1.1.1`); rebuild Tailscale auth (`sudo tailscale up --auth-key=...`) |
+
+**Sau khi network khỏi:** node sẽ tự chuyển Ready trong ~10s. KHÔNG cần
+chạy lại bootstrap, KHÔNG cần generate join token mới — credentials cũ
+vẫn valid. Verify trên srv01:
+
+```bash
+kubectl get node 7189srv04 -w
+```
+
+`worker-join.sh` (v2 trở lên) phân biệt được trường hợp này: nếu
+`/etc/kubernetes/kubelet.conf` tồn tại nhưng apiserver không reachable,
+script sẽ **không xóa kubeconfig, không request token mới** — chỉ in
+diagnose checklist rồi exit 1 để bạn fix network.
+
 ### Lỗi: muốn bắt đầu lại từ 0
 
 ```bash

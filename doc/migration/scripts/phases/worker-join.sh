@@ -48,14 +48,53 @@ if [ -z "${WORKER_TS_IP}" ]; then
 fi
 log_ok "Worker Tailscale IP: ${WORKER_TS_IP}"
 
-# Refuse if already joined
-if [ -f /etc/kubernetes/kubelet.conf ] && systemctl is-active kubelet >/dev/null 2>&1; then
+# ===== Already-joined detection =====
+# Three possible states when /etc/kubernetes/kubelet.conf exists:
+#
+#   (A) Healthy member  : kubeconfig + kubelet active + apiserver reachable
+#       -> nothing to do, exit 0.
+#
+#   (B) Joined but isolated: kubeconfig exists but apiserver UNREACHABLE
+#       (kubelet may be active or not). This is what happens after a host
+#       reboot when Tailscale hasn't established its peer mesh yet, or when
+#       the CP itself is briefly down. We DO NOT want to fetch a new token
+#       and call `kubeadm join` here — that would fail at the pre-flight
+#       ("FileAvailable--etc-kubernetes-pki-ca-crt") and obscure the real
+#       issue. Instead, log a clear actionable message and exit non-zero.
+#       The caller (bootstrap.sh) shows this in SUMMARY.md; the user can
+#       diagnose Tailscale + retry once the API server is reachable.
+#
+#   (C) Stale credentials: kubeconfig exists but cluster was rebuilt from
+#       scratch. Distinguishing this from (B) requires the user to manually
+#       `kubeadm reset --force` first. We don't auto-reset.
+if [ -f /etc/kubernetes/kubelet.conf ]; then
+  API_FROM_KUBECONFIG="$(awk '/server:/ {print $2; exit}' /etc/kubernetes/kubelet.conf 2>/dev/null || true)"
   if kubectl --kubeconfig=/etc/kubernetes/kubelet.conf get --raw=/healthz --request-timeout=3s >/dev/null 2>&1; then
-    log_warn "Worker already joined to a healthy cluster (kubelet active + apiserver reachable)."
-    log_warn "If you want to re-join, run: sudo bash $(dirname "$0")/99-rollback.sh --force"
+    log_warn "Worker already joined to a healthy cluster (kubeconfig + apiserver reachable)."
+    log_warn "If you want to re-join, run: sudo bash ${ROOT_DIR}/99-rollback.sh --force --phase=worker-join"
     migration_end
     exit 0
   fi
+  # kubeconfig exists but apiserver not reachable — don't blow it away.
+  log_err "This worker has kubeconfig at /etc/kubernetes/kubelet.conf but the"
+  log_err "API server is unreachable: ${API_FROM_KUBECONFIG:-<unknown>}"
+  log_err ""
+  log_err "This is almost always a Tailscale / network issue, NOT a missing"
+  log_err "join token. Do NOT export ZTA_JOIN_CMD and re-run — the node is"
+  log_err "still registered in the cluster and just needs network healed."
+  log_err ""
+  log_err "Diagnose:"
+  log_err "  tailscale status | head -10"
+  log_err "  tailscale ping ${CP_HOSTNAME}"
+  log_err "  curl -k --max-time 5 ${API_FROM_KUBECONFIG:-https://<cp-ip>:6443}/livez"
+  log_err ""
+  log_err "After network is healed, kubelet will auto-reconnect within ~10s. To"
+  log_err "force it sooner: sudo systemctl restart kubelet"
+  log_err ""
+  log_err "If you really want a fresh join (cluster rebuilt from scratch):"
+  log_err "  sudo bash ${ROOT_DIR}/99-rollback.sh --force --phase=worker-join"
+  log_err "  sudo -E bash ${ROOT_DIR}/bootstrap.sh --server=NN --phase=worker-join --yes"
+  exit 1
 fi
 
 # ===== Resolve join command =====

@@ -330,8 +330,13 @@ run_phase() {
 
 OVERALL_RC=0
 for phase in "${PLAN[@]}"; do
-  if ! run_phase "${phase}"; then
-    OVERALL_RC=$?
+  # Capture rc via `|| rc=$?` because `if ! cmd; then` resets $? to 0 inside
+  # the `then` block (the negation evaluates true and is the most recent
+  # command), so OVERALL_RC=$? would always read 0 even when run_phase failed.
+  rc=0
+  run_phase "${phase}" || rc=$?
+  if [ "${rc}" -ne 0 ]; then
+    OVERALL_RC="${rc}"
     if [ "${CONTINUE_ON_FAIL}" -ne 1 ]; then
       log_err "Halting (use --continue-on-fail to proceed past phase failures)."
       break

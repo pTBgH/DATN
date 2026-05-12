@@ -270,7 +270,83 @@ sudo tailscale up --auth-key=tskey-NEW... --advertise-tags=tag:zta-cluster --hos
 > apiserver TLS verify fail. Để tránh: trong Tailscale admin, đặt IP
 > reservation cho từng hostname.
 
-## 12. Bảng phản ứng nhanh
+## 12. Containerd state corrupt sau unclean shutdown
+
+**Triệu chứng (chuỗi 3 bước, đừng dừng ở bước 1):**
+
+1. `kubelet.service` crash-loop với:
+   ```
+   dial unix /run/containerd/containerd.sock: connect: no such file or directory
+   ```
+2. Sau khi `systemctl restart containerd` lại được, pod mới fail với:
+   ```
+   failed to prepare extraction snapshot ... rename ... : file exists
+   ```
+3. Sau khi xóa CHỈ `io.containerd.snapshotter.v1.overlayfs/`, lỗi mới xuất hiện:
+   ```
+   failed to create snapshot: missing parent "k8s.io/3/sha256:..." bucket: not found
+   ```
+
+Bước 3 là lỗi báo hiệu **global metadata DB** (`io.containerd.metadata.v1.bolt/meta.db`) lệch
+với snapshotter mới. Xóa nửa vời sẽ kéo dài tình trạng — phải nuke `/var/lib/containerd`
+hoàn toàn.
+
+**Cảnh báo an toàn:**
+
+- Quy trình này XÓA toàn bộ image local + container state trên node đó.
+- An toàn khi node chưa host stateful workload (vault, MySQL, Kafka, registry, SPIRE).
+- KHÔNG làm với `7189srv04` nếu `vault-dev` đang chạy — Transit key trong RAM của
+  vault-dev sẽ mất → `vault-prod` mất auto-unseal. Khi đó dùng VMware/libvirt snapshot
+  restore thay vì nuke containerd.
+
+**Recovery procedure (chỉ làm khi node KHÔNG có stateful workload):**
+
+```bash
+# 1. Stop kubelet TRƯỚC containerd
+sudo systemctl stop kubelet
+sudo systemctl stop containerd
+
+# 2. Xác nhận không còn container/pod đang chạy
+sudo crictl ps 2>/dev/null
+sudo ctr -n k8s.io c ls 2>/dev/null | head
+
+# 3. Backup toàn bộ /var/lib/containerd
+sudo mv /var/lib/containerd /var/lib/containerd.broken.$(date +%s)
+sudo mkdir -p /var/lib/containerd
+sudo chmod 711 /var/lib/containerd
+
+# 4. Dọn CNI tàn dư (IPAM cũ + lxc interface có thể chặn pod sandbox sau khi nuke)
+sudo rm -rf /var/lib/cni /var/run/cni 2>/dev/null || true
+sudo ip link show | awk -F': ' '/cilium_|lxc/{print $2}' | xargs -r -n1 sudo ip link delete 2>/dev/null || true
+
+# 5. Start lại
+sudo systemctl start containerd
+sleep 5
+sudo systemctl start kubelet
+
+# 6. Verify runtime healthy
+sudo systemctl is-active containerd kubelet
+```
+
+Sau đó từ control plane:
+
+```bash
+# Force recreate cilium DS pod trên node bị ảnh hưởng
+kubectl -n kube-system delete pod -l k8s-app=cilium \
+  --field-selector spec.nodeName=<affected-node>
+
+# Watch ~2-3 phút cho image pull lại từ quay.io
+kubectl -n kube-system get pod -l k8s-app=cilium -o wide -w
+```
+
+Sau 1 tuần không vấn đề, xóa backup giải phóng disk:
+```bash
+sudo rm -rf /var/lib/containerd.broken.*
+```
+
+Tham khảo chi tiết: `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md`.
+
+## 13. Bảng phản ứng nhanh
 
 | Triệu chứng | Trang | Xử lý |
 |-------------|-------|-------|
@@ -285,3 +361,4 @@ sudo tailscale up --auth-key=tskey-NEW... --advertise-tags=tag:zta-cluster --hos
 | All-cluster reset | §9 | kubeadm reset + redeploy |
 | Windows host crash | §10 | Power on VM thủ công |
 | Tailnet 401 | §11 | Tạo + login auth key mới |
+| `containerd.sock: no such file` + snapshot `rename: file exists` | §12 | Nuke `/var/lib/containerd` (chỉ khi không có stateful) |

@@ -52,6 +52,17 @@ spec:
         zta.job7189/team: platform
     spec:
       serviceAccountName: docker-registry
+      # Pin to data-tier node so registry PVC (local-path) lands on srv05
+      # alongside vault/mysql/kafka. See doc/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
       containers:
       - name: registry
         image: registry:2

@@ -3,7 +3,7 @@
 \chapter*{Tóm tắt đồ án}
 \addcontentsline{toc}{chapter}{Tóm tắt đồ án}
 
-Đồ án \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''} nghiên cứu và hiện thực hóa kiến trúc bảo mật Zero Trust Architecture (ZTA) theo tiêu chuẩn NIST SP 800-207 trên nền tảng Kubernetes, nhằm giải quyết các thách thức bảo mật đặc thù của hệ thống phân tán Microservices — nơi mô hình phòng thủ vành đai (Perimeter-based) truyền thống không còn đáp ứng được yêu cầu.
+Đồ án \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''} nghiên cứu và hiện thực hóa kiến trúc bảo mật Zero Trust Architecture (ZTA) theo tiêu chuẩn NIST SP 800-207 và hướng dẫn triển khai NIST SP 1800-35 trên nền tảng Kubernetes, nhằm giải quyết các thách thức bảo mật đặc thù của hệ thống phân tán Microservices — nơi mô hình phòng thủ vành đai (Perimeter-based) truyền thống không còn đáp ứng được yêu cầu.
 
 Trên cơ sở phân tích mô hình logic cốt lõi của NIST (Policy Engine, Policy Administrator, Policy Enforcement Point) và hệ thống cung cấp dữ liệu hỗ trợ (PIP), đồ án đề xuất \textbf{khung kiến trúc ZTA 5 lớp tích hợp}: (1) Định danh đa thực thể (Dual-Identity: JWT + SPIFFE), (2) Đánh giá tư thế và tình báo đe dọa, (3) Thực thi chính sách đa tầng (Kong Gateway + Cilium eBPF + Tetragon), (4) Quản trị bí mật động (HashiCorp Vault JIT Credentials), và (5) Quan sát và phân tích hành vi (EFK Stack + Prometheus/Grafana + Hubble).
 

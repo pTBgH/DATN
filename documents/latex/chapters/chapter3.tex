@@ -123,10 +123,10 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \end{table}
 
 
-\subsection{Mô hình logic: PE / PA / PEP cho job7189}
+\subsection{Mô hình logic: PE / PA / PEP / PIP cho job7189}
 \label{subsec:logic_model}
 
-Đồ án không sử dụng một sản phẩm duy nhất nào đóng vai trò ``ZTA''. Thay vào đó, ba thành phần logic của NIST SP 800-207 (PE -- ra quyết định, PA -- biên dịch quyết định, PEP -- thực thi tại data plane) được \textit{phân rã} thành nhiều dịch vụ chuyên trách, mỗi dịch vụ có một loại quyết định/thực thi cụ thể. Hình~\ref{fig:logic_design_model} tóm tắt mô hình logic này; ánh xạ chi tiết sang công cụ được nêu trong Bảng~\ref{tab:nist_to_tool} ở Mục~\ref{subsec:nist_to_tool}.
+Đồ án không sử dụng một sản phẩm duy nhất nào đóng vai trò ``ZTA''. Thay vào đó, bốn vai trò logic của NIST SP 800-207 và SP 1800-35 (PE -- ra quyết định, PA -- biên dịch quyết định, PEP -- thực thi tại data plane, PIP -- cấp ngữ cảnh cho PDP) được \textit{phân rã} thành nhiều dịch vụ chuyên trách, mỗi dịch vụ có một loại quyết định/thực thi/ngữ cảnh cụ thể~\parencite{nist800207,nist_sp_1800_35}. Hình~\ref{fig:logic_design_model} tóm tắt mô hình logic này; ánh xạ chi tiết sang công cụ được nêu trong Bảng~\ref{tab:nist_to_tool} ở Mục~\ref{subsec:nist_to_tool}.
 
 \begin{figure}[H]
 \centering
@@ -152,7 +152,7 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \draw[flow,dashed] (pep1.west) .. controls (-6,-1.2) and (-6,0.2) .. node[left,font=\scriptsize\sffamily]{flow log, syscall, drop} (pip1.south);
 
 \end{tikzpicture}
-\caption{Mô hình logic ZTA cho job7189 -- ba khối ngang là ba thành phần logic của NIST (PE/PA/PEP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PE; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát.}
+\caption{Mô hình logic ZTA cho job7189 theo NIST SP 800-207 và SP 1800-35 -- ba khối ngang là PE/PA/PEP (PE + PA hợp thành PDP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PDP; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát, hiện thực hoá TA contextual.}
 \label{fig:logic_design_model}
 \end{figure}
 
@@ -395,18 +395,19 @@ Trước khi đi sâu vào từng bước triển khai, mục này đưa ra mộ
 \subsection{Mô hình logic NIST và ánh xạ tới công cụ thực tế}
 \label{subsec:nist_to_tool}
 
-NIST SP 800-207 (Hình 2 trong báo cáo) tách kiến trúc ZTA thành ba thành phần logic~\parencite{nist800207}:
+NIST SP 800-207 (Hình 2) tách kiến trúc ZTA thành ba vai trò thực thi logic là PE, PA và PEP~\parencite{nist800207}; NIST SP 1800-35 (Volume B, mục \textit{General ZTA Reference Architecture}) hợp thức hoá thêm vai trò thứ tư là PIP và nhấn mạnh PE + PA tạo thành PDP~\parencite{nist_sp_1800_35}:
 \begin{itemize}
   \item \textbf{Policy Engine (PE):} bộ não quyết định cấp/từ chối truy cập dựa trên định danh, ngữ cảnh, posture.
   \item \textbf{Policy Administrator (PA):} biên dịch quyết định của PE thành cấu hình cụ thể cho data plane (sinh credential, sinh chứng chỉ, đẩy policy ra agent\dots).
   \item \textbf{Policy Enforcement Point (PEP):} đặt giữa subject và resource, thực thi quyết định: cho phép, chặn, log.
+  \item \textbf{Policy Information Point (PIP):} các \textit{Supporting Components} cấp telemetry, posture và threat intel cho PDP (identity, CDM, security analytics, threat feed\dots).
 \end{itemize}
 
-Trong job7189, \emph{không có một component nào đóng cả ba vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\parencite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
+Trong job7189, \emph{không có một component nào đóng cả bốn vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\parencite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
 
 \begin{table}[H]
 \centering
-\caption{Ánh xạ từ thành phần logic NIST SP 800-207 sang công cụ trong job7189}
+\caption{Ánh xạ từ thành phần logic NIST SP 800-207 \& SP 1800-35 sang công cụ trong job7189}
 \label{tab:nist_to_tool}
 \begin{tabularx}{\textwidth}{|p{2.4cm}|X|}
 \hline
@@ -439,6 +440,14 @@ Trong job7189, \emph{không có một component nào đóng cả ba vai trò} --
   \item \textbf{PEP Admission:} Sigstore policy-controller + Gatekeeper webhook -- thực thi tại API server trước khi Pod được tạo.
   \item \textbf{PEP Runtime:} Tetragon agent (DaemonSet kube-system) -- thực thi rule syscall qua kprobe; (\textit{tuỳ chọn:} Falco bị tắt do RAM).
   \item \textbf{PEP Secret:} vault-agent sidecar trong từng Pod -- thực thi TTL, rotate, revoke secret.
+\end{itemize} \\
+\hline
+\textbf{Policy Information Point (PIP)} -- cấp ngữ cảnh cho PDP &
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Identity / Federated Identity:} Keycloak (claim người dùng), SPIRE (SVID workload), Vault K8s Auth (SA token) -- cấp thuộc tính chủ thể cho PE.
+  \item \textbf{CDM \& Posture:} Trivy Operator \texttt{VulnerabilityReport} (CVE workload), \texttt{pdp\_trust\_score} từ PDP Controller -- cấp tư thế workload.
+  \item \textbf{Threat Intelligence:} threat-intel CronJob (FireHOL Level1 + URLhaus) bơm IoC vào Cilium CCNP.
+  \item \textbf{Security Analytics / SIEM:} Hubble flow shipper $\rightarrow$ Elasticsearch, Filebeat audit log, Prometheus metrics -- vòng phản hồi PEP $\rightarrow$ PIP $\rightarrow$ PE.
 \end{itemize} \\
 \hline
 \end{tabularx}

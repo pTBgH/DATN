@@ -1,5 +1,17 @@
 # 01. Context & Rationale — Tại sao bỏ Kind?
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 ## 1. Lý do nghiệp vụ
 
 Stack ZTA hiện tại (16 step trong `scripts/zta-rebuild.sh`) đã 3 lần kéo sập
@@ -42,7 +54,7 @@ Hệ quả:
 
 ## 3. Tại sao multi-VM giải quyết
 
-Mỗi VM = **kernel độc lập + RAM riêng**. Khi pod nặng trên VM `7189srv04`
+Mỗi VM = **kernel độc lập + RAM riêng**. Khi pod nặng trên VM `7189srv05`
 (vault-prod, MySQL, Kafka, ES, Prometheus) làm pressure ở đó, etcd trên
 VM `7189srv01` không hề bị ảnh hưởng. Kubernetes scheduler bây giờ TRÁNH được node sắp full RAM
 một cách thật sự (vì kubelet trên node đó báo `MemoryPressure=true`, đẩy

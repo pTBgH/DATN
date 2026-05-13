@@ -1,5 +1,17 @@
 # Tailscale setup — từ A tới Z
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Bạn nói "Mình chưa hiểu cái này, hướng dẫn qua file .md nhé" — đây
 > là hướng dẫn step-by-step để có:
 >
@@ -144,7 +156,7 @@ ACL trên Tailscale là JSON-with-comments controlling ai-được-nói-chuyện
 
 ## 5. Cài Tailscale trên Ubuntu host
 
-Đây là máy vật lý 8 GB chạy VM srv04. Cần Tailscale ở host (KHÔNG ở VM)
+Đây là máy vật lý 8 GB chạy VM srv05. Cần Tailscale ở host (KHÔNG ở VM)
 để host làm Docker registry server.
 
 ```bash
@@ -219,7 +231,7 @@ tailscale status
 # 100.64.10.1   7189srv01            ptb@         linux   active; relay "sin", tx 1234 rx 5678
 # 100.64.10.2   7189srv02            ptb@         linux   active
 # 100.64.10.3   7189srv03            ptb@         linux   active
-# 100.64.10.4   7189srv04            ptb@         linux   active
+# 100.64.10.4   7189srv05            ptb@         linux   active
 # 100.64.10.5   ubuntu-host          you@         linux   active
 # 100.64.10.6   admin-laptop         you@         linux   active
 

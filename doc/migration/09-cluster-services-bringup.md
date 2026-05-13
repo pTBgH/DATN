@@ -1,5 +1,17 @@
 # 09. Cluster Services Bring-up — addon CRDs/controller
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Tiền điều kiện: 4 nodes Ready, Cilium up (mục `08-cilium-install.md`).
 
 Mục tiêu: cài các "thứ-không-thuộc-ZTA-nhưng-cần-trước-ZTA" — Gateway API
@@ -119,7 +131,7 @@ kubectl get sc
 ## 6. In-cluster Docker Registry
 
 Từ `infras/k8s-yaml/12-docker-registry.yaml` (đã có sẵn). Adapt:
-- NodeAffinity `kubernetes.io/hostname=7189srv04` (always-on, có PVC)
+- NodeAffinity `kubernetes.io/hostname=7189srv05` (always-on, có PVC)
 - Service NodePort 30005
 
 ```bash
@@ -132,11 +144,11 @@ kubectl apply -f infras/k8s-yaml/12-docker-registry-multi-vm.yaml
 
 Trên TẤT CẢ 4 VM:
 ```bash
-sudo mkdir -p /etc/containerd/certs.d/7189srv04.<tailnet>.ts.net:30005
-sudo tee /etc/containerd/certs.d/7189srv04.<tailnet>.ts.net:30005/hosts.toml <<'EOF'
-server = "http://7189srv04.<tailnet>.ts.net:30005"
+sudo mkdir -p /etc/containerd/certs.d/7189srv05.<tailnet>.ts.net:30005
+sudo tee /etc/containerd/certs.d/7189srv05.<tailnet>.ts.net:30005/hosts.toml <<'EOF'
+server = "http://7189srv05.<tailnet>.ts.net:30005"
 
-[host."http://7189srv04.<tailnet>.ts.net:30005"]
+[host."http://7189srv05.<tailnet>.ts.net:30005"]
   capabilities = ["pull", "resolve"]
   skip_verify = true
 EOF
@@ -187,7 +199,7 @@ kubectl delete pvc smoke-test
 # Test 2: cross-node pod-to-pod
 ```bash
 kubectl run alpine-1 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"7189srv02"}}}' --command -- sleep 600
-kubectl run alpine-2 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"7189srv04"}}}' --command -- sleep 600
+kubectl run alpine-2 --image=alpine:3.19 --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"7189srv05"}}}' --command -- sleep 600
 kubectl wait --for=condition=Ready pod/alpine-1 pod/alpine-2 --timeout=120s
 IP1=$(kubectl get pod alpine-1 -o jsonpath='{.status.podIP}')
 kubectl exec alpine-2 -- ping -c 3 $IP1
@@ -203,7 +215,7 @@ kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
 hubble observe --pod default/alpine-2 --since 5m
 ```
 
-Phải thấy ICMP forwarded từ alpine-2 (7189srv04) → alpine-1 (7189srv02) qua VXLAN.
+Phải thấy ICMP forwarded từ alpine-2 (7189srv05) → alpine-1 (7189srv02) qua VXLAN.
 
 ## 10. Snapshot baseline
 

@@ -1,5 +1,17 @@
 # Migration: Kind → Multi-VM kubeadm trên Tailscale
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 Kế hoạch chuyển ZTA cluster từ Kind 1-host (12 GB RAM, hay crash do OOM
 cascade — xem `doc/incident-falco-tetragon-ram-overcommit.md`,
 `doc/incident-gatekeeper-crd-timeout.md`,
@@ -10,7 +22,7 @@ chạy kubeadm**, phân bố trên 2 host vật lý nối nhau qua Tailscale.
 > trong `scripts/`. Đọc `00-PRECHECK.md` và `ANSWERS.md` trước khi
 > chạy bất kỳ `.sh` nào.
 >
-> sizing srv04 đã được **giảm từ 6 GB → 4 GB** theo yêu cầu user (Ubuntu
+> sizing srv05 đã được **giảm từ 6 GB → 4 GB** theo yêu cầu user (Ubuntu
 > host cần RAM cho app khác). ES + Prometheus move sang srv02/03 với
 > emptyDir.
 
@@ -24,7 +36,7 @@ chạy kubeadm**, phân bố trên 2 host vật lý nối nhau qua Tailscale.
 2. **Để K8s tự điều phối workload** — không nodeAffinity tier-based cứng.
    Pod stateless (Laravel, Kong, ingress, Tetragon DS, Cilium DS, SPIRE
    agent, Filebeat DS, ...) đặt **bất kỳ đâu**, scheduler tự cân.
-3. **Chỉ pin workload stateful (có PVC) lên `7189srv04`** (VM Ubuntu —
+3. **Chỉ pin workload stateful (có PVC) lên `7189srv05`** (VM Ubuntu —
    "always-on host"). Lý do:
    - User ít khi tắt máy Ubuntu → data tier có uptime cao nhất
    - Vault-dev (Transit engine, RAM-only) phải KHÔNG restart, nếu không
@@ -47,7 +59,7 @@ chạy kubeadm**, phân bố trên 2 host vật lý nối nhau qua Tailscale.
 | `7189srv01` | Windows | 2.0 GB | 1 | control-plane (etcd, apiserver, scheduler, ctrl-mgr) |
 | `7189srv02` | Windows | 4.5 GB | 2 | generic worker (K8s tự schedule) |
 | `7189srv03` | Windows | 5.0 GB | 2 | generic worker (K8s tự schedule) |
-| `7189srv04` | Ubuntu | **4.0 GB** | 2 | data tier always-on (vault-dev, vault-prod, MySQL, Kafka, SPIRE server, docker-registry) — ES + Prometheus move sang srv02/03 |
+| `7189srv05` | Ubuntu | **4.0 GB** | 2 | data tier always-on (vault-dev, vault-prod, MySQL, Kafka, SPIRE server, docker-registry) — ES + Prometheus move sang srv02/03 |
 
 Tổng: **15.5 GB / 7 vCPU**. Windows host dùng 11.5/12.8 GB. Ubuntu host
 dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app khác).
@@ -74,7 +86,7 @@ dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app
 | 02 | [`02-target-architecture.md`](02-target-architecture.md) | Topology mới + workload placement. |
 | 03 | [`03-vm-sizing.md`](03-vm-sizing.md) | RAM/CPU/disk từng VM, fit ngân sách 12.8 + 8 GB. |
 | 04 | [`04-network-tailscale-cilium.md`](04-network-tailscale-cilium.md) | Tailscale + VMware NAT + Cilium VXLAN. |
-| 05 | [`05-storage-and-registry.md`](05-storage-and-registry.md) | local-path-provisioner pin vào `7189srv04`. |
+| 05 | [`05-storage-and-registry.md`](05-storage-and-registry.md) | local-path-provisioner pin vào `7189srv05`. |
 | 06 | [`06-debian-base-prep.md`](06-debian-base-prep.md) | Cài đặt Debian 13 cho cả 4 VM. |
 | 07 | [`07-kubeadm-bootstrap.md`](07-kubeadm-bootstrap.md) | `kubeadm init` `7189srv01` + join 3 worker. |
 | 08 | [`08-cilium-install.md`](08-cilium-install.md) | Cilium 1.19 với Tailscale-aware `nodeIP`. |
@@ -100,7 +112,7 @@ dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app
 
 ---
 
-## Stateful workloads pin vào `7189srv04`
+## Stateful workloads pin vào `7189srv05`
 
 | Workload | NS | PVC | Lý do pin |
 |----------|-----|-----|-----------|
@@ -108,12 +120,12 @@ dùng 4/8 GB và **2 vCPU** (giảm từ 3 — máy DDR3 cũ, cần 4 GB cho app
 | `vault-prod` | vault | 2 Gi | Stateful + co-locate với vault-dev cho low-latency unseal call |
 | MySQL | data | ~10 Gi | Stateful database |
 | Kafka | data | ~5 Gi | StatefulSet broker |
-| ~~Elasticsearch~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv04** — srv04 chỉ còn 4 GB; ES dock heap 256 Mi trên worker, accept restart data loss |
-| ~~Prometheus~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv04** — retention 6h, accept restart data loss |
+| ~~Elasticsearch~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv05** — srv05 chỉ còn 4 GB; ES dock heap 256 Mi trên worker, accept restart data loss |
+| ~~Prometheus~~ | monitoring | (emptyDir, srv02/03) | **MOVE OFF srv05** — retention 6h, accept restart data loss |
 | `docker-registry` | registry | ~8 Gi | Tránh re-pull 7 Laravel images khi srv02/03 reboot |
 | SPIRE server | spire | ~1 Gi | Workload identity DB (sqlite) |
 
-Pin technique: nodeAffinity `kubernetes.io/hostname=7189srv04` trong
+Pin technique: nodeAffinity `kubernetes.io/hostname=7189srv05` trong
 StatefulSet/Deployment template. Stateless còn lại (Keycloak Deployment
 H2-in-memory, 7 Laravel, Kong, ingress, cert-manager, Grafana, Kibana,
 Cilium operator, Hubble Relay/UI, Gatekeeper, sigstore, PDP, Hubble

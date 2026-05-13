@@ -1,5 +1,17 @@
 # 02 — Kiến trúc mục tiêu
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 ## 1. Sơ đồ topology
 
 ```
@@ -27,14 +39,15 @@
 ┌─────────────────────────v───────────────────────────────────────────────────┐
 │                  Ubuntu host (8 GB / 4 core, DDR3)                          │
 │                                                                             │
-│            ┌──────────────────────────────────────┐                         │
-│            │              7189srv04               │                         │
-│            │       (worker, 6.0 G, 2 vCPU)        │                         │
+│            ┌───────────────────────────────────────┐                         │
+│            │              7189srv05               │                         │
+│            │       (worker, 4.0 G, 2 vCPU)        │                         │
 │            │     "always-on" data + stateful      │                         │
+│            │     Ubuntu 24.04 LTS                 │                         │
 │            │                                      │                         │
-│            │   tailscale0  100.64.10.4            │                         │
-│            │   ens33 (VMware NAT trên Ubuntu)     │                         │
-│            └──────────────────────────────────────┘                         │
+│            │   tailscale0  100.<assigned>         │                         │
+│            │   ens3 (libvirt **bridge** → LAN)    │                         │
+│            └───────────────────────────────────────┘                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
@@ -69,9 +82,9 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 - **DS chạy trên cả 2**: cilium-agent, tetragon, spire-agent, filebeat,
   spiffe-csi-driver, node-exporter.
 
-### 7189srv04 — data tier always-on (Ubuntu)
+### 7189srv05 — data tier always-on (Ubuntu)
 
-- **Pin nodeAffinity `kubernetes.io/hostname=7189srv04`**:
+- **Pin nodeAffinity `kubernetes.io/hostname=7189srv05`**:
   - `vault-dev` (Transit engine, RAM-only — KHÔNG được restart)
   - `vault-prod` (StatefulSet, PVC 2 Gi)
   - MySQL (StatefulSet, PVC ~10 Gi)
@@ -88,7 +101,7 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 > RAM-only và phục vụ Transit engine cho auto-unseal vault-prod
 > (`doc/03-identity-layer.md` mục "Dual-Vault Architecture"). Pod restart
 > = mất Transit key = vault-prod không tự unseal được. Đặt cả hai trên
-> srv04 (always-on host) tối ưu uptime + giảm latency unseal call.
+> srv05 (always-on host) tối ưu uptime + giảm latency unseal call.
 
 ---
 
@@ -103,26 +116,26 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 | metrics-server | kube-system | (anywhere) | — |
 | cert-manager (3) | cert-manager | (anywhere) | — |
 | ingress-nginx | ingress-nginx | (anywhere, ≥1) | NodePort 30001/30003 — Tailscale IP của node nào nhận thì client tới đó |
-| **vault-dev** | **vault** | **`hostname=7189srv04`** | always-on, không restart |
-| **vault-prod** | **vault** | **`hostname=7189srv04`** | PVC + co-locate vault-dev |
-| **MySQL** | **data** | **`hostname=7189srv04`** | PVC stateful |
-| **Kafka** | **data** | **`hostname=7189srv04`** | PVC stateful |
+| **vault-dev** | **vault** | **`hostname=7189srv05`** | always-on, không restart |
+| **vault-prod** | **vault** | **`hostname=7189srv05`** | PVC + co-locate vault-dev |
+| **MySQL** | **data** | **`hostname=7189srv05`** | PVC stateful |
+| **Kafka** | **data** | **`hostname=7189srv05`** | PVC stateful |
 | Keycloak | security | (anywhere) | Deployment H2-in-memory, stateless |
 | 7 Laravel apps | job7189-apps | (anywhere) | stateless |
 | Kong | job7189-apps | (anywhere) | DB-less |
 | Redis | job7189-apps | (anywhere) | session cache, có thể mất |
 | oauth2-proxy | job7189-apps | (anywhere) | stateless |
-| **Elasticsearch** | **monitoring** | **`hostname=7189srv04`** | PVC ~25 Gi |
+| **Elasticsearch** | **monitoring** | **`hostname=7189srv05`** | PVC ~25 Gi |
 | Kibana | monitoring | (anywhere) | stateless, gọi ES qua Service |
-| **Prometheus** | **monitoring** | **`hostname=7189srv04`** | PVC TSDB |
+| **Prometheus** | **monitoring** | **`hostname=7189srv05`** | PVC TSDB |
 | Grafana | monitoring | (anywhere) | stateless DB sqlite emptyDir |
 | node-exporter | monitoring | DS | — |
 | kube-state-metrics | monitoring | (anywhere) | stateless |
 | Filebeat | monitoring | DS | đọc /var/log của node |
 | Hubble Relay | kube-system | (anywhere) | stateless |
 | Hubble UI | kube-system | (anywhere) | stateless |
-| Hubble shipper (filebeat→ES) | monitoring | (anywhere) | gọi ES qua Service trên srv04 |
-| **SPIRE server** | **spire** | **`hostname=7189srv04`** | sqlite PVC |
+| Hubble shipper (filebeat→ES) | monitoring | (anywhere) | gọi ES qua Service trên srv05 |
+| **SPIRE server** | **spire** | **`hostname=7189srv05`** | sqlite PVC |
 | SPIRE controller-manager | spire | (anywhere) | stateless |
 | spire-agent | spire | DS | — |
 | spiffe-csi-driver | spire | DS | — |
@@ -130,7 +143,7 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 | Gatekeeper (2) | gatekeeper-system | (anywhere) | webhook stateless |
 | sigstore policy-controller | cosign-system | (anywhere) | webhook stateless |
 | PDP controller | zta-pdp | (anywhere) | Python kopf, stateless |
-| **docker-registry** | **registry** | **`hostname=7189srv04`** | PVC images |
+| **docker-registry** | **registry** | **`hostname=7189srv05`** | PVC images |
 
 ---
 
@@ -139,12 +152,12 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 | Sự kiện | Tác động |
 |---------|----------|
 | `7189srv01` chết | Cluster control-plane DOWN. Workload pods vẫn chạy nhưng không scale, không reschedule, kubectl không respond. Recover: power-on lại, hoặc restore từ etcd snapshot. |
-| `7189srv02` chết | K8s scheduler reschedule các stateless pod sang srv03 / srv04. Stateful pod (nếu vô tình nằm srv02 — không nên xảy ra) sẽ Pending. |
+| `7189srv02` chết | K8s scheduler reschedule các stateless pod sang srv03 / srv05. Stateful pod (nếu vô tình nằm srv02 — không nên xảy ra) sẽ Pending. |
 | `7189srv03` chết | Tương tự srv02. |
-| `7189srv04` chết | **Cụm mất tất cả data**: vault-prod sealed, MySQL down, Kafka down, ES down, registry down → 7 Laravel apps fail healthcheck. Recover: power-on srv04, vault-prod auto-unseal khi vault-dev sống, MySQL/Kafka/ES tự bind lại PVC. |
+| `7189srv05` chết | **Cụm mất tất cả data**: vault-prod sealed, MySQL down, Kafka down, ES down, registry down → 7 Laravel apps fail healthcheck. Recover: power-on srv05, vault-prod auto-unseal khi vault-dev sống, MySQL/Kafka/ES tự bind lại PVC. |
 | Tailscale rớt | Tất cả node mất kết nối — apiserver bind 100.64.10.1 không reach được. K8s restart liên tục. Recover: `tailscale up --auth-key=...` lại. |
-| Windows host crash | 3 VM (srv01-03) đồng thời chết → cluster control-plane DOWN. srv04 (Ubuntu) vẫn sống nhưng vô dụng. |
-| Ubuntu host crash | srv04 chết → mất data (xem trên). |
+| Windows host crash | 3 VM (srv01-03) đồng thời chết → cluster control-plane DOWN. srv05 (Ubuntu) vẫn sống nhưng vô dụng. |
+| Ubuntu host crash | srv05 chết → mất data (xem trên). |
 
 ---
 
@@ -162,7 +175,7 @@ K8s plane: PodCIDR 10.244.0.0/16 (Cilium VXLAN tunnel qua tailscale0)
 4. **Không tier-based affinity cho stateless**: K8s scheduler đã đủ
    thông minh (LeastAllocated, NodeResourcesFit). Affinity thừa chỉ làm
    khó scheduler — và khi srv02 chết, các pod stateless sẽ pile-up trên
-   srv03 / srv04 thay vì stuck Pending.
+   srv03 / srv05 thay vì stuck Pending.
 
 ---
 

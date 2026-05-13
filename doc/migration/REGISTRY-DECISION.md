@@ -1,5 +1,17 @@
 # Docker registry — đặt ở đâu trong setup multi-VM?
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Bạn hỏi: "docker registry nên để ở đâu? nó có cần build trên k8s
 > không? hiện tại hình như mình đang để nó nằm ngoài thì phải"
 >
@@ -13,9 +25,9 @@
 (ngoài K8s, ngoài VM). Lý do:
 
 1. **Tách lifecycle khỏi K8s**: `kubeadm reset`, snapshot revert, hay
-   wipe srv04 → registry KHÔNG mất images. Re-build lại 7 Laravel images
+   wipe srv05 → registry KHÔNG mất images. Re-build lại 7 Laravel images
    mất 15-30 phút mỗi lần — không muốn lặp đi lặp lại.
-2. **Không tốn RAM của srv04**: srv04 chỉ còn 4 GB, đã chật chội với
+2. **Không tốn RAM của srv05**: srv05 chỉ còn 4 GB, đã chật chội với
    MySQL + Vault + Kafka + SPIRE. In-cluster registry thêm 256 Mi limit
    là phần không đáng để nhét vào.
 3. **Bootstrap chicken-and-egg**: Khi cluster vừa lên (sau `04-cilium-install.sh`),
@@ -74,13 +86,13 @@ Image phải ở registry mà containerd trên mỗi VM pull được.
 **Pros**:
 - Survives `kubeadm reset`, `helm uninstall`, VM snapshot revert
 - 0 RAM trên VM (chạy trên host kernel)
-- Disk dùng disk của host (rộng hơn 60 GB của srv04)
+- Disk dùng disk của host (rộng hơn 60 GB của srv05)
 - Auth tùy chọn: bật basic auth khi cần (lab env không cần)
 - Setup 5 phút
 
 **Cons**:
 - Phụ thuộc Ubuntu host up. Nếu host crash → registry down → pod restart sẽ fail pull. Nhưng:
-  - Ubuntu host = "always-on host" theo design (đã chọn srv04 vì lý do này)
+  - Ubuntu host = "always-on host" theo design (đã chọn srv05 vì lý do này)
   - imagePullPolicy=IfNotPresent → containerd cache trên VM vẫn cho pod chạy lại miễn là chưa GC
 - Registry HTTP plain (không TLS) → cần config `[insecure_registries]` trên containerd của 4 VM. Đối với lab acceptable.
 
@@ -88,11 +100,11 @@ Image phải ở registry mà containerd trên mỗi VM pull được.
 
 ---
 
-### Phương án B — Registry **in-cluster trên srv04**
+### Phương án B — Registry **in-cluster trên srv05**
 
 Như `infras/k8s-yaml/12-docker-registry.yaml` đang làm: deploy
 `registry:2` trong K8s namespace `registry`, NodePort 30005, PVC 50 Gi
-(local-path trên srv04).
+(local-path trên srv05).
 
 **Pros**:
 - "K8s-native", quản lý cùng K8s lifecycle
@@ -101,9 +113,9 @@ Như `infras/k8s-yaml/12-docker-registry.yaml` đang làm: deploy
 
 **Cons (rất nặng cho setup này)**:
 - **Chicken-and-egg**: lúc bootstrap cluster, NodePort 30005 chưa lên → pod khác kéo image cách nào? Phải pre-load image vào containerd của mỗi VM thủ công. Mỗi lần re-deploy phải nhớ làm.
-- **OOM trên srv04**: srv04 4 GB đã trim Vault/MySQL/Kafka đến mức tối thiểu. Thêm 256 Mi cho registry là vượt budget.
-- **Mất state khi `kubeadm reset`**: PVC trên local-path đi theo node — `kubeadm reset` của srv04 = mất registry storage = mất tất cả image cache.
-- **NodePort routing qua Cilium**: thêm 1 hop network, nếu Cilium agent trên srv04 lỗi thì registry NodePort cũng lỗi → không bootstrap được.
+- **OOM trên srv05**: srv05 4 GB đã trim Vault/MySQL/Kafka đến mức tối thiểu. Thêm 256 Mi cho registry là vượt budget.
+- **Mất state khi `kubeadm reset`**: PVC trên local-path đi theo node — `kubeadm reset` của srv05 = mất registry storage = mất tất cả image cache.
+- **NodePort routing qua Cilium**: thêm 1 hop network, nếu Cilium agent trên srv05 lỗi thì registry NodePort cũng lỗi → không bootstrap được.
 
 → Skip. Phương án này chỉ hợp lý nếu cluster ĐÃ stable + production lab có ≥8 GB cho mỗi node.
 
@@ -148,7 +160,7 @@ Push lên public/private cloud registry.
 
 ### Bước 1: Lấy Tailscale IP của Ubuntu host
 
-Đảm bảo Ubuntu host (KHÔNG phải srv04 VM) đã chạy Tailscale:
+Đảm bảo Ubuntu host (KHÔNG phải srv05 VM) đã chạy Tailscale:
 
 ```bash
 # Trên Ubuntu HOST (không phải trong VM)
@@ -277,7 +289,7 @@ plain HTTP pull thành công.
 ## Khi nào nên đổi sang in-cluster (option B)?
 
 Nếu sau này:
-- srv04 được bump lên 6+ GB
+- srv05 được bump lên 6+ GB
 - Cluster đã stable >2 tuần không reset
 - Bạn cần đa vùng storage (S3 backend cho registry)
 - Demo thesis lift to production thật
@@ -288,7 +300,7 @@ Thì có thể migrate registry vào in-cluster. Setup trong file
 ```bash
 kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml
 # Update HOSTS_TOML trên VM trỏ về NodePort 30005:
-# server = "http://7189srv04.<tailnet>.ts.net:30005"
+# server = "http://7189srv05.<tailnet>.ts.net:30005"
 ```
 
 Hiện tại GIỮ option A.
@@ -298,7 +310,7 @@ Hiện tại GIỮ option A.
 ## Trả lời câu hỏi gốc
 
 > "docker registry nên để ở đâu?"
-> → **Ubuntu HOST** (không trong K8s, không trong VM srv04).
+> → **Ubuntu HOST** (không trong K8s, không trong VM srv05).
 
 > "nó có cần build trên k8s không?"
 > → KHÔNG. Build trên admin laptop bằng `docker build`, push tới

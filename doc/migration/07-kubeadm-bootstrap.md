@@ -1,5 +1,17 @@
 # 07. kubeadm Bootstrap — init 7189srv01 + join 3 worker
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Tiền điều kiện: `06-debian-base-prep.md` chạy xong cho cả 4 VM.
 
 ## 1. Pull pre-required images (7189srv01)
@@ -113,7 +125,7 @@ kubectl get nodes
 
 ## 5. Join 3 worker
 
-Trên TỪNG worker (`7189srv02`, `7189srv03`, `7189srv04`):
+Trên TỪNG worker (`7189srv02`, `7189srv03`, `7189srv05`):
 ```bash
 WORKER_TS_IP="$(tailscale ip -4 | head -1)"
 
@@ -168,7 +180,7 @@ NAME       STATUS     ROLES           AGE  VERSION  INTERNAL-IP
 7189srv01  NotReady   control-plane   5m   v1.30.0  100.64.10.1
 7189srv02  NotReady   <none>          1m   v1.30.0  100.64.10.2
 7189srv03  NotReady   <none>          1m   v1.30.0  100.64.10.3
-7189srv04  NotReady   <none>          1m   v1.30.0  100.64.10.4
+7189srv05  NotReady   <none>          1m   v1.30.0  100.64.10.4
 ```
 
 `NotReady` là đúng — vì chưa có CNI. Sang `08-cilium-install.md`.
@@ -179,12 +191,12 @@ Không dùng tier-based label cho stateless workloads (để K8s scheduler tự
 lo). Chỉ cần 1 label đánh dấu node always-on để stateful pin vào:
 
 ```bash
-# srv04 đã có sẵn kubernetes.io/hostname=7189srv04 — dùng trực tiếp.
+# srv05 đã có sẵn kubernetes.io/hostname=7189srv05 — dùng trực tiếp.
 # Thêm label để kiểm tra/dễ đổi node always-on sau này:
-kubectl label node 7189srv04 zta.workload.always-on=true
+kubectl label node 7189srv05 zta.workload.always-on=true
 ```
 
-Stateful workload manifest sử dụng `kubernetes.io/hostname=7189srv04`
+Stateful workload manifest sử dụng `kubernetes.io/hostname=7189srv05`
 (xem `05-storage-and-registry.md`).
 
 ## 8. Taint cleanup

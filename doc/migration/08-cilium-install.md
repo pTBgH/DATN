@@ -1,5 +1,17 @@
 # 08. Cilium 1.19 trên multi-VM Tailscale
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Tiền điều kiện: kubeadm cluster đã up (4 node `NotReady`).
 
 ## 1. Helm repo
@@ -145,7 +157,7 @@ NAME       STATUS  ROLES           AGE  VERSION
 7189srv01  Ready   control-plane   15m  v1.30.0
 7189srv02  Ready   <none>          12m  v1.30.0
 7189srv03  Ready   <none>          12m  v1.30.0
-7189srv04  Ready   <none>          12m  v1.30.0
+7189srv05  Ready   <none>          12m  v1.30.0
 ```
 
 ## 6. Hubble UI

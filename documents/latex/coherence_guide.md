@@ -59,7 +59,7 @@
 
 2. **Phát triển (Chương 2):** Microservices có những thách thức bảo mật riêng (East-West, ephemeral, secrets, shared infra) → Kubernetes làm vấn đề phức tạp thêm (PEP placement, identity, sidecar tax, observability) → Đề xuất khung 5 lớp (Identity, Posture, Enforcement, Secrets, Observability) → Mô hình chính sách ABAC + Deny-All/Allow-Explicit → **Quy trình triển khai 4 giai đoạn** (Chuẩn bị → Thí điểm → Mở rộng → Cải tiến liên tục) theo NIST SP 800-207 Mục 7.
 
-3. **Chứng minh (Chương 3):** Hệ thống JOB7189 (7 services, 5 namespace) → Trước ZTA: flat network, static creds → Sau ZTA: Keycloak OIDC + Vault JIT + Kong JWT + Cilium L3-L7 Policy + EFK → Code thực tế từ 5 bash scripts → Kết quả.
+3. **Chứng minh (Chương 3):** Hệ thống JOB7189 (7 services, 5 namespace) → Trước ZTA: flat network, static creds → Sau ZTA: Keycloak OIDC + Vault JIT + Kong JWT + Cilium L3-L7 Policy + EFK → Code thực tế từ pipeline `zta-rebuild.sh` 16 phase → Kết quả.
 
 ---
 
@@ -71,6 +71,37 @@
 - [ ] Mỗi section kết thúc bằng `\cite{}` thay vì "Nguồn trích dẫn:" bullet list
 - [ ] Tất cả figure đều có `\label{}` và được `\ref{}` trong văn bản
 - [ ] Không có placeholder text kiểu "[Hình ảnh minh họa: ...]" (trừ Chương 3 đã xử lý riêng)
+- [ ] Khi nhắc tới cụm thực nghiệm phải là **`kubeadm` 4 nút trên 4 máy ảo Debian 13** (không phải "Kind 4 node" của baseline cũ); ngân sách RAM tổng **~15.5 GiB phân bố trên 4 VM** (không phải "12 GiB chung kernel"); mặt phẳng L3 đi qua **Tailscale WireGuard**, mặt phẳng pod đi qua **Cilium VXLAN**.
+
+---
+
+## Trích dẫn — chuẩn APA (biblatex-apa)
+
+Đồ án dùng **APA (author–year)** thông qua `biblatex-apa` + Biber. Cấu hình ở `preamble.tex`:
+
+```latex
+\usepackage[
+    backend=biber,
+    style=apa,
+    sortcites=true,
+    sorting=nyt,   % name-year-title
+    natbib=true,
+    giveninits=false
+]{biblatex}
+\addbibresource{bibliography.bib}
+```
+
+Quy ước viết citation trong các chapter:
+
+- `\parencite{key}` → **(Tác giả, năm)** — dùng khi mệnh đề **không** lấy tên tác giả làm chủ ngữ. Đây là mặc định khi đặt cuối câu để dẫn nguồn.
+- `\textcite{key}` → **Tác giả (năm)** — dùng khi câu cần lôi tên tác giả ra làm chủ ngữ (ví dụ: "*Theo \textcite{nist800207}, kiến trúc ZTA…*").
+- Không dùng `\cite{}` trần (legacy natbib) trừ trường hợp đã tồn tại trong file cũ; biblatex-apa diễn dịch `\cite` theo style nên vẫn hiển thị đúng nhưng dạng chuẩn vẫn là `\parencite` / `\textcite`.
+- Nhiều khóa cùng lúc: `\parencite{nist800207,cilium_docs}` → APA tự nối "; " giữa các nguồn.
+- Trang/chương cụ thể: `\parencite[Mục~7]{nist800207}` → "(NIST, 2020, Mục 7)".
+
+**Đừng tự gõ tay** "(Tác giả, năm)" trong văn bản — luôn để biblatex sinh ra để đảm bảo nhất quán và để `biber` xuất danh mục cuối.
+
+Kiểm thử nhanh: `docker compose up -d` → mở `main.pdf` → nếu xuất hiện `[?]` ở chỗ citation, key bị thiếu trong `bibliography.bib`; nếu cảnh báo `Empty bibliography`, kiểm tra rằng `bibliography.bib` có entry tương ứng và `\addbibresource{bibliography.bib}` còn nguyên trong `preamble.tex`.
 
 ---
 
@@ -80,4 +111,4 @@
 > "Chương 1 đã xác lập nền tảng lý luận về kiến trúc Zero Trust và ánh xạ sơ bộ các thành phần logic NIST sang công nghệ mã nguồn mở. Tuy nhiên, việc triển khai ZTA trong môi trường Microservices đặt ra những thách thức đặc thù mà lý thuyết chung chưa thể giải đáp. Chương 2 sẽ phân tích những thách thức này và đề xuất một khung kiến trúc ZTA 5 lớp cụ thể."
 
 ### Cuối Chương 2 → Chương 3
-> "Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng JOB7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 node — theo đúng lộ trình 4 giai đoạn đã đề xuất."
+> "Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng JOB7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 nút `kubeadm` phân bố trên 4 máy ảo Debian 13 — theo đúng lộ trình 4 giai đoạn đã đề xuất."

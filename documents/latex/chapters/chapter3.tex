@@ -86,8 +86,8 @@ Yêu cầu thiết kế bắt nguồn từ phát biểu bài toán ở đầu ch
 \paragraph{Yêu cầu phi chức năng (non-functional).}
 \begin{enumerate}[label=R-N\arabic*., leftmargin=1.6cm]
     \item \textbf{Độ trễ thấp:} latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở tầng L4 và $\leq 30\,\text{ms}$ ở tầng L7 cho 95-percentile.
-    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm Kind 4 node (\textbf{tổng RAM 12\,GiB}, headroom mục tiêu $\geq 1.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md}.
-    \item \textbf{Tự phục hồi:} pipeline triển khai (\texttt{zta-rebuild.sh}) có thể chạy lại từ một bước bất kỳ mà không cần xoá toàn bộ cluster; mỗi bước có \texttt{ZTA\_REBUILD\_SKIP=...} cho chế độ low-RAM.
+    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm \texttt{kubeadm} 4 nút phân bố trên 4 máy ảo Debian 13 (\textbf{tổng ngân sách RAM $\sim$15.5\,GiB}, headroom per-node mục tiêu $\geq 0.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md} và \texttt{doc/migration/03-vm-sizing.md}.
+    \item \textbf{Tự phục hồi:} pipeline triển khai (\texttt{zta-rebuild.sh}) có thể chạy lại từ một bước bất kỳ mà không cần xoá toàn bộ cluster; mỗi bước có \texttt{ZTA\_REBUILD\_SKIP=...} cho chế độ low-RAM, và cờ \texttt{ZTA\_CLUSTER\_MODE=external} cho phép pipeline bám trên cụm \texttt{kubeadm} có sẵn thay vì tạo cluster nội tại.
     \item \textbf{Có thể quan sát từ ngoài:} mọi metric/dashboard phải truy cập được qua trình duyệt mà không cần \texttt{kubectl port-forward} thủ công.
     \item \textbf{Mã hoá in-transit và at-rest:} mọi flow nội bộ giữa namespace nhạy cảm phải mã hoá (mTLS hoặc WireGuard); credential lưu trên \texttt{tmpfs} thay vì K8s Secret on-disk.
 \end{enumerate}
@@ -253,7 +253,7 @@ PEP mạng & Cilium eBPF + Hubble & L3/L4/L7 trong kernel, không sidecar, có H
 \hline
 PEP admission & Sigstore policy-controller + OPA Gatekeeper & policy-controller verify chữ ký Cosign; Gatekeeper kiểm constraint về label/image. \\
 \hline
-PEP runtime & Tetragon & eBPF kprobe, kernel-level kill; nhẹ hơn Falco trên cụm 12\,GiB. \\
+PEP runtime & Tetragon & eBPF kprobe, kernel-level kill; nhẹ hơn Falco trên cụm 4 máy ảo với ngân sách RAM $\sim$15.5\,GiB. \\
 \hline
 PA bí mật & HashiCorp Vault dual-mode + Agent Injector & Vault Database Engine sinh MySQL JIT; Agent Injector mutate Pod để inject sidecar render \texttt{tmpfs}. \\
 \hline
@@ -278,7 +278,31 @@ PIP observability & EFK + Prometheus + Grafana + Hubble & Bộ ``CNCF chuẩn'';
 \subsection{Mô hình triển khai vật lý (deployment view)}
 \label{subsec:deployment_view}
 
-\paragraph{Cụm Kubernetes.} job7189 chạy trên một cụm Kind 4 node (\textbf{1 control-plane + 3 worker}, tổng RAM 12\,GiB). CNI mặc định bị disable (\texttt{disableDefaultCNI: true}) để Cilium tiếp quản hoàn toàn data plane mạng \parencite{cilium_docs}. Mỗi worker chạy: \texttt{cilium-agent}, \texttt{tetragon}, \texttt{spire-agent}, \texttt{filebeat}, \texttt{node-exporter} (5 DaemonSet bắt buộc).
+\paragraph{Cụm Kubernetes.} job7189 chạy trên một cụm \texttt{kubeadm} 4 nút phân bố trên 4 máy ảo Debian 13 ``Trixie''~\parencite{kubeadm_docs,debian_trixie} (\textbf{1 control-plane + 3 worker}, tổng ngân sách RAM $\sim$15.5\,GiB) -- chi tiết topology xem Bảng~\ref{tab:vm_topology}. CNI mặc định của kubeadm (\texttt{kube-proxy} kèm bridge) được tắt để Cilium 1.19 tiếp quản hoàn toàn data plane mạng (\texttt{kubeProxyReplacement=true})~\parencite{cilium_docs}. Bốn nút giao tiếp L3 với nhau qua một tailnet WireGuard do Tailscale cung cấp (CGNAT \texttt{100.64.0.0/10}); Cilium dùng VXLAN tunnel trên overlay đó và \textit{không} bật WireGuard riêng để tránh mã hoá hai lớp~\parencite{tailscale_docs}. Mỗi worker chạy: \texttt{cilium-agent}, \texttt{tetragon}, \texttt{spire-agent}, \texttt{filebeat}, \texttt{node-exporter} (5 DaemonSet bắt buộc); riêng \texttt{tetragon} có thể bỏ qua \texttt{7189srv01} để dành RAM cho control-plane.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Bốn máy ảo Debian 13 cấu thành cụm \texttt{kubeadm} job7189}
+\label{tab:vm_topology}
+\begin{tabularx}{\textwidth}{|l|l|l|l|X|}
+\hline
+\textbf{Hostname} & \textbf{Host vật lý} & \textbf{Vai trò} & \textbf{vCPU / RAM} & \textbf{Workload chính} \\
+\hline
+\texttt{7189srv01} & Windows (VMware) & control-plane & 1 / 2.0\,GiB & etcd, kube-apiserver, scheduler, controller-manager, \texttt{cilium-agent} (DS) \\
+\hline
+\texttt{7189srv02} & Windows (VMware) & worker & 2 / 4.5\,GiB & Stateless Laravel/Kong/Keycloak, Elasticsearch (\texttt{emptyDir}), DaemonSet \\
+\hline
+\texttt{7189srv03} & Windows (VMware) & worker & 2 / 5.0\,GiB & Stateless còn lại, Prometheus (\texttt{emptyDir}), DaemonSet \\
+\hline
+\texttt{7189srv04} & Ubuntu (libvirt) & worker -- data tier always-on & 2 / 4.0\,GiB & \texttt{vault-dev}, \texttt{vault-prod}, MySQL, Kafka, SPIRE server, docker-registry (pin \texttt{nodeAffinity hostname=7189srv04}) \\
+\hline
+\multicolumn{3}{|r|}{\textbf{Tổng}} & \textbf{7 / $\sim$15.5\,GiB} & \\
+\hline
+\end{tabularx}
+\end{table}
+
+\paragraph{Phân bổ workload theo trạng thái (stateful/stateless).} Chỉ workload có \texttt{PersistentVolumeClaim} hoặc đòi hỏi \textit{always-on} (cụ thể \texttt{vault-dev} chạy RAM-only nhưng cấp khoá Transit cho \texttt{vault-prod} tự unseal) mới được pin \texttt{nodeAffinity hostname=7189srv04} -- nút này nằm trên host Ubuntu có thời gian bật cao nhất. Phần còn lại (7 Laravel apps, Kong, ingress-nginx, cert-manager, Keycloak Deployment H2-in-memory, oauth2-proxy, Grafana, Kibana, Hubble Relay/UI, Gatekeeper, Sigstore policy-controller, PDP, Hubble shipper, kube-state-metrics, metrics-server, Cilium operator) không gắn \texttt{nodeAffinity}; Kubernetes scheduler tự cân theo RAM/CPU pressure giữa \texttt{7189srv02} và \texttt{7189srv03}. Để giữ \texttt{7189srv04} trong ngân sách 4\,GiB, Elasticsearch và Prometheus được dịch chuyển sang worker Windows kèm \texttt{emptyDir} (chấp nhận mất dữ liệu khi pod restart -- xem Bảng~\ref{tab:vm_topology}). Chi tiết ma trận \texttt{nodeAffinity} đầy đủ được trình bày trong \texttt{doc/migration/02-target-architecture.md}.
 
 \paragraph{Phân bố namespace.} 9 namespace được nhóm theo trách nhiệm:
 \begin{itemize}
@@ -305,7 +329,7 @@ Bản đồ chi tiết được trình bày ở Hình~\ref{fig:namespace_map} (M
     \item \textbf{Trust Score 2-input thay vì 4-input đầy đủ} (Quyết định 1): chỉ tổng hợp \textit{label coverage} + \textit{CVE severity}, bỏ qua \textit{kill event Tetragon} và \textit{IoC match} vì hai input này đã được xử lý ở các tầng khác (Tetragon \texttt{SIGKILL} ở kernel; IoC match ở \texttt{CiliumClusterwideNetworkPolicy} egress). Output là 3 bucket (\texttt{high/medium/low}) thay vì số 0--100, để bind được vào \texttt{matchLabels} của Cilium.
     \item \textbf{Không cài Alertmanager} (Quyết định 2): chỉ deploy \texttt{PrometheusRule} + Grafana panel hiển thị \texttt{ALERTS{...}}; bỏ Alertmanager để tiết kiệm $\sim$80\,MiB RAM và tránh \textit{production concern} (Slack/PagerDuty routing) vốn không thuộc phạm vi PoC.
     \item \textbf{Threat-intel feed không token} (Quyết định 3): chọn FireHOL Level1 (CIDR) + URLhaus (FQDN) -- cả hai miễn phí, không cần API key, refresh 1h/lần qua CronJob; tránh phụ thuộc credential ngoài.
-    \item \textbf{RAM budget 12\,GiB không tăng} (Quyết định 4): mọi quyết định khác (chọn Tetragon thay Falco, tắt Alertmanager, không cấu hình Trust Score 4-input\dots) đều xuất phát từ ràng buộc này. Tổng RAM thêm cho phase Trivy + threat-intel + Grafana dashboard là $\sim$200\,MiB.
+    \item \textbf{RAM budget $\sim$15.5\,GiB phân bố trên 4 VM, không tăng} (Quyết định 4): mọi quyết định khác (chọn Tetragon thay Falco, tắt Alertmanager, không cấu hình Trust Score 4-input, dịch Elasticsearch/Prometheus khỏi \texttt{7189srv04} sang worker Windows với \texttt{emptyDir}\dots) đều xuất phát từ ràng buộc này. Tổng RAM thêm cho phase Trivy + threat-intel + Grafana dashboard là $\sim$200\,MiB. Việc chuyển từ Kind 1-host 12\,GiB sang 4 VM tách kernel cho phép cô lập áp lực RAM theo node (xem mục~\ref{sec:resource_budget_lessons}) và là động lực chính của quyết định di trú mô tả trong \texttt{doc/migration/}.
     \item \textbf{Vault dual-mode (Transit auto-unseal):} \texttt{vault-dev} đóng vai trò Transit cho \texttt{vault-prod} -- khi \texttt{vault-prod} restart, nó tự động unseal qua \texttt{vault-dev}; loại bỏ thao tác thủ công trong PoC.
     \item \textbf{ServiceAccount-based microsegmentation:} \texttt{CiliumNetworkPolicy} \texttt{matchLabels} dùng \texttt{io.kubernetes.pod.namespace} + \texttt{io.cilium.k8s.policy.serviceaccount} thay vì pod label tự khai báo -- để chính sách không thể bị bypass bằng cách tự gắn label.
 \end{enumerate}
@@ -320,7 +344,7 @@ Thiết kế hiện tại chấp nhận một số giới hạn rõ ràng, ghi l
     \item \textbf{Không có CAEP / session-level revocation:} OpenID CAEP \parencite{openid_caep} chưa được triển khai; PE chỉ thu hồi quyền theo TTL của JWT/SVID, không phải theo sự kiện thay đổi posture.
     \item \textbf{Trust Score 2-input:} các input \textit{kill event} và \textit{IoC match} không trực tiếp ảnh hưởng score; lý do trình bày ở quyết định 1 phía trên.
     \item \textbf{Tetragon thay Falco do RAM:} đánh đổi giữa số lượng built-in rule và bộ nhớ lab; rule set chính được tự viết qua \texttt{TracingPolicy}.
-    \item \textbf{Cụm Kind, không phải bare-metal:} mạng L2 mô phỏng qua Docker bridge; một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG\dots) không được kiểm chứng trong đồ án.
+    \item \textbf{Cụm \texttt{kubeadm} trên máy ảo, không phải bare-metal:} 4 VM Debian 13 chạy trên hai host VMware/libvirt và nói chuyện cross-host qua Tailscale WireGuard. Một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG, latency mạng L2 thuần\dots) không được kiểm chứng trong đồ án -- chi tiết trade-off đối sánh với baseline Kind 1-host cũ xem \texttt{doc/migration/01-context-and-rationale.md}.
 \end{itemize}
 
 Sau khi nắm thiết kế tổng thể, mục tiếp theo (\ref{sec:zta_roadmap}) trình bày \textit{trình tự các bước} hiện thực hoá thiết kế này, theo đúng khuyến nghị của NIST SP 800-207 Mục 7.
@@ -551,7 +575,7 @@ Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất 
 };
 
 \end{tikzpicture}
-\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm Kind 4-node.}
+\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm \texttt{kubeadm} 4 nút (4 máy ảo Debian 13).}
 \label{fig:namespace_map}
 \end{figure}
 
@@ -574,7 +598,7 @@ Vault dual & \texttt{vault-dev} (Transit) auto-unseal \texttt{vault-prod}; KV v2
 \hline
 SPIRE & Cấp X.509 SVID cho ServiceAccount qua \texttt{ClusterSPIFFEID}; trust domain \texttt{zta.job7189}; 3 tier TTL (60'/30'/15') theo độ nhạy cảm. \\
 \hline
-Cilium + Hubble & CNI duy nhất (Kind disable default); enforce L3/L4 + L7 trong eBPF kernel; 16+ \texttt{CiliumNetworkPolicy}; Hubble flow visibility (UI + flow shipper). \\
+Cilium + Hubble & CNI duy nhất (kubeadm bootstrap không cài CNI mặc định, Cilium tiếp quản hoàn toàn cùng \texttt{kubeProxyReplacement=true}); VXLAN trên Tailscale underlay; enforce L3/L4 + L7 trong eBPF kernel; 16+ \texttt{CiliumNetworkPolicy}; Hubble flow visibility (UI + flow shipper). \\
 \hline
 Kong Gateway & PEP duy nhất cho luồng N-S; DB-less, declarative \texttt{kong.yml}; JWT verify qua JWKS Keycloak + rate-limit + ACL. \\
 \hline
@@ -608,7 +632,7 @@ Prom + Grafana & Scrape 7 service + Cilium + Vault + PDP + node-exporter + ksm; 
 
 \subsection{Danh mục tài sản: 7 microservice, 5 namespace}
 
-Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \textit{Kind} gồm \textbf{1 Control Plane + 3 Worker nodes}. Cụm được tắt CNI mặc định (\texttt{disableDefaultCNI: true}) để Cilium eBPF tiếp quản hoàn toàn mặt phẳng dữ liệu mạng \parencite{cilium_docs}.
+Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \texttt{kubeadm} gồm \textbf{1 Control Plane + 3 Worker nodes} phân bố trên 4 máy ảo Debian 13 (xem Bảng~\ref{tab:vm_topology}). Bốn nút nói chuyện L3 qua Tailscale WireGuard~\parencite{tailscale_docs}; CNI mặc định không được kubeadm cài, Cilium 1.19 tiếp quản hoàn toàn mặt phẳng dữ liệu mạng với \texttt{kubeProxyReplacement=true}~\parencite{cilium_docs,kubeadm_docs}.
 
 \begin{table}[H]
 \centering
@@ -1550,7 +1574,7 @@ Theo Quyết định~2 trong \texttt{doc/zta-gap-decision.md}, đồ án \emph{c
 
 \subsection{Cilium mTLS và WireGuard}
 
-mTLS sidecarless và WireGuard được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên Kind 4-node 12 GiB (\texttt{enable-wireguard: false}, \texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kind_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
+mTLS sidecarless được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên cụm 4 VM Debian 13 với ngân sách RAM $\sim$15.5\,GiB (\texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kubeadm_docs}. Cilium WireGuard \emph{tắt vĩnh viễn} (\texttt{enable-wireguard: false}) vì Tailscale đã đảm nhiệm việc mã hoá đầu cuối ở underlay L3 giữa bốn nút; bật thêm sẽ tạo hai lớp WireGuard chồng nhau, lãng phí CPU mà không tăng bảo mật~\parencite{tailscale_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
 
 
 %==============================================================================
@@ -1922,7 +1946,7 @@ Hubble (Cilium-native flow visibility)~\parencite{hubble_docs} mặc định lư
 \text{Elasticsearch index hubble-flows-YYYY.MM.DD}
 \]
 
-Script \texttt{scripts/zta-deploy-hubble-export.sh} mặc định chỉ deploy filebeat shipper (an toàn cho Kind cluster). Cờ \texttt{--enable-cilium-export} mới patch ConfigMap \texttt{kube-system/cilium-config} với \texttt{hubble-export-file-path: /var/run/cilium/hubble/events.log}; nếu rollout Cilium DS thất bại, script tự động revert patch để tránh CrashLoopBackOff dây chuyền.
+Script \texttt{scripts/zta-deploy-hubble-export.sh} mặc định chỉ deploy filebeat shipper (an toàn cho cụm lab tài nguyên giới hạn). Cờ \texttt{--enable-cilium-export} mới patch ConfigMap \texttt{kube-system/cilium-config} với \texttt{hubble-export-file-path: /var/run/cilium/hubble/events.log}; nếu rollout Cilium DS thất bại, script tự động revert patch để tránh CrashLoopBackOff dây chuyền.
 
 Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, drop reason) đều được persist 30--90 ngày, có thể truy vấn qua Kibana cho điều tra retroactive~\parencite{elk_docs,nist800207}.
 
@@ -1932,7 +1956,7 @@ Kết quả: mọi flow (verdict, source/destination identity, L7 method/path, d
 %==============================================================================
 \section{Quy trình triển khai tự động (Deployment Pipeline)}
 
-Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestrator duy nhất} -- \texttt{scripts/zta-rebuild.sh} -- gồm 16 phase, mỗi phase tương ứng một script con (Infrastructure as Code)~\parencite{helm_docs,helmfile_docs,kind_docs}. Pipeline bắt đầu từ \texttt{kind delete} (phase~00) và kết thúc khi \texttt{09-verify-zta.sh} pass đủ Test 0--Test 6 (phase~90):
+Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestrator duy nhất} -- \texttt{scripts/zta-rebuild.sh} -- gồm 16 phase, mỗi phase tương ứng một script con (Infrastructure as Code)~\parencite{helm_docs,helmfile_docs,kubeadm_docs}. Khi biến môi trường \texttt{ZTA\_CLUSTER\_MODE=external} được đặt, phase \texttt{01-cluster} bỏ qua bước tạo cluster nội tại và xác minh rằng cụm \texttt{kubeadm} 4 nút đã được bootstrap theo \texttt{doc/migration/07-kubeadm-bootstrap.md}; pipeline tiếp tục với 15 phase còn lại không thay đổi. Pipeline kết thúc khi \texttt{09-verify-zta.sh} pass đủ Test 0--Test 6 (phase~90):
 
 \begin{table}[H]
 \centering
@@ -1942,9 +1966,9 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 \hline
 \textbf{Phase} & \textbf{Script} & \textbf{Thành phần được tạo / hoạt động chính} \\
 \hline
-\texttt{00-prep} & \texttt{do\_preflight} & Kiểm tra tool (kubectl, kind, helm, helmfile, jq, yq), host RAM tối thiểu (\texttt{require\_host\_ram\_mi 1500}), trạng thái git repo. \\
+\texttt{00-prep} & \texttt{do\_preflight} & Kiểm tra tool (kubectl, kubeadm, helm, helmfile, jq, yq, tailscale CLI nếu \texttt{ZTA\_CLUSTER\_MODE=external}), per-node RAM tối thiểu (\texttt{require\_node\_ram\_mi}), trạng thái git repo. \\
 \hline
-\texttt{01-cluster} & \texttt{01-setup-cluster.sh} & \texttt{kind create cluster} (1 CP + 3 worker), Gateway API CRDs, Cilium CNI (\texttt{enable-l7-proxy=true}, \texttt{mesh-auth=false}, \texttt{wireguard=false} -- baseline ưu tiên ổn định), cert-manager, Nginx Ingress, metrics-server. \\
+\texttt{01-cluster} & \texttt{01-setup-cluster.sh} & Xác minh cụm \texttt{kubeadm} 4 nút đã sẵn sàng (\texttt{ZTA\_CLUSTER\_MODE=external}, bootstrap bởi \texttt{doc/migration/scripts/bootstrap.sh}); cài Gateway API CRDs, Cilium CNI 1.19 trên Tailscale underlay (\texttt{enable-l7-proxy=true}, \texttt{mesh-auth=false}, \texttt{enable-wireguard=false} -- tránh mã hoá hai lớp với Tailscale), cert-manager, Nginx Ingress (NodePort 30001/30003), metrics-server. \\
 \hline
 \texttt{02-infra} & \texttt{02-deploy-infrastructure.sh} & Sinh credentials \texttt{openssl rand}, deploy Vault (vault-dev Transit + vault-prod TLS), MySQL, Keycloak (\texttt{--import-realm}), Kafka, Kong (DB-less), oauth2-proxy, Ingress routes, EFK stack. \\
 \hline

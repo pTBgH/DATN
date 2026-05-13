@@ -1,8 +1,14 @@
 #!/bin/bash
 # STRATEGY 3: Parallel image loading (10-20% improvement)
-# Load multiple images concurrently to Kind
-# 
-# Usage: bash optimize-parallel-loading.sh
+# Load multiple images concurrently to Kind.
+#
+# KIND-ONLY: relies on `kind load docker-image --name <cluster>`. The 4-VM
+# kubeadm cluster uses an in-cluster Docker registry (registry NodePort on
+# srv05) and pulls via imagePullPolicy=Always, so this optimization is
+# obsolete in VM mode — the registry push IS the fast path.
+# VM-mode equivalent: 04-build-and-push-images.sh <vm-registry-host>.
+#
+# Usage: bash scripts/utils/optimize-parallel-loading.sh --kind
 #
 # Limitations:
 # - Docker daemon has connection limits (usually allows 3-4 concurrent)
@@ -10,6 +16,13 @@
 # - Best combined with image size reduction or registry approach
 
 set -euo pipefail
+
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "optimize-parallel-loading.sh"
+zta_require_kind "optimize-parallel-loading.sh" "04-build-and-push-images.sh"
 
 echo "════════════════════════════════════════════════════════════"
 echo "⚡ PARALLEL IMAGE LOADING"

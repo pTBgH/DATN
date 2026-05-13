@@ -52,7 +52,14 @@ trap print_summary EXIT
 
 # ==================== CONFIGURATION ====================
 CLUSTER_NAME="job7189"
-REGISTRY_HOST="localhost:5000"
+# Push endpoint for images this script builds (Keycloak today). KIND mode
+# uses the host-side docker-compose registry (started by ensure_local_registry);
+# VM mode auto-resolves the in-cluster registry NodePort + node hostname.
+# Resolved at script body time (after pre-flight) so the helpful error from
+# zta_resolve_vm_registry_host_or_die() doesn't fire if we exited earlier.
+REGISTRY_HOST=""
+# Used only in KIND mode: containerd inside the kind node containers reaches
+# the host registry via the docker0 bridge IP. Has no analogue on real VMs.
 NODE_REGISTRY_ENDPOINT="172.17.0.1:5000"
 KEYCLOAK_IMAGE_REPO="job7189/keycloak-custom"
 KEYCLOAK_IMAGE_TAG="v1.0"
@@ -266,6 +273,16 @@ if is_vm_mode; then
   echo "   ✓ In-cluster registry present (registry/docker-registry)"
 fi
 
+# Resolve the host:port we'll push images to. We do this AFTER the pre-flight
+# above (which guarantees the registry exists in VM mode), so a missing svc
+# really means infra drift rather than "you forgot step 1".
+if is_kind_mode; then
+  REGISTRY_HOST="localhost:5000"
+else
+  REGISTRY_HOST="$(zta_resolve_vm_registry_host_or_die)"
+fi
+echo "   Image push endpoint: ${REGISTRY_HOST}"
+
 # Ensure required namespaces
 for ns in vault data management job7189-apps security gateway monitoring ingress-nginx cert-manager; do
   kubectl get namespace "$ns" >/dev/null 2>&1 || kubectl create namespace "$ns" >/dev/null
@@ -383,8 +400,17 @@ log_time "4. MySQL & phpMyAdmin"
 # ========================
 echo ""
 echo "🛡️ Step 5: Building and deploying Keycloak..."
-ensure_local_registry || true
-configure_kind_registry_access "$NODE_REGISTRY_ENDPOINT" || true
+if is_kind_mode; then
+  # KIND: host-side docker-compose registry at localhost:5000, with kind
+  # nodes configured to pull through docker0 (172.17.0.1:5000).
+  ensure_local_registry || true
+  configure_kind_registry_access "$NODE_REGISTRY_ENDPOINT" || true
+else
+  # VM: the in-cluster registry (svc/docker-registry-nodeport in `registry`)
+  # is the push target and is already running (pre-flight checked above).
+  # No host-side docker-compose registry, no kind containerd tweaks.
+  echo "   VM mode — using in-cluster registry ${REGISTRY_HOST}; skipping host-side local-registry and kind containerd setup."
+fi
 
 KEYCLOAK_LOCAL_IMAGE="${REGISTRY_HOST}/${KEYCLOAK_IMAGE_REPO}:${KEYCLOAK_IMAGE_TAG}"
 if [ "$FORCE_REBUILD_IMAGES" != "1" ] && registry_has_tag "$KEYCLOAK_IMAGE_REPO" "$KEYCLOAK_IMAGE_TAG"; then

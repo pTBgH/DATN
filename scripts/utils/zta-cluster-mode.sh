@@ -131,3 +131,92 @@ zta_require_vm() {
   echo "     ${script_name} --vm          # (or: ZTA_CLUSTER_MODE=vm ${script_name})"
   exit 1
 }
+
+# zta_resolve_vm_registry_host: print the <host:port> a host-side docker can
+# push images to so the in-cluster pull will succeed.
+#
+# Resolution order (highest priority first):
+#   1. $VM_REGISTRY_HOST env var (explicit override).
+#   2. kubectl: read NodePort from svc/docker-registry-nodeport in the
+#      `registry` namespace, then pair it with the node hosting the
+#      registry pod (resolved via getent → tailnet/LAN hostname when
+#      reachable, falling back to the node's InternalIP).
+#
+# Returns 0 and prints "host:port" on success, returns non-zero with
+# nothing on stdout on failure. Callers should treat failure as
+# "registry not deployed yet" and surface a helpful error.
+#
+# Why no `localhost:5000` fallback: srv01 has no host-level docker
+# daemon push target — using localhost:5000 silently pushes to nothing
+# (or the wrong target if the operator coincidentally has another
+# registry running) and the cluster pull then ImagePullBackOff's. We
+# would rather fail fast than push to /dev/null.
+zta_resolve_vm_registry_host() {
+  if [ -n "${VM_REGISTRY_HOST:-}" ]; then
+    echo "$VM_REGISTRY_HOST"
+    return 0
+  fi
+
+  if ! command -v kubectl >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local nodeport
+  nodeport=$(kubectl get svc -n registry docker-registry-nodeport \
+    -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || true)
+  if [ -z "$nodeport" ]; then
+    return 1
+  fi
+
+  local node_hostname
+  node_hostname=$(kubectl get pods -n registry \
+    -l app=docker-registry \
+    -o jsonpath='{.items[0].spec.nodeName}' 2>/dev/null || true)
+  if [ -z "$node_hostname" ]; then
+    return 1
+  fi
+
+  if command -v getent >/dev/null 2>&1 \
+      && getent hosts "$node_hostname" >/dev/null 2>&1; then
+    echo "${node_hostname}:${nodeport}"
+    return 0
+  fi
+
+  local node_ip
+  node_ip=$(kubectl get node "$node_hostname" \
+    -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}' \
+    2>/dev/null || true)
+  if [ -n "$node_ip" ]; then
+    echo "${node_ip}:${nodeport}"
+    return 0
+  fi
+
+  return 1
+}
+
+# zta_resolve_vm_registry_host_or_die: convenience wrapper that prints a
+# uniform error message + exits 1 when resolution fails. Use this when
+# the script can't proceed without a registry endpoint.
+#
+#   REGISTRY_HOST="$(zta_resolve_vm_registry_host_or_die)"
+zta_resolve_vm_registry_host_or_die() {
+  local resolved
+  if resolved="$(zta_resolve_vm_registry_host)" && [ -n "$resolved" ]; then
+    echo "$resolved"
+    return 0
+  fi
+  {
+    echo "❌ VM mode: cannot resolve registry endpoint."
+    echo
+    echo "   Either:"
+    echo "     1. Deploy the in-cluster registry first:"
+    echo "          kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml"
+    echo "          kubectl -n registry wait --for=condition=Ready pod \\"
+    echo "            -l app=docker-registry --timeout=120s"
+    echo "        Then re-run this script — host:port auto-resolves from svc."
+    echo
+    echo "     2. Or set VM_REGISTRY_HOST explicitly, e.g.:"
+    echo "          export VM_REGISTRY_HOST=7189srv05.taildc1739.ts.net:30005"
+  } >&2
+  exit 1
+}

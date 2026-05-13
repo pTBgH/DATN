@@ -2,11 +2,42 @@
 # Build Docker images cho tất cả microservices
 # Và push lên Docker Registry
 # Called from: 03-deploy-microservices.sh
+#
+# Dual-mode:
+#   --vm (default)  Push to the in-cluster registry deployed by
+#                   infras/k8s-yaml/12-docker-registry.yaml. The push
+#                   target is auto-resolved from `kubectl get svc/docker-
+#                   registry-nodeport -n registry` paired with the node
+#                   the registry pod is pinned to (srv05 via nodeAffinity).
+#                   Override with $VM_REGISTRY_HOST or by passing the
+#                   host:port as the first positional argument.
+#   --kind          Push to localhost:5000 (the legacy kind-era default).
+#                   Same override: positional $1 wins.
+#
+# Usage:
+#   bash 04-build-and-push-images.sh                    # VM, auto-resolve
+#   bash 04-build-and-push-images.sh --kind             # Kind, localhost:5000
+#   bash 04-build-and-push-images.sh <host:port>        # explicit
+#   VM_REGISTRY_HOST=<host:port> bash 04-build-and-push-images.sh
 
 set -euo pipefail
 
+SCRIPT_DIR_04="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPT_DIR_04/scripts/utils/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "04-build-and-push-images.sh"
+
 # ==================== CONFIG ====================
-REGISTRY_HOST=${1:-"localhost:5000"}  # Default: local registry (not K8s NodePort)
+if [ $# -ge 1 ] && [ -n "$1" ]; then
+  REGISTRY_HOST="$1"
+elif is_kind_mode; then
+  REGISTRY_HOST="${REGISTRY_HOST:-localhost:5000}"
+else
+  REGISTRY_HOST="$(zta_resolve_vm_registry_host_or_die)"
+fi
+echo "   Resolved registry endpoint: ${REGISTRY_HOST}"
 REGISTRY_PREFIX="${REGISTRY_HOST}"
 
 # Danh sách services - CHỈ BUILD SERVICES KHÔNG CÓ DEPENDENCY ISSUES

@@ -51,6 +51,17 @@ spec:
         zta.job7189/team: security
     spec:
       serviceAccountName: vault-dev
+      # Pin to data-tier node alongside vault-prod (transit auto-unseal pair).
+      # See doc/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
       containers:
       - name: vault-dev
         image: hashicorp/vault:1.17
@@ -198,6 +209,17 @@ spec:
         zta.job7189/team: security
     spec:
       serviceAccountName: vault
+      # Pin to data-tier node so vault-prod PVC (local-path) lands on srv05.
+      # See doc/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
       # Chờ vault-dev sẵn sàng trước khi vault-prod start
       initContainers:
       - name: wait-for-vault-dev

@@ -1,8 +1,14 @@
 #!/bin/bash
-# STRATEGY 2: Replace sequential "kind load" with in-cluster registry push
-# This saves ~694 seconds by pushing to registry instead of kind load
-# 
-# Usage: bash optimize-registry-approach.sh 
+# STRATEGY 2: Replace sequential "kind load" with in-cluster registry push.
+# This saves ~694 seconds by pushing to registry instead of kind load.
+#
+# KIND-ONLY: still hardcodes `kind get clusters` checks and the Kind-era
+# CLUSTER_NAME=job7189 contract for routing into the local registry. The
+# 4-VM kubeadm cluster already uses a real in-cluster Docker registry on
+# srv05 by default — 04-build-and-push-images.sh + 03-deploy-microservices.sh
+# do the equivalent push without the kind-vs-registry comparison logic.
+#
+# Usage: bash scripts/utils/optimize-registry-approach.sh --kind
 # 
 # Prerequisites:
 # - Docker registry running in cluster (already set up)
@@ -10,6 +16,13 @@
 # - kubectl access to cluster
 
 set -euo pipefail
+
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "optimize-registry-approach.sh"
+zta_require_kind "optimize-registry-approach.sh" "04-build-and-push-images.sh"
 
 echo "════════════════════════════════════════════════════════════"
 echo "🚀 REGISTRY-BASED IMAGE DEPLOYMENT (Fast Path)"

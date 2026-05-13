@@ -1,8 +1,22 @@
 #!/bin/bash
-# Diagnose why "kind load docker-image" is slow and suggest optimizations
-# Usage: bash diagnose-image-loading.sh
+# Diagnose why "kind load docker-image" is slow and suggest optimizations.
+#
+# KIND-ONLY: the whole script reasons about the `kind load` data path
+# (tar-stream into the kind node containerd). On the 4-VM kubeadm cluster
+# images flow through the in-cluster Docker registry on srv05 and never
+# touch `kind load`, so this script refuses in VM mode.
+# VM-mode equivalent: push images directly with 04-build-and-push-images.sh.
+#
+# Usage: bash scripts/utils/diagnose-image-loading.sh --kind
 
 set -euo pipefail
+
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "diagnose-image-loading.sh"
+zta_require_kind "diagnose-image-loading.sh" "04-build-and-push-images.sh"
 
 echo "════════════════════════════════════════════════════════════"
 echo "🔍 IMAGE LOADING PERFORMANCE DIAGNOSIS"

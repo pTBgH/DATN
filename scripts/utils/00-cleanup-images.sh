@@ -1,7 +1,21 @@
 #!/bin/bash
 # 00-cleanup-images.sh — Full cleanup of all microservice images
-# Removes images from: local Docker, Docker registry, and Kind nodes
+# Removes images from: local Docker, Docker registry, and Kind nodes.
+#
+# KIND-ONLY: step [3/4] iterates `kind get nodes` and runs `crictl rmi`
+# inside each Kind node container. The Kind node naming scheme doesn't
+# exist on the 4-VM kubeadm cluster, so this script refuses in VM mode.
+# In VM mode the equivalent is to rebuild + re-push images via
+# 04-build-and-push-images.sh (overwrites tags in the in-cluster registry)
+# and rely on imagePullPolicy=Always for fresh pulls.
 set -euo pipefail
+
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "00-cleanup-images.sh"
+zta_require_kind "00-cleanup-images.sh" "04-build-and-push-images.sh"
 
 REGISTRY_HOST="${REGISTRY_HOST:-localhost:5000}"
 CLUSTER_NAME="${CLUSTER_NAME:-job7189}"

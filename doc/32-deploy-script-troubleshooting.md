@@ -308,8 +308,10 @@ sleep 300
 kubectl get pod -A --no-headers | grep -vE 'Running|Completed' | head -30
 
 # 8. Nếu vẫn cascade → teardown + rebuild
-bash scripts/zta-teardown.sh --yes
-bash scripts/zta-rebuild.sh --yes
+#    (KIND-ONLY — VM mode không có teardown ngang hàng; xem
+#     doc/migration/scripts/99-rollback.sh / decommission-srv04.sh)
+bash scripts/zta-teardown.sh --kind --yes
+bash scripts/zta-rebuild.sh --kind --yes
 ```
 
 Recovery này **không thay đổi config** — chỉ giải phóng RAM rồi clean restart.

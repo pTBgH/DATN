@@ -43,6 +43,83 @@ echo ""
 
 cd "$(dirname "$0")"
 
+# --- 0. HEALTH PROBE — skip rebuild if Vault is already healthy ---
+#
+# The rebuild path nukes the vault PVC + every Vault resource, which costs
+# 5-10 minutes even when nothing is wrong. We can avoid that work when the
+# cluster already has a healthy Vault: vault-dev Running, vault-prod
+# Running + initialized + unsealed, transit secrets engine enabled on
+# vault-dev, and kubernetes auth + the keycloak/mysql/laravel KV paths
+# already populated on vault-prod.
+#
+# Toggles:
+#   VAULT_FORCE_REBUILD=1   — skip the probe, always rebuild from scratch
+#   VAULT_SKIP_HEALTH_PROBE=1 — back-compat: same as VAULT_FORCE_REBUILD=1
+#
+vault_is_healthy() {
+  # 1) vault-dev Deployment has a Running pod
+  local dev_phase
+  dev_phase=$(kubectl get pod -n vault -l app=vault-dev \
+    -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
+  [ "$dev_phase" = "Running" ] || { echo "    · vault-dev not Running (phase=${dev_phase:-missing})"; return 1; }
+
+  # 2) vault-0 (StatefulSet) has a Running pod
+  local prod_phase
+  prod_phase=$(kubectl get pod vault-0 -n vault \
+    -o jsonpath='{.status.phase}' 2>/dev/null || true)
+  [ "$prod_phase" = "Running" ] || { echo "    · vault-0 not Running (phase=${prod_phase:-missing})"; return 1; }
+
+  # 3) vault-prod is initialized AND unsealed
+  local status_json
+  status_json=$(run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n vault vault-0 -c vault -- \
+    sh -c 'VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 vault status -format=json' 2>/dev/null || true)
+  [ -n "$status_json" ] || { echo "    · vault status returned no output"; return 1; }
+  echo "$status_json" | python3 -c '
+import json, sys
+j = json.load(sys.stdin)
+sys.exit(0 if j.get("initialized") and not j.get("sealed") else 1)
+' 2>/dev/null || { echo "    · vault-prod not initialized or still sealed"; return 1; }
+
+  # 4) vault-dev has the transit secrets engine enabled
+  local dev_token
+  dev_token=$(kubectl get secret vault-dev-token -n vault \
+    -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+  [ -n "$dev_token" ] || { echo "    · vault-dev-token Secret missing"; return 1; }
+  run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n vault deploy/vault-dev -- \
+    sh -c "VAULT_ADDR=http://127.0.0.1:8300 VAULT_TOKEN='$dev_token' vault secrets list 2>/dev/null" \
+    | grep -qE '^transit/' || { echo "    · transit engine not enabled on vault-dev"; return 1; }
+
+  # 5) vault-prod has the keycloak KV path (sentinel for seeded data)
+  local root_token=""
+  if [ -f vault-prod-init.json ]; then
+    root_token=$(python3 -c '
+import json, sys
+try:
+  print(json.load(open("vault-prod-init.json")).get("root_token", ""))
+except Exception:
+  pass
+' 2>/dev/null || true)
+  fi
+  [ -n "$root_token" ] || { echo "    · vault-prod-init.json missing root_token (fresh cluster?)"; return 1; }
+  run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl exec -n vault vault-0 -c vault -- \
+    sh -c "VAULT_SKIP_VERIFY=true VAULT_ADDR=https://127.0.0.1:8200 VAULT_TOKEN='$root_token' vault kv get -format=json secret/keycloak 2>/dev/null" \
+    >/dev/null || { echo "    · secret/keycloak not seeded (or root token stale)"; return 1; }
+
+  return 0
+}
+
+if [ "${VAULT_FORCE_REBUILD:-0}" != "1" ] && [ "${VAULT_SKIP_HEALTH_PROBE:-0}" != "1" ]; then
+  echo "==> [0/6] Probe: Vault đã healthy chưa?"
+  if vault_is_healthy 2>&1 | sed 's/^/   /'; then
+    echo "    ✔ Vault đã healthy (vault-dev Running, vault-prod Running+unsealed,"
+    echo "      transit engine enabled, secret/keycloak seeded). Bỏ qua rebuild."
+    echo "      Đặt VAULT_FORCE_REBUILD=1 để chạy lại từ đầu."
+    exit 0
+  fi
+  echo "    ✗ Có thành phần Vault chưa healthy → chạy full rebuild."
+  echo ""
+fi
+
 # --- 1. CLEANUP ---
 echo "==> [1/6] Dọn dẹp Vault cũ..."
 (run_with_timeout "$CMD_TIMEOUT_SHORT" kubectl delete statefulset vault -n vault --ignore-not-found=true || true) &

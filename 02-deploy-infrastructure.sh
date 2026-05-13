@@ -305,8 +305,9 @@ kubectl wait --for=jsonpath='{.status.phase}'=Running pod -l app=vault -n vault 
 }
 
 echo "   Running Vault fast rebuild pipeline..."
+echo "   (Auto-skip if Vault is already healthy. Force with VAULT_FORCE_REBUILD=1.)"
 if [ -d "infras/k8s-yaml/vault-scripts" ] && [ -f "infras/k8s-yaml/vault-scripts/99-fast-rebuild-vault.sh" ]; then
-  if ! run_with_timeout "$VAULT_REBUILD_TIMEOUT" bash -lc "cd infras/k8s-yaml/vault-scripts && MYSQL_ROOT_PASS='$MYSQL_ROOT_PASS' bash 99-fast-rebuild-vault.sh"; then
+  if ! run_with_timeout "$VAULT_REBUILD_TIMEOUT" bash -lc "cd infras/k8s-yaml/vault-scripts && MYSQL_ROOT_PASS='$MYSQL_ROOT_PASS' VAULT_FORCE_REBUILD='${VAULT_FORCE_REBUILD:-0}' bash 99-fast-rebuild-vault.sh"; then
     echo "❌ Vault config script timed out/failed"
     exit 1
   fi

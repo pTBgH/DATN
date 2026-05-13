@@ -4,9 +4,12 @@
 # Dual-mode:
 #   --vm (default)  Push the built image to the in-cluster registry. The
 #                   real nodes pull it from there; no kind-specific load.
-#                   Override the push target with VM_REGISTRY_HOST=<host:port>
-#                   (defaults to 7189srv05.<tailnet>.ts.net:30005 — read from
-#                   k8s-management/values/<service>-values.yaml when present).
+#                   Push target is resolved by zta_resolve_vm_registry_host:
+#                     1. $VM_REGISTRY_HOST env var (explicit override).
+#                     2. Auto from `kubectl get svc/docker-registry-nodeport
+#                        -n registry` + the registry pod's node hostname.
+#                   The script aborts with a pointer to 12-docker-registry.yaml
+#                   if neither source resolves.
 #   --kind          Push to localhost:5000 AND `kind load docker-image` so the
 #                   Kind node containerd can satisfy pulls without HTTPS.
 set -euo pipefail
@@ -23,8 +26,12 @@ zta_mode_banner "rebuild-service.sh"
 # ========================
 # 1. CẤU HÌNH CƠ BẢN
 # ========================
-REGISTRY_HOST="localhost:5000"
-CHART_REGISTRY="docker-registry.registry.svc.cluster.local:5000"
+if is_kind_mode; then
+  REGISTRY_HOST="localhost:5000"
+else
+  REGISTRY_HOST="$(zta_resolve_vm_registry_host_or_die)"
+fi
+echo "   Push target: $REGISTRY_HOST"
 NAMESPACE="job7189-apps"
 VALUES_DIR="k8s-management/values"
 HELMFILE_PATH="k8s-management/helmfile.yaml"
@@ -60,17 +67,21 @@ SERVICE_PATH="src/$DIR_NAME/laravel_back"
 DOCKERFILE="$SERVICE_PATH/Dockerfile.production"
 
 # ========================
-# 1.5 ENSURE LOCAL REGISTRY IS RUNNING (từ 03-deploy-microservices.sh)
+# 1.5 ENSURE LOCAL REGISTRY IS RUNNING (KIND only)
 # ========================
-echo "Kiểm tra Local Registry..."
-if ! docker ps 2>/dev/null | grep -q "local-registry"; then
-  echo "Khởi động Local Registry..."
-  cd infras/local-registry
-  docker-compose up -d 2>/dev/null || true
-  cd - > /dev/null
-  sleep 1
+if is_kind_mode; then
+  echo "Kiểm tra Local Registry (KIND)..."
+  if ! docker ps 2>/dev/null | grep -q "local-registry"; then
+    echo "Khởi động Local Registry..."
+    cd infras/local-registry
+    docker-compose up -d 2>/dev/null || true
+    cd - > /dev/null
+    sleep 1
+  fi
+  echo "✓ Local Registry sẵn sàng"
+else
+  echo "VM mode — using in-cluster registry, no host-side local-registry needed."
 fi
-echo "✓ Local Registry sẵn sàng"
 echo ""
 
 # ========================
@@ -108,6 +119,10 @@ echo ""
 # ========================
 # 4B. PUBLISH IMAGE TO CLUSTER
 # ========================
+# VM mode: step [2/5] already pushed to the in-cluster registry, so the
+# image is reachable from every kubelet — nothing further to do here.
+# KIND mode: `kind load` ships the image straight into the kind node's
+# containerd (skips the registry round-trip).
 if is_kind_mode; then
   echo "--- [3B/5] LOAD IMAGE VÀO KIND CLUSTER ---"
   if kind load docker-image "$IMAGE_BASE" --name job7189 2>&1; then
@@ -116,32 +131,7 @@ if is_kind_mode; then
       echo "⚠️ kind load failed (image might still work if already downloaded)"
   fi
 else
-  echo "--- [3B/5] PUSH IMAGE VÀO IN-CLUSTER REGISTRY (VM mode) ---"
-  # Resolve the VM registry endpoint. Priority:
-  #   1. VM_REGISTRY_HOST env var (explicit override)
-  #   2. spec.image.registry from k8s-management/values/<service>-values.yaml
-  #   3. error — user must say where to push to
-  VM_REGISTRY_HOST="${VM_REGISTRY_HOST:-}"
-  if [ -z "$VM_REGISTRY_HOST" ]; then
-      BASE_NAME="${SERVICE_NAME%-service}"
-      VALUES_PROBE="$VALUES_DIR/${BASE_NAME}-values.yaml"
-      if [ -f "$VALUES_PROBE" ]; then
-          VM_REGISTRY_HOST=$(grep -m1 -E '^[[:space:]]*registry:[[:space:]]*' "$VALUES_PROBE" \
-              | sed -E 's/^[[:space:]]*registry:[[:space:]]*//; s/[[:space:]]+$//; s/^"//; s/"$//' || true)
-      fi
-  fi
-  if [ -z "$VM_REGISTRY_HOST" ]; then
-      echo "❌ VM mode: cannot determine push target."
-      echo "   Set VM_REGISTRY_HOST=<host:port> (e.g. 7189srv05.<tailnet>.ts.net:30005)"
-      echo "   or add an 'image.registry: ...' line to $VALUES_DIR/${SERVICE_NAME%-service}-values.yaml."
-      exit 1
-  fi
-  IMAGE_VM="$VM_REGISTRY_HOST/$IMAGE_BASE"
-  echo "   Tag → $IMAGE_VM"
-  docker tag "$IMAGE_HOST" "$IMAGE_VM"
-  echo "   Push → $IMAGE_VM"
-  docker push "$IMAGE_VM"
-  echo "✓ Image pushed to $VM_REGISTRY_HOST"
+  echo "--- [3B/5] VM mode: already pushed to $REGISTRY_HOST in step [2/5] ---"
 fi
 echo ""
 

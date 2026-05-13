@@ -1,5 +1,17 @@
 # 13. Validation Checklist — verify migration thành công
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Chạy lần lượt 7 nhóm. Mỗi check: PASS / FAIL kèm hành động khi FAIL.
 
 ## 1. Hạ tầng host + Tailscale
@@ -8,8 +20,8 @@
 |---|-------|------|----------|--------|
 | 1.1 | 4 VM lên đủ | `tailscale status` (admin laptop) | 4 host: 7189srv01..04 | Power on VM thiếu |
 | 1.2 | MagicDNS resolve | `nslookup 7189srv01` | 100.64.10.1 | Bật MagicDNS trong tailnet |
-| 1.3 | Cross-host ping | `tailscale ping 7189srv04` (từ 7189srv01) | direct hoặc DERP | Reset tailscaled |
-| 1.4 | Clock sync | `for v in 7189srv01 7189srv02 7189srv03 7189srv04; do ssh debian@$v.<dom> "date"; done` | skew ≤ 2s | `sudo timedatectl set-ntp true` |
+| 1.3 | Cross-host ping | `tailscale ping 7189srv05` (từ 7189srv01) | direct hoặc DERP | Reset tailscaled |
+| 1.4 | Clock sync | `for v in 7189srv01 7189srv02 7189srv03 7189srv05; do ssh debian@$v.<dom> "date"; done` | skew ≤ 2s | `sudo timedatectl set-ntp true` |
 | 1.5 | Containerd active | `for v in ...; do ssh ...'systemctl is-active containerd'; done` | active × 4 | `systemctl restart containerd` |
 | 1.6 | Kubelet active | `for v in ...; do ssh ...'systemctl is-active kubelet'; done` | active × 4 | `systemctl restart kubelet` |
 
@@ -20,7 +32,7 @@
 | 2.1 | API healthz | `kubectl get --raw=/healthz` | `ok` |
 | 2.2 | 4 nodes Ready | `kubectl get nodes` | 4 × Ready |
 | 2.3 | nodeIP đúng Tailscale | `kubectl get nodes -o wide \| awk '{print $1, $6}'` | INTERNAL-IP = 100.64.10.X |
-| 2.4 | Always-on label | `kubectl get nodes --show-labels \| grep always-on` | `7189srv04` có label `zta.workload.always-on=true` |
+| 2.4 | Always-on label | `kubectl get nodes --show-labels \| grep always-on` | `7189srv05` có label `zta.workload.always-on=true` |
 | 2.5 | Static pods 7189srv01 | `kubectl -n kube-system get pod -o wide \| grep 7189srv01` | etcd, apiserver, controller, scheduler đều Running |
 | 2.6 | metrics-server | `kubectl top nodes` | hiển thị CPU/RAM 4 node |
 | 2.7 | DNS in-cluster | `kubectl run test-dns --image=alpine:3.19 --rm -it -- nslookup kubernetes.default` | resolved to 10.96.0.1 |
@@ -44,14 +56,14 @@
 | 4.1 | StorageClass `standard` default | `kubectl get sc` | (default) standard |
 | 4.2 | local-path-provisioner Running | `kubectl -n local-path-storage get pod` | Running |
 | 4.3 | PVC create + bind | (smoke test trong 09 §8) | Pod nginx Ready với volume |
-| 4.4 | Registry Service Reachable | `curl -s http://7189srv04.<dom>:30005/v2/_catalog` | JSON `{"repositories": [...]}` |
+| 4.4 | Registry Service Reachable | `curl -s http://7189srv05.<dom>:30005/v2/_catalog` | JSON `{"repositories": [...]}` |
 | 4.5 | Containerd hosts.toml present | `for v in ...; do ssh ...'ls /etc/containerd/certs.d/'; done` | 4 dirs với hosts.toml |
 
 ## 5. ZTA stack — phase 1 (base, sau `02-infra` + `03-microservices`)
 
 | # | Check | Lệnh | Expected |
 |---|-------|------|----------|
-| 5.1 | MySQL on 7189srv04 | `kubectl -n data get pod -o wide` | mysql-0 trên 7189srv04 |
+| 5.1 | MySQL on 7189srv05 | `kubectl -n data get pod -o wide` | mysql-0 trên 7189srv05 |
 | 5.2 | Vault initialized | `kubectl -n vault exec vault-0 -- vault status` | Initialized: true (Sealed: true sau restart là OK) |
 | 5.3 | Keycloak realm `job7189` | `curl -s http://keycloak.security:8080/realms/job7189` | JSON realm |
 | 5.4 | 7 Laravel pod Running | `kubectl -n job7189-apps get pod` | 7 deployment, mỗi deploy ≥ 1 Running |
@@ -117,7 +129,7 @@ cp -r ../../evidence/$(ls -t ../../evidence | head -1) 06-verify-bundle/
 hubble observe --since 1h > 07-hubble.jsonl
 
 # 4. Tailscale state
-for v in 7189srv01 7189srv02 7189srv03 7189srv04; do
+for v in 7189srv01 7189srv02 7189srv03 7189srv05; do
   ssh debian@$v.<tailnet>.ts.net 'tailscale status; tailscale ip -4'
 done > 08-tailscale.txt
 

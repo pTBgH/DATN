@@ -1,5 +1,17 @@
 # Answers — Câu hỏi của bạn (2026-05-10)
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Hai câu hỏi bạn đặt ra trước khi mình đụng tới máy thật. Mình trả lời
 > rõ + dẫn nguồn, để sau này khỏi phải hỏi lại.
 
@@ -9,15 +21,15 @@
 
 ### TL;DR
 
-| Lớp | Khi `7189srv01` (control plane) chết | Có ảnh hưởng `7189srv04` (Ubuntu) không? |
+| Lớp | Khi `7189srv01` (control plane) chết | Có ảnh hưởng `7189srv05` (Ubuntu) không? |
 |-----|--------------------------------------|------------------------------------------|
 | Host OS Ubuntu (kernel, systemd, SSH, network) | KHÔNG động vào | **KHÔNG** ảnh hưởng — Ubuntu chạy bình thường |
-| Tailscale daemon trên srv04 | KHÔNG động vào | **KHÔNG** ảnh hưởng |
-| containerd + kubelet trên srv04 | Vẫn chạy | **KHÔNG** ảnh hưởng |
-| **Pod đang chạy trên srv04** (vault, MySQL, Kafka, ES, Prometheus, registry, SPIRE) | Tiếp tục chạy nhờ kubelet local | **KHÔNG** ảnh hưởng (state đã được kubelet cache) |
-| **Dataplane Cilium trên srv04** | VXLAN tunnel đã program sẵn → tiếp tục forward | **KHÔNG** ảnh hưởng cho traffic giữa pod đã có |
+| Tailscale daemon trên srv05 | KHÔNG động vào | **KHÔNG** ảnh hưởng |
+| containerd + kubelet trên srv05 | Vẫn chạy | **KHÔNG** ảnh hưởng |
+| **Pod đang chạy trên srv05** (vault, MySQL, Kafka, ES, Prometheus, registry, SPIRE) | Tiếp tục chạy nhờ kubelet local | **KHÔNG** ảnh hưởng (state đã được kubelet cache) |
+| **Dataplane Cilium trên srv05** | VXLAN tunnel đã program sẵn → tiếp tục forward | **KHÔNG** ảnh hưởng cho traffic giữa pod đã có |
 | **kubectl / scheduler / controller-manager** | DOWN | Mất khả năng tạo/sửa/xóa Deployment, ConfigMap, Secret |
-| **Tạo pod mới / reschedule / scale** | DOWN | Không tạo được pod mới trên srv04 |
+| **Tạo pod mới / reschedule / scale** | DOWN | Không tạo được pod mới trên srv05 |
 | **Cilium identity update** | DOWN (apiserver gone) | Identity mới không sync — pod existing OK, pod mới (nếu có cách tạo được) sẽ chưa có policy |
 | **Đăng ký SPIFFE workload mới** | DOWN | Workload mới không có SVID, workload cũ giữ SVID đã cấp đến khi hết TTL |
 
@@ -39,11 +51,11 @@ runtime + CNI dataplane trên mỗi node):
      │
      │ watch event
      ▼
-[kubelet trên 7189srv04]
+[kubelet trên 7189srv05]
      │
      │ CRI (gRPC unix socket)
      ▼
-[containerd trên 7189srv04]
+[containerd trên 7189srv05]
      │
      │ runc
      ▼
@@ -52,11 +64,11 @@ runtime + CNI dataplane trên mỗi node):
 
 Khi `7189srv01` chết:
 
-1. **kubelet trên srv04** mất kết nối tới apiserver → entry watch
+1. **kubelet trên srv05** mất kết nối tới apiserver → entry watch
    timeout. **Nhưng kubelet không kill pod** — nó retry vô hạn cho tới
    khi apiserver có lại. Trong thời gian đó pod tiếp tục chạy với cấu
    hình cuối cùng kubelet đã nhận.
-2. **Cilium agent** trên srv04 mất kết nối → nó không nhận được identity
+2. **Cilium agent** trên srv05 mất kết nối → nó không nhận được identity
    mới hay CiliumNetworkPolicy mới, nhưng các BPF map trong kernel
    (policy, services, NAT) đã được populate trước đó, nên dataplane vẫn
    chuyển gói. Pod-to-pod đã được cấp identity vẫn nói chuyện được.
@@ -77,7 +89,7 @@ Khi `7189srv01` chết:
 - **Recover time**: power-on srv01 → ~2-3 phút apiserver lại respond
   (etcd read PVC, scheduler/controller-manager bắt đầu reconcile).
 - **Risk**: nếu srv01 chết LÂU (>10 phút) và trong thời gian đó pod trên
-  srv04 OOM-killed → kubelet **không thể tạo pod thay thế** vì không
+  srv05 OOM-killed → kubelet **không thể tạo pod thay thế** vì không
   liên hệ được apiserver. Pod sẽ stuck trong `unknown` state cho tới khi
   cp up lại. Đây là lý do `7189srv01` được cấp 2 GB RAM riêng + chạy
   trên Windows host (host nhiều RAM hơn) — giảm xác suất srv01 chết do
@@ -96,7 +108,7 @@ Khi `7189srv01` chết:
      --key=/etc/kubernetes/pki/etcd/server.key \
      snapshot save /var/lib/etcd-backup/snap-$(date +%F).db
    ```
-3. **Khi srv01 sập trong demo**: chỉ cần **không đụng vào srv04**. Pod
+3. **Khi srv01 sập trong demo**: chỉ cần **không đụng vào srv05**. Pod
    tiếp tục phục vụ HTTP request giữa các worker và tới user. Power-on
    srv01 lại là xong.
 
@@ -105,14 +117,14 @@ Khi `7189srv01` chết:
 | Kịch bản | Ubuntu host (OS) bị ảnh hưởng? |
 |---------|-------------------------------|
 | `7189srv01` (Windows) chết — apiserver gone | KHÔNG |
-| Toàn bộ Windows host crash → 3 VM chết | KHÔNG (Ubuntu host và srv04 vẫn chạy độc lập) |
+| Toàn bộ Windows host crash → 3 VM chết | KHÔNG (Ubuntu host và srv05 vẫn chạy độc lập) |
 | Tailscale rớt giữa Windows ↔ Ubuntu | KHÔNG (host vẫn online; chỉ pod cross-host mất kết nối) |
-| `7189srv04` (VM trên Ubuntu) ăn quá nhiều RAM | **CÓ** — Ubuntu host bị thiếu RAM cho các app khác |
-| `7189srv04` corrupt disk file `.vmdk` | **CÓ** — file disk image hỏng cần fix qua VMware |
+| `7189srv05` (VM trên Ubuntu) ăn quá nhiều RAM | **CÓ** — Ubuntu host bị thiếu RAM cho các app khác |
+| `7189srv05` corrupt disk file `.qcow2` | **CÓ** — file disk image (libvirt/KVM) hỏng cần fix qua `qemu-img check`/`virsh` |
 
 → **Kết luận**: control plane sập trên Windows **KHÔNG** ảnh hưởng tới
 Ubuntu host. Chỉ có việc dùng kubectl bị treo cho đến khi srv01 up lại.
-Workload data trên srv04 vẫn phục vụ.
+Workload data trên srv05 vẫn phục vụ.
 
 ---
 
@@ -130,7 +142,7 @@ trên Windows VM — kệ.
 | Thực thể | K8s thấy như thế nào | User Linux liên quan? |
 |---------|---------------------|----------------------|
 | Hostname VM | `kubernetes.io/hostname` label trên Node | KHÔNG |
-| nodeAffinity matching | `kubernetes.io/hostname=7189srv04` | KHÔNG |
+| nodeAffinity matching | `kubernetes.io/hostname=7189srv05` | KHÔNG |
 | kubelet identity | TLS cert do CA của apiserver issue | KHÔNG (kubelet chạy với systemd unit, KHÔNG dùng user `ptb`) |
 | etcd files trên srv01 | `/var/lib/etcd/` (root owned) | KHÔNG |
 | containerd files | `/var/lib/containerd/` (root) | KHÔNG |
@@ -212,7 +224,7 @@ Bạn nói:
 > Một số vấn đề nữa là Ubuntu làm host có 8GB thôi, vì vậy để cái máy ảo
 > của nó 4GB thôi nhé
 
-Plan cũ (`03-vm-sizing.md`) tính srv04 = **6 GB**. Mình revise xuống
+Plan cũ (`03-vm-sizing.md`) tính srv05 = **6 GB**. Mình revise xuống
 **4 GB** trong file `03-vm-sizing.md` (xem PR này) và trim workload
 tương ứng:
 
@@ -222,11 +234,11 @@ tương ứng:
 | vault-prod | 256 / 512 Mi | 192 / 384 Mi | |
 | MySQL | 256 / 512 Mi | 256 / 512 Mi | giữ — DB chính |
 | Kafka | 256 / 512 Mi | 192 / 384 Mi | giảm broker heap |
-| Elasticsearch | 384 / 768 Mi | **MOVE OFF srv04** → emptyDir trên srv02/03 với heap 256 Mi | Accept restart-time data loss (bạn đã ok) |
-| Prometheus | 256 / 512 Mi | **MOVE OFF srv04** → emptyDir trên srv02/03, retention 6h | Accept restart-time data loss |
+| Elasticsearch | 384 / 768 Mi | **MOVE OFF srv05** → emptyDir trên srv02/03 với heap 256 Mi | Accept restart-time data loss (bạn đã ok) |
+| Prometheus | 256 / 512 Mi | **MOVE OFF srv05** → emptyDir trên srv02/03, retention 6h | Accept restart-time data loss |
 | SPIRE server | 256 / 512 Mi | 192 / 384 Mi | sqlite nhỏ |
 | docker-registry | 256 / 512 Mi | 128 / 256 Mi | Phục vụ pull, không nén nặng |
-| Tetragon DS | (skip srv04) | (skip srv04) | toleration không deploy DS lên srv04 |
+| Tetragon DS | (skip srv05) | (skip srv05) | toleration không deploy DS lên srv05 |
 | Cilium DS | 128 / 256 Mi | 128 / 256 Mi | giữ |
 | Filebeat DS | 100 / 200 Mi | 64 / 128 Mi | giảm |
 | spire-agent + csi DS | 128 / 256 Mi | 96 / 192 Mi | giảm |
@@ -239,7 +251,7 @@ tương ứng:
 syslog, etc. Đủ.
 
 → **Tradeoff**: ES + Prom mất state khi pod restart. Cho thesis demo
-short-lived OK. Nếu cần persist long-term, bump srv04 lên 5-6 GB hoặc
+short-lived OK. Nếu cần persist long-term, bump srv05 lên 5-6 GB hoặc
 dựng external observability trên admin laptop.
 
 Chi tiết update trong PR: `doc/migration/03-vm-sizing.md` được rewrite,

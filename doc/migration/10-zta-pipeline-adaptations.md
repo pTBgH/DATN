@@ -1,18 +1,30 @@
 # 10. ZTA Pipeline Adaptations — sửa script nào, thay gì
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Mục tiêu: giữ tối đa logic cũ. Script `zta-rebuild.sh`, `02-…sh`, `03-…sh`,
 > `05-…sh`, `07-…sh`, `08-…sh`, `09-verify-zta.sh`, `10-deploy-tetragon.sh`
 > đều **GIỮ NGUYÊN logic**. Chỉ:
 > 1. Đổi phase `01-cluster` từ `bash 01-setup-cluster.sh` (Kind) sang
 >    pre-built kubeadm cluster (đã có sẵn từ `07-kubeadm-bootstrap.md`).
 > 2. Patch nodeAffinity **CHỈ cho 8 stateful workload** (data tier) về
->    `7189srv04`. Stateless workload để K8s scheduler tự đặt.
-> 3. Patch path/registry hostname (`7189srv04.<tailnet>.ts.net:30005`).
+>    `7189srv05`. Stateless workload để K8s scheduler tự đặt.
+> 3. Patch path/registry hostname (`7189srv05.<tailnet>.ts.net:30005`).
 > 4. Bypass `--kind` flag bất kỳ chỗ nào còn dùng.
 >
 > **Nguyên tắc**: K8s scheduler tự điều phối workload theo RAM/CPU pressure.
 > Chỉ những pod có PVC hoặc yêu cầu always-on (vault-dev) mới pin vào
-> `7189srv04`. Tránh over-engineer nodeSelector cho stateless.
+> `7189srv05`. Tránh over-engineer nodeSelector cho stateless.
 
 ## 1. `01-setup-cluster.sh` — chia làm 2 chế độ
 
@@ -75,15 +87,15 @@ nodeAffinity cho 8 workload có PVC hoặc yêu cầu always-on:
 
 | Workload | File | Patch nodeAffinity | Lý do |
 |----------|------|---------------------|-------|
-| MySQL | `infras/k8s-yaml/01-mysql-phpmyadmin.yaml` | `kubernetes.io/hostname=7189srv04` | PVC stateful |
-| **vault-dev** | `infras/k8s-yaml/11-vault.yaml` | `kubernetes.io/hostname=7189srv04` | **Always-on — unseal vault-prod** |
-| **vault-prod** | `infras/k8s-yaml/11-vault.yaml` | `kubernetes.io/hostname=7189srv04` | PVC + co-locate vault-dev |
+| MySQL | `infras/k8s-yaml/01-mysql-phpmyadmin.yaml` | `kubernetes.io/hostname=7189srv05` | PVC stateful |
+| **vault-dev** | `infras/k8s-yaml/11-vault.yaml` | `kubernetes.io/hostname=7189srv05` | **Always-on — unseal vault-prod** |
+| **vault-prod** | `infras/k8s-yaml/11-vault.yaml` | `kubernetes.io/hostname=7189srv05` | PVC + co-locate vault-dev |
 | Vault agent injector | (helm) | (anywhere) | MutatingWebhook stateless |
-| Kafka | `infras/k8s-yaml/03-kafka.yaml` | `kubernetes.io/hostname=7189srv04` | PVC stateful |
-| Elasticsearch | `infras/k8s-yaml/05-elasticsearch.yaml` | `kubernetes.io/hostname=7189srv04` | PVC stateful |
-| Prometheus | `infras/k8s-yaml/08-prometheus.yaml` | `kubernetes.io/hostname=7189srv04` | PVC stateful (TSDB) |
-| Docker registry | `12-docker-registry.yaml` | `kubernetes.io/hostname=7189srv04` | PVC stateful |
-| SPIRE server | `infras/k8s-yaml/spire/server.yaml` | `kubernetes.io/hostname=7189srv04` | PVC (datastore SQLite) |
+| Kafka | `infras/k8s-yaml/03-kafka.yaml` | `kubernetes.io/hostname=7189srv05` | PVC stateful |
+| Elasticsearch | `infras/k8s-yaml/05-elasticsearch.yaml` | `kubernetes.io/hostname=7189srv05` | PVC stateful |
+| Prometheus | `infras/k8s-yaml/08-prometheus.yaml` | `kubernetes.io/hostname=7189srv05` | PVC stateful (TSDB) |
+| Docker registry | `12-docker-registry.yaml` | `kubernetes.io/hostname=7189srv05` | PVC stateful |
+| SPIRE server | `infras/k8s-yaml/spire/server.yaml` | `kubernetes.io/hostname=7189srv05` | PVC (datastore SQLite) |
 | Keycloak | `infras/k8s-yaml/02-keycloak.yaml` | (anywhere) | H2 in-memory — stateless |
 | Kong | `infras/k8s-yaml/04-kong-dbless.yaml` | (anywhere) | DB-less, stateless |
 | oauth2-proxy | (manifest) | (anywhere) | Stateless |
@@ -105,7 +117,7 @@ spec:
             - matchExpressions:
               - key: kubernetes.io/hostname
                 operator: In
-                values: ["7189srv04"]
+                values: ["7189srv05"]
 ```
 
 Nếu không muốn sửa manifest gốc → tạo Kustomize overlay:
@@ -140,19 +152,19 @@ Helmfile dùng chart `k8s-management/charts/laravel-app`. Patch
 ```yaml
 # KHÔNG cần nodeAffinity — K8s scheduler chọn worker theo RAM
 image:
-  repository: 7189srv04.<tailnet>.ts.net:30005/job7189/<service>
+  repository: 7189srv05.<tailnet>.ts.net:30005/job7189/<service>
   tag: dev
   pullPolicy: Always
 ```
 
 `04-build-and-push-images.sh` đổi default registry:
 ```bash
-REGISTRY_HOST=${1:-"7189srv04.<tailnet>.ts.net:30005"}
+REGISTRY_HOST=${1:-"7189srv05.<tailnet>.ts.net:30005"}
 ```
 
 Hoặc qua env var:
 ```bash
-ZTA_REGISTRY_HOST="7189srv04.<tailnet>.ts.net:30005" bash 04-build-and-push-images.sh
+ZTA_REGISTRY_HOST="7189srv05.<tailnet>.ts.net:30005" bash 04-build-and-push-images.sh
 ```
 
 `03-deploy-microservices.sh` `configure_kind_registry_access` function
@@ -181,7 +193,7 @@ kubectl -n data exec -it mysql-0 -- mysql -uroot -p$(...) -e "SHOW DATABASES;"
 thêm.
 
 Prom-stack `kube-prometheus-stack` nếu được dùng: chỉ cần pin Prometheus
-StatefulSet (PVC) về `7189srv04`. Grafana và alertmanager (nếu emptyDir)
+StatefulSet (PVC) về `7189srv05`. Grafana và alertmanager (nếu emptyDir)
 stateless → anywhere.
 
 ```yaml
@@ -189,7 +201,7 @@ stateless → anywhere.
 prometheus:
   prometheusSpec:
     nodeSelector:
-      kubernetes.io/hostname: 7189srv04
+      kubernetes.io/hostname: 7189srv05
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -254,7 +266,7 @@ fi
 
 Hoặc thêm Test 5c mới: verify Tailscale up trên mọi node (cần SSH key):
 ```bash
-for node in 7189srv01 7189srv02 7189srv03 7189srv04; do
+for node in 7189srv01 7189srv02 7189srv03 7189srv05; do
   ssh debian@$node.<tailnet>.ts.net 'tailscale status | head -1' || echo "  WARN: $node Tailscale not reachable"
 done
 ```
@@ -280,9 +292,9 @@ Pre-flight RAM trong script: `SPIRE_REQUIRED_NODE_MI=450`. Sau migration:
   bump srv01 lên 2.5 GB)
 - 7189srv02 ~1.6 Gi free → OK
 - 7189srv03 ~2.1 Gi free → OK
-- 7189srv04 ~2.7 Gi free → OK (chính là VM nó được pin vào)
+- 7189srv05 ~2.7 Gi free → OK (chính là VM nó được pin vào)
 
-Pin SPIRE server StatefulSet vào `7189srv04` (có PVC datastore):
+Pin SPIRE server StatefulSet vào `7189srv05` (có PVC datastore):
 ```yaml
 # infras/k8s-yaml/spire/values.yaml — thêm:
 server:
@@ -293,7 +305,7 @@ server:
         - matchExpressions:
           - key: kubernetes.io/hostname
             operator: In
-            values: ["7189srv04"]
+            values: ["7189srv05"]
 ```
 
 SPIRE agent (DS) chạy trên mọi node (mặc định DS) — đúng yêu cầu để mỗi
@@ -303,10 +315,10 @@ workload trên mỗi node nhận SVID.
 
 Gatekeeper controller + audit là stateless — K8s scheduler tự đặt. Pre-flight
 RAM `MIN_FREE_MIB=1500` áp dụng cho **host** (không phải node). Trên
-multi-VM, chỉ cần một worker nào đó còn free ≥1.5 GB (srv04 có ~3 Gi free,
+multi-VM, chỉ cần một worker nào đó còn free ≥1.5 GB (srv05 có ~3 Gi free,
 srv03 ~2.4 Gi free → pass).
 
-KHÔNG pin Gatekeeper vào srv04 — để K8s phân tải.
+KHÔNG pin Gatekeeper vào srv05 — để K8s phân tải.
 
 ## 11. PDP Controller (`scripts/zta-deploy-pdp.sh`)
 
@@ -357,17 +369,17 @@ Diff conceptual:
 | File | Loại thay đổi | Lý do |
 |------|---------------|-------|
 | `01-setup-cluster.sh` | Add `ZTA_CLUSTER_MODE=external` branch | Skip kind delete/create |
-| `04-build-and-push-images.sh` | Default registry → `7189srv04.<tailnet>.ts.net:30005` | Cross-host pull |
+| `04-build-and-push-images.sh` | Default registry → `7189srv05.<tailnet>.ts.net:30005` | Cross-host pull |
 | `03-deploy-microservices.sh` | Skip `configure_kind_registry_access` if external | Containerd config thủ công |
 | `08-harden-security.sh` | Doc + default `ZTA_HARDEN_WIREGUARD=0` if external | Tránh double-encrypt |
 | `09-verify-zta.sh` | Test 5b skip nếu external + add Test 5c (Tailscale) | Reflect new posture |
-| `infras/k8s-yaml/01-mysql-phpmyadmin.yaml` | Add nodeAffinity `7189srv04` | PVC stateful |
-| `infras/k8s-yaml/03-kafka.yaml` | Add nodeAffinity `7189srv04` | PVC stateful |
-| `infras/k8s-yaml/05-elasticsearch.yaml` | Add nodeAffinity `7189srv04` | PVC stateful |
-| `infras/k8s-yaml/08-prometheus.yaml` | Add nodeAffinity `7189srv04` | PVC stateful |
-| `infras/k8s-yaml/11-vault.yaml` | Add nodeAffinity `7189srv04` cho **vault-dev** + **vault-prod** | always-on (unseal) + PVC |
-| `infras/k8s-yaml/12-docker-registry.yaml` | Add nodeAffinity `7189srv04` + NodePort 30005 | PVC + reachable |
-| `infras/k8s-yaml/spire/values.yaml` | Add nodeAffinity `7189srv04` cho server | PVC datastore |
+| `infras/k8s-yaml/01-mysql-phpmyadmin.yaml` | Add nodeAffinity `7189srv05` | PVC stateful |
+| `infras/k8s-yaml/03-kafka.yaml` | Add nodeAffinity `7189srv05` | PVC stateful |
+| `infras/k8s-yaml/05-elasticsearch.yaml` | Add nodeAffinity `7189srv05` | PVC stateful |
+| `infras/k8s-yaml/08-prometheus.yaml` | Add nodeAffinity `7189srv05` | PVC stateful |
+| `infras/k8s-yaml/11-vault.yaml` | Add nodeAffinity `7189srv05` cho **vault-dev** + **vault-prod** | always-on (unseal) + PVC |
+| `infras/k8s-yaml/12-docker-registry.yaml` | Add nodeAffinity `7189srv05` + NodePort 30005 | PVC + reachable |
+| `infras/k8s-yaml/spire/values.yaml` | Add nodeAffinity `7189srv05` cho server | PVC datastore |
 | `k8s-management/values/laravel-common-values.yaml` | Update registry hostname | Image pull |
 | `scripts/zta-rebuild.sh` | Add `--external-cluster` flag | Skip step `01-cluster` |
 

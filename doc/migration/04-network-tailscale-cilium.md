@@ -1,5 +1,17 @@
 # 04. Networking — Tailscale + VMware NAT + Cilium VXLAN
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 ## 1. Vấn đề
 
 VMware Workstation NAT cô lập VM trong subnet riêng của từng host:
@@ -16,17 +28,17 @@ fallback nếu tắc), thấy nhau qua IP `100.64.0.0/10` bất kể host vật 
 ## 2. Sơ đồ luồng gói
 
 ```
-         ┌─── pod-A trên 7189srv01 ──┐         ┌─── pod-B trên 7189srv04 ──┐
+         ┌─── pod-A trên 7189srv01 ──┐         ┌─── pod-B trên 7189srv05 ──┐
          │  10.244.1.5               │         │ 10.244.4.7                │
          └─────┬─────────────────────┘         └─────┬─────────────────────┘
                │                                     │
                ▼                                     ▼
-        cilium-agent 7189srv01                cilium-agent 7189srv04
+        cilium-agent 7189srv01                cilium-agent 7189srv05
                │ encap VXLAN                         │
                │ outer src=100.64.10.1               │
                │ outer dst=100.64.10.4 (UDP/8472)    │
                ▼                                     ▼
-        tailscaled 7189srv01                  tailscaled 7189srv04
+        tailscaled 7189srv01                  tailscaled 7189srv05
                │ WG src=100.64.10.1                  │
                │ WG dst=100.64.10.4 (UDP/41641)      │
                ▼                                     ▼
@@ -49,7 +61,7 @@ Bật MagicDNS trong admin console (`https://login.tailscale.com/admin/dns`)
 7189srv01.<tailnet>.ts.net  → 100.64.10.1
 7189srv02.<tailnet>.ts.net  → 100.64.10.2
 7189srv03.<tailnet>.ts.net  → 100.64.10.3
-7189srv04.<tailnet>.ts.net  → 100.64.10.4
+7189srv05.<tailnet>.ts.net  → 100.64.10.4
 ```
 
 ACL khuyến nghị (`https://login.tailscale.com/admin/acls`):
@@ -212,7 +224,7 @@ nào. Để demo từ máy admin (laptop) qua Tailscale:
 ```
 http://7189srv02.<tailnet>.ts.net:30000  # Kong
 https://7189srv02.<tailnet>.ts.net:30001 # Ingress
-http://7189srv04.<tailnet>.ts.net:30002  # Vault UI (debug, srv04 always-on)
+http://7189srv05.<tailnet>.ts.net:30002  # Vault UI (debug, srv05 always-on)
 ```
 
 Tùy chọn ingress chính:
@@ -251,7 +263,7 @@ nslookup 7189srv01   # phải trả 100.64.10.1
 Coredns trong cluster cũng resolve được tên Tailscale nhờ upstream
 forward `/etc/resolv.conf` → `100.100.100.100`. Tuy nhiên để app trong
 pod resolve `7189srv01` không đáng tin → giữ nguyên Service ClusterIP DNS
-`mysql.data.svc.cluster.local` thay vì `7189srv04:3306`.
+`mysql.data.svc.cluster.local` thay vì `7189srv05:3306`.
 
 ## 8. Firewall trên Debian VM
 

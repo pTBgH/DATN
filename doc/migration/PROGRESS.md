@@ -10,7 +10,10 @@ Cross-reference:
 - Runbook fresh deploy theo phase: `doc/migration/11-runbook-fresh-deploy.md`
 - Pipeline ZTA chi tiết: `scripts/zta-rebuild.sh --list`
 - Recovery khi hỏng: `doc/migration/12-runbook-recovery.md`
-- Sự cố đã gặp: `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md`
+- Sự cố đã gặp:
+  - `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md` (round 1 — containerd state)
+  - `doc/migration/incident-srv04-tailscale-derp-2026-05-13.md` (round 2 — Tailscale DERP saturation)
+- Kế hoạch chuyển sang srv05: `doc/migration/transition-srv04-to-srv05.md`
 
 ---
 
@@ -31,7 +34,8 @@ Cross-reference:
 | `7189srv01` | `100.114.68.15` | control-plane | Windows VMware | 2 GiB | apiserver, etcd, scheduler, cm |
 | `7189srv02` | `100.108.231.127` | worker | Windows VMware | 4.5 GiB | Stateless + ELK/Prometheus (emptyDir) |
 | `7189srv03` | `100.112.57.2` | worker | Windows VMware | 5 GiB | Stateless + ELK/Prometheus (emptyDir) |
-| `7189srv04` | `100.99.153.51` | worker (data tier) | Ubuntu libvirt/KVM | 4 GiB | Stateful pinned (`nodeAffinity`) |
+| `7189srv04` | `100.99.153.51` | worker (data tier — **deprecated**) | Ubuntu libvirt/KVM **NAT** | 4 GiB | Đang được thay bằng srv05 (double-NAT → Tailscale DERP saturation) |
+| `7189srv05` | _TBD_ | worker (data tier — **incoming**) | Ubuntu 24.04 libvirt/KVM **bridge** | 4 GiB | Replacement target. Cần bridge network để Tailscale direct-P2P được |
 
 ---
 
@@ -43,6 +47,7 @@ Cross-reference:
 ### Phase 0 — VM provisioning + Debian + Tailscale  (Plan: 60 min)
 
 - [x] 4 VM tạo, hostnames `7189srv01..04`
+- [~] **srv04 → srv05 swap đang diễn ra** — xem `transition-srv04-to-srv05.md`. Sau khi xong sẽ là `7189srv01..03 + 7189srv05`.
 - [x] Debian 13 trixie, kernel 6.12.86, `swappiness=10`
 - [x] Tailscale 1.96.4 installed + authenticated trên cả 4 VM
 - [x] Tailscale ACL: 4 hostnames đều `tagged-devices`, tất cả `active`
@@ -77,7 +82,10 @@ Cross-reference:
 - [x] local-path-provisioner v0.0.30 + alias `standard` storageClass mặc định
 - [x] coredns 2× Running
 
-### Phase 3 — In-cluster registry + push images  (Plan: 45 min)  [NEXT]
+### Phase 3 — In-cluster registry + push images  (Plan: 45 min)  [BLOCKED: srv04→srv05 swap]
+
+**Blocker**: Registry phải pin vào node data-tier qua nodeAffinity. Hiện srv04 không stable đủ để host registry (xem incident round 2). Phải hoàn tất swap srv05 trước. Sau swap, đổi nodeAffinity target từ `7189srv04` → `7189srv05` trong `infras/k8s-yaml/12-docker-registry.yaml`.
+
 
 - [ ] Apply `infras/k8s-yaml/12-docker-registry-multi-vm.yaml`
    (Registry phải pin vào srv04 — 8 GiB PVC local-path)
@@ -157,6 +165,13 @@ Cross-reference:
 
 > Add a new line at the top when something happens.
 
+- **2026-05-13 00:30** — srv04 incident **round 2**: kubelet+containerd active
+  nhưng TCP đến apiserver timeout. Root cause: Tailscale `MappingVariesByDestIP=true`
+  → direct UDP P2P fail → mọi traffic qua DERP-hkg → relay saturate (tx 9.3 GiB tích lũy)
+  → TCP TLS handshake (1.5 KiB Client Hello) bị drop. `tailscale down && up` hạ RTT
+  1300 ms → 56 ms, nhưng TCP vẫn fail. Quyết định: replace srv04 bằng srv05 (Ubuntu
+  24.04 LTS, libvirt bridge network) thay vì cố fix DERP. Scripts:
+  `onboard-srv05.sh`, `decommission-srv04.sh`. Runbook: `transition-srv04-to-srv05.md`.
 - **2026-05-12 23:35** — srv04 recovered. Nuked `/var/lib/containerd`,
   cilium DS pod `cilium-hccwk` Running 1/1. Incident report posted at
   `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md`.

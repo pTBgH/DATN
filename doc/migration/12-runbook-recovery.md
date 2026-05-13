@@ -346,7 +346,83 @@ sudo rm -rf /var/lib/containerd.broken.*
 
 Tham khảo chi tiết: `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md`.
 
-## 13. Bảng phản ứng nhanh
+## 13. Tailscale DERP relay saturation (double-NAT VM)
+
+**Triệu chứng (3 dấu hiệu phải XẢY RA ĐỒNG THỜI):**
+
+1. Node `NotReady`, `kubectl describe node` cho thấy
+   `LastHeartbeatTime` đã cũ hàng phút/giờ. Conditions: `Unknown`.
+2. Trên node đó: `containerd` + `kubelet` đều `active`, socket
+   `/run/containerd/containerd.sock` tồn tại. Tức KHÔNG phải lỗi
+   containerd/snapshotter.
+3. `sudo tailscale ping <CP>` thành công (qua DERP) nhưng:
+   ```
+   curl -k --max-time 10 https://<CP-tailscale-ip>:6443/livez
+   # → Connection timed out (TLS Client Hello sent, no response)
+   ```
+   Và trong `journalctl -u tailscaled`:
+   ```
+   open-conn-track: timeout opening (TCP <self>:<port> => <CP>:6443)
+     to node [...]; online=yes, lastRecv=Ns
+   ```
+
+**Xác nhận root cause:**
+
+```bash
+sudo tailscale netcheck | head -20
+```
+
+Tìm:
+- `MappingVariesByDestIP: true` ← symmetric NAT, UDP holepunch fail
+- `Nearest DERP: <city>` ← relay node bạn đang qua (vd. Hong Kong)
+
+Kết hợp với traffic counter bất thường trong `tailscale status`:
+```
+<peer>  active; relay "hkg", tx N rx M    ← N/M ratio > 5 = retry storm
+```
+
+⇒ Mọi traffic K8s bị buộc qua DERP relay; relay đang quá tải → drop
+gói TCP lớn (ví dụ TLS Client Hello 1.5 KiB).
+
+**Mitigation (theo thứ tự ưu tiên):**
+
+1. **Tạm thời (giảm latency 1-2 phút):**
+   ```bash
+   sudo tailscale down && sleep 2 && sudo tailscale up
+   sudo systemctl restart kubelet
+   ```
+   Sẽ reset connection state. Hữu hiệu trong vòng vài phút trước khi
+   relay saturate lại.
+
+2. **Bán-vĩnh-viễn (port-forward UDP 41641):**
+   Trên hypervisor host (KVM/libvirt) HOẶC router:
+   ```bash
+   sudo iptables -t nat -A PREROUTING -p udp --dport 41641 \
+     -j DNAT --to-destination <VM-LAN-IP>:41641
+   sudo iptables -A FORWARD -p udp -d <VM-LAN-IP> --dport 41641 -j ACCEPT
+   sudo netfilter-persistent save
+   ```
+   Cộng port-forward UDP 41641 trên router/modem nhà → IP host. Mục
+   tiêu: bypass DERP, enable direct P2P.
+
+3. **Vĩnh viễn (thay VM):**
+   Nếu VM dính double-NAT (libvirt NAT bên trong ISP CGNAT) → khả năng
+   `MappingVariesByDestIP=true` cao. Provision VM mới với bridge
+   network thay vì NAT. Xem `transition-srv04-to-srv05.md` cho quy
+   trình thay node data-tier.
+
+**Phòng ngừa:**
+
+- Trước khi thêm node mới vào cluster, chạy `sudo tailscale netcheck`
+  và xác nhận `MappingVariesByDestIP: false` HOẶC port-forward UDP
+  41641 đã active.
+- Stateful workload (vault, registry, mysql, kafka) **KHÔNG** được
+  pin vào node có dấu hiệu phụ thuộc DERP — DERP throughput không đủ
+  cho workload thật, sẽ sập dưới tải.
+
+Tham khảo chi tiết: `doc/migration/incident-srv04-tailscale-derp-2026-05-13.md`.
+
+## 14. Bảng phản ứng nhanh
 
 | Triệu chứng | Trang | Xử lý |
 |-------------|-------|-------|
@@ -362,3 +438,4 @@ Tham khảo chi tiết: `doc/migration/incident-srv04-containerd-snapshotter-202
 | Windows host crash | §10 | Power on VM thủ công |
 | Tailnet 401 | §11 | Tạo + login auth key mới |
 | `containerd.sock: no such file` + snapshot `rename: file exists` | §12 | Nuke `/var/lib/containerd` (chỉ khi không có stateful) |
+| Node NotReady + containerd/kubelet OK nhưng TCP timeout, `MappingVariesByDestIP=true` | §13 | tailscale down/up tạm thời; thay VM (bridge) lâu dài |

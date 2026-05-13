@@ -163,12 +163,19 @@ log_info "  swap will remain enabled with swappiness=10 (failSwapOn=false in kub
 log_step "[5/7] containerd"
 if ! already_done_and "containerd-installed" 'command -v containerd'; then
   if ! command -v containerd >/dev/null 2>&1; then
+    # Docker's apt repo path differs per distro family. ${ID} comes from
+    # /etc/os-release (sourced at pre-flight): "debian" or "ubuntu".
+    DOCKER_DISTRO="${ID:-debian}"
+    case "${DOCKER_DISTRO}" in
+      debian|ubuntu) ;;
+      *) log_warn "  Untested distro '${DOCKER_DISTRO}', falling back to debian repo"; DOCKER_DISTRO="debian" ;;
+    esac
     KEYRING_DIR="/etc/apt/keyrings"
     install -m 0755 -d "${KEYRING_DIR}"
-    step "Add Docker apt key" bash -c \
-      'curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && chmod a+r /etc/apt/keyrings/docker.asc'
-    step "Add Docker apt repo" bash -c \
-      'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list'
+    step "Add Docker apt key (${DOCKER_DISTRO})" bash -c \
+      "curl -fsSL https://download.docker.com/linux/${DOCKER_DISTRO}/gpg -o /etc/apt/keyrings/docker.asc && chmod a+r /etc/apt/keyrings/docker.asc"
+    step "Add Docker apt repo (${DOCKER_DISTRO})" bash -c \
+      "echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${DOCKER_DISTRO} \$(. /etc/os-release && echo \${VERSION_CODENAME}) stable\" > /etc/apt/sources.list.d/docker.list"
     register_rollback "rm -f /etc/apt/sources.list.d/docker.list /etc/apt/keyrings/docker.asc"
     step "apt update for docker repo" apt-get update
     step "Install containerd.io" apt-get install -y containerd.io

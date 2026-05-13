@@ -87,22 +87,24 @@ Cross-reference:
 
 ### Phase 3 — In-cluster registry + push images  (Plan: 45 min)  [UNBLOCKED]
 
-**Status**: srv05 stable với direct P2P (UPnP). Sẵn sàng deploy registry. Trước khi apply manifest cần verify nodeAffinity đích `7189srv05` (không còn `7189srv04`).
+**Status**: srv05 stable với direct P2P (UPnP). nodeAffinity đã patch vào 5 workload data-tier (registry, vault-dev, vault-prod, mysql, kafka) trên PR #27. Sẵn sàng `kubectl apply`.
 
-- [ ] Patch `infras/k8s-yaml/12-docker-registry-multi-vm.yaml`: nodeAffinity → `7189srv05`
-- [ ] Apply `infras/k8s-yaml/12-docker-registry-multi-vm.yaml`
-   (Registry pin vào srv05 — 8 GiB PVC local-path)
+- [x] Patch nodeAffinity → `7189srv05` cho 5 workload data-tier (PR #27, merged)
+- [ ] Apply `infras/k8s-yaml/12-docker-registry.yaml`
+   (Registry pin vào srv05 — 50 GiB PVC local-path)
 - [ ] Verify `kubectl -n registry get pod -o wide` → đúng trên `7189srv05`
 - [ ] Verify `curl -s http://7189srv05.<tailnet>.ts.net:30005/v2/_catalog`
 - [ ] Build + push 7 Laravel:
    ```bash
-   ZTA_REGISTRY_HOST="7189srv05.<tailnet>.ts.net:30005" \
-     bash 04-build-and-push-images.sh
+   bash 04-build-and-push-images.sh "7189srv05.<tailnet>.ts.net:30005"
    ```
 - [ ] Verify catalog chứa cả 7 image: `auth-service`, `job-service`,
    `application-service`, `notification-service`, `payment-service`,
    `analytics-service`, `gateway-service` (đối chiếu với
    `doc/01-introduction.md`)
+- [ ] `bash 02-deploy-infrastructure.sh` — apply và wait vault/mysql/kafka/keycloak/kong/ELK/Prom/Grafana (vault-dev, vault-prod, mysql, kafka sẽ tự land trên srv05 nhờ affinity ở PR #27)
+- [ ] `bash 03-deploy-microservices.sh` — deploy 7 Laravel
+- [ ] Sanity: `kubectl get pod -A -o wide | egrep 'mysql|vault|kafka|docker-registry'` → tất cả phải trên `7189srv05`
 
 ### Phase 4 — ZTA base stack  (Plan: 60-90 min)
 
@@ -169,6 +171,7 @@ Cross-reference:
 
 > Add a new line at the top when something happens.
 
+- **2026-05-13 03:00** — PR #27 merged: `nodeAffinity → 7189srv05` patched vào `12-docker-registry.yaml`, `11-vault.yaml` (vault-dev + vault-prod), `01-mysql-phpmyadmin.yaml`, `03-kafka.yaml`. Phase 3 apply sequence sẵn sàng (xem checklist trên).
 - **2026-05-13 02:21** — **srv05 stable, srv04 decommissioned**. `tailscale ping 7189srv01` từ srv05 = `via 192.168.1.x:port in 4ms` (direct P2P, UPnP mở qua router). `kubectl get nodes` chỉ còn 4 node: srv01/02/03/05 (Ready). srv05 kubelet `v1.30.14` (Ubuntu apt repo mới hơn srv01-03 `v1.30.0`, tương thích trong skew policy). Phase 3 UNBLOCKED.
 - **2026-05-13 01:40** — `onboard-srv05.sh` chạy thành công trên srv05 (Ubuntu 24.04, libvirt bridge IP `192.168.1.4`). kubeadm join OK. srv05 Ready trong cluster.
 - **2026-05-13 00:30** — srv04 incident **round 2**: kubelet+containerd active

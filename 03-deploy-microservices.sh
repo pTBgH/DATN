@@ -1,8 +1,26 @@
 #!/bin/bash
 # Part 3: Deploy Ingress Routes & Microservices
 # This script: Deploys Ingress configurations and all microservices via Helmfile
+#
+# Dual-mode:
+#   --vm (default)  4-node kubeadm cluster. Containerd on each real node was
+#                   pre-configured to allow HTTP pulls from the in-cluster
+#                   registry by `doc/migration/scripts/phases/host-prep.sh`,
+#                   so the Kind-specific `docker exec` rewrite is skipped.
+#   --kind          Legacy single-host. `configure_kind_registry_access`
+#                   writes /etc/containerd/certs.d/<registry>/hosts.toml into
+#                   every Kind node container so it can pull plain-HTTP.
 export FORCE_REBUILD_IMAGES=1
 set -euo pipefail
+
+SCRIPT_DIR_03="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPT_DIR_03/scripts/utils/zta-cluster-mode.sh"
+
+# Parse --kind / --vm; preserve remaining args.
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "03-deploy-microservices.sh"
 
 # ==================== TIMING FUNCTIONS ====================
 SCRIPT_START_TIME=$(date +%s)
@@ -555,12 +573,19 @@ fi
 
 echo "   Chart registry detected: $CHART_REGISTRY"
 
-if ! configure_kind_registry_access "$CHART_REGISTRY"; then
-  echo ""
-  echo "❌ CRITICAL ERROR: Failed to configure Kind nodes for local registry pulls"
-  exit 1
+if is_kind_mode; then
+  if ! configure_kind_registry_access "$CHART_REGISTRY"; then
+    echo ""
+    echo "❌ CRITICAL ERROR: Failed to configure Kind nodes for local registry pulls"
+    exit 1
+  fi
+  log_time "0e1. Configure Kind registry access"
+else
+  echo "   VM mode — registry access is already configured on each real node by"
+  echo "   doc/migration/scripts/phases/host-prep.sh (/etc/containerd/certs.d/...)."
+  echo "   Skipping kind-container containerd rewrite."
+  log_time "0e1. Configure VM registry access (no-op)"
 fi
-log_time "0e1. Configure Kind registry access"
 
 # Also ensure images are available under the chart registry name used in manifests
 echo "   Tagging images with chart registry prefix (if present)..."

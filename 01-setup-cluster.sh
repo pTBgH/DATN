@@ -1,11 +1,27 @@
 #!/bin/bash
 # Part 1: Setup Kubernetes Cluster & Core Components
-# This script: Creates Kind cluster, installs CNI (Cilium), cert-manager, Nginx Ingress
+#
+# KIND-ONLY: this script creates a single-host Kind cluster and is kept
+# behind --kind / ZTA_CLUSTER_MODE=kind so the legacy local-dev workflow
+# still works. Default mode is VM (4-node kubeadm cluster) — in that mode
+# this script refuses to run and points to doc/migration/scripts/bootstrap.sh.
+# See scripts/utils/zta-cluster-mode.sh for the full mode contract.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/utils/zta-common.sh
 source "$SCRIPT_DIR/scripts/utils/zta-common.sh"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPT_DIR/scripts/utils/zta-cluster-mode.sh"
+
+# Parse --kind / --vm flag; remaining args (none expected by this script)
+# are preserved into $@.
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "01-setup-cluster.sh"
+
+# Refuse to run in VM mode — destructive (would `kind delete cluster`).
+zta_require_kind "01-setup-cluster.sh" "doc/migration/scripts/bootstrap.sh"
 
 # ==================== TIMING FUNCTIONS ====================
 SCRIPT_START_TIME=$(date +%s)

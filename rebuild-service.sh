@@ -1,5 +1,24 @@
 #!/bin/bash
+# rebuild-service.sh — build + push + redeploy one Laravel service.
+#
+# Dual-mode:
+#   --vm (default)  Push the built image to the in-cluster registry. The
+#                   real nodes pull it from there; no kind-specific load.
+#                   Override the push target with VM_REGISTRY_HOST=<host:port>
+#                   (defaults to 7189srv05.<tailnet>.ts.net:30005 — read from
+#                   k8s-management/values/<service>-values.yaml when present).
+#   --kind          Push to localhost:5000 AND `kind load docker-image` so the
+#                   Kind node containerd can satisfy pulls without HTTPS.
 set -euo pipefail
+
+SCRIPT_DIR_RS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPT_DIR_RS/scripts/utils/zta-cluster-mode.sh"
+
+# Parse --kind / --vm; preserve remaining args ($1 = service name, $2 = tag).
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "rebuild-service.sh"
 
 # ========================
 # 1. CẤU HÌNH CƠ BẢN
@@ -87,13 +106,42 @@ echo "✓ Retagged: $IMAGE_BASE"
 echo ""
 
 # ========================
-# 4B. LOAD IMAGE INTO KIND CLUSTER
+# 4B. PUBLISH IMAGE TO CLUSTER
 # ========================
-echo "--- [3B/5] LOAD IMAGE VÀO CLUSTER ---"
-if kind load docker-image "$IMAGE_BASE" --name job7189 2>&1; then
-    echo "✓ Image loaded into kind cluster"
+if is_kind_mode; then
+  echo "--- [3B/5] LOAD IMAGE VÀO KIND CLUSTER ---"
+  if kind load docker-image "$IMAGE_BASE" --name job7189 2>&1; then
+      echo "✓ Image loaded into kind cluster"
+  else
+      echo "⚠️ kind load failed (image might still work if already downloaded)"
+  fi
 else
-    echo "⚠️ kind load failed (image might still work if already downloaded)"
+  echo "--- [3B/5] PUSH IMAGE VÀO IN-CLUSTER REGISTRY (VM mode) ---"
+  # Resolve the VM registry endpoint. Priority:
+  #   1. VM_REGISTRY_HOST env var (explicit override)
+  #   2. spec.image.registry from k8s-management/values/<service>-values.yaml
+  #   3. error — user must say where to push to
+  VM_REGISTRY_HOST="${VM_REGISTRY_HOST:-}"
+  if [ -z "$VM_REGISTRY_HOST" ]; then
+      BASE_NAME="${SERVICE_NAME%-service}"
+      VALUES_PROBE="$VALUES_DIR/${BASE_NAME}-values.yaml"
+      if [ -f "$VALUES_PROBE" ]; then
+          VM_REGISTRY_HOST=$(grep -m1 -E '^[[:space:]]*registry:[[:space:]]*' "$VALUES_PROBE" \
+              | sed -E 's/^[[:space:]]*registry:[[:space:]]*//; s/[[:space:]]+$//; s/^"//; s/"$//' || true)
+      fi
+  fi
+  if [ -z "$VM_REGISTRY_HOST" ]; then
+      echo "❌ VM mode: cannot determine push target."
+      echo "   Set VM_REGISTRY_HOST=<host:port> (e.g. 7189srv05.<tailnet>.ts.net:30005)"
+      echo "   or add an 'image.registry: ...' line to $VALUES_DIR/${SERVICE_NAME%-service}-values.yaml."
+      exit 1
+  fi
+  IMAGE_VM="$VM_REGISTRY_HOST/$IMAGE_BASE"
+  echo "   Tag → $IMAGE_VM"
+  docker tag "$IMAGE_HOST" "$IMAGE_VM"
+  echo "   Push → $IMAGE_VM"
+  docker push "$IMAGE_VM"
+  echo "✓ Image pushed to $VM_REGISTRY_HOST"
 fi
 echo ""
 

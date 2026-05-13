@@ -9,15 +9,19 @@
 ## TL;DR
 
 ```bash
-# 1) Tắt và wipe sạch (idempotent)
-bash scripts/zta-teardown.sh --yes
+# 1) Tắt và wipe sạch (idempotent — KIND-ONLY, cần cờ --kind)
+bash scripts/zta-teardown.sh --kind --yes
 
 # 2) Rebuild + apply ZTA enforcement (base only — không kèm Tetragon/SPIRE/Cosign/Hubble heavy)
-bash scripts/zta-rebuild.sh --yes
+bash scripts/zta-rebuild.sh --kind --yes
 
 # 2b) HOẶC rebuild kèm tất cả module nặng (Tetragon, Cosign policy-controller, SPIRE, SPIRE demo, Hubble export)
-bash scripts/zta-rebuild.sh --yes --full-enforcement
+bash scripts/zta-rebuild.sh --kind --yes --full-enforcement
 ```
+
+> Mặc định hai script trên ở VM mode (4-VM kubeadm). Thêm `--kind` để opt-in
+> vào workflow Kind đơn host — xem `scripts/utils/zta-cluster-mode.sh` và
+> `doc/migration/README.md` cho VM-mode trường hợp.
 
 Kết quả mong đợi (cluster trắng → cluster Phase 4 sẵn sàng):
 - **Base rebuild** (`--yes`): ~25-35 phút, cluster ZTA Advanced+, chưa có Tetragon/SPIRE/Cosign/Hubble.
@@ -188,7 +192,7 @@ Output baseline (Hubble flows) ở `evidence/baseline-<timestamp>/SUMMARY.md`:
 
 | Lỗi | Hành động |
 |-----|-----------|
-| Phase `cluster` fail (kind create timeout) | `bash scripts/zta-teardown.sh --yes` rồi rebuild lại |
+| Phase `cluster` fail (kind create timeout) | `bash scripts/zta-teardown.sh --kind --yes` rồi rebuild lại |
 | Phase `infra` fail (Vault không init) | `kubectl logs -n vault vault-0` debug, sau đó: `bash scripts/zta-rebuild.sh --skip-cluster --from=infra --yes` |
 | Phase `apps` timeout nhưng pods eventually Ready | Mặc định OK — script tolerate. Nếu muốn strict: `--strict-apps` |
 | Phase `apps` thực sự fail | `kubectl get pod -n job7189-apps`, fix image, sau đó: `bash scripts/zta-rebuild.sh --from=apps --yes` |

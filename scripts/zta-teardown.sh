@@ -4,20 +4,55 @@
 # Wipe sạch cluster Kind "job7189" và toàn bộ artefact liên quan.
 # An toàn để chạy nhiều lần (idempotent).
 #
-# Usage:
-#   bash scripts/zta-teardown.sh                # full teardown, prompt confirm
-#   bash scripts/zta-teardown.sh --yes          # full teardown, no prompt
-#   bash scripts/zta-teardown.sh --keep-images  # giữ docker images đã build
-#   bash scripts/zta-teardown.sh --keep-volumes # giữ persistent volume host paths
+# KIND-ONLY: this script does `kind delete cluster`, `docker rmi`, and
+# `rm -rf /mnt/data /var/lib/job7189-*` — all destructive operations that
+# only make sense for a single-host Kind cluster. In the default VM mode
+# it refuses to run and prints pointers to the per-node migration tools.
+# See scripts/utils/zta-cluster-mode.sh for the full mode contract.
 #
-# Order:
+# Cluster modes:
+#   --vm (default)  Refuse — no VM-wide teardown equivalent exists by
+#                   design (the 4-VM kubeadm cluster is decommissioned
+#                   one node at a time). Pointer printed:
+#                     doc/migration/scripts/decommission-srv04.sh
+#                       — cordon/drain/delete a single worker node
+#                     doc/migration/scripts/99-rollback.sh
+#                       — per-VM rollback (kubeadm reset + cilium uninstall)
+#   --kind          Legacy single-host workflow: actually runs the
+#                   teardown sequence below.
+#
+# Usage:
+#   bash scripts/zta-teardown.sh --kind                # full teardown, prompt confirm
+#   bash scripts/zta-teardown.sh --kind --yes          # full teardown, no prompt
+#   bash scripts/zta-teardown.sh --kind --keep-images  # giữ docker images đã build
+#   bash scripts/zta-teardown.sh --kind --keep-volumes # giữ persistent volume host paths
+#
+# Order (kind mode only):
 #   1. kind delete cluster job7189
 #   2. (optional) docker rmi <local images>
 #   3. (optional) rm -rf /mnt/data /var/lib/job7189-* (persistent host paths)
 #   4. evidence/baseline-* dọn nhẹ (giữ folder, xoá file >7 ngày)
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve scripts/ dir BEFORE cd'ing to repo root so we can source the helper.
+# SCRIPT_DIR (repo root) is used later by the teardown logic for evidence/.
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPTS_DIR/utils/zta-cluster-mode.sh"
+
+# Parse --kind / --vm; rebind $@ with the remaining flags so the existing
+# arg loop below still sees --yes / --keep-images / --keep-volumes.
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "zta-teardown.sh"
+
+# Refuse to run in VM mode — destructive (would `kind delete cluster`, blow
+# away host data paths, etc.). The 4-VM cluster is decommissioned per-node
+# via doc/migration/scripts/decommission-srv04.sh + 99-rollback.sh; there is
+# no equivalent "nuke everything at once" workflow by design.
+zta_require_kind "zta-teardown.sh" "doc/migration/scripts/decommission-srv04.sh"
+
+SCRIPT_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 CLUSTER_NAME="${CLUSTER_NAME:-job7189}"
@@ -31,7 +66,7 @@ for arg in "$@"; do
     --keep-images) KEEP_IMAGES=1 ;;
     --keep-volumes) KEEP_VOLUMES=1 ;;
     -h|--help)
-      sed -n '2,18p' "$0" | sed 's/^# \?//'
+      sed -n '2,34p' "$0" | sed 's/^# \?//'
       exit 0 ;;
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac

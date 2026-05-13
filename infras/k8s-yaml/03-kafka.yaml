@@ -48,6 +48,17 @@ spec:
         zta.job7189/exposure: cluster-only
         zta.job7189/team: data
     spec:
+      # Pin to data-tier node so Kafka StatefulSet's PVCs (local-path) land on srv05.
+      # See doc/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
       containers:
       - name: kafka
         image: apache/kafka:3.7.0

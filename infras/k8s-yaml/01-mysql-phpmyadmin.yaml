@@ -69,6 +69,17 @@ spec:
         zta.job7189/team: data
     spec:
       serviceAccountName: mysql
+      # Pin to data-tier node so MySQL PVC (local-path) lands on srv05.
+      # See doc/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
       initContainers:
       - name: vault-init
         image: hashicorp/vault:1.12.0

@@ -1,11 +1,20 @@
 # 06. Debian Base Prep — chuẩn bị mỗi VM
 
+> **State as of 2026-05-13** — file này document procedure cho **Debian 13**
+> trên `7189srv01..03` (VMware host). Cho data-tier node `7189srv05`
+> (Ubuntu 24.04, libvirt bridge) dùng [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md)
+> hoặc chạy `bash doc/migration/scripts/onboard-srv05.sh` (host-prep.sh
+> đã auto-detect distro qua `${ID}` từ `/etc/os-release` và chọn Docker
+> apt repo đúng — debian vs ubuntu). srv04 (cũ, NAT) đã decommission;
+> xem [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md).
+
 > Mục tiêu: từ Debian 13 "Trixie" minimal vừa cài xong → trạng thái sẵn
 > sàng `kubeadm init` hoặc `kubeadm join`.
 
-Chạy script bên dưới trên **cả 4 VM** (`7189srv01`, `7189srv02`,
-`7189srv03`, `7189srv04`). Không idempotent 100% nhưng re-run an toàn
-(skip step đã làm).
+Chạy script bên dưới trên **3 VM Debian** (`7189srv01`, `7189srv02`,
+`7189srv03`). Không idempotent 100% nhưng re-run an toàn (skip step đã làm).
+Cho `7189srv05` (Ubuntu 24.04), dùng `onboard-srv05.sh` thay vì các bước
+ở đây.
 
 ## Distro cụ thể
 
@@ -221,12 +230,14 @@ sudo systemctl status open-vm-tools 2>/dev/null \
 
 Sau khi 4 VM cài xong base, từ admin laptop:
 ```bash
-for vm in 7189srv01 7189srv02 7189srv03 7189srv04; do
-  echo "=== $vm ==="
-  ssh debian@$vm.<tailnet>.ts.net 'echo OK; systemctl is-active containerd kubelet; tailscale ip -4'
+for vm in 7189srv01 7189srv02 7189srv03 7189srv05; do
+  # srv01-03: user 'debian'. srv05 (Ubuntu): user 'ptb' — đổi prefix tương ứng.
+  user=$([ "$vm" = "7189srv05" ] && echo ptb || echo debian)
+  echo "=== $vm ($user) ==="
+  ssh ${user}@$vm.<tailnet>.ts.net 'echo OK; systemctl is-active containerd kubelet; tailscale ip -4'
 done
 ```
 
-Output kỳ vọng: 4 lần "OK + active + active + 100.64.10.X".
+Output kỳ vọng: 4 lần "OK + active + active + 100.X.X.X".
 
 Tiến tới `07-kubeadm-bootstrap.md`.

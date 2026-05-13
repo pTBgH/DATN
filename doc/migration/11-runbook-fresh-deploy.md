@@ -1,5 +1,17 @@
 # 11. Runbook — Fresh Deploy từ 0 trên multi-VM
 
+> **State as of 2026-05-13** — the data-tier node `7189srv04` (Ubuntu host
+> on libvirt **NAT**) has been replaced by `7189srv05` (Ubuntu 24.04 LTS
+> on libvirt **bridge**) because the libvirt default-NAT inside ISP CGNAT
+> caused Tailscale `MappingVariesByDestIP=true` → no direct P2P → DERP
+> relay saturation → cluster instability. See
+> [transition-srv04-to-srv05.md](transition-srv04-to-srv05.md) and
+> [incident-srv04-tailscale-derp-2026-05-13.md](incident-srv04-tailscale-derp-2026-05-13.md)
+> for the full story. Below `7189srv04` mentions have been updated to
+> `7189srv05` where they describe **current** state; historical
+> references inside incident reports keep `7189srv04` as evidence.
+
+
 > Operator runbook cho lần triển khai đầu tiên. Tổng thời gian ~3-5 giờ
 > bao gồm cài Debian.
 
@@ -24,8 +36,8 @@
 
 ### Trên VMware Workstation (Ubuntu host)
 
-4. Trên Ubuntu host, tạo `7189srv04`: 6144 MB / 2 vCPU / 80 GB / NAT.
-   Hostname: `7189srv04`. Đây là VM **always-on** chứa tất cả stateful
+4. Trên Ubuntu host, tạo `7189srv05`: 6144 MB / 2 vCPU / 80 GB / NAT.
+   Hostname: `7189srv05`. Đây là VM **always-on** chứa tất cả stateful
    workload (vault-dev, vault-prod, MySQL, Kafka, ES, Prometheus,
    docker-registry, SPIRE server).
 
@@ -54,7 +66,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 echo "<paste join command output>" > /tmp/kubeadm-join.cmd
 ```
 
-Trên 3 worker (`7189srv02`, `7189srv03`, `7189srv04`) — chạy lệnh join
+Trên 3 worker (`7189srv02`, `7189srv03`, `7189srv05`) — chạy lệnh join
 (xem `07-kubeadm-bootstrap.md` §5).
 
 ```bash
@@ -78,7 +90,7 @@ helm upgrade --install cilium cilium/cilium \
 kubectl wait node --all --for=condition=Ready --timeout=300s
 
 # Label node always-on (không dùng tier-based labels cho stateless)
-kubectl label node 7189srv04 zta.workload.always-on=true
+kubectl label node 7189srv05 zta.workload.always-on=true
 ```
 
 Cài Gateway API, cert-manager, ingress-nginx, metrics-server,
@@ -96,11 +108,11 @@ bash doc/migration/scripts/01-cluster-bringup.sh    # placeholder name
 kubectl apply -f infras/k8s-yaml/12-docker-registry-multi-vm.yaml
 
 # Build + push 7 Laravel
-ZTA_REGISTRY_HOST="7189srv04.<tailnet>.ts.net:30005" \
+ZTA_REGISTRY_HOST="7189srv05.<tailnet>.ts.net:30005" \
   bash 04-build-and-push-images.sh
 
 # Verify
-curl -s http://7189srv04.<tailnet>.ts.net:30005/v2/_catalog | jq
+curl -s http://7189srv05.<tailnet>.ts.net:30005/v2/_catalog | jq
 ```
 
 ## Phase 4 — ZTA stack (60-90 phút)

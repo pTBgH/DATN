@@ -270,7 +270,159 @@ sudo tailscale up --auth-key=tskey-NEW... --advertise-tags=tag:zta-cluster --hos
 > apiserver TLS verify fail. Để tránh: trong Tailscale admin, đặt IP
 > reservation cho từng hostname.
 
-## 12. Bảng phản ứng nhanh
+## 12. Containerd state corrupt sau unclean shutdown
+
+**Triệu chứng (chuỗi 3 bước, đừng dừng ở bước 1):**
+
+1. `kubelet.service` crash-loop với:
+   ```
+   dial unix /run/containerd/containerd.sock: connect: no such file or directory
+   ```
+2. Sau khi `systemctl restart containerd` lại được, pod mới fail với:
+   ```
+   failed to prepare extraction snapshot ... rename ... : file exists
+   ```
+3. Sau khi xóa CHỈ `io.containerd.snapshotter.v1.overlayfs/`, lỗi mới xuất hiện:
+   ```
+   failed to create snapshot: missing parent "k8s.io/3/sha256:..." bucket: not found
+   ```
+
+Bước 3 là lỗi báo hiệu **global metadata DB** (`io.containerd.metadata.v1.bolt/meta.db`) lệch
+với snapshotter mới. Xóa nửa vời sẽ kéo dài tình trạng — phải nuke `/var/lib/containerd`
+hoàn toàn.
+
+**Cảnh báo an toàn:**
+
+- Quy trình này XÓA toàn bộ image local + container state trên node đó.
+- An toàn khi node chưa host stateful workload (vault, MySQL, Kafka, registry, SPIRE).
+- KHÔNG làm với `7189srv04` nếu `vault-dev` đang chạy — Transit key trong RAM của
+  vault-dev sẽ mất → `vault-prod` mất auto-unseal. Khi đó dùng VMware/libvirt snapshot
+  restore thay vì nuke containerd.
+
+**Recovery procedure (chỉ làm khi node KHÔNG có stateful workload):**
+
+```bash
+# 1. Stop kubelet TRƯỚC containerd
+sudo systemctl stop kubelet
+sudo systemctl stop containerd
+
+# 2. Xác nhận không còn container/pod đang chạy
+sudo crictl ps 2>/dev/null
+sudo ctr -n k8s.io c ls 2>/dev/null | head
+
+# 3. Backup toàn bộ /var/lib/containerd
+sudo mv /var/lib/containerd /var/lib/containerd.broken.$(date +%s)
+sudo mkdir -p /var/lib/containerd
+sudo chmod 711 /var/lib/containerd
+
+# 4. Dọn CNI tàn dư (IPAM cũ + lxc interface có thể chặn pod sandbox sau khi nuke)
+sudo rm -rf /var/lib/cni /var/run/cni 2>/dev/null || true
+sudo ip link show | awk -F': ' '/cilium_|lxc/{print $2}' | xargs -r -n1 sudo ip link delete 2>/dev/null || true
+
+# 5. Start lại
+sudo systemctl start containerd
+sleep 5
+sudo systemctl start kubelet
+
+# 6. Verify runtime healthy
+sudo systemctl is-active containerd kubelet
+```
+
+Sau đó từ control plane:
+
+```bash
+# Force recreate cilium DS pod trên node bị ảnh hưởng
+kubectl -n kube-system delete pod -l k8s-app=cilium \
+  --field-selector spec.nodeName=<affected-node>
+
+# Watch ~2-3 phút cho image pull lại từ quay.io
+kubectl -n kube-system get pod -l k8s-app=cilium -o wide -w
+```
+
+Sau 1 tuần không vấn đề, xóa backup giải phóng disk:
+```bash
+sudo rm -rf /var/lib/containerd.broken.*
+```
+
+Tham khảo chi tiết: `doc/migration/incident-srv04-containerd-snapshotter-2026-05-12.md`.
+
+## 13. Tailscale DERP relay saturation (double-NAT VM)
+
+**Triệu chứng (3 dấu hiệu phải XẢY RA ĐỒNG THỜI):**
+
+1. Node `NotReady`, `kubectl describe node` cho thấy
+   `LastHeartbeatTime` đã cũ hàng phút/giờ. Conditions: `Unknown`.
+2. Trên node đó: `containerd` + `kubelet` đều `active`, socket
+   `/run/containerd/containerd.sock` tồn tại. Tức KHÔNG phải lỗi
+   containerd/snapshotter.
+3. `sudo tailscale ping <CP>` thành công (qua DERP) nhưng:
+   ```
+   curl -k --max-time 10 https://<CP-tailscale-ip>:6443/livez
+   # → Connection timed out (TLS Client Hello sent, no response)
+   ```
+   Và trong `journalctl -u tailscaled`:
+   ```
+   open-conn-track: timeout opening (TCP <self>:<port> => <CP>:6443)
+     to node [...]; online=yes, lastRecv=Ns
+   ```
+
+**Xác nhận root cause:**
+
+```bash
+sudo tailscale netcheck | head -20
+```
+
+Tìm:
+- `MappingVariesByDestIP: true` ← symmetric NAT, UDP holepunch fail
+- `Nearest DERP: <city>` ← relay node bạn đang qua (vd. Hong Kong)
+
+Kết hợp với traffic counter bất thường trong `tailscale status`:
+```
+<peer>  active; relay "hkg", tx N rx M    ← N/M ratio > 5 = retry storm
+```
+
+⇒ Mọi traffic K8s bị buộc qua DERP relay; relay đang quá tải → drop
+gói TCP lớn (ví dụ TLS Client Hello 1.5 KiB).
+
+**Mitigation (theo thứ tự ưu tiên):**
+
+1. **Tạm thời (giảm latency 1-2 phút):**
+   ```bash
+   sudo tailscale down && sleep 2 && sudo tailscale up
+   sudo systemctl restart kubelet
+   ```
+   Sẽ reset connection state. Hữu hiệu trong vòng vài phút trước khi
+   relay saturate lại.
+
+2. **Bán-vĩnh-viễn (port-forward UDP 41641):**
+   Trên hypervisor host (KVM/libvirt) HOẶC router:
+   ```bash
+   sudo iptables -t nat -A PREROUTING -p udp --dport 41641 \
+     -j DNAT --to-destination <VM-LAN-IP>:41641
+   sudo iptables -A FORWARD -p udp -d <VM-LAN-IP> --dport 41641 -j ACCEPT
+   sudo netfilter-persistent save
+   ```
+   Cộng port-forward UDP 41641 trên router/modem nhà → IP host. Mục
+   tiêu: bypass DERP, enable direct P2P.
+
+3. **Vĩnh viễn (thay VM):**
+   Nếu VM dính double-NAT (libvirt NAT bên trong ISP CGNAT) → khả năng
+   `MappingVariesByDestIP=true` cao. Provision VM mới với bridge
+   network thay vì NAT. Xem `transition-srv04-to-srv05.md` cho quy
+   trình thay node data-tier.
+
+**Phòng ngừa:**
+
+- Trước khi thêm node mới vào cluster, chạy `sudo tailscale netcheck`
+  và xác nhận `MappingVariesByDestIP: false` HOẶC port-forward UDP
+  41641 đã active.
+- Stateful workload (vault, registry, mysql, kafka) **KHÔNG** được
+  pin vào node có dấu hiệu phụ thuộc DERP — DERP throughput không đủ
+  cho workload thật, sẽ sập dưới tải.
+
+Tham khảo chi tiết: `doc/migration/incident-srv04-tailscale-derp-2026-05-13.md`.
+
+## 14. Bảng phản ứng nhanh
 
 | Triệu chứng | Trang | Xử lý |
 |-------------|-------|-------|
@@ -285,3 +437,5 @@ sudo tailscale up --auth-key=tskey-NEW... --advertise-tags=tag:zta-cluster --hos
 | All-cluster reset | §9 | kubeadm reset + redeploy |
 | Windows host crash | §10 | Power on VM thủ công |
 | Tailnet 401 | §11 | Tạo + login auth key mới |
+| `containerd.sock: no such file` + snapshot `rename: file exists` | §12 | Nuke `/var/lib/containerd` (chỉ khi không có stateful) |
+| Node NotReady + containerd/kubelet OK nhưng TCP timeout, `MappingVariesByDestIP=true` | §13 | tailscale down/up tạm thời; thay VM (bridge) lâu dài |

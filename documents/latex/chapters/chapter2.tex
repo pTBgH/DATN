@@ -6,7 +6,7 @@
 %==============================================================================
 \section{Đặc điểm bảo mật đặc thù của Microservices}
 
-Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công của hệ thống \parencite{nist800204_microservices,owasp_api2023}. Theo NIST SP 800-204, độ phức tạp bảo mật chuyển từ \textit{bên trong} ứng dụng nguyên khối ra \textit{mạng lưới giao tiếp} liên dịch vụ; bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \parencite{nist800204_microservices}. Mục này phân tích năm đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức chúng tạo ra cho việc triển khai ZTA.
+Kiến trúc Microservices mang lại sự linh hoạt và khả năng mở rộng vượt trội, nhưng đồng thời cũng thay đổi hoàn toàn bề mặt tấn công của hệ thống \parencite{nist800204_microservices,owasp_api2023}. Độ phức tạp bảo mật chuyển từ \textit{bên trong} ứng dụng nguyên khối ra \textit{mạng lưới giao tiếp} liên dịch vụ; bề mặt tấn công gia tăng nhanh theo số lượng endpoint và API nội bộ \parencite{nist800204_microservices}. Mục này phân tích năm đặc điểm bảo mật nội tại của kiến trúc phân tán và những thách thức chúng tạo ra cho việc triển khai ZTA.
 
 \subsection{Sự bùng nổ lưu lượng nội bộ (East-West traffic)}
 
@@ -275,13 +275,13 @@ Quy trình xử lý một yêu cầu truy cập qua 5 lớp ZTA \parencite{nist8
 \end{figure}
 
 
-\subsection{Đối sánh khung đề xuất với NIST SP 800-207}
+\subsection{So sánh khung đề xuất với kiến trúc tham chiếu}
 
-Bảng~\ref{tab:nist_comparison} đối sánh từng thành phần của NIST với một bộ công nghệ \textit{cụ thể được đồ án sử dụng} (chi tiết ở Chương~3) và mức triển khai tương ứng trong PoC. Cột ``công nghệ'' chỉ là \textit{minh hoạ một lựa chọn khả thi}, không phải khuyến nghị bắt buộc.
+Bảng~\ref{tab:nist_comparison} so sánh từng thành phần của NIST với một bộ công nghệ \textit{cụ thể được đồ án sử dụng} (chi tiết ở Chương~3) và mức triển khai tương ứng trong PoC. Cột ``công nghệ'' chỉ là \textit{minh hoạ một lựa chọn khả thi}, không phải khuyến nghị bắt buộc.
 
 \begin{table}[H]
 \centering
-\caption{Đối sánh khung kiến trúc 5 lớp đề xuất với tiêu chuẩn NIST SP 800-207}
+\caption{So sánh khung 5 lớp đề xuất với kiến trúc tham chiếu Zero Trust}
 \label{tab:nist_comparison}
 \begin{tabularx}{\textwidth}{|p{3.5cm}|X|c|p{2.0cm}|}
 \hline
@@ -320,7 +320,7 @@ Hai thành phần \textit{ngoài phạm vi} (MDM/EDR và CAEP) là phần mở r
 %==============================================================================
 \section{Mô hình chính sách cho Microservices}
 
-Mô hình chính sách là thành phần cốt lõi của PE: chuyển hoá các mục tiêu bảo mật cấp cao thành luật thực thi (\textit{enforcement rule}) cụ thể.
+Mô hình chính sách là thành phần trung tâm của PE: chuyển hoá các mục tiêu bảo mật cấp cao thành luật thực thi (\textit{enforcement rule}) cụ thể.
 
 \subsection{Tiếp cận ABAC (attribute-based access control)}
 

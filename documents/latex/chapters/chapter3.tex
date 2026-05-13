@@ -6,7 +6,7 @@ NOTE: Một số đoạn mã cần điền lại sau khi hoàn thiện đồ án
 \section*{Mô tả bài toán và đối tượng nghiên cứu}
 
 \textbf{Bối cảnh hệ thống.}
-job7189 là hệ thống tuyển dụng trực tuyến được xây dựng theo kiến trúc Microservices, kế thừa từ đồ án trước (DA2) với mục tiêu xử lý các nghiệp vụ cốt lõi như đăng tuyển, ứng tuyển, quản lý hồ sơ ứng viên và phối hợp quy trình tuyển dụng theo mô hình ATS. Hệ thống được phân tách thành 7 dịch vụ nghiệp vụ độc lập gồm \texttt{identity}, \texttt{workspace}, \texttt{job}, \texttt{hiring}, \texttt{candidate}, \texttt{communication}, \texttt{storage}; mỗi dịch vụ có ranh giới miền rõ ràng, dữ liệu phân tán và giao tiếp liên dịch vụ qua API nội bộ/event.
+job7189 là hệ thống tuyển dụng trực tuyến được xây dựng theo kiến trúc Microservices, kế thừa từ đồ án trước (DA2) với mục tiêu xử lý các nghiệp vụ như đăng tuyển, ứng tuyển, quản lý hồ sơ ứng viên và phối hợp quy trình tuyển dụng theo mô hình ATS. Hệ thống được phân tách thành 7 dịch vụ nghiệp vụ độc lập gồm \texttt{identity}, \texttt{workspace}, \texttt{job}, \texttt{hiring}, \texttt{candidate}, \texttt{communication}, \texttt{storage}; mỗi dịch vụ có ranh giới miền rõ ràng, dữ liệu phân tán và giao tiếp liên dịch vụ qua API nội bộ/event.
 
 \textbf{Phát biểu bài toán.}
 Khi hệ thống chuyển sang vận hành theo mô hình phân tán trên Kubernetes, bề mặt tấn công tăng mạnh theo cả hai chiều: (i) chiều \textit{North-South} từ người dùng bên ngoài vào hệ thống, và (ii) chiều \textit{East-West} giữa các dịch vụ nội bộ. Nếu tiếp tục duy trì giả định tin cậy nội bộ, hệ thống sẽ đối mặt với ba nhóm rủi ro chính: truy cập trái phép API nhạy cảm, di chuyển ngang khi một Pod bị xâm nhập, và rò rỉ thông tin bí mật do sử dụng credential tĩnh.
@@ -99,7 +99,7 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 
 \begin{table}[H]
 \centering
-\caption{Bảy nguyên tắc thiết kế của job7189 (cụ thể hoá 7 tenets NIST SP 800-207)}
+\caption{Bảy nguyên tắc thiết kế của job7189 (cụ thể hoá 7 tenets)}
 \label{tab:design_principles}
 \begin{tabularx}{\textwidth}{|p{0.5cm}|p{4.0cm}|X|}
 \hline
@@ -123,10 +123,10 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \end{table}
 
 
-\subsection{Mô hình logic: PE / PA / PEP cho job7189}
+\subsection{Mô hình logic: PE / PA / PEP / PIP cho job7189}
 \label{subsec:logic_model}
 
-Đồ án không sử dụng một sản phẩm duy nhất nào đóng vai trò ``ZTA''. Thay vào đó, ba thành phần logic của NIST SP 800-207 (PE -- ra quyết định, PA -- biên dịch quyết định, PEP -- thực thi tại data plane) được \textit{phân rã} thành nhiều dịch vụ chuyên trách, mỗi dịch vụ có một loại quyết định/thực thi cụ thể. Hình~\ref{fig:logic_design_model} tóm tắt mô hình logic này; ánh xạ chi tiết sang công cụ được nêu trong Bảng~\ref{tab:nist_to_tool} ở Mục~\ref{subsec:nist_to_tool}.
+Đồ án không sử dụng một sản phẩm duy nhất nào đóng vai trò ``ZTA''. Thay vào đó, bốn vai trò logic của NIST SP 800-207 và SP 1800-35 (PE -- ra quyết định, PA -- biên dịch quyết định, PEP -- thực thi tại data plane, PIP -- cấp ngữ cảnh cho PDP) được \textit{phân rã} thành nhiều dịch vụ chuyên trách, mỗi dịch vụ có một loại quyết định/thực thi/ngữ cảnh cụ thể~\parencite{nist800207,nist_sp_1800_35}. Hình~\ref{fig:logic_design_model} tóm tắt mô hình logic này; công cụ tương ứng cho từng vai trò được liệt kê trong Bảng~\ref{tab:nist_to_tool_decision} và Bảng~\ref{tab:nist_to_tool_pip} ở Mục~\ref{subsec:nist_to_tool}.
 
 \begin{figure}[H]
 \centering
@@ -152,7 +152,7 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \draw[flow,dashed] (pep1.west) .. controls (-6,-1.2) and (-6,0.2) .. node[left,font=\scriptsize\sffamily]{flow log, syscall, drop} (pip1.south);
 
 \end{tikzpicture}
-\caption{Mô hình logic ZTA cho job7189 -- ba khối ngang là ba thành phần logic của NIST (PE/PA/PEP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PE; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát.}
+\caption{Mô hình logic ZTA cho job7189 -- ba khối ngang là PE/PA/PEP (PE + PA hợp thành PDP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PDP; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát, hiện thực hoá TA contextual.}
 \label{fig:logic_design_model}
 \end{figure}
 
@@ -195,12 +195,12 @@ Bảng~\ref{tab:layer_to_tool} ở Mục~\ref{subsec:5layer_mapping} liệt kê 
 \subsection{Ma trận truy cập (access matrix)}
 \label{subsec:access_matrix}
 
-Ma trận truy cập là thiết kế \textit{trung tâm} của ZTA cho job7189: mỗi ô trong ma trận quy định một subject được phép thực hiện hành động nào trên một resource cụ thể. Ma trận này được biên dịch thành \texttt{CiliumNetworkPolicy} ở Bước~4 và \texttt{kong.yml} ở Bước~3. Bảng~\ref{tab:access_matrix} là phiên bản rút gọn (chỉ flow \textit{cho phép}, mọi flow còn lại bị deny mặc định).
+Ma trận truy cập là thiết kế \textit{trung tâm} của ZTA cho job7189: mỗi ô trong ma trận quy định một subject được phép thực hiện hành động nào trên một resource cụ thể. Ma trận này được biên dịch thành \texttt{CiliumNetworkPolicy} ở Bước~4 và \texttt{kong.yml} ở Bước~3. Bảng~\ref{tab:access_matrix_ns} liệt kê các flow vào/ra cụm (North-South) và quan sát; Bảng~\ref{tab:access_matrix_ew} liệt kê các flow nội bộ giữa các microservice (East-West). Hai bảng này là phiên bản rút gọn (chỉ flow \textit{cho phép}, mọi flow còn lại bị deny mặc định).
 
 \begin{table}[H]
 \centering
-\caption{Ma trận truy cập rút gọn cho job7189 (chỉ liệt kê flow được cho phép)}
-\label{tab:access_matrix}
+\caption{Ma trận truy cập North-South và quan sát của job7189 (chỉ liệt kê flow được cho phép)}
+\label{tab:access_matrix_ns}
 \small
 \begin{tabularx}{\textwidth}{|p{2.6cm}|p{3.6cm}|p{2.4cm}|X|}
 \hline
@@ -209,16 +209,6 @@ Ma trận truy cập là thiết kế \textit{trung tâm} của ZTA cho job7189:
 External user & Kong Gateway (\texttt{:443}) & HTTPS GET/POST & TLS hợp lệ + JWT IdP có \texttt{exp} chưa hết hạn \\
 \hline
 Kong Gateway & 7 service trong \texttt{job7189-apps} & HTTP per-route & JWT \texttt{aud} = service tương ứng + path khớp route \\
-\hline
-\texttt{job-service} & \texttt{identity-service} & \texttt{GET /api/v1/internal/users/*} & SVID \texttt{spiffe://zta.job7189/.../sa/job-service} + \texttt{score-bucket=high} \\
-\hline
-\texttt{hiring-service} & \texttt{candidate-service} & \texttt{GET /api/v1/internal/candidates/*} & SVID \texttt{spiffe://zta.job7189/.../sa/hiring-service} + \texttt{score-bucket} $\in$ \{\texttt{high},\texttt{medium}\} \\
-\hline
-Mọi service \texttt{job7189-apps} & \texttt{mysql.data:3306} & MySQL protocol & Credential do Vault sinh (\texttt{lease\_id} hợp lệ, TTL $\leq 1\text{h}$) \\
-\hline
-Mọi service \texttt{job7189-apps} & \texttt{vault-prod.vault:8200} & HTTPS POST \texttt{/v1/auth/k8s/login} & K8s SA token được bind đúng SA name của Pod \\
-\hline
-Mọi service \texttt{job7189-apps} & DNS (kube-system \texttt{:53}) & UDP/TCP 53 & FQDN nằm trong allowlist (\texttt{*.job7189-apps}, \texttt{vault.vault}, \texttt{mysql.data}\dots) \\
 \hline
 Mọi pod & Internet egress & Bất kỳ & FQDN/CIDR \textit{không} có trong threat-intel blocklist (FireHOL Level1 + URLhaus) \\
 \hline
@@ -231,21 +221,53 @@ Quản trị viên (\texttt{7189\_internal}) & Grafana, Kibana, Hubble UI & HTTP
 \end{tabularx}
 \end{table}
 
-\textit{Mọi flow không xuất hiện trong ma trận trên đều bị mặc định từ chối.} Phiên bản đầy đủ của ma trận (kèm 16+ \texttt{CiliumNetworkPolicy} và \texttt{CiliumClusterwideNetworkPolicy}) được trình bày trong Bước~4 (Mục~3.5).
+\begin{table}[H]
+\centering
+\caption{Ma trận truy cập East-West của job7189 (chỉ liệt kê flow được cho phép)}
+\label{tab:access_matrix_ew}
+\small
+\begin{tabularx}{\textwidth}{|p{2.6cm}|p{3.6cm}|p{2.4cm}|X|}
+\hline
+\textbf{Subject} & \textbf{Resource} & \textbf{Action} & \textbf{Điều kiện (ngữ cảnh)} \\
+\hline
+\texttt{job-service} & \texttt{identity-service} & \texttt{GET /api/v1/internal/users/*} & SVID \texttt{spiffe://zta.job7189/.../sa/job-service} + \texttt{score-bucket=high} \\
+\hline
+\texttt{hiring-service} & \texttt{candidate-service} & \texttt{GET /api/v1/internal/candidates/*} & SVID \texttt{spiffe://zta.job7189/.../sa/hiring-service} + \texttt{score-bucket} $\in$ \{\texttt{high},\texttt{medium}\} \\
+\hline
+Mọi service \texttt{job7189-apps} & \texttt{mysql.data:3306} & MySQL protocol & Credential do Vault sinh (\texttt{lease\_id} hợp lệ, TTL $\leq 1\text{h}$) \\
+\hline
+Mọi service \texttt{job7189-apps} & \texttt{vault-prod.vault:8200} & HTTPS POST \texttt{/v1/auth/k8s/login} & K8s SA token được bind đúng SA name của Pod \\
+\hline
+Mọi service \texttt{job7189-apps} & DNS (kube-system \texttt{:53}) & UDP/TCP 53 & FQDN nằm trong allowlist (\texttt{*.job7189-apps}, \texttt{vault.vault}, \texttt{mysql.data}\dots) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textit{Mọi flow không xuất hiện trong hai ma trận trên đều bị mặc định từ chối.} Phiên bản đầy đủ của ma trận (kèm 16+ \texttt{CiliumNetworkPolicy} và \texttt{CiliumClusterwideNetworkPolicy}) được trình bày trong Bước~4 (Mục~3.5).
 
 
-\subsection{Ánh xạ NIST $\rightarrow$ công cụ và quyết định lựa chọn}
+\subsection{Công cụ và quyết định lựa chọn cho từng vai trò ZTA}
 \label{subsec:tool_decisions}
 
-Mỗi vai trò NIST trong job7189 được hiện thực bằng một công cụ cụ thể; lý do lựa chọn được tóm tắt ở Bảng~\ref{tab:tool_decision}. Ánh xạ chi tiết hơn được trình bày trong Mục~\ref{subsec:nist_to_tool}.
+Mỗi vai trò logic trong job7189 được hiện thực bằng một công cụ cụ thể; lý do lựa chọn được tóm tắt ở Bảng~\ref{tab:tool_decision_pe_pa_pep} (vai trò ra quyết định và thực thi) và Bảng~\ref{tab:tool_decision_pip} (vai trò cấp ngữ cảnh PIP). Danh sách đầy đủ ngay sau sơ đồ logic được trình bày trong Mục~\ref{subsec:nist_to_tool}.
 
 \begin{table}[H]
 \centering
-\caption{Quyết định lựa chọn công cụ cho từng vai trò ZTA của job7189}
-\label{tab:tool_decision}
+\caption{Lựa chọn công cụ cho các vai trò ra quyết định và thực thi (PE, PA, PEP)}
+\label{tab:tool_decision_pe_pa_pep}
 \begin{tabularx}{\textwidth}{|p{2.4cm}|p{3.4cm}|X|}
 \hline
 \textbf{Vai trò} & \textbf{Lựa chọn} & \textbf{Lý do} \\
+\hline
+PE người dùng & Keycloak (dual realm) & Realm \texttt{7189\_internal} cho admin, \texttt{job7189} cho end-user; tách rủi ro giữa nhân viên và khách. \\
+\hline
+PE workload posture & PDP Controller (Python kopf) & Tự code: tổng hợp 2 input (label + Trivy CVE) thành \texttt{score-bucket}; bind vào Cilium qua label, không cần thêm sản phẩm thương mại. \\
+\hline
+PA bí mật & HashiCorp Vault dual-mode + Agent Injector & Vault Database Engine sinh MySQL JIT; Agent Injector mutate Pod để inject sidecar render \texttt{tmpfs}. \\
+\hline
+PA workload identity & SPIRE Controller-Manager + \texttt{ClusterSPIFFEID} CRD & SPIFFE chuẩn hoá định danh; SPIRE cấp X.509 SVID có TTL ngắn. \\
+\hline
+PA chứng chỉ TLS & cert-manager + \texttt{ClusterIssuer} riêng & Tự rotate chứng chỉ Ingress + Vault TLS; tránh thao tác thủ công. \\
 \hline
 PEP biên & Kong Gateway (DB-less) & Hỗ trợ JWT plugin, JWKS từ Keycloak, declarative \texttt{kong.yml}; nhẹ hơn Istio Gateway. \\
 \hline
@@ -255,15 +277,16 @@ PEP admission & Sigstore policy-controller + OPA Gatekeeper & policy-controller 
 \hline
 PEP runtime & Tetragon & eBPF kprobe, kernel-level kill; nhẹ hơn Falco trên cụm 4 máy ảo với ngân sách RAM $\sim$15.5\,GiB. \\
 \hline
-PA bí mật & HashiCorp Vault dual-mode + Agent Injector & Vault Database Engine sinh MySQL JIT; Agent Injector mutate Pod để inject sidecar render \texttt{tmpfs}. \\
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Lựa chọn công cụ cho các vai trò cấp ngữ cảnh (PIP)}
+\label{tab:tool_decision_pip}
+\begin{tabularx}{\textwidth}{|p{2.4cm}|p{3.6cm}|X|}
 \hline
-PA workload identity & SPIRE Controller-Manager + \texttt{ClusterSPIFFEID} CRD & SPIFFE chuẩn hoá định danh; SPIRE cấp X.509 SVID có TTL ngắn. \\
-\hline
-PA chứng chỉ TLS & cert-manager + \texttt{ClusterIssuer} riêng & Tự rotate chứng chỉ Ingress + Vault TLS; tránh thao tác thủ công. \\
-\hline
-PE người dùng & Keycloak (dual realm) & Realm \texttt{7189\_internal} cho admin, \texttt{job7189} cho end-user; tách rủi ro giữa nhân viên và khách. \\
-\hline
-PE workload posture & PDP Controller (Python kopf) & Tự code: tổng hợp 2 input (label + Trivy CVE) thành \texttt{score-bucket}; bind vào Cilium qua label, không cần thêm sản phẩm thương mại. \\
+\textbf{Vai trò} & \textbf{Lựa chọn} & \textbf{Lý do} \\
 \hline
 PIP CDM & Trivy Operator & VulnerabilityReport CR là chuẩn de-facto; nhẹ; không yêu cầu API key bên ngoài. \\
 \hline
@@ -344,7 +367,7 @@ Thiết kế hiện tại chấp nhận một số giới hạn rõ ràng, ghi l
     \item \textbf{Không có CAEP / session-level revocation:} OpenID CAEP \parencite{openid_caep} chưa được triển khai; PE chỉ thu hồi quyền theo TTL của JWT/SVID, không phải theo sự kiện thay đổi posture.
     \item \textbf{Trust Score 2-input:} các input \textit{kill event} và \textit{IoC match} không trực tiếp ảnh hưởng score; lý do trình bày ở quyết định 1 phía trên.
     \item \textbf{Tetragon thay Falco do RAM:} đánh đổi giữa số lượng built-in rule và bộ nhớ lab; rule set chính được tự viết qua \texttt{TracingPolicy}.
-    \item \textbf{Cụm \texttt{kubeadm} trên máy ảo, không phải bare-metal:} 4 VM Debian 13 chạy trên hai host VMware/libvirt và nói chuyện cross-host qua Tailscale WireGuard. Một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG, latency mạng L2 thuần\dots) không được kiểm chứng trong đồ án -- chi tiết trade-off đối sánh với baseline Kind 1-host cũ xem \texttt{doc/migration/01-context-and-rationale.md}.
+    \item \textbf{Cụm \texttt{kubeadm} trên máy ảo, không phải bare-metal:} 4 VM Debian 13 chạy trên hai host VMware/libvirt và nói chuyện cross-host qua Tailscale WireGuard. Một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG, latency mạng L2 thuần\dots) không được kiểm chứng trong đồ án -- chi tiết trade-off so sánh với baseline Kind 1-host cũ xem \texttt{doc/migration/01-context-and-rationale.md}.
 \end{itemize}
 
 Sau khi nắm thiết kế tổng thể, mục tiếp theo (\ref{sec:zta_roadmap}) trình bày \textit{trình tự các bước} hiện thực hoá thiết kế này, theo đúng khuyến nghị của NIST SP 800-207 Mục 7.
@@ -353,14 +376,14 @@ Sau khi nắm thiết kế tổng thể, mục tiếp theo (\ref{sec:zta_roadmap
 %==============================================================================
 % 3.2  LỘ TRÌNH TRIỂN KHAI THEO NIST SP 800-207
 %==============================================================================
-\section{Lộ trình triển khai Zero Trust theo NIST SP 800-207}
+\section{Lộ trình triển khai Zero Trust}
 \label{sec:zta_roadmap}
 
 NIST SP 800-207 (Mục 7 -- ``Migrating to a Zero Trust Architecture'') khuyến nghị doanh nghiệp triển khai ZTA theo một lộ trình tuần tự, không phải ``bật tắt một công tắc duy nhất'' \parencite{nist800207}. Hệ thống job7189 tuân thủ lộ trình 6 giai đoạn sau:
 
 \begin{table}[H]
 \centering
-\caption{Lộ trình triển khai ZTA cho job7189 theo NIST SP 800-207 Mục 7}
+\caption{Lộ trình triển khai ZTA cho job7189}
 \label{tab:nist_roadmap}
 \begin{tabularx}{\textwidth}{|c|p{3.8cm}|X|p{2.5cm}|}
 \hline
@@ -390,27 +413,28 @@ Lộ trình này đảm bảo rằng mỗi giai đoạn là \textbf{tiền đề
 \section{Tổng quan kiến trúc và vai trò từng dịch vụ}
 \label{sec:system_overview_roles}
 
-Trước khi đi sâu vào từng bước triển khai, mục này đưa ra một \textit{bản đồ duy nhất} ánh xạ \textbf{mọi dịch vụ} đang chạy trong cụm job7189 đến: (i) namespace mà nó cư trú, (ii) lớp ZTA mà nó đảm nhiệm trong khung 5 lớp đề xuất ở Chương 2, (iii) vai trò NIST SP 800-207 (PE/PA/PEP)~\parencite{nist800207}, và (iv) tầng OSI mà nó kiểm soát. Mục đích là trả lời câu hỏi: \emph{``Khi tôi nhìn cụm job7189 đang chạy, dịch vụ nào đang đảm nhiệm việc gì?''}
+Trước khi đi sâu vào từng bước triển khai, mục này đưa ra một \textit{bản đồ duy nhất} gói \textbf{mọi dịch vụ} đang chạy trong cụm job7189 theo: (i) namespace mà nó cư trú, (ii) lớp ZTA mà nó đảm nhiệm trong khung 5 lớp đề xuất ở Chương 2, (iii) vai trò logic NIST SP 800-207 (PE/PA/PEP)~\parencite{nist800207}, và (iv) tầng OSI mà nó kiểm soát. Mục đích là trả lời câu hỏi: \emph{``Khi tôi nhìn cụm job7189 đang chạy, dịch vụ nào đang đảm nhiệm việc gì?''}
 
-\subsection{Mô hình logic NIST và ánh xạ tới công cụ thực tế}
+\subsection{Mô hình logic và công cụ thực tế tương ứng}
 \label{subsec:nist_to_tool}
 
-NIST SP 800-207 (Hình 2 trong báo cáo) tách kiến trúc ZTA thành ba thành phần logic~\parencite{nist800207}:
+NIST SP 800-207 (Hình 2) tách kiến trúc ZTA thành ba vai trò thực thi logic là PE, PA và PEP~\parencite{nist800207}; NIST SP 1800-35 (Volume B, mục \textit{General ZTA Reference Architecture}) hợp thức hoá thêm vai trò thứ tư là PIP và nhấn mạnh PE + PA tạo thành PDP~\parencite{nist_sp_1800_35}:
 \begin{itemize}
   \item \textbf{Policy Engine (PE):} bộ não quyết định cấp/từ chối truy cập dựa trên định danh, ngữ cảnh, posture.
   \item \textbf{Policy Administrator (PA):} biên dịch quyết định của PE thành cấu hình cụ thể cho data plane (sinh credential, sinh chứng chỉ, đẩy policy ra agent\dots).
   \item \textbf{Policy Enforcement Point (PEP):} đặt giữa subject và resource, thực thi quyết định: cho phép, chặn, log.
+  \item \textbf{Policy Information Point (PIP):} các \textit{Supporting Components} cấp telemetry, posture và threat intel cho PDP (identity, CDM, security analytics, threat feed\dots).
 \end{itemize}
 
-Trong job7189, \emph{không có một component nào đóng cả ba vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\parencite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool} chỉ rõ mapping:
+Trong job7189, \emph{không có một component nào đóng cả bốn vai trò} -- thay vào đó là tổ hợp \textit{Best-of-Breed} mã nguồn mở CNCF~\parencite{kubernetes_docs}. Bảng~\ref{tab:nist_to_tool_decision} liệt kê các vai trò ra quyết định và thực thi (PE, PA, PEP); Bảng~\ref{tab:nist_to_tool_pip} liệt kê các nguồn dữ liệu hỗ trợ (PIP).
 
 \begin{table}[H]
 \centering
-\caption{Ánh xạ từ thành phần logic NIST SP 800-207 sang công cụ trong job7189}
-\label{tab:nist_to_tool}
+\caption{Công cụ trong job7189 cho các vai trò ra quyết định và thực thi (PE, PA, PEP)}
+\label{tab:nist_to_tool_decision}
 \begin{tabularx}{\textwidth}{|p{2.4cm}|X|}
 \hline
-\textbf{NIST role} & \textbf{Công cụ trong job7189 (vai trò chi tiết)} \\
+\textbf{Vai trò} & \textbf{Công cụ trong job7189 (vai trò chi tiết)} \\
 \hline
 \textbf{Policy Engine (PE)} -- ra quyết định &
 \begin{itemize}[leftmargin=*,nosep]
@@ -444,7 +468,26 @@ Trong job7189, \emph{không có một component nào đóng cả ba vai trò} --
 \end{tabularx}
 \end{table}
 
-\subsection{Ánh xạ vào khung 5 lớp ZTA của job7189}
+\begin{table}[H]
+\centering
+\caption{Các nguồn dữ liệu Policy Information Point (PIP) cấp ngữ cảnh cho PDP}
+\label{tab:nist_to_tool_pip}
+\begin{tabularx}{\textwidth}{|p{3.2cm}|X|}
+\hline
+\textbf{Nhóm PIP} & \textbf{Công cụ trong job7189 (vai trò chi tiết)} \\
+\hline
+\textbf{Identity / Federated Identity} & Keycloak (claim người dùng), SPIRE (SVID workload), Vault K8s Auth (ServiceAccount token) -- cấp thuộc tính chủ thể cho PE. \\
+\hline
+\textbf{CDM \& Posture} & Trivy Operator \texttt{VulnerabilityReport} (CVE workload) và \texttt{pdp\_trust\_score} từ PDP Controller -- cấp tư thế workload. \\
+\hline
+\textbf{Threat Intelligence} & CronJob \texttt{threat-intel} (FireHOL Level1 + URLhaus) bơm IoC vào Cilium CCNP. \\
+\hline
+\textbf{Security Analytics / SIEM} & Hubble flow shipper $\rightarrow$ Elasticsearch, Filebeat audit log, Prometheus metrics -- vòng phản hồi PEP $\rightarrow$ PIP $\rightarrow$ PE. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Phân bổ dịch vụ vào khung 5 lớp ZTA của job7189}
 \label{subsec:5layer_mapping}
 
 Bảng~\ref{tab:layer_to_tool} trình bày góc nhìn ``từ trên xuống'' theo 5 lớp ZTA đã đề xuất trong Chương~2:
@@ -582,12 +625,12 @@ Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất 
 \subsection{Phân tích từng dịch vụ: vai trò và điểm tích hợp}
 \label{subsec:per_tool}
 
-Bảng~\ref{tab:component_summary} tổng hợp \textbf{vai trò chính} và \textbf{điểm tích hợp} của 13 thành phần cốt lõi. Lý do lựa chọn từng công cụ (Vì sao Cilium thay vì Calico, Tetragon thay vì Falco\dots) đã được luận giải trong Chương 2 (mục so sánh giải pháp).
+Bảng~\ref{tab:component_summary_identity_enforce} tổng hợp \textbf{vai trò chính} và \textbf{điểm tích hợp} của các thành phần định danh và thực thi (Identity, Secrets, Network, Gateway, Admission, Runtime); Bảng~\ref{tab:component_summary_obs_policy} liệt kê các thành phần policy, quan sát và workload nghiệp vụ. Lý do lựa chọn từng công cụ (Vì sao Cilium thay vì Calico, Tetragon thay vì Falco\dots) đã được luận giải trong Chương 2 (mục so sánh giải pháp).
 
 \begin{table}[H]
 \centering
-\caption{Vai trò và điểm tích hợp của các công cụ ZTA trong job7189}
-\label{tab:component_summary}
+\caption{Thành phần định danh, bí mật, mạng và thực thi của job7189}
+\label{tab:component_summary_identity_enforce}
 \begin{tabularx}{\textwidth}{|p{2.6cm}|X|}
 \hline
 \textbf{Công cụ} & \textbf{Vai trò chính (data plane / điểm tích hợp)} \\
@@ -604,9 +647,20 @@ Kong Gateway & PEP duy nhất cho luồng N-S; DB-less, declarative \texttt{kong
 \hline
 Cosign + policy-ctl & Ký ECDSA offline trong phase \texttt{22-cosign-sign}; \texttt{ClusterImagePolicy} block image không có chữ ký tại admission. \\
 \hline
-OPA Gatekeeper & 6 ConstraintTemplate (3 label ZTA + 3 image provenance), \texttt{enforcementAction: dryrun} cho \texttt{job7189-apps}. \\
-\hline
 Tetragon & DaemonSet kprobe; 5 TracingPolicy block 6 binary phá hoại trong 4 namespace nhạy cảm; thay thế Falco do RAM lab. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Thành phần policy, quan sát và workload nghiệp vụ của job7189}
+\label{tab:component_summary_obs_policy}
+\begin{tabularx}{\textwidth}{|p{2.6cm}|X|}
+\hline
+\textbf{Công cụ} & \textbf{Vai trò chính (data plane / điểm tích hợp)} \\
+\hline
+OPA Gatekeeper & 6 ConstraintTemplate (3 label ZTA + 3 image provenance), \texttt{enforcementAction: dryrun} cho \texttt{job7189-apps}. \\
 \hline
 PDP Controller & Python kopf watch label/policy; tính \texttt{pdp\_trust\_score = 100 - 15*missing\_labels}; emit Event + Prometheus metrics. \\
 \hline
@@ -726,7 +780,7 @@ No runtime monitoring & Persistent backdoor & Cao & EFK + Hubble: mọi traffic 
 %==============================================================================
 \section{Bước 2: Thiết lập gốc tin cậy -- Identity Layer}
 
-Theo NIST SP 800-207, gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}~\parencite{nist800207}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity)~\parencite{keycloak_docs}, Vault (Workload Secrets)~\parencite{vault_docs}, và Kubernetes ServiceAccount (Workload Identity)~\parencite{kubernetes_docs,spiffe_spec}.
+Gốc tin cậy (Root of Trust) phải được thiết lập \textbf{trước mọi thành phần khác}~\parencite{nist800207}. Trong job7189, gốc tin cậy gồm 3 thành phần: Keycloak (User Identity)~\parencite{keycloak_docs}, Vault (Workload Secrets)~\parencite{vault_docs}, và Kubernetes ServiceAccount (Workload Identity)~\parencite{kubernetes_docs,spiffe_spec}.
 
 \subsection{Keycloak: User Identity qua OIDC/JWT}
 
@@ -1091,7 +1145,7 @@ Ingress rule tách biệt domain cho API và Authentication:
 %==============================================================================
 \section{Bước 4: Triển khai Microsegmentation -- Cilium Network Policy}
 
-Đây là phần \textbf{cốt lõi} của kiến trúc Zero Trust: chuyển từ ``Flat Network'' (mạng phẳng, mọi Pod tự do giao tiếp) sang ``Microsegmented Network'' (mỗi Pod bị cô lập, chỉ giao tiếp qua các kênh được khai báo tường minh). Hệ thống sử dụng \textbf{CiliumNetworkPolicy} với công nghệ eBPF hoạt động tại tầng kernel \parencite{cilium_docs}.
+Phần này là bước chuyển từ ``Flat Network'' (mạng phẳng, mọi Pod tự do giao tiếp) sang ``Microsegmented Network'' (mỗi Pod bị cô lập, chỉ giao tiếp qua các kênh được khai báo tường minh). Hệ thống sử dụng \textbf{CiliumNetworkPolicy} với công nghệ eBPF hoạt động tại tầng kernel \parencite{cilium_docs}.
 
 \subsection{Quy trình triển khai microsegmentation}
 
@@ -1645,11 +1699,11 @@ monitoring      grafana-xxx                             1/1     Running   0
 
 
 
-\subsection{Bảng đối sánh: Trước và Sau khi áp dụng ZTA}
+\subsection{So sánh: Trước và Sau khi áp dụng ZTA}
 
 \begin{table}[H]
 \centering
-\caption{Đối sánh toàn diện: hệ thống job7189 trước và sau khi áp dụng ZTA}
+\caption{So sánh hệ thống job7189 trước và sau khi áp dụng ZTA}
 \label{tab:before_after}
 \begin{tabularx}{\textwidth}{|p{3cm}|X|X|}
 \hline
@@ -1679,14 +1733,14 @@ Continuous Auth & Xác thực một lần, JWT tồn tại suốt phiên & \text
 \end{table}
 
 
-\subsection{Đánh giá mức độ trưởng thành của hệ thống job7189 theo CISA ZTMM 2.0}
+\subsection{Đánh giá mức độ trưởng thành}
 
 Việc áp dụng công nghệ CNCF mã nguồn mở đã giúp hệ thống job7189 đạt được những bước tiến dài trên thang đo trưởng thành của CISA ZTMM 2.0 \parencite{cisa_ztmm2023}. ZTMM cung cấp khung đánh giá bao gồm 5 trụ cột chức năng (Identity, Devices, Networks, Applications \& Workloads, Data) và 3 năng lực xuyên suốt (Visibility \& Analytics, Automation \& Orchestration, Governance), được sắp xếp trên 4 cấp độ trưởng thành: Traditional, Initial, Advanced, Optimal \parencite{cisa_ztmm2023}.
 
 Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 
 \begin{longtable}{|p{2.5cm}|p{8cm}|p{4.5cm}|}
-\caption{Đánh giá mức độ trưởng thành job7189 theo CISA ZTMM 2.0}
+\caption{Đánh giá mức độ trưởng thành ZTMM của job7189}
 \label{tab:cisa_ztmm_assessment} \\
 
 \hline
@@ -1784,7 +1838,7 @@ Trước khi mở rộng sang các module ZTA Phase~4, mục này làm rõ \text
 \section{Lớp ZTA mở rộng -- Phase 4: Supply chain, Workload attestation và Adaptive loop}
 \label{sec:phase4}
 
-Các Bước 2--6 ở trên hoàn thiện \textit{Identity}, \textit{Network} và \textit{Observability} -- ba trụ cột cốt lõi để hệ thống đạt mức trưởng thành \emph{Advanced} trên CISA ZTMM~\parencite{cisa_ztmm2023}. Phase~4 bổ sung bốn module để hệ thống tiến gần \emph{Optimal}: \textbf{(a)} ký + xác thực image (supply-chain)~\parencite{newman2022sigstore,sigstore_docs}, \textbf{(b)} cấp định danh mật mã ngắn hạn cho từng workload~\parencite{spiffe_spec,spire_docs}, \textbf{(c)} kiểm soát admission có khả năng mở rộng~\parencite{opa_docs,gatekeeper_docs,k8s_admission_controllers}, và \textbf{(d)} đóng vòng lặp đáp ứng (adaptive feedback loop)~\parencite{nist800207}.
+Các Bước 2--6 ở trên hoàn thiện \textit{Identity}, \textit{Network} và \textit{Observability} -- ba trụ cột để hệ thống đạt mức trưởng thành \emph{Advanced} trên CISA ZTMM~\parencite{cisa_ztmm2023}. Phase~4 bổ sung bốn module để hệ thống tiến gần \emph{Optimal}: \textbf{(a)} ký + xác thực image (supply-chain)~\parencite{newman2022sigstore,sigstore_docs}, \textbf{(b)} cấp định danh mật mã ngắn hạn cho từng workload~\parencite{spiffe_spec,spire_docs}, \textbf{(c)} kiểm soát admission có khả năng mở rộng~\parencite{opa_docs,gatekeeper_docs,k8s_admission_controllers}, và \textbf{(d)} đóng vòng lặp đáp ứng (adaptive feedback loop)~\parencite{nist800207}.
 
 \subsection{Image provenance: Cosign + Sigstore policy-controller}
 \label{subsec:cosign}
@@ -1960,7 +2014,7 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 
 \begin{table}[H]
 \centering
-\caption{16 phase trong \texttt{zta-rebuild.sh} -- ánh xạ phase $\rightarrow$ script $\rightarrow$ thành phần được tạo}
+\caption{16 phase trong \texttt{zta-rebuild.sh} -- phase, script và thành phần được tạo}
 \label{tab:zta_rebuild_pipeline}
 \begin{tabularx}{\textwidth}{|c|p{3.0cm}|X|}
 \hline
@@ -2022,7 +2076,7 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 
 Cluster ZTA chạy đồng thời nhiều \emph{control loop có leader-election} (\texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-controller-manager}) đều dựa trên \texttt{coordination.k8s.io/Lease} mặc định 5\,s~\parencite{kubernetes_docs}. Khi \texttt{kube-apiserver} chậm hơn 5\,s (thường do fsync etcd hoặc tải đột biến), nhóm này \emph{đồng thời} mất leadership trong cùng cửa sổ -- chuỗi enforcement Zero Trust tạm thời ``tan rã'': Cilium ngừng reconcile NetworkPolicy/Identity, SPIRE ngừng cấp SVID, admission chain bị phớt qua. Pipeline có nhiệm vụ \emph{dập sớm} cascade này thay vì để cluster tự ổn định.
 
-Pipeline triển khai trang bị bốn cơ chế phòng vệ độc lập, ánh xạ tới Bảng~\ref{tab:defense_matrix}:
+Pipeline triển khai trang bị bốn cơ chế phòng vệ độc lập, liệt kê trong Bảng~\ref{tab:defense_matrix}:
 
 \begin{table}[H]
 \centering

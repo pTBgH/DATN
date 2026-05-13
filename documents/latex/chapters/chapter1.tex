@@ -8,12 +8,12 @@
 
 \subsection{Hạn chế của mô hình bảo mật dựa trên chu vi (Perimeter-based)}
 
-Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ chu vi (Perimeter-based defense)}, hay còn gọi là chiến lược ``Lâu đài và Hào nước'' (Castle-and-Moat). Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng cốt lõi là cấp quyền truy cập chủ yếu dựa trên vị trí mạng (network location) \parencite{kindervag2010build,jericho2004}.
+Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ chu vi (Perimeter-based defense)}, hay còn gọi là chiến lược ``Lâu đài và Hào nước'' (Castle-and-Moat). Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng quan sát được là cấp quyền truy cập chủ yếu dựa trên vị trí mạng (network location) \parencite{kindervag2010build,jericho2004}.
 
-Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ (chia VLAN, tường lửa nội bộ, các cơ chế định danh tĩnh ở tầng ứng dụng), mô hình này bộc lộ ba hạn chế cốt lõi khi đối mặt với hạ tầng cloud-native hiện đại:
+Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ (chia VLAN, tường lửa nội bộ, các cơ chế định danh tĩnh ở tầng ứng dụng), mô hình này bộc lộ ba hạn chế khi đối mặt với hạ tầng cloud-native hiện đại:
 
 \begin{itemize}
-    \item \textbf{Sự tin cậy ngầm định (Implicit Trust):} Theo NIST SP 800-207, một khi kẻ tấn công hoặc mối đe doạ nội bộ (insider threat) đã có chỗ đứng bên trong mạng, các hệ thống thường mặc định coi mọi giao tiếp xuất phát từ dải IP nội bộ là an toàn \parencite{nist800207}.
+    \item \textbf{Sự tin cậy ngầm định (Implicit Trust):} một khi kẻ tấn công hoặc mối đe doạ nội bộ (insider threat) đã có chỗ đứng bên trong mạng, các hệ thống thường mặc định coi mọi giao tiếp xuất phát từ dải IP nội bộ là an toàn \parencite{nist800207}.
     \item \textbf{Di chuyển ngang (Lateral Movement):} Khi chu vi đã bị chọc thủng, các biện pháp kiểm soát nội bộ truyền thống chủ yếu dựa trên việc chia mạng theo VLAN/subnet ở quy mô lớn. Kẻ tấn công sau khi chiếm được một máy hợp lệ có thể tái sử dụng danh tính tĩnh (header hoặc token lâu dài) để trinh sát và di chuyển sang các tài nguyên khác trong cùng phân đoạn mạng trước khi bị phát hiện \parencite{kindervag2010build,gilman2017zero}.
     \item \textbf{Sự mờ nhạt của chu vi vật lý:} Môi trường cloud-native, làm việc từ xa (work-from-home) và thiết bị cá nhân (BYOD) khiến việc xác định một ``chu vi mạng'' rõ ràng để đặt tường lửa trở nên bất khả thi \parencite{cisa_ztmm2023,nist800207}.
 \end{itemize}
@@ -26,11 +26,11 @@ Trong các tài liệu hiện hành, ba thuật ngữ ZT, ZTA và ZTE thường 
 
 \begin{table}[H]
 \centering
-\caption{Phân biệt Zero Trust, ZTA và ZTE theo NIST SP 800-207}
+\caption{Phân biệt Zero Trust, ZTA và ZTE}
 \label{tab:zt_levels}
 \begin{tabularx}{\textwidth}{|l|l|X|}
 \hline
-\textbf{Thuật ngữ} & \textbf{Viết tắt} & \textbf{Định nghĩa theo NIST SP 800-207} \\
+\textbf{Thuật ngữ} & \textbf{Viết tắt} & \textbf{Định nghĩa} \\
 \hline
 Zero Trust & ZT & Tập hợp các \textit{nguyên tắc} an ninh mạng định hướng dịch chuyển phòng thủ từ chu vi mạng tĩnh sang việc tập trung bảo vệ \textit{từng tài sản} (người dùng, thiết bị, dịch vụ). ZT giả định không có sự tin cậy ngầm định cho bất kỳ thành phần nào dựa trên vị trí mạng. \\
 \hline
@@ -41,7 +41,7 @@ Zero Trust Enterprise & ZTE & Trạng thái khi cơ sở hạ tầng (mạng, th
 \end{tabularx}
 \end{table}
 
-Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207 (Mục 2.1), có thể rút ra hai tư tưởng cốt lõi xuyên suốt mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
+Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207 (Mục 2.1), có thể rút ra hai tư tưởng xuyên suốt mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
 \begin{enumerate}
     \item \textbf{Mạng luôn bị coi là đã bị xâm nhập} (the network is viewed as compromised).
     \item \textbf{Mọi truy cập đều phải được xác thực và uỷ quyền} một cách rõ ràng trên cơ sở \textit{từng yêu cầu} (per-request), không được phụ thuộc vào vị trí mạng của chủ thể.
@@ -50,15 +50,15 @@ Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207 (
 %==============================================================================
 % 1.2  KIẾN TRÚC LOGIC CỦA ZTA THEO NIST
 %==============================================================================
-\section{Kiến trúc logic của ZTA theo NIST SP 800-207}
+\section{Kiến trúc logic của ZTA}
 
-\subsection{7 nguyên lý cốt lõi (Seven Tenets)}
+\subsection{Bảy nguyên lý (Seven Tenets)}
 
 NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai ZTA phải tuân thủ \parencite{nist800207}:
 
 \begin{table}[H]
 \centering
-\caption{7 nguyên lý cốt lõi Zero Trust theo NIST SP 800-207}
+\caption{Bảy nguyên lý Zero Trust}
 \label{tab:seven_tenets}
 \begin{tabularx}{\textwidth}{|c|p{4cm}|X|}
 \hline
@@ -81,100 +81,143 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 \end{tabularx}
 \end{table}
 
-\subsection{Mô hình logic cốt lõi: PE, PA, PEP và các nguồn dữ liệu}
+\subsection{Mô hình logic: PDP (PE + PA), PEP và PIP}
+\label{subsec:logic_pdp_pep_pip}
 
-Theo NIST SP 800-207 (Mục 3.1), kiến trúc logic của Zero Trust tách biệt hoàn toàn giữa \textbf{mặt phẳng điều khiển (control plane)} và \textbf{mặt phẳng dữ liệu (data plane)} \parencite{nist800207}.
+NIST SP 800-207 (Mục 3.1) định nghĩa kiến trúc logic ZTA tách biệt hoàn toàn giữa \textbf{mặt phẳng điều khiển (control plane)} và \textbf{mặt phẳng dữ liệu (data plane)} \parencite{nist800207}. NIST SP 1800-35 (NCCoE \textit{Implementing a Zero Trust Architecture}) bổ sung và sử dụng nhất quán bốn vai trò kiến trúc dưới đây, trong đó PE và PA hợp thành \textbf{Policy Decision Point (PDP)} ở control plane, còn PEP thực thi tại data plane và PIP cấp ngữ cảnh cho PDP \parencite{nist_sp_1800_35}.
 
-Ba thành phần thực thi cốt lõi bao gồm:
+Bốn vai trò logic chính trong kiến trúc tham chiếu của NIST gồm:
 \begin{itemize}
-    \item \textbf{Policy Engine (PE) -- Động cơ chính sách:} chịu trách nhiệm đưa ra quyết định cuối cùng về việc cấp quyền truy cập. PE sử dụng \textit{thuật toán tin cậy (trust algorithm)} để đánh giá rủi ro của từng yêu cầu dựa trên chính sách của tổ chức và dữ liệu đầu vào.
-    \item \textbf{Policy Administrator (PA) -- Quản trị chính sách:} thiết lập hoặc ngắt kết nối theo phán quyết của PE. PA tạo ra các thông tin xác thực động (token, credential) và gửi lệnh cấu hình xuống mặt phẳng dữ liệu.
-    \item \textbf{Policy Enforcement Point (PEP) -- Điểm thực thi chính sách:} nằm trực tiếp trên đường truyền dữ liệu, kích hoạt, giám sát và kết thúc các kết nối giữa Chủ thể (subject) và Tài nguyên (resource).
+    \item \textbf{Policy Engine (PE) -- Động cơ chính sách:} chịu trách nhiệm đưa ra quyết định cuối cùng về việc cấp, từ chối hoặc thu hồi quyền truy cập tới tài nguyên. PE sử dụng \textit{thuật toán tin cậy (trust algorithm)} để đánh giá rủi ro của từng yêu cầu dựa trên chính sách của tổ chức và thông tin từ các thành phần hỗ trợ \parencite{nist800207,nist_sp_1800_35}.
+    \item \textbf{Policy Administrator (PA) -- Quản trị chính sách:} thực thi quyết định của PE bằng cách gửi lệnh tới PEP để thiết lập hoặc ngắt đường truyền giữa chủ thể và tài nguyên, đồng thời sinh các token/credential đặc thù cho từng phiên \parencite{nist_sp_1800_35}.
+    \item \textbf{Policy Enforcement Point (PEP) -- Điểm thực thi chính sách:} nằm trực tiếp trên đường truyền dữ liệu, bảo vệ vùng tin cậy chứa tài nguyên, kích hoạt, giám sát và kết thúc các kết nối giữa chủ thể và tài nguyên theo lệnh từ PA \parencite{nist800207,nist_sp_1800_35}.
+    \item \textbf{Policy Information Point (PIP) -- Điểm cung cấp thông tin chính sách:} các nguồn dữ liệu hỗ trợ (\textit{supporting components}) cấp telemetry và ngữ cảnh cho PDP để PE có cơ sở ra quyết định và đánh giá lại liên tục \parencite{nist_sp_1800_35,nist_abac}.
 \end{itemize}
 
-\textbf{Các nguồn dữ liệu hỗ trợ (Data Sources).}
-Để PE có cơ sở ra quyết định chính xác, NIST SP 800-207 (Hình 2) liệt kê các nguồn dữ liệu đầu vào mà PE có thể truy vấn. Một số tài liệu khác (bản dịch ABAC theo NIST SP 800-162 \parencite{nist_abac}, các bài báo của Cisco hay Forrester) gọi những nguồn này là \textit{Policy Information Point} (PIP). Trong phạm vi báo cáo này, hai thuật ngữ được sử dụng thay thế cho nhau. Một số nguồn dữ liệu quan trọng nhất bao gồm:
+SP 1800-35 nhấn mạnh rằng \emph{PE và PA hợp lại tạo thành PDP}, PDP là nơi quyết định truy cập được \textit{ra}, PIPs là nơi \textit{cấp thông tin} (telemetry, posture, identity, threat intel) cần thiết để PDP ra quyết định, và PEP là nơi quyết định đó được \textit{thực thi} \parencite{nist_sp_1800_35}. Các loại PIP tiêu biểu được SP 1800-35 (Volume B) liệt kê trong \textit{Supporting Components} bao gồm:
 \begin{itemize}
-    \item \textit{Hệ thống quản lý danh tính (ID Management):} cung cấp thuộc tính của người dùng và dịch vụ (IdP, PKI).
-    \item \textit{Hệ thống đánh giá tư thế liên tục (Continuous Diagnostics and Mitigation -- CDM):} cung cấp trạng thái an toàn của thiết bị và workload (mức vá lỗ, lỗ hổng CVE, tuân thủ baseline).
-    \item \textit{Tình báo đe doạ (Threat Intelligence):} dữ liệu theo thời gian thực về các nguồn tấn công đã biết (CIDR/FQDN/SHA256).
-    \item \textit{Nhật ký sự kiện và SIEM:} ngữ cảnh hành vi lịch sử làm đầu vào cho phát hiện bất thường.
+    \item \textit{Identity Management} và \textit{Federated Identity:} cung cấp thuộc tính của người dùng và dịch vụ (IdP, PKI).
+    \item \textit{Access and Credential Management}, \textit{Multi-Factor Authentication (MFA)}, \textit{Identity Governance:} chính sách định danh và quản trị đặc quyền.
+    \item \textit{Endpoint Security} và \textit{Continuous Diagnostics and Mitigation (CDM):} trạng thái an toàn của thiết bị/workload (mức vá lỗ, lỗ hổng CVE, baseline tuân thủ).
+    \item \textit{Security Analytics, SIEM, Threat Intelligence:} nhật ký sự kiện, ngữ cảnh hành vi lịch sử và tín hiệu IoC (CIDR/FQDN/SHA256) làm đầu vào cho phát hiện bất thường.
 \end{itemize}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1.1\textwidth]{images/nist_zta_logical.png}
-    \caption{Mô hình logic Zero Trust theo NIST SP 800-207}
+    \caption[Kiến trúc tham chiếu EIG Crawl Phase của ZTA]{Kiến trúc tham chiếu \textit{EIG Crawl Phase} của ZTA \parencite{nist_sp_1800_35}: PDP gồm PE và PA (control plane), PEP thực thi tại data plane, PIP là tập \textit{Supporting Components} cấp telemetry/ngữ cảnh cho PDP. Mô hình này tương thích và mở rộng so với Hình 2 của SP 800-207 \parencite{nist800207}.}
     \label{fig:nist_zta_logical}
 \end{figure}
 
-\subsection{Vòng đời quyết định truy cập liên tục và Bảo mật Thích ứng}
+\subsection{Thuật toán tin cậy (Trust Algorithm) -- cách PE thực sự ra quyết định}
+\label{subsec:trust_algorithm}
 
-Mỗi yêu cầu (request) trong hệ thống ZTA đều trải qua một vòng đời truy cập \textit{đánh giá liên tục}. Khác biệt lớn nhất so với mô hình cũ là cách ZTA xử lý \textit{rủi ro phát sinh giữa chừng phiên làm việc}. Trong mô hình truyền thống, sau khi người dùng đăng nhập, hệ thống cấp \textit{access token} (ví dụ JWT \parencite{rfc7519_jwt}) với thời gian sống (TTL) cố định; trong suốt khoảng thời gian đó, mọi truy cập kèm token hợp lệ đều được chấp nhận -- hệ thống \textit{mù} trước các thay đổi như thiết bị bị compromise hay hành vi bất thường.
-
-ZTA khắc phục điểm yếu này bằng \textbf{Bảo mật thích ứng (adaptive security)} \parencite{nist800207}: PEP nằm trên đường dữ liệu tiếp tục đánh giá ngữ cảnh sau khi phiên đã được mở, kết hợp đầu vào từ IdP, nguồn dữ liệu trạng thái và tình báo đe doạ, và \textit{thu hồi quyền truy cập giữa chừng phiên} khi tập trạng thái thay đổi theo hướng bất lợi.
-
-Một hiện thực cụ thể cho tầng triển khai này là \textbf{Continuous Access Evaluation Profile (CAEP)} \parencite{openid_caep} -- đặc tả do OpenID Foundation duy trì, mô tả một mô hình dựa trên sự kiện (event-driven) cho phép IdP phát tín hiệu thay đổi ngữ cảnh (\textit{session-revoke}, \textit{token-claims-change}, \textit{credential-change}, \textit{device-compliance-change}\dots) tới các PEP đã đăng ký lắng nghe, để PEP ngắt phiên ngay cả khi token hiện tại chưa hết TTL. Điểm đáng chú ý là vòng lặp này \textit{không đòi hỏi PEP phải polling IdP}: một module phân tích hành vi (\textit{User and Entity Behavior Analytics -- UEBA}) hoặc cơ chế đánh giá thiết bị (EDR/MDM) khi phát hiện bất thường sẽ yêu cầu IdP phát sự kiện, từ đó PEP vô hiệu hóa token còn hiệu lực \parencite{openid_caep}.
-
-\subsection{Ba hướng triển khai theo NIST}
-
-NIST phân loại 3 hướng tiếp cận kiến trúc tùy theo mục tiêu bảo vệ \parencite{nist800207}:
-\begin{itemize}
-    \item \textbf{Enhanced Identity Governance (Quản trị Danh tính Nâng cao):} Lấy \textit{danh tính} làm trung tâm. Mọi quyết định dựa trên "chủ thể là ai" và "thuộc tính gì".
-    \item \textbf{Micro-segmentation (Phân đoạn Vi mô):} Lấy \textit{mạng} làm trung tâm. Chia mạng thành các phân đoạn cực nhỏ bao quanh từng tài nguyên để ngăn chặn di chuyển ngang.
-    \item \textbf{Software Defined Perimeter (Chu vi Định nghĩa bằng Phần mềm - SDP):} Lấy \textit{ứng dụng} làm trung tâm. Tài nguyên bị ẩn hoàn toàn (Black Cloud) cho đến khi người dùng được xác thực và cấp quyền.
-\end{itemize}
-
-%==============================================================================
-% 1.3  ZTA LÀ TẬP HỢP NHIỀU CÔNG NGHỆ
-%==============================================================================
-\section{ZTA là tập hợp nhiều công nghệ, không phải một sản phẩm đơn lẻ}
-
-\subsection{Không có một sản phẩm “Zero Trust” duy nhất}
-
-Quan niệm sai lầm thường gặp là coi Zero Trust như một sản phẩm đóng gói (off-the-shelf). NIST SP 800-207 và CISA ZTMM 2.0 đều nhấn mạnh ZTA là một \textit{triết lý thiết kế} và \textit{lộ trình kiến trúc} \parencite{nist800207,cisa_ztmm2023}. Một sản phẩm đơn lẻ -- dù tốt đến mấy -- chỉ có thể đảm nhận một vài thành phần trong mô hình logic của NIST. Để đạt được ZTA đầy đủ, tổ chức cần kết hợp nhiều công nghệ ở các tầng khác nhau (mạng, hệ điều hành, ứng dụng, danh tính).
-
-Khi tổ chức cố gắng quy quyền sở hữu cho một sản phẩm duy nhất mang nhãn mác ``Zero Trust'' thường dẫn đến hai rủi ro:
-\begin{itemize}
-    \item \textbf{Vendor lock-in:} phụ thuộc hoàn toàn vào một hệ sinh thái đóng, mất khả năng tích hợp với hạ tầng đã có (Active Directory, MDM, SIEM…).
-    \item \textbf{Thiếu chiều sâu bảo mật:} một sản phẩm có thể mạnh về quản lý danh tính (IAM) nhưng yếu trong giám sát lời gọi hệ thống (runtime); hoặc mạnh về phân đoạn mạng nhưng không có thông tin về tư thế bảo mật của ứng dụng (CDM).
-\end{itemize}
-
-Cách tiếp cận phổ biến hơn -- và được chuẩn hoá bởi cả NIST lẫn DoD ZT Reference Architecture \parencite{dod_zt_ra2022} -- là \textit{best-of-breed}: chọn sản phẩm tốt nhất cho từng thành phần logic, đảm bảo chúng giao tiếp với nhau qua các chuẩn mở (OIDC, SPIFFE, OpenTelemetry\dots).
-
-\subsection{Ví dụ: ánh xạ từ mô hình logic NIST sang công nghệ mã nguồn mở}
-
-Bảng~\ref{tab:nist_cncf_mapping} trình bày một ánh xạ \textit{minh hoạ} từ các thành phần logic NIST sang công nghệ mã nguồn mở trong hệ sinh thái Cloud Native Computing Foundation (CNCF) \parencite{kubernetes_docs,cncf_swp}. Ánh xạ này không phải là duy nhất -- mỗi hạ tầng (cloud, on-prem, máy ảo, container) có thể chọn bộ công cụ khác -- nhưng nó cho thấy ZTA yêu cầu sự phối hợp của nhiều tầng.
+Hai mục trên đã trả lời câu hỏi \emph{``ZTA gồm những thành phần nào''} (7 tenets + PDP/PEP/PIP). Để hiểu \emph{``PE \textbf{ra quyết định} bằng cách nào với tập đầu vào do PIP cấp''}, NIST SP 800-207 (Mục 3.3) đặt tên cho tiến trình đó là \textbf{trust algorithm (TA)} và phân loại các biến thể theo hai trục độc lập \parencite{nist800207,nist_sp_1800_35}:
 
 \begin{table}[H]
 \centering
-\caption{Ví dụ ánh xạ thành phần logic NIST sang một bộ công nghệ mã nguồn mở}
-\label{tab:nist_cncf_mapping}
+\caption{Phân loại biến thể \textit{trust algorithm}}
+\label{tab:trust_algorithm}
+\begin{tabularx}{\textwidth}{|p{3.6cm}|X|}
+\hline
+\textbf{Trục phân loại} & \textbf{Hai biến thể đối lập} \\
+\hline
+\textbf{Tiêu chí ra quyết định} \textit{(criteria vs.\ score)} & \textit{Criteria-based:} chủ thể phải đạt một tập điều kiện cứng (rule-based, gần với ABAC truyền thống). \textit{Score-based:} PE tính một \textit{confidence/trust score} từ tập tín hiệu có trọng số (định danh, posture, threat intel, hành vi) và so với ngưỡng để cấp/từ chối/yêu cầu re-auth. \\
+\hline
+\textbf{Cách dùng ngữ cảnh} \textit{(singular vs.\ contextual)} & \textit{Singular:} đánh giá từng yêu cầu độc lập, không nhớ lịch sử. \textit{Contextual:} dùng lịch sử phiên, hành vi gần đây, thay đổi posture làm đầu vào -- là điều kiện cần để \textit{đánh giá lại giữa phiên} thay vì chỉ tại lúc mở phiên. \\
+\hline
+\end{tabularx}
+\end{table}
+
+NIST SP 1800-35 khuyến nghị tổ hợp \emph{contextual + score-based} vì đây là biến thể hiện thực hoá đầy đủ Tenet 5 (giám sát toàn bộ tài sản) và Tenet 6 (xác thực liên tục) trong Bảng~\ref{tab:seven_tenets}, và là tiền đề cho cơ chế \textit{Bảo mật thích ứng} mô tả ngay dưới đây \parencite{nist_sp_1800_35}.
+
+\subsection{Bảo mật thích ứng và Continuous Access Evaluation (CAEP)}
+\label{subsec:adaptive_caep}
+
+Khi PE chọn TA \textit{contextual}, quyết định cấp truy cập không kết thúc tại thời điểm cấp token. Vòng đời truy cập trong ZTA, vì thế, là một vòng đời \emph{đánh giá liên tục}, trong đó PIP tiếp tục đẩy tín hiệu mới (posture thay đổi, thiết bị bị compromise, hành vi bất thường) tới PDP để PDP có thể \textit{thu hồi quyền truy cập giữa chừng phiên} qua PEP. Đây là điểm khác biệt so với mô hình truyền thống: sau khi đăng nhập, hệ thống cấp \textit{access token} (ví dụ JWT \parencite{rfc7519_jwt}) với thời gian sống (TTL) cố định và \textit{mù} trước mọi thay đổi rủi ro phát sinh giữa hai mốc TTL.
+
+NIST gọi mô hình này là \textbf{Bảo mật thích ứng (adaptive security)} \parencite{nist800207,nist_sp_1800_35}: PEP nằm trên đường dữ liệu, dưới sự điều phối của PA, liên tục đối soát tín hiệu mà PIP cấp để \textit{ngắt phiên hoặc xuống cấp quyền truy cập} khi tập trạng thái rủi ro thay đổi theo hướng bất lợi.
+
+Một hiện thực cụ thể của tầng triển khai này là \textbf{Continuous Access Evaluation Profile (CAEP)} \parencite{openid_caep} -- đặc tả do OpenID Foundation duy trì, mô tả mô hình \textit{event-driven} cho phép IdP phát tín hiệu thay đổi ngữ cảnh (\textit{session-revoke}, \textit{token-claims-change}, \textit{credential-change}, \textit{device-compliance-change}\dots) tới các PEP đã đăng ký, để PEP ngắt phiên ngay cả khi token hiện tại chưa hết TTL. Điểm đáng chú ý là vòng lặp này \textit{không đòi hỏi PEP poll IdP}: một module phân tích hành vi (\textit{User and Entity Behavior Analytics -- UEBA}) hoặc cơ chế đánh giá thiết bị (EDR/MDM) khi phát hiện bất thường sẽ yêu cầu IdP phát sự kiện, từ đó PEP vô hiệu hoá token còn hiệu lực \parencite{openid_caep}.
+
+\subsection{Các hướng triển khai ZTA: EIG, Microsegmentation, SDP, SASE}
+\label{subsec:zta_deployment_models}
+
+Khi đã xác định được mô hình logic (PDP/PEP/PIP) và cách PE ra quyết định (TA), bước cuối cùng của khung lý thuyết là chọn \textit{hướng triển khai} (\textit{deployment approach}) cho tổ chức. NIST SP 800-207 (Mục 3.1) liệt kê ba hướng đầu tiên; NIST SP 1800-35 bổ sung \textbf{Secure Access Service Edge (SASE)} thành hướng thứ tư do nhu cầu tích hợp ZTA với cloud-delivered security~\parencite{nist800207,nist_sp_1800_35}:
+
+\begin{itemize}
+    \item \textbf{Enhanced Identity Governance (EIG) -- Quản trị Danh tính Nâng cao:} lấy \textit{danh tính} làm trung tâm. Mọi quyết định dựa trên ``chủ thể là ai'' và ``thuộc tính gì'' (ICAM + EPP). SP 1800-35 dùng EIG làm điểm xuất phát (\textit{EIG Crawl Phase} ở Hình~\ref{fig:nist_zta_logical}).
+    \item \textbf{Micro-segmentation -- Phân đoạn Vi mô:} lấy \textit{mạng} làm trung tâm. Chia mạng thành các phân đoạn cực nhỏ bao quanh từng tài nguyên để ngăn chặn di chuyển ngang.
+    \item \textbf{Software Defined Perimeter (SDP) -- Chu vi Định nghĩa bằng Phần mềm:} lấy \textit{ứng dụng} làm trung tâm. Tài nguyên bị ẩn hoàn toàn (\textit{black cloud}) cho đến khi chủ thể được xác thực và uỷ quyền.
+    \item \textbf{Secure Access Service Edge (SASE):} lấy \textit{biên (edge)} làm trung tâm. Hợp nhất chức năng PEP với các dịch vụ bảo mật cloud-delivered (CASB, SWG, ZTNA, FWaaS) tại điểm gần người dùng để vừa bảo vệ truy cập từ xa vừa giữ hiệu năng \parencite{nist_sp_1800_35}.
+\end{itemize}
+
+Bốn hướng này \emph{không loại trừ lẫn nhau}: một triển khai thực tế thường tổ hợp nhiều hướng tuỳ theo lớp tài sản và mức độ trưởng thành ZTA của tổ chức. Đồ án này tập trung vào tổ hợp \textit{EIG + Micro-segmentation + SDP} ở phạm vi cụm Kubernetes nội bộ (chi tiết ở Chương~2--3).
+
+%==============================================================================
+% 1.3  PHÂN RÃ TRÁCH NHIỆM ZTA GIỮA NHIỀU THÀNH PHẦN KỸ THUẬT
+%==============================================================================
+\section{Phân rã trách nhiệm ZTA giữa nhiều thành phần kỹ thuật}
+\label{sec:zta_components_split}
+
+\subsection{Tiếp cận đa thành phần thay cho sản phẩm duy nhất}
+\label{subsec:no_single_product}
+
+NIST SP 800-207 và NIST SP 1800-35 mô tả ZTA bằng các vai trò logic (PE, PA, PEP, PIP), không gắn vai trò với một sản phẩm thương mại cụ thể~\parencite{nist800207,nist_sp_1800_35}. CISA ZTMM 2.0 và DoD ZT Reference Architecture sử dụng cùng cách phân loại theo vai trò~\parencite{cisa_ztmm2023,dod_zt_ra2022}. Một sản phẩm thực tế thường chỉ phủ một tập con các vai trò này, do đó triển khai ZTA hoàn chỉnh đòi hỏi tổ hợp nhiều công cụ trên nhiều tầng (định danh, mạng, runtime, admission, quan sát).
+
+Khi gán toàn bộ ZTA cho một sản phẩm duy nhất, có hai vấn đề kỹ thuật quan sát được trong các triển khai trước đây:
+\begin{itemize}
+    \item phụ thuộc nhà cung cấp (\textit{vendor lock-in}): mất khả năng tích hợp với hạ tầng định danh, MDM, SIEM đã có;
+    \item phủ vai trò không đầy đủ: ví dụ một IAM mạnh có thể không có giám sát syscall ở runtime; một CNI tốt có thể không cung cấp tư thế (posture) của ứng dụng.
+\end{itemize}
+
+Hướng tổ hợp \textit{best-of-breed} -- chọn công cụ cho từng vai trò logic và liên kết qua các chuẩn mở (OIDC, SPIFFE, OpenTelemetry) -- là kiểu triển khai được cả NIST SP 1800-35 lẫn DoD ZT Reference Architecture mô tả~\parencite{nist_sp_1800_35,dod_zt_ra2022}.
+
+\subsection{Công cụ mã nguồn mở cho từng vai trò ZTA}
+\label{subsec:nist_to_cncf_mapping}
+
+Bảng~\ref{tab:nist_cncf_decision_enforce} và Bảng~\ref{tab:nist_cncf_pip} liệt kê một bộ công cụ trong hệ sinh thái Cloud Native Computing Foundation (CNCF)~\parencite{kubernetes_docs,cncf_swp} tương ứng với từng vai trò logic. Cách gộp này không duy nhất; mỗi tổ chức có thể chọn bộ khác tuỳ hạ tầng và mức độ trưởng thành. Bảng đầu tách riêng các vai trò ra quyết định và thực thi; bảng sau tách riêng PIP và các nguồn dữ liệu hỗ trợ.
+
+\begin{table}[H]
+\centering
+\caption{Công cụ mã nguồn mở cho các vai trò ra quyết định và thực thi (PE, PA, PEP)}
+\label{tab:nist_cncf_decision_enforce}
 \begin{tabularx}{\textwidth}{|p{3cm}|p{3.4cm}|X|}
 \hline
-\textbf{Thành phần NIST} & \textbf{Ví dụ công nghệ} & \textbf{Vai trò trong kiến trúc} \\
+\textbf{Vai trò} & \textbf{Ví dụ công cụ} & \textbf{Vai trò trong kiến trúc} \\
 \hline
-Policy Engine & Bộ đánh giá chính sách khai báo (\textit{policy-as-code}) \parencite{opa_docs} & Ra quyết định truy cập từ tập chính sách khai báo + ngữ cảnh request. \\
+Policy Engine & Bộ đánh giá chính sách khai báo (\textit{policy-as-code})~\parencite{opa_docs} & Ra quyết định truy cập từ tập chính sách khai báo và ngữ cảnh request. \\
 \hline
-Policy Administrator & Hệ cấp phát credential động (Vault động database engine, cert-manager…) \parencite{vault_docs} & Cấp credential JIT (just-in-time) có thời hạn ngắn cho chủ thể, tự động thu hồi. \\
+Policy Administrator & Vault dynamic engines, cert-manager~\parencite{vault_docs} & Sinh khoá truy cập JIT có TTL ngắn cho chủ thể, tự thu hồi khi hết hạn. \\
 \hline
-PEP -- North-South & API Gateway, reverse-proxy hỗ trợ OIDC/JWT & Xác thực JWT \parencite{rfc7519_jwt} và áp dụng ACL/rate-limit cho luồng từ bên ngoài. \\
+PEP -- North-South & API Gateway, reverse-proxy hỗ trợ OIDC/JWT & Xác thực JWT~\parencite{rfc7519_jwt} và áp dụng ACL, rate-limit cho luồng từ bên ngoài. \\
 \hline
-PEP -- East-West & CNI/SDN hỗ trợ chính sách L3/L4/L7, hoặc service mesh & Thực thi chính sách mặc định từ chối (\textit{default deny}) trong nội bộ cluster. \\
+PEP -- East-West & CNI/SDN hỗ trợ chính sách L3/L4/L7, hoặc service mesh & Thực thi default deny trong nội bộ cụm. \\
 \hline
-PEP -- Runtime & Giám sát syscall ở mức kernel (eBPF…) & Phát hiện hành vi bất thường bên trong container. \\
+PEP -- Runtime & Giám sát syscall ở mức kernel (eBPF\dots) & Phát hiện hành vi bất thường bên trong container. \\
 \hline
-PEP -- Admission & Bootloader/Webhook xác minh chữ ký image \parencite{newman2022sigstore} & Ngăn image không được ký hoặc chứa CVE Critical được admit vào cluster. \\
+PEP -- Admission & Webhook xác minh chữ ký image~\parencite{newman2022sigstore} & Chặn image không được ký hoặc chứa CVE Critical tại thời điểm admit. \\
 \hline
-Data Source (User Identity) & IdP hỗ trợ OIDC/SAML, MFA & Cung cấp định danh + thuộc tính người dùng \parencite{keycloak_docs}. \\
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Công cụ mã nguồn mở cho PIP và các nguồn dữ liệu hỗ trợ}
+\label{tab:nist_cncf_pip}
+\begin{tabularx}{\textwidth}{|p{3cm}|p{3.4cm}|X|}
 \hline
-Data Source (Workload Identity) & SPIFFE/SPIRE \parencite{spiffe_spec,spire_docs} & Cấp X.509 SVID có thời hạn ngắn cho workload thay cho service-account token dài hạn. \\
+\textbf{Vai trò} & \textbf{Ví dụ công cụ} & \textbf{Vai trò trong kiến trúc} \\
 \hline
-Data Source (Posture/CDM) & Container vulnerability scanner, baseline checker \parencite{trivy_operator,nist800190} & Báo cáo CVE/baseline cho PE làm đầu vào quyết định. \\
+PIP -- User Identity & IdP hỗ trợ OIDC/SAML, MFA & Cung cấp định danh và thuộc tính người dùng~\parencite{keycloak_docs}. \\
 \hline
-Data Source (Threat Intel) & Các feed CIDR/FQDN/SHA256 (FireHOL, URLhaus…) \parencite{firehol_level1,urlhaus} & Cập nhật blocklist tự động cho PEP. \\
+PIP -- Workload Identity & SPIFFE/SPIRE~\parencite{spiffe_spec,spire_docs} & Cấp X.509 SVID có TTL ngắn cho workload thay cho service-account token dài hạn. \\
 \hline
-Data Source (Observability) & SIEM/log + metrics + flow visibility \parencite{elk_docs,prometheus_docs} & Phân tích hành vi hậu phiên, cấp ngữ cảnh cho PE. \\
+PIP -- Posture / CDM & Container vulnerability scanner, baseline checker~\parencite{trivy_operator,nist800190} & Báo cáo CVE và sai lệch baseline cho PE làm đầu vào quyết định. \\
+\hline
+PIP -- Threat Intel & Feed CIDR/FQDN/SHA256 (FireHOL, URLhaus\dots)~\parencite{firehol_level1,urlhaus} & Cập nhật blocklist tự động cho PEP. \\
+\hline
+PIP -- Observability & SIEM/log, metrics, flow visibility~\parencite{elk_docs,prometheus_docs} & Phân tích hành vi sau phiên, cấp ngữ cảnh cho vòng đánh giá kế tiếp của PE. \\
 \hline
 \end{tabularx}
 \end{table}
@@ -182,18 +225,18 @@ Data Source (Observability) & SIEM/log + metrics + flow visibility \parencite{el
 %==============================================================================
 % 1.4  CISA ZTMM
 %==============================================================================
-\section{Mô hình Trưởng thành Zero Trust của CISA (ZTMM v2.0)}
+\section{Mô hình Trưởng thành Zero Trust (ZTMM)}
 
-Nếu NIST SP 800-207 cung cấp kiến trúc logic cốt lõi, thì Cơ quan An ninh Mạng và Cơ sở Hạ tầng Hoa Kỳ (CISA) cung cấp lộ trình thực tiễn thông qua \textbf{Mô hình Trưởng thành ZTMM 2.0} \parencite{cisa_ztmm2023}. ZTMM không coi Zero Trust là một trạng thái bật/tắt nhị phân, mà là một cuộc hành trình tiến hóa được cấu thành từ 5 trụ cột, 3 năng lực xuyên suốt và 4 cấp độ trưởng thành.
+Bên cạnh kiến trúc logic của NIST SP 800-207, Cơ quan An ninh Mạng và Cơ sở Hạ tầng Hoa Kỳ (CISA) đưa ra lộ trình thực tiễn dưới dạng \textbf{Mô hình Trưởng thành ZTMM 2.0} \parencite{cisa_ztmm2023,nist800207}. ZTMM không coi Zero Trust là một trạng thái bật/tắt nhị phân, mà là một cuộc hành trình tiến hóa được cấu thành từ 5 trụ cột, 3 năng lực xuyên suốt và 4 cấp độ trưởng thành.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{images/ZTAPillars.png}
-    \caption{Mô hình Trưởng thành Zero Trust (Zero Trust Maturity Model) của CISA}
+    \caption{Mô hình Trưởng thành Zero Trust (Zero Trust Maturity Model)}
     \label{fig:ZTAPillars}
 \end{figure}
 
-\subsection{Năm trụ cột chức năng cốt lõi}
+\subsection{Năm trụ cột chức năng}
 
 \begin{enumerate}
     \item \textbf{Danh tính:} hợp nhất quản lý, thực thi MFA chống lừa đảo (phishing-resistant) và đánh giá rủi ro danh tính liên tục.
@@ -277,15 +320,15 @@ Tấn công chuỗi cung ứng (supply chain) & Image nội bộ/upstream bị t
 
 Danh sách trên không đầy đủ -- môi trường phát triển thực tế còn nhiều mối đe doạ khác (DoS theo yêu cầu, lạm dụng API, BOLA, injection…) -- nhưng đã đủ cho thấy ZTA \textit{không phải} một biện pháp duy nhất và càng không phải thay thế cho các biện pháp truyền thống (WAF, IDS/IPS, scanning trong CI/CD…). Nó bổ sung một lớp \textit{kiểm soát liên tục} cho phép phản ứng nhanh khi ngữ cảnh thay đổi.
 
-\subsection{Ánh xạ MITRE ATT\&CK Containers Matrix sang các lớp phòng thủ của Zero Trust}
+\subsection{MITRE ATT\&CK Containers và các lớp phòng thủ Zero Trust tương ứng}
 \label{subsec:mitre_mapping}
 
-MITRE Corporation duy trì \textit{ATT\&CK Matrix for Enterprise -- Containers Platform} \parencite{mitre_containers} liệt kê đầy đủ các \textit{tactic} (mục đích của kẻ tấn công) và \textit{technique} (kỹ thuật cụ thể) đã quan sát được trong môi trường Kubernetes/Docker thực tế. Mục này chạy qua toàn bộ các tactic của ma trận -- từ \textit{Initial Access} đến \textit{Impact} -- và chỉ ra lớp PEP nào trong kiến trúc Zero Trust có thể cắt đứt kỹ thuật đó. Các ID \texttt{T1xxx} được giữ nguyên theo MITRE Containers Matrix.
+MITRE Corporation duy trì \textit{ATT\&CK Matrix for Enterprise -- Containers Platform} \parencite{mitre_containers} liệt kê đầy đủ các \textit{tactic} (mục đích của kẻ tấn công) và \textit{technique} (kỹ thuật cụ thể) đã quan sát được trong môi trường Kubernetes/Docker thực tế. Bảng~\ref{tab:mitre_mapping_entry} liệt kê các tactic ở giai đoạn xâm nhập và bám trụ (Initial Access $\rightarrow$ Defense Evasion); Bảng~\ref{tab:mitre_mapping_postaccess} liệt kê các tactic sau khi đã có quyền truy cập (Credential Access $\rightarrow$ Impact). Các ID \texttt{T1xxx} được giữ nguyên theo MITRE Containers Matrix.
 
 \begin{table}[H]
 \centering
-\caption{Ánh xạ toàn bộ tactic trong MITRE ATT\&CK Containers Matrix sang các lớp PEP của Zero Trust}
-\label{tab:mitre_mapping}
+\caption{Tactic giai đoạn xâm nhập và bám trụ và lớp PEP/PIP Zero Trust tương ứng}
+\label{tab:mitre_mapping_entry}
 \begin{tabularx}{\textwidth}{|p{2.6cm}|X|p{4.0cm}|}
 \hline
 \textbf{Tactic (mục đích)} & \textbf{Kỹ thuật tiêu biểu trên Kubernetes/Container} & \textbf{Lớp PEP/PIP ZTA tương ứng} \\
@@ -299,6 +342,17 @@ Persistence & T1525 \textit{Implant Internal Image}, T1053.007 \textit{Scheduled
 Privilege Escalation & T1611 \textit{Escape to Host}, T1610 \textit{Deploy Container} (lạm dụng \texttt{privileged: true}). & Constraint cấm \texttt{privileged}, \texttt{hostNetwork}; PEP Runtime phát hiện syscall thay đổi namespace. \\
 \hline
 Defense Evasion & T1610 \textit{Deploy Container} với image không chữ ký, T1562 \textit{Impair Defenses}. & PEP Admission (bắt buộc digest bất biến và chữ ký số hiệu lực); audit log và quan sát liên tục. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Tactic giai đoạn sau xâm nhập và lớp PEP/PIP Zero Trust tương ứng}
+\label{tab:mitre_mapping_postaccess}
+\begin{tabularx}{\textwidth}{|p{2.6cm}|X|p{4.0cm}|}
+\hline
+\textbf{Tactic (mục đích)} & \textbf{Kỹ thuật tiêu biểu trên Kubernetes/Container} & \textbf{Lớp PEP/PIP ZTA tương ứng} \\
 \hline
 Credential Access & T1552.007 \textit{Container API Credentials}, T1528 \textit{Steal Application Access Token}, T1212 \textit{Exploitation for Credential Access}. & Cấp credential JIT (Vault); thu hồi phiên qua CAEP \parencite{openid_caep}. \\
 \hline
@@ -317,11 +371,11 @@ Impact & T1496 \textit{Resource Hijacking} (cryptominer), T1499 \textit{Endpoint
 \end{tabularx}
 \end{table}
 
-Đây là ánh xạ \textit{kiến trúc} -- nghĩa là chỉ ra \textit{cần có kiểu PEP/PIP nào} để cắt đứt từng tactic, không khóa vào một sản phẩm cụ thể.
+Bảng trên ở mức \textit{kiến trúc} -- nghĩa là chỉ ra \textit{cần có kiểu PEP/PIP nào} để cắt đứt từng tactic, không khóa vào một sản phẩm cụ thể.
 
 \subsection{So sánh ZTA với mô hình Perimeter-based}
 
-Để làm rõ lý do tại sao ZTA là sự lựa chọn tất yếu cho Microservices, bảng dưới đây đối sánh sự khác biệt về triết lý và phương pháp tiếp cận kỹ thuật giữa hai mô hình:
+Để làm rõ lý do tại sao ZTA là sự lựa chọn tất yếu cho Microservices, bảng dưới đây so sánh sự khác biệt về triết lý và phương pháp tiếp cận kỹ thuật giữa hai mô hình:
 
 \begin{table}[H]
 \centering
@@ -347,5 +401,5 @@ Impact & T1496 \textit{Resource Hijacking} (cryptominer), T1499 \textit{Endpoint
 \vspace{0.5cm}
 
 \begin{quote}
-\textbf{Cầu nối sang Chương 2:} Chương 1 đã xác lập nền tảng lý luận vững chắc về kiến trúc Zero Trust theo NIST SP 800-207. Qua việc làm rõ các mô hình logic PE, PA, PEP, hệ thống cấp dữ liệu PIP, cũng như nhận diện hệ sinh thái mã nguồn mở tương ứng. Tuy nhiên, khi áp dụng các khái niệm này vào môi trường \textit{Microservices và Kubernetes}, hệ thống sẽ đối mặt với các bài toán kỹ thuật rất sâu về định danh động (ephemeral identity), hiệu năng xử lý (performance overhead), và vị trí đặt điểm thực thi chính sách. Chương 2 sẽ trực tiếp phân tích các thách thức này và đề xuất một Khung kiến trúc 5 lớp hoàn chỉnh nhằm hiện thực hóa ZTA.
+\textbf{Cầu nối sang Chương 2:} Chương 1 đã xác lập nền tảng lý luận về kiến trúc Zero Trust, làm rõ các vai trò PE, PA, PEP, PIP và nhận diện hệ sinh thái mã nguồn mở tương ứng. Khi áp dụng các khái niệm này vào môi trường \textit{Microservices và Kubernetes}, hệ thống đối mặt với các bài toán kỹ thuật về định danh động (ephemeral identity), hiệu năng xử lý (performance overhead), và vị trí đặt điểm thực thi chính sách. Chương 2 phân tích các thách thức này và đề xuất một khung kiến trúc 5 lớp để hiện thực hoá ZTA.
 \end{quote}

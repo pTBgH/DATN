@@ -1,7 +1,24 @@
 #!/bin/bash
 # Part 2: Deploy Infrastructure Services & Vault
 # This script: Deploys Cert-Manager, Vault, MySQL, Keycloak, Kafka, Kong, and ELK
+#
+# Dual-mode:
+#   --vm (default)  4-node kubeadm cluster. Container images are pulled from
+#                   the in-cluster docker registry on the data-tier node.
+#                   Requires `kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml`
+#                   to have been run first.
+#   --kind          Legacy single-host Kind cluster. `kind load docker-image`
+#                   shortcuts are used to avoid Docker Hub round-trips.
 set -euo pipefail
+
+SCRIPT_DIR_02="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$SCRIPT_DIR_02/scripts/utils/zta-cluster-mode.sh"
+
+# Parse --kind / --vm; preserve remaining args.
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "02-deploy-infrastructure.sh"
 
 # ==================== TIMING FUNCTIONS ====================
 SCRIPT_START_TIME=$(date +%s)
@@ -227,6 +244,28 @@ if ! kubectl get nodes &>/dev/null; then
 fi
 echo "   ✓ Cluster is accessible"
 
+# VM mode: require the in-cluster docker registry to exist BEFORE any apply
+# that pulls images via it (kong, ES, etc.). The registry is what makes the
+# in-cluster image pull work on the data-tier node — without it, image pulls
+# from `7189srv05.<tailnet>.ts.net:30005/...` will fail with ImagePullBackOff.
+# In Kind mode the registry-on-srv05 doesn't apply; kind load is used instead.
+if is_vm_mode; then
+  if ! kubectl get namespace registry >/dev/null 2>&1 \
+     || ! kubectl -n registry get deploy docker-registry >/dev/null 2>&1; then
+    echo "❌ VM mode requires the in-cluster docker registry to be deployed first."
+    echo
+    echo "   On srv01 (control-plane), run:"
+    echo "     kubectl apply -f infras/k8s-yaml/12-docker-registry.yaml"
+    echo "     kubectl -n registry wait --for=condition=Ready pod -l app=docker-registry --timeout=120s"
+    echo "     kubectl -n registry get pod -o wide       # confirm it landed on 7189srv05"
+    echo
+    echo "   Then re-run this script. Override (NOT recommended) with --kind or"
+    echo "   ZTA_CLUSTER_MODE=kind if you really meant the Kind path."
+    exit 1
+  fi
+  echo "   ✓ In-cluster registry present (registry/docker-registry)"
+fi
+
 # Ensure required namespaces
 for ns in vault data management job7189-apps security gateway monitoring ingress-nginx cert-manager; do
   kubectl get namespace "$ns" >/dev/null 2>&1 || kubectl create namespace "$ns" >/dev/null
@@ -420,11 +459,15 @@ log_time "1e2. Wait for Kafka ready"
 echo ""
 echo "? Setting up and deploying Kong..."
 
-echo "   Step 0: Pre-loading kong:3.6 image into Kind cluster nodes (avoid Docker Hub pull delay)..."
-docker pull kong:3.6 2>/dev/null || true
-kind load docker-image kong:3.6 --name "$CLUSTER_NAME" 2>/dev/null || true
-echo "   ✓ kong:3.6 loaded into Kind cluster"
-log_time "1f0. Pre-load Kong image"
+if is_kind_mode; then
+  echo "   Step 0: Pre-loading kong:3.6 image into Kind cluster nodes (avoid Docker Hub pull delay)..."
+  docker pull kong:3.6 2>/dev/null || true
+  kind load docker-image kong:3.6 --name "$CLUSTER_NAME" 2>/dev/null || true
+  echo "   ✓ kong:3.6 loaded into Kind cluster"
+  log_time "1f0. Pre-load Kong image"
+else
+  echo "   Step 0: VM mode — kong:3.6 will be pulled from in-cluster registry on demand. Skipping kind preload."
+fi
 
 echo "   Step 1: Creating Kong configuration ConfigMap..."
 bash infras/kong/01_setup_kong_config.sh

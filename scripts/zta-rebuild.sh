@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # scripts/zta-rebuild.sh
 #
-# End-to-end ZTA cluster rebuild orchestrator. Runs the entire pipeline from
+# End-to-end ZTA cluster rebuild orchestrator.
+#
+# Cluster modes (see scripts/utils/zta-cluster-mode.sh):
+#   --vm (default)  Run against the existing 4-node kubeadm cluster. Step
+#                   01-cluster is auto-skipped (equivalent to --skip-cluster)
+#                   so we never `kind delete` a real cluster.
+#   --kind          Legacy single-host workflow: step 01 wipes + recreates
+#                   a Kind cluster via 01-setup-cluster.sh.
+#
+# Runs the entire pipeline from
 # `kind delete` (phase 0) through `09-verify-zta.sh` (phase 90), capturing
 # every step's stdout+stderr to a per-step log file. On any failure it dumps:
 #   1. the failed step's full log file (or last N lines if
@@ -196,10 +205,25 @@ STEPS=(
 )
 
 # ============================================================================
+# Cluster-mode helper (parses --kind / --vm, exports ZTA_CLUSTER_MODE)
+# ============================================================================
+# shellcheck source=scripts/utils/zta-cluster-mode.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/utils/zta-cluster-mode.sh"
+zta_parse_mode_flag "$@"
+eval "$(zta_apply_parsed_args_cmd)"
+zta_mode_banner "zta-rebuild.sh"
+
+# ============================================================================
 # CLI parsing
 # ============================================================================
 NO_PROMPT=0
-SKIP_CLUSTER=0
+# In VM mode default to skipping 01-cluster (never destructive). Users can
+# still pass --kind to opt into the legacy `kind delete` flow.
+if is_vm_mode; then
+  SKIP_CLUSTER=1
+else
+  SKIP_CLUSTER=0
+fi
 FROM_STEP=""
 TO_STEP=""
 DRY_RUN=0
@@ -302,10 +326,13 @@ do_preflight() {
   echo "  pwd: $(pwd)"
   echo "  branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
   echo "  HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
-  if [ "${SKIP_CLUSTER:-0}" -eq 0 ]; then
+  if [ "${SKIP_CLUSTER:-0}" -eq 0 ] && is_kind_mode; then
     if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
       yellow "  existing kind cluster '$CLUSTER_NAME' WILL BE DELETED by step 01"
     fi
+  fi
+  if is_vm_mode; then
+    yellow "  VM mode: step 01-cluster auto-skipped (cluster bootstrap lives in doc/migration/scripts/)"
   fi
 }
 

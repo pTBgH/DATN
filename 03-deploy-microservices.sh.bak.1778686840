@@ -10,7 +10,7 @@
 #   --kind          Legacy single-host. `configure_kind_registry_access`
 #                   writes /etc/containerd/certs.d/<registry>/hosts.toml into
 #                   every Kind node container so it can pull plain-HTTP.
-export FORCE_REBUILD_IMAGES=0
+export FORCE_REBUILD_IMAGES=1
 set -euo pipefail
 
 SCRIPT_DIR_03="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -131,25 +131,40 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  font=\footnotesize\sffamily,
-  blk/.style={draw, rounded corners=2pt, minimum height=8mm, text width=4.6cm, align=center, inner sep=4pt},
-  pe/.style={blk, fill=red!10, draw=red!60},
-  pa/.style={blk, fill=blue!10, draw=blue!60},
-  pep/.style={blk, fill=green!12, draw=green!60},
-  pip/.style={blk, fill=orange!18, draw=orange!70},
-  flow/.style={->, >=Latex, thick},
+  % node distance = [dưới] and [phải]
+  % Giảm khoảng cách dọc xuống 1.5cm, ngang xuống 2.2cm để gọn gàng
+  node distance=1.5cm and 2.2cm,
+  font=\footnotesize\sffamily,
+  blk/.style={draw, rounded corners=2pt, minimum height=10mm, text width=5cm, align=center, inner sep=6pt},
+  pe/.style={blk, fill=red!10, draw=red!60},
+  pa/.style={blk, fill=blue!10, draw=blue!60},
+  pep/.style={blk, fill=green!12, draw=green!60},
+  pip/.style={blk, fill=orange!18, draw=orange!70},
+  flow/.style={->, >=Latex, thick},
 ]
 
-\node[pe] (pe1) at (0,3) {\textbf{PE — Quyết định}\\Keycloak | Vault Policies | Cilium CRD\\Gatekeeper | PDP | ImagePolicy};
-\node[pa] (pa1) at (0,1) {\textbf{PA — Biên dịch quyết định}\\Vault Agent Injector | Cilium agent\\SPIRE Controller | cert-manager};
-\node[pep] (pep1) at (0,-1.2) {\textbf{PEP — Thực thi tại data plane}\\Kong (N-S) | Cilium (E-W L3/L4/L7)\\Sigstore (admission) | Tetragon (runtime)\\Vault Agent (secret)};
+% --- CÁC KHỐI ---
+\node[pe] (pe1) {\textbf{PE — Quyết định}\\[2pt]Keycloak | Vault Policies | Cilium CRD\\Gatekeeper | PDP | ImagePolicy};
 
-\node[pip] (pip1) at (-5.2,1) {\textbf{PIP — Data Sources}\\Trivy VR | FireHOL Level1\\URLhaus | Hubble flow\\Audit log | Filebeat};
+\node[pa, below=of pe1] (pa1) {\textbf{PA — Biên dịch quyết định}\\[2pt]Vault Agent Injector | Cilium agent\\SPIRE Controller | cert-manager};
 
-\draw[flow] (pip1) -- node[above,font=\scriptsize\sffamily]{posture, IoC, behavior} (pe1.west);
-\draw[flow] (pe1) -- node[right,font=\scriptsize\sffamily]{policy CR / annotation} (pa1);
-\draw[flow] (pa1) -- node[right,font=\scriptsize\sffamily]{eBPF prog | sidecar | SVID | TLS cert} (pep1);
-\draw[flow,dashed] (pep1.west) .. controls (-6,-1.2) and (-6,0.2) .. node[left,font=\scriptsize\sffamily]{flow log, syscall, drop} (pip1.south);
+\node[pep, below=of pa1] (pep1) {\textbf{PEP — Thực thi tại data plane}\\[2pt]Kong (N-S) | Cilium (E-W L3/L4/L7)\\Sigstore (admission) | Tetragon (runtime)\\Vault Agent (secret)};
+
+% PIP đặt bên trái khối PA
+\node[pip, left=of pa1] (pip1) {\textbf{PIP — Data Sources}\\[2pt]Trivy VR | FireHOL Level1\\URLhaus | Hubble flow\\Audit log | Filebeat};
+
+% --- ĐƯỜNG NỐI ---
+
+% Mũi tên cong từ PIP lên PE
+% out=70 (đi ra hướng 70 độ), in=180 (đi vào hướng 180 độ - bên hông trái)
+\draw[flow] (pip1.north) to[out=70, in=180] node[pos=0.5, sloped, above, font=\scriptsize] {posture, IoC, behavior} (pe1.west);
+
+% Các đường thẳng dọc giữa PE -> PA -> PEP
+\draw[flow] (pe1) -- node[right, font=\scriptsize] {policy CR / annotation} (pa1);
+\draw[flow] (pa1) -- node[right, font=\scriptsize] {eBPF prog | sidecar | SVID | TLS cert} (pep1);
+
+% Vòng phản hồi từ PEP về PIP (đường cong đứt nét)
+\draw[flow, dashed] (pep1.west) to[out=180, in=270] node[pos=0.5, left, font=\scriptsize, align=right] {flow log\\syscall, drop} (pip1.south);
 
 \end{tikzpicture}
 \caption{Mô hình logic ZTA cho job7189 -- ba khối ngang là PE/PA/PEP (PE + PA hợp thành PDP); khối bên trái là tập Data Source (PIP) cấp ngữ cảnh cho PDP; mũi tên đứt nét là vòng phản hồi từ PEP về PIP qua quan sát, hiện thực hoá TA contextual.}
@@ -165,24 +180,42 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 Khung 5 lớp được đề xuất ở Chương~2 (Mục~2.3) được hiện thực hoá cho job7189 như Hình~\ref{fig:5layer_design}. Mỗi lớp có \textit{ranh giới trách nhiệm} riêng và giao tiếp với các lớp khác qua các điểm tích hợp xác định trước:
 
 \begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-  font=\footnotesize\sffamily,
-  layer/.style={draw, rounded corners=2pt, minimum height=9mm, text width=14.4cm, align=left, inner sep=4pt},
-  l1/.style={layer, fill=blue!8, draw=blue!50},
-  l2/.style={layer, fill=orange!12, draw=orange!60},
-  l3/.style={layer, fill=green!10, draw=green!50},
-  l4/.style={layer, fill=red!10, draw=red!50},
-  l5/.style={layer, fill=violet!10, draw=violet!60},
-]
-\node[l5] (l5) at (0,0)   {\textbf{Lớp 5 — Quan sát \& phân tích:} EFK (Elasticsearch + Filebeat + Kibana), Prometheus + Grafana, Hubble UI, PrometheusRule (alert), Hubble flow shipper $\rightarrow$ ES (30--90 ngày).};
-\node[l4] (l4) at (0,1.0) {\textbf{Lớp 4 — Bí mật động:} Vault dual-mode (\texttt{vault-dev} Transit auto-unseal + \texttt{vault-prod}), Vault Agent Injector, sidecar render \texttt{tmpfs/.env}.};
-\node[l3] (l3) at (0,2.0) {\textbf{Lớp 3 — Thực thi đa tầng:} Kong (N-S, JWT) | Cilium eBPF (E-W L3/L4 + L7) | Sigstore policy-controller (admission) | Tetragon (runtime).};
-\node[l2] (l2) at (0,3.0) {\textbf{Lớp 2 — CDM \& Threat Intel:} Trivy Operator (\texttt{VulnerabilityReport}), Gatekeeper Constraint (label/image baseline), threat-intel CronJob (FireHOL + URLhaus) $\rightarrow$ Cilium CCNP.};
-\node[l1] (l1) at (0,4.0) {\textbf{Lớp 1 — Định danh đa thực thể:} Keycloak (user, OIDC/SAML, dual realm) | SPIRE/SPIFFE (workload SVID) | Vault K8s Auth (workload SA token).};
 
-\draw[->, >=Latex, dashed, gray] (l1.east) ++(0.05,0) -- ++(0.7,0) |- (l5.east);
-\node[gray, font=\scriptsize\sffamily] at (8.1,2.0) {phản hồi};
+\centering
+
+\begin{tikzpicture}[
+
+font=\footnotesize\sffamily,
+
+blk/.style={draw, rounded corners=2pt, minimum height=14mm, text width=12cm, align=left, inner sep=6pt, line width=0.6pt},
+
+l1/.style={blk, fill=blue!8, draw=blue!50},
+
+l2/.style={blk, fill=orange!12, draw=orange!60},
+
+l3/.style={blk, fill=green!10, draw=green!50},
+
+l4/.style={blk, fill=red!10, draw=red!50},
+
+l5/.style={blk, fill=violet!10, draw=violet!60},
+
+]
+
+% Tăng khoảng cách trục Y lên rất nhiều (3cm mỗi lớp) để dãn các khối
+
+\node[l1] (l1) at (0, 10) {\textbf{Lớp 1 — Định danh đa thực thể:}\\[6pt] Keycloak (user, OIDC/SAML, dual realm) | SPIRE/SPIFFE (workload SVID) | Vault K8s Auth (workload SA token).};
+
+\node[l2] (l2) at (0, 7.5) {\textbf{Lớp 2 — CDM \& Threat Intel:}\\[6pt] Trivy Operator (VulnerabilityReport), Gatekeeper Constraint (label/image baseline), threat-intel CronJob $\rightarrow$ Cilium CCNP.};
+
+\node[l3] (l3) at (0, 5) {\textbf{Lớp 3 — Thực thi đa tầng:}\\[6pt] Kong (N-S, JWT) | Cilium eBPF (E-W L3/L4 + L7) | Sigstore policy-controller (admission) | Tetragon (runtime).};
+
+\node[l4] (l4) at (0, 2.5) {\textbf{Lớp 4 — Bí mật động:}\\[6pt] Vault dual-mode (vault-dev Transit auto-unseal + vault-prod), Vault Agent Injector, sidecar render tmpfs/.env.};
+
+\node[l5] (l5) at (0, 0) {\textbf{Lớp 5 — Quan sát \& phân tích:}\\[6pt] EFK (Elasticsearch + Filebeat + Kibana), Prometheus + Grafana, Hubble UI, PrometheusRule, Hubble flow shipper.};
+
+% Vẽ đường phản hồi bên phải
+
+\draw[->, >=Latex, dashed, gray!80, line width=0.8pt] (l5.east) -- ++(1.5,0) |- node[pos=0.25, right, font=\scriptsize\sffamily, align=left, xshift=2pt] {Vòng phản hồi\\(Giảm Trust Score)} (l1.east);
 
 \end{tikzpicture}
 \caption{Mô hình phân lớp 5 lớp ZTA cho job7189 -- mỗi lớp có ranh giới trách nhiệm; mũi tên đứt nét bên phải là vòng phản hồi từ Lớp 5 (quan sát) ngược về Lớp 1 (định danh) qua việc giảm Trust Score / thu hồi credential.}
@@ -521,104 +554,91 @@ Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  font=\footnotesize\sffamily,
-  ns/.style 2 args={draw, rounded corners=2pt, fill=#1!#2, minimum width=5.4cm, text width=5.0cm, align=left, inner sep=4pt},
-  nsBlue/.style={ns={blue}{8}},
-  nsRed/.style={ns={red}{8}},
-  nsGreen/.style={ns={green}{12}},
-  nsOrange/.style={ns={orange}{15}},
-  nsViolet/.style={ns={violet}{10}},
-  nsGray/.style={ns={gray}{12}},
-  nsRedDark/.style={ns={red}{20}},
+  font=\small\sffamily, % Tăng cỡ chữ lên \small (hoặc dùng \footnotesize nếu vẫn thấy to quá)
+  node distance=6mm and 8mm,
+  ns/.style={draw, rounded corners=2pt, text width=4.5cm, inner sep=8pt, align=left, line width=0.6pt},
+  % Màu sắc giữ nguyên để phân biệt các cụm
+  c_gw/.style={ns, fill=blue!5, draw=blue!40},
+  c_sec/.style={ns, fill=red!5, draw=red!40},
+  c_app/.style={ns, fill=green!5, draw=green!40},
+  c_dat/.style={ns, fill=orange!5, draw=orange!40},
+  c_sys/.style={ns, fill=gray!10, draw=gray!40},
+  c_mon/.style={ns, fill=violet!5, draw=violet!40}
 ]
 
-\node[nsBlue]   (gw)   at (0,0)   {%
-  \textbf{gateway}\\[1pt]
-  \textbullet{} kong-gateway (Deploy×1)\\
-  \textbullet{} oauth2-proxy (Deploy×1)\\
-};
+% --- CỘT 1: Gateway -> Data -> Vault -> Apps (Ngắn đến Dài) ---
+\node[c_gw] (gateway) {\textbf{gateway} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item kong-gateway
+  \item oauth2-proxy
+\end{itemize}};
 
-\node[nsBlue, below=0.18cm of gw]  (ing)  {%
-  \textbf{ingress-nginx}\\[1pt]
-  \textbullet{} ingress-nginx-controller (Deploy×1)\\
-};
+\node[c_dat, below=of gateway] (data) {\textbf{data} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item mysql (StatefulSet)
+  \item kafka (StatefulSet)
+\end{itemize}};
 
-\node[nsRed, right=0.3cm of gw]   (sec)  {%
-  \textbf{security}\\[1pt]
-  \textbullet{} keycloak (StatefulSet×1)\\
-  \textbullet{} pdp-controller (Deploy×1)\\
-  \textbullet{} zta-cosign-public-key (CM)\\
-};
+\node[c_sec, below=of data] (vault) {\textbf{vault} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item vault-dev (Transit)
+  \item vault-prod (StatefulSet)
+  \item vault-agent-injector
+\end{itemize}};
 
-\node[nsRed, below=0.18cm of sec]  (cm)   {%
-  \textbf{cert-manager}\\[1pt]
-  \textbullet{} cert-manager (Deploy×3)\\
-  \textbullet{} ClusterIssuer: zta-internal-ca\\
-};
+\node[c_app, below=of vault] (apps) {\textbf{job7189-apps} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item identity-service
+  \item workspace-service
+  \item job-service
+  \item hiring-service
+  \item candidate-service
+  \item communication-service
+\end{itemize}};
 
-\node[nsGreen, right=0.3cm of sec]  (apps)  {%
-  \textbf{job7189-apps}\\[1pt]
-  \textbullet{} identity-service (Deploy×1)\\
-  \textbullet{} workspace-service (Deploy×1)\\
-  \textbullet{} job-service (Deploy×1)\\
-  \textbullet{} hiring-service (Deploy×1)\\
-  \textbullet{} candidate-service (Deploy×1)\\
-  \textbullet{} communication-service (Deploy×1)\\
-  \textbullet{} storage-service (Deploy×1)\\
-  \textbullet{} redis (StatefulSet×1)\\
-};
+% --- CỘT 2: Management -> Security -> Gatekeeper... (Ngắn đến Dài) ---
+\node[c_sys, right=of gateway] (mgmt) {\textbf{management} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item phpmyadmin
+  \item kafbat-ui
+\end{itemize}};
 
-\node[nsOrange, below=0.20cm of ing]  (data)  {%
-  \textbf{data}\\[1pt]
-  \textbullet{} mysql (StatefulSet×1)\\
-  \textbullet{} kafka (StatefulSet×1)\\
-};
+\node[c_sec, below=of mgmt] (security) {\textbf{security} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item keycloak (OIDC)
+  \item pdp-controller
+  \item cosign-public-key
+\end{itemize}};
 
-\node[nsOrange, right=0.3cm of data]  (vault)  {%
-  \textbf{vault}\\[1pt]
-  \textbullet{} vault-dev (Deploy×1, Transit)\\
-  \textbullet{} vault-prod (StatefulSet×1)\\
-  \textbullet{} vault-agent-injector (Deploy×1)\\
-};
+\node[c_sec, below=of security] (gcs) {\textbf{gatekeeper / cosign / spire} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item gatekeeper-controller
+  \item gatekeeper-audit
+  \item cosign-policy-controller
+  \item spire-server
+  \item spire-agent
+  \item spire-controller-manager
+\end{itemize}};
 
-\node[nsViolet, right=0.3cm of vault]  (mon)  {%
-  \textbf{monitoring}\\[1pt]
-  \textbullet{} elasticsearch (StatefulSet×1)\\
-  \textbullet{} filebeat (DS×4)\\
-  \textbullet{} kibana (Deploy×1)\\
-  \textbullet{} prometheus (StatefulSet×1)\\
-  \textbullet{} grafana (Deploy×1)\\
-  \textbullet{} node-exporter (DS×4)\\
-  \textbullet{} kube-state-metrics (Deploy×1)\\
-};
+% --- CỘT 3: Cert -> Ingress -> Monitoring -> Kube-system (Ngắn đến Dài) ---
+\node[c_sec, right=of mgmt] (cert) {\textbf{cert-manager} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item cert-manager
+  \item zta-internal-ca
+\end{itemize}};
 
-\node[nsGray, below=0.20cm of data]  (mgmt)  {%
-  \textbf{management}\\[1pt]
-  \textbullet{} phpmyadmin (Deploy×1)\\
-  \textbullet{} kafbat-ui (Deploy×1)\\
-};
+\node[c_gw, below=of cert] (ingress) {\textbf{ingress-nginx} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item nginx-controller
+\end{itemize}};
 
-\node[nsGray, right=0.3cm of mgmt]   (sys)  {%
-  \textbf{kube-system}\\[1pt]
-  \textbullet{} cilium-agent (DS×4)\\
-  \textbullet{} cilium-operator (Deploy×2)\\
-  \textbullet{} hubble-relay (Deploy×1)\\
-  \textbullet{} tetragon (DS×4)\\
-  \textbullet{} metrics-server (Deploy×1)\\
-};
+\node[c_mon, below=of ingress] (mon) {\textbf{monitoring} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item elasticsearch
+  \item filebeat (DaemonSet)
+  \item prometheus + grafana
+\end{itemize}};
 
-\node[nsRedDark, right=0.3cm of sys]  (gk)  {%
-  \textbf{gatekeeper / cosign / spire}\\[1pt]
-  \textbullet{} gatekeeper-controller (Deploy×3)\\
-  \textbullet{} gatekeeper-audit (Deploy×1)\\
-  \textbullet{} cosign-policy-controller (Deploy×2)\\
-  \textbullet{} spire-server (StatefulSet×1)\\
-  \textbullet{} spire-agent (DS×4)\\
-  \textbullet{} spire-controller-manager (Deploy×1)\\
-};
+\node[c_sys, below=of mon] (ksys) {\textbf{kube-system} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
+  \item cilium-agent
+  \item cilium-operator
+  \item hubble-relay
+  \item tetragon (Runtime)
+  \item metrics-server
+\end{itemize}};
 
 \end{tikzpicture}
-\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm \texttt{kubeadm} 4 nút (4 máy ảo Debian 13).}
+\caption{Cấu trúc Workload và Namespace hệ thống job7189}
 \label{fig:namespace_map}
 \end{figure}
 

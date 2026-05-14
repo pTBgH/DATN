@@ -256,7 +256,7 @@ echo "   ✓ Cluster is accessible"
 # in-cluster image pull work on the data-tier node — without it, image pulls
 # from `7189srv05.<tailnet>.ts.net:30005/...` will fail with ImagePullBackOff.
 # In Kind mode the registry-on-srv05 doesn't apply; kind load is used instead.
-if is_vm_mode && [ -z "${VM_REGISTRY_HOST:-}" ]; then
+if is_vm_mode; then
   if ! kubectl get namespace registry >/dev/null 2>&1 \
      || ! kubectl -n registry get deploy docker-registry >/dev/null 2>&1; then
     echo "❌ VM mode requires the in-cluster docker registry to be deployed first."
@@ -421,8 +421,7 @@ else
   run_with_timeout "$DOCKER_PUSH_TIMEOUT" docker push "$KEYCLOAK_LOCAL_IMAGE"
 fi
 
-# Substitute kind-era image registry (172.17.0.1:5000) → ${REGISTRY_HOST}
-sed "s|172\.17\.0\.1:5000|${REGISTRY_HOST}|g" infras/k8s-yaml/02-keycloak.yaml | kubectl apply -f -
+kubectl apply -f infras/k8s-yaml/02-keycloak.yaml
 echo "   Waiting for Keycloak rollout (up to 900s due to first-boot DB migration/import)..."
 if kubectl -n security rollout status deploy/keycloak --timeout=900s; then
   echo "   ✔ Keycloak rollout succeeded"

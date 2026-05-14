@@ -164,6 +164,76 @@ kubectl -n job7189-apps run unsigned-block --image=nginx:1.26 --restart=Never
 #   denied the request: validation failed: no matching signatures
 ```
 
+## 7a. Webhook scope — vì sao chỉ validate CREATE
+
+`policy.sigstore.dev` mặc định bind cả `CREATE` và `UPDATE` cho resource
+`pods` / `pods/ephemeralcontainers`. Nghĩa là **mỗi lần** một controller
+khác (kopf, kube-controller-manager, kubectl edit, kubectl label, …) cập
+nhật pod hiện có, webhook lại re-validate **toàn bộ** spec.
+
+Khi triển khai Phase 5.B.1 (PDP Controller — `doc/25-pdp-controller.md`),
+chúng tôi gặp đúng trường hợp này:
+
+1. PDP `kubectl patch` annotation `zta.job7189/trust-score` lên pod.
+2. Webhook re-validate pod, thấy sidecar Vault Agent (`hashicorp/vault:1.21.2`)
+   chưa được pin về digest → reject với `"must be an image digest"`.
+3. 4 pod bị Vault Agent inject (`storage-service`, `workspace-service` + 2
+   Redis sidecar) **không nhận** trust-score, mặc dù chúng đã pass admission
+   tại CREATE-time hoàn toàn bình thường.
+
+### Quyết định
+
+**Hẹp scope webhook về CREATE.** Lý do:
+
+| Câu hỏi | Trả lời |
+|---|---|
+| Cosign verify đảm bảo điều gì? | Image trong spec đã được sign bằng khoá ta tin tưởng → **supply-chain trust** tại điểm pod được admit vào cluster. |
+| UPDATE trên pod hiện có có thể thay container image không? | Không — `pod.spec.containers[*].image` là **immutable field** sau khi pod được tạo (chỉ ephemeral debug container và pod recreate mới thay). |
+| Vậy re-validate UPDATE chặn được attack gì? | Chỉ chặn ephemeralContainer mới chèn vào pod đã chạy. |
+| Pattern industry khác làm gì? | Kyverno / OPA Gatekeeper image-trust policy đều bind CREATE-only mặc định. Cosign policy-controller chuyển sang CREATE+UPDATE từ v0.9 chủ yếu để cover ephemeralcontainer. |
+
+→ **Trade-off đã chấp nhận**: ta narrow xuống CREATE-only cho **cả 3 rule** của
+webhook (`pods+pods/ephemeralcontainers`, `apps/*`, `batch/*`). Hệ quả là attacker
+có quyền `pods/ephemeralcontainers/attach` có thể chèn debug container chạy unsigned
+image mà webhook **không** verify lúc UPDATE. Bù lại, Tetragon TracingPolicy (Step
+2.3.4) đã chặn `process_exec` từ container lạ, và Gatekeeper ConstraintTemplates
+(PR #16) chặn pod CREATE với annotation thiếu — nên vẫn còn 2 lớp phòng thủ
+trước khi attacker tới được runtime. Nếu muốn ép lại CREATE+UPDATE cho riêng
+`pods/ephemeralcontainers`, cần tách thành webhook rule riêng (chart chưa hỗ trợ
+trực tiếp; phải post-patch JSON `/webhooks/0/rules/-`).
+
+### Áp dụng
+
+Lệnh patch trực tiếp `ValidatingWebhookConfiguration` (đã chạy 2026-05 trên
+cluster `kind-job7189`):
+
+```bash
+kubectl get validatingwebhookconfiguration policy.sigstore.dev \
+  -o yaml > /tmp/policy-webhook-backup-$(date +%s).yaml
+
+kubectl patch validatingwebhookconfiguration policy.sigstore.dev --type='json' -p='[
+  {"op": "replace", "path": "/webhooks/0/rules/0/operations", "value": ["CREATE"]},
+  {"op": "replace", "path": "/webhooks/0/rules/1/operations", "value": ["CREATE"]},
+  {"op": "replace", "path": "/webhooks/0/rules/2/operations", "value": ["CREATE"]}
+]'
+```
+
+Patch này được **tự động áp lại** ở step `[5.5/5]` của
+`scripts/zta-deploy-policy-controller.sh` sau mỗi lần helm install/upgrade,
+nên cluster mới sẽ có ngay trạng thái CREATE-only mà không cần can thiệp tay.
+
+### Rollback
+
+Nếu cần khôi phục về CREATE+UPDATE (ví dụ muốn block ephemeralcontainer
+chèn unsigned image runtime):
+
+```bash
+kubectl apply -f /tmp/policy-webhook-backup-<ts>.yaml
+# hoặc:
+helm upgrade --install policy-controller sigstore/policy-controller \
+  -n cosign-system -f infras/k8s-yaml/policy-controller/values.yaml
+```
+
 ## 8. Resource budget
 
 | Component | RAM req/limit | Replicas | Total |

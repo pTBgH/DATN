@@ -12,12 +12,12 @@ metadata:
   namespace: security
   labels:
     app: zta-pdp
-    cilium.zta/tier: T1
-    cilium.zta/source: zta-pdp
-    cilium.zta/destination: kube-apiserver
-    cilium.zta/role: control-plane
-    cilium.zta/owner: security-team
-    cilium.zta/sensitivity: confidential
+    zta.job7189/tier: T1
+    zta.job7189/role: pdp
+    zta.job7189/team: security
+    zta.job7189/data-classification: confidential
+    zta.job7189/env: prod
+    zta.job7189/exposure: cluster-only
 spec:
   replicas: 1
   selector:
@@ -27,12 +27,12 @@ spec:
     metadata:
       labels:
         app: zta-pdp
-        cilium.zta/tier: T1
-        cilium.zta/source: zta-pdp
-        cilium.zta/destination: kube-apiserver
-        cilium.zta/role: control-plane
-        cilium.zta/owner: security-team
-        cilium.zta/sensitivity: confidential
+        zta.job7189/tier: T1
+        zta.job7189/role: pdp
+        zta.job7189/team: security
+        zta.job7189/data-classification: confidential
+        zta.job7189/env: prod
+        zta.job7189/exposure: cluster-only
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9100"

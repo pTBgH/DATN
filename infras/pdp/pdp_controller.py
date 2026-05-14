@@ -5,13 +5,14 @@ PDP Controller — Continuous ZTA Trust Score Engine
 Step 2.3.6 — Adaptive Loop Closure (CISA ZTMM Identity Advanced → Optimal).
 
 Watches Pod label changes in 7 ZTA namespaces and:
-  1. Verifies presence of 6 required ZTA labels (cilium.zta/{tier,source,
-     destination,role,owner,sensitivity}).
+  1. Verifies presence of 6 required ZTA labels (zta.job7189/{tier,role,
+     team,data-classification,env,exposure}) — schema theo Phase 4 ZTA
+     hardening (xem doc/19-label-schema.md).
   2. Reads VulnerabilityReport CRs from Trivy Operator to assess image
      CVE posture (criticalCount, highCount).
   3. Computes weighted trust score from 2 inputs:
      score = max(0, 100 - 30*(missing_labels/6) - 50*has_critical - 20*has_high)
-  4. Patches pods with label `cilium.zta/score-bucket=high|medium|low` so
+  4. Patches pods with label `zta.job7189/score-bucket=high|medium|low` so
      Cilium CNP and Gatekeeper can enforce based on trust level.
   5. Emits structured audit log to stdout (Filebeat → Elasticsearch).
   6. Exposes Prometheus metrics for monitoring.
@@ -53,12 +54,12 @@ ZTA_NAMESPACES = os.environ.get(
 ).split(",")
 
 REQUIRED_LABELS = [
-    "cilium.zta/tier",          # T0/T1/T2/T3
-    "cilium.zta/source",        # logical service name
-    "cilium.zta/destination",   # what this pod talks to
-    "cilium.zta/role",          # gateway/database/identity/...
-    "cilium.zta/owner",         # team / SA name
-    "cilium.zta/sensitivity",   # public/internal/confidential/secret
+    "zta.job7189/tier",                  # T0/T1/T2/T3
+    "zta.job7189/role",                  # api/db/gateway/sso/proxy/broker/...
+    "zta.job7189/team",                  # security/data/platform/backend
+    "zta.job7189/data-classification",   # public/internal/confidential/none
+    "zta.job7189/env",                   # prod/staging/dev
+    "zta.job7189/exposure",              # cluster-only/internal/external
 ]
 
 PROMETHEUS_PORT = int(os.environ.get("PROMETHEUS_PORT", "9100"))
@@ -278,8 +279,8 @@ def patch_pod_trust(
     """Patch pod with trust-score annotation AND score-bucket label."""
     body = {
         "metadata": {
-            "annotations": {"cilium.zta/trust-score": str(score)},
-            "labels": {"cilium.zta/score-bucket": bucket},
+            "annotations": {"zta.job7189/trust-score": str(score)},
+            "labels": {"zta.job7189/score-bucket": bucket},
         }
     }
     try:

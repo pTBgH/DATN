@@ -391,12 +391,6 @@ NIST SP 800-207 (Mục~7) nhấn mạnh chuyển đổi sang Zero Trust là \emp
 
 Một điểm cần thiết kế đúng từ đầu là \textit{nguồn cấp credential động} (Vault + Database Engine), vì nó là nền tảng để các giai đoạn sau bỏ được mọi credential tĩnh. Hình~\ref{fig:vault_dynamic_secret_concept} minh hoạ luồng cấp credential này: workload xin Vault dùng ServiceAccount JWT, Vault tạo user MySQL có TTL ngắn, sinh \texttt{lease}, ghi credential lên \texttt{tmpfs} của Pod.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{images/1576778435-vault-db.png}
-    \caption{Quá trình Vault cấp credential động cho database -- service xác thực bằng ServiceAccount JWT, Vault trả credential tạm thời với \texttt{lease\_id} và TTL ngắn.}
-    \label{fig:vault_dynamic_secret_concept}
-\end{figure}
 
 \begin{table}[H]
 \centering
@@ -404,7 +398,7 @@ Một điểm cần thiết kế đúng từ đầu là \textit{nguồn cấp cr
 \label{tab:deployment_phases}
 \begin{tabularx}{\textwidth}{|c|p{2.5cm}|X|X|}
 \hline
-\textbf{\#} & \textbf{Giai đoạn} & \textbf{Đầu ra chính} & \textbf{Tiêu chí hoàn thành} \\
+\textbf{STT} & \textbf{Giai đoạn} & \textbf{Đầu ra chính} & \textbf{Tiêu chí hoàn thành} \\
 \hline
 1 & Chuẩn bị \& lập kế hoạch & Danh mục tài sản, bản đồ luồng, security baseline, kế hoạch triển khai & Mọi tài sản đã được phân loại nhạy cảm; gap analysis hoàn tất \\
 \hline

@@ -86,7 +86,7 @@ Yêu cầu thiết kế bắt nguồn từ phát biểu bài toán ở đầu ch
 \paragraph{Yêu cầu phi chức năng (non-functional).}
 \begin{enumerate}[label=R-N\arabic*., leftmargin=1.6cm]
     \item \textbf{Độ trễ thấp:} latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở tầng L4 và $\leq 30\,\text{ms}$ ở tầng L7 cho 95-percentile.
-    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm \texttt{kubeadm} 4 nút (3 Debian 13 + 1 Ubuntu 24.04 LTS) (\textbf{tổng ngân sách RAM $\sim$15.5\,GiB}, headroom per-node mục tiêu $\geq 0.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md} và \texttt{doc/migration/03-vm-sizing.md}.
+    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm \texttt{kubeadm} 4 nút (3 Debian 13 + 1 Ubuntu 24.04 LTS) (\textbf{tổng ngân sách RAM $\sim$15.5\,GiB}, headroom per-node mục tiêu $\geq 0.3\,\text{GiB}$).
     \item \textbf{Tự phục hồi:} pipeline triển khai (\texttt{zta-rebuild.sh}) có thể chạy lại từ một bước bất kỳ mà không cần xoá toàn bộ cluster; mỗi bước có \texttt{ZTA\_REBUILD\_SKIP=...} cho chế độ low-RAM, và cờ \texttt{ZTA\_CLUSTER\_MODE=external} cho phép pipeline bám trên cụm \texttt{kubeadm} có sẵn thay vì tạo cluster nội tại.
     \item \textbf{Có thể quan sát từ ngoài:} mọi metric/dashboard phải truy cập được qua trình duyệt mà không cần \texttt{kubectl port-forward} thủ công.
     \item \textbf{Mã hoá in-transit và at-rest:} mọi flow nội bộ giữa namespace nhạy cảm phải mã hoá (mTLS hoặc WireGuard); credential lưu trên \texttt{tmpfs} thay vì K8s Secret on-disk.
@@ -103,7 +103,7 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \label{tab:design_principles}
 \begin{tabularx}{\textwidth}{|p{0.5cm}|p{4.0cm}|X|}
 \hline
-\textbf{\#} & \textbf{Tenet NIST} & \textbf{Cụ thể hoá trong job7189} \\
+\textbf{STT} & \textbf{Tenet NIST} & \textbf{Cụ thể hoá trong job7189} \\
 \hline
 1 & Mọi nguồn dữ liệu và dịch vụ tính toán đều là tài nguyên & Coi mỗi container, ServiceAccount, image digest, database schema là một tài nguyên có chính sách riêng. Không có ``vùng tin cậy'' nội bộ. \\
 \hline
@@ -131,16 +131,16 @@ Bảng~\ref{tab:design_principles} cụ thể hoá 7 tenets của NIST SP 800-20
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  % node distance = [dưới] and [phải]
-  % Giảm khoảng cách dọc xuống 1.5cm, ngang xuống 2.2cm để gọn gàng
-  node distance=1.5cm and 2.2cm,
-  font=\footnotesize\sffamily,
-  blk/.style={draw, rounded corners=2pt, minimum height=10mm, text width=5cm, align=center, inner sep=6pt},
-  pe/.style={blk, fill=red!10, draw=red!60},
-  pa/.style={blk, fill=blue!10, draw=blue!60},
-  pep/.style={blk, fill=green!12, draw=green!60},
-  pip/.style={blk, fill=orange!18, draw=orange!70},
-  flow/.style={->, >=Latex, thick},
+  % node distance = [dưới] and [phải]
+  % Giảm khoảng cách dọc xuống 1.5cm, ngang xuống 2.2cm để gọn gàng
+  node distance=1.5cm and 2.2cm,
+  font=\footnotesize\sffamily,
+  blk/.style={draw, rounded corners=2pt, minimum height=10mm, text width=5cm, align=center, inner sep=6pt},
+  pe/.style={blk, fill=red!10, draw=red!60},
+  pa/.style={blk, fill=blue!10, draw=blue!60},
+  pep/.style={blk, fill=green!12, draw=green!60},
+  pip/.style={blk, fill=orange!18, draw=orange!70},
+  flow/.style={->, >=Latex, thick},
 ]
 
 % --- CÁC KHỐI ---
@@ -184,21 +184,13 @@ Khung 5 lớp được đề xuất ở Chương~2 (Mục~2.3) được hiện t
 \centering
 
 \begin{tikzpicture}[
-
-font=\footnotesize\sffamily,
-
-blk/.style={draw, rounded corners=2pt, minimum height=14mm, text width=12cm, align=left, inner sep=6pt, line width=0.6pt},
-
-l1/.style={blk, fill=blue!8, draw=blue!50},
-
-l2/.style={blk, fill=orange!12, draw=orange!60},
-
-l3/.style={blk, fill=green!10, draw=green!50},
-
-l4/.style={blk, fill=red!10, draw=red!50},
-
-l5/.style={blk, fill=violet!10, draw=violet!60},
-
+  font=\footnotesize\sffamily,
+  blk/.style={draw, rounded corners=2pt, minimum height=14mm, text width=12cm, align=left, inner sep=6pt, line width=0.6pt},
+  l1/.style={blk, fill=blue!8, draw=blue!50},
+  l2/.style={blk, fill=orange!12, draw=orange!60},
+  l3/.style={blk, fill=green!10, draw=green!50},
+  l4/.style={blk, fill=red!10, draw=red!50},
+  l5/.style={blk, fill=violet!10, draw=violet!60}
 ]
 
 % Tăng khoảng cách trục Y lên rất nhiều (3cm mỗi lớp) để dãn các khối
@@ -235,7 +227,9 @@ Ma trận truy cập là thiết kế \textit{trung tâm} của ZTA cho job7189:
 \caption{Ma trận truy cập North-South và quan sát của job7189 (chỉ liệt kê flow được cho phép)}
 \label{tab:access_matrix_ns}
 \small
-\begin{tabularx}{\textwidth}{|p{2.6cm}|p{3.6cm}|p{2.4cm}|X|}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}X|}
 \hline
 \textbf{Subject} & \textbf{Resource} & \textbf{Action} & \textbf{Điều kiện (ngữ cảnh)} \\
 \hline
@@ -245,31 +239,33 @@ Kong Gateway & 7 service trong \texttt{job7189-apps} & HTTP per-route & JWT \tex
 \hline
 Mọi pod & Internet egress & Bất kỳ & FQDN/CIDR \textit{không} có trong threat-intel blocklist (FireHOL Level1 + URLhaus) \\
 \hline
-Filebeat (DS) & \texttt{elasticsearch.monitoring:9200} & HTTPS POST & TLS từ \texttt{ClusterIssuer: zta-internal-ca} \\
+Filebeat (DS) & \texttt{elasticsearch. \newline monitoring:9200} & HTTPS POST & TLS từ \texttt{ClusterIssuer: zta-internal-ca} \\
 \hline
-Hubble relay & \texttt{elasticsearch.monitoring:9200} & HTTPS POST flow log & TLS + index \texttt{hubble-flows-YYYY.MM.DD} \\
+Hubble relay & \texttt{elasticsearch. \newline monitoring:9200} & HTTPS POST flow log & TLS + index \url{hubble-flows-YYYY.MM.DD} \\
 \hline
-Quản trị viên (\texttt{7189\_internal}) & Grafana, Kibana, Hubble UI & HTTPS GET & JWT realm \texttt{7189\_internal} + role \texttt{admin} \\
+Quản trị viên & Grafana, Kibana, Hubble UI & HTTPS GET & JWT realm \texttt{7189\_internal} + role \texttt{admin} \\
 \hline
 \end{tabularx}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{Ma trận truy cập East-West của job7189 (chỉ liệt kê flow được cho phép)}
+\caption{Ma trận truy cập East-West của job7189 (chỉ liệt kê flow được cho phép) CẦN CẬP NHẬT LẠI SAU KHI HOÀN THIỆN TRIỂN KHAI, HIỆN CHỈ LÀ BẢN DỰ KIẾN}
 \label{tab:access_matrix_ew}
 \small
-\begin{tabularx}{\textwidth}{|p{2.6cm}|p{3.6cm}|p{2.4cm}|X|}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}X|}
 \hline
 \textbf{Subject} & \textbf{Resource} & \textbf{Action} & \textbf{Điều kiện (ngữ cảnh)} \\
 \hline
-\texttt{job-service} & \texttt{identity-service} & \texttt{GET /api/v1/internal/users/*} & SVID \texttt{spiffe://zta.job7189/.../sa/job-service} + \texttt{score-bucket=high} \\
+\texttt{job-service} & \texttt{identity-service} & \texttt{GET /api/v1/ \newline internal/users/*} & SVID \url{spiffe://zta.job7189/.../sa/job-service} + \texttt{score-bucket=high} \\
 \hline
-\texttt{hiring-service} & \texttt{candidate-service} & \texttt{GET /api/v1/internal/candidates/*} & SVID \texttt{spiffe://zta.job7189/.../sa/hiring-service} + \texttt{score-bucket} $\in$ \{\texttt{high},\texttt{medium}\} \\
+\texttt{hiring-service} & \texttt{candidate-service} & \texttt{GET /api/v1/ \newline internal/candidates/*} & SVID \url{spiffe://zta.job7189/.../sa/hiring-service} + \texttt{score-bucket} $\in$ \{\texttt{high},\texttt{medium}\} \\
 \hline
 Mọi service \texttt{job7189-apps} & \texttt{mysql.data:3306} & MySQL protocol & Credential do Vault sinh (\texttt{lease\_id} hợp lệ, TTL $\leq 1\text{h}$) \\
 \hline
-Mọi service \texttt{job7189-apps} & \texttt{vault-prod.vault:8200} & HTTPS POST \texttt{/v1/auth/k8s/login} & K8s SA token được bind đúng SA name của Pod \\
+Mọi service \texttt{job7189-apps} & \texttt{vault-prod. \newline vault:8200} & HTTPS POST \url{/v1/auth/k8s/login} & K8s SA token được bind đúng SA name của Pod \\
 \hline
 Mọi service \texttt{job7189-apps} & DNS (kube-system \texttt{:53}) & UDP/TCP 53 & FQDN nằm trong allowlist (\texttt{*.job7189-apps}, \texttt{vault.vault}, \texttt{mysql.data}\dots) \\
 \hline
@@ -339,28 +335,30 @@ PIP observability & EFK + Prometheus + Grafana + Hubble & Bộ ``CNCF chuẩn'';
 \begin{table}[H]
 \centering
 \small
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.15}
 \caption{Topology bốn máy ảo cấu thành cụm \texttt{kubeadm} job7189 (3 Debian 13 + 1 Ubuntu 24.04 LTS)}
 \label{tab:vm_topology}
-\begin{tabularx}{\textwidth}{|l|l|l|l|X|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.0cm}|>{\raggedright\arraybackslash}p{3.1cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{1.9cm}|>{\raggedright\arraybackslash}X|}
 \hline
 \textbf{Hostname} & \textbf{Host / OS} & \textbf{Vai trò} & \textbf{vCPU / RAM} & \textbf{Workload chính} \\
 \hline
-\texttt{7189srv01} & Windows VMware / Debian 13 & control-plane & 1 / 2.0\,GiB & etcd, kube-apiserver, scheduler, controller-manager, \texttt{cilium-agent} (DS) \\
+\texttt{7189srv01} & Windows VMware / Debian 13 & control-plane & 1 / 2.0\,GiB & etcd, kube-apiserver, scheduler, controller-manager, \texttt{cilium-agent} (DS). \\
 \hline
-\texttt{7189srv02} & Windows VMware / Debian 13 & worker & 2 / 4.5\,GiB & Stateless Laravel/Kong/Keycloak, Elasticsearch (\texttt{emptyDir}), DaemonSet \\
+\texttt{7189srv02} & Windows VMware / Debian 13 & worker & 2 / 4.5\,GiB & Stateless Laravel/Kong/Keycloak, Elasticsearch (\texttt{emptyDir}), DaemonSet. \\
 \hline
-\texttt{7189srv03} & Windows VMware / Debian 13 & worker & 2 / 5.0\,GiB & Stateless còn lại, Prometheus (\texttt{emptyDir}), DaemonSet \\
+\texttt{7189srv03} & Windows VMware / Debian 13 & worker & 2 / 5.0\,GiB & Stateless còn lại, Prometheus (\texttt{emptyDir}), DaemonSet. \\
 \hline
-\texttt{7189srv05} & Ubuntu libvirt bridge / Ubuntu 24.04 LTS & worker -- data tier always-on & 2 / 4.0\,GiB & \texttt{vault-dev}, \texttt{vault-prod}, MySQL, Kafka, SPIRE server, docker-registry (pin \texttt{nodeAffinity hostname=7189srv05}) \\
-\hline
-\multicolumn{3}{|r|}{\textbf{Tổng}} & \textbf{7 / $\sim$15.5\,GiB} & \\
+\texttt{7189srv05}\footnotemark & Ubuntu libvirt bridge / Ubuntu 24.04 LTS & worker -- data tier, always-on & 2 / 4.0\,GiB & \texttt{vault-dev}, \texttt{vault-prod}, MySQL, Kafka... \\ \hline
 \hline
 \end{tabularx}
 \end{table}
 
+\footnotetext{Nút \texttt{srv05} thay thế \texttt{srv04} để khắc phục lỗi kết nối P2P (double-NAT) và đảm bảo hiệu suất truyền tải.}
+
 \paragraph{Phân bổ workload theo trạng thái.} Chỉ workload có \texttt{PersistentVolumeClaim} hoặc đòi hỏi \textit{always-on} (\texttt{vault-dev} chạy RAM-only cấp khoá Transit cho \texttt{vault-prod} auto-unseal) được pin \texttt{nodeAffinity hostname=7189srv05} -- nút này nằm trên host Ubuntu có uptime cao nhất. Phần còn lại (7 Laravel apps, Kong, ingress-nginx, cert-manager, Keycloak, oauth2-proxy, Grafana, Kibana, Hubble Relay/UI, Gatekeeper, Sigstore policy-controller, PDP, Hubble shipper, kube-state-metrics, metrics-server, Cilium operator) không gắn \texttt{nodeAffinity}; scheduler tự cân theo RAM/CPU pressure giữa \texttt{7189srv02} và \texttt{7189srv03}. Để giữ \texttt{7189srv05} trong ngân sách 4\,GiB, Elasticsearch và Prometheus được dịch chuyển sang worker Windows kèm \texttt{emptyDir} (chấp nhận mất dữ liệu khi pod restart). Chi tiết ma trận \texttt{nodeAffinity} xem \texttt{doc/migration/02-target-architecture.md}.
 
-\paragraph{Ghi chú di trú srv04 $\to$ srv05.} Topology hiện tại là kết quả của một lần thay node data-tier giữa kỳ thực nghiệm. Phiên bản đầu tiên dùng \texttt{7189srv04} (Debian, libvirt NAT trên cùng host Ubuntu); double-NAT giữa libvirt và CGNAT của ISP khiến Tailscale không thiết lập được kết nối P2P trực tiếp, toàn bộ lưu lượng \texttt{kubelet} và \texttt{cilium} phải đi qua DERP relay và bão hoà dưới tải. Nút \texttt{7189srv05} thay thế chạy Ubuntu 24.04 LTS trên libvirt \textbf{bridge} (cùng dải LAN với host), loại bỏ lớp NAT bên trong và phục hồi đường P2P. Bài học rút ra: nút stateful của cụm phải có đúng một lớp NAT; chi tiết xem \texttt{doc/migration/transition-srv04-to-srv05.md} và \texttt{doc/migration/incident-srv04-tailscale-derp-2026-05-13.md}.
+% \paragraph{Ghi chú di trú srv04 $\to$ srv05.} Topology hiện tại là kết quả của một lần thay node data-tier giữa kỳ thực nghiệm. Phiên bản đầu tiên dùng \texttt{7189srv04} (Debian, libvirt NAT trên cùng host Ubuntu); double-NAT giữa libvirt và CGNAT của ISP khiến Tailscale không thiết lập được kết nối P2P trực tiếp, toàn bộ lưu lượng \texttt{kubelet} và \texttt{cilium} phải đi qua DERP relay và bão hoà dưới tải. Nút \texttt{7189srv05} thay thế chạy Ubuntu 24.04 LTS trên libvirt \textbf{bridge} (cùng dải LAN với host), loại bỏ lớp NAT bên trong và phục hồi đường P2P. Bài học rút ra: nút stateful của cụm phải có đúng một lớp NAT; chi tiết xem \texttt{doc/migration/transition-srv04-to-srv05.md} và \texttt{doc/migration/incident-srv04-tailscale-derp-2026-05-13.md}.
 
 \paragraph{Phân bố namespace.} 9 namespace được nhóm theo trách nhiệm:
 \begin{itemize}
@@ -418,9 +416,12 @@ NIST SP 800-207 (Mục 7 -- ``Migrating to a Zero Trust Architecture'') khuyến
 
 \begin{table}[H]
 \centering
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
 \caption{Lộ trình triển khai ZTA cho job7189}
 \label{tab:nist_roadmap}
-\begin{tabularx}{\textwidth}{|c|p{3.8cm}|X|p{2.5cm}|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{1.0cm}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}p{2.6cm}|}
 \hline
 \textbf{Bước} & \textbf{Giai đoạn NIST} & \textbf{Hiện thực hóa trong job7189} & \textbf{Script / File} \\
 \hline
@@ -428,7 +429,7 @@ NIST SP 800-207 (Mục 7 -- ``Migrating to a Zero Trust Architecture'') khuyến
 \hline
 2 & Thiết lập gốc tin cậy (Root of Trust) & Keycloak (User Identity) + Vault (Workload Identity, Secrets) & \texttt{02-deploy} \\
 \hline
-3 & Thiết kế và áp dụng chính sách truy cập & Kong JWT (N-S), Cilium Default Deny + Allow-Explicit (E-W) & \texttt{kong.yml}, \texttt{20-security-policies} \\
+3 & Thiết kế và áp dụng chính sách truy cập & Kong JWT (N-S), Cilium Default Deny + Allow-Explicit (E-W) & \texttt{kong.yml},  \newline \texttt{20-security-policies} \\
 \hline
 4 & Triển khai microsegmentation & CiliumNetworkPolicy L3/L4 và L7 cho từng cặp service & \texttt{cilium-policies/} \\
 \hline
@@ -533,7 +534,7 @@ Bảng~\ref{tab:layer_to_tool} trình bày góc nhìn ``từ trên xuống'' the
 \label{tab:layer_to_tool}
 \begin{tabularx}{\textwidth}{|p{0.6cm}|p{3.4cm}|X|}
 \hline
-\textbf{\#} & \textbf{Lớp ZTA} & \textbf{Công cụ \& vai trò} \\
+\textbf{STT} & \textbf{Lớp ZTA} & \textbf{Công cụ \& vai trò} \\
 \hline
 1 & Identity (định danh) & \textbf{Keycloak} (user identity, OIDC/SAML, dual realm \texttt{7189\_internal} + \texttt{job7189}); \textbf{Vault Kubernetes Auth} (workload identity dựa trên SA token); \textbf{SPIRE} (workload identity bằng X.509 SVID, trust domain \texttt{zta.job7189}, gắn vào ServiceAccount qua \texttt{ClusterSPIFFEID}). \\
 \hline
@@ -556,88 +557,88 @@ Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  font=\small\sffamily, % Tăng cỡ chữ lên \small (hoặc dùng \footnotesize nếu vẫn thấy to quá)
-  node distance=6mm and 8mm,
-  ns/.style={draw, rounded corners=2pt, text width=4.5cm, inner sep=8pt, align=left, line width=0.6pt},
-  % Màu sắc giữ nguyên để phân biệt các cụm
-  c_gw/.style={ns, fill=blue!5, draw=blue!40},
-  c_sec/.style={ns, fill=red!5, draw=red!40},
-  c_app/.style={ns, fill=green!5, draw=green!40},
-  c_dat/.style={ns, fill=orange!5, draw=orange!40},
-  c_sys/.style={ns, fill=gray!10, draw=gray!40},
-  c_mon/.style={ns, fill=violet!5, draw=violet!40}
+  font=\small\sffamily, % Tăng cỡ chữ lên \small (hoặc dùng \footnotesize nếu vẫn thấy to quá)
+  node distance=6mm and 8mm,
+  ns/.style={draw, rounded corners=2pt, text width=4.5cm, inner sep=8pt, align=left, line width=0.6pt},
+  % Màu sắc giữ nguyên để phân biệt các cụm
+  c_gw/.style={ns, fill=blue!5, draw=blue!40},
+  c_sec/.style={ns, fill=red!5, draw=red!40},
+  c_app/.style={ns, fill=green!5, draw=green!40},
+  c_dat/.style={ns, fill=orange!5, draw=orange!40},
+  c_sys/.style={ns, fill=gray!10, draw=gray!40},
+  c_mon/.style={ns, fill=violet!5, draw=violet!40}
 ]
 
 % --- CỘT 1: Gateway -> Data -> Vault -> Apps (Ngắn đến Dài) ---
-\node[c_gw] (gateway) {\textbf{gateway} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item kong-gateway
-  \item oauth2-proxy
-\end{itemize}};
+\node[c_gw] (gateway) {\begin{minipage}{\linewidth}\textbf{gateway}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item kong-gateway
+  \item oauth2-proxy
+\end{itemize}\end{minipage}};
 
-\node[c_dat, below=of gateway] (data) {\textbf{data} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item mysql (StatefulSet)
-  \item kafka (StatefulSet)
-\end{itemize}};
+\node[c_dat, below=of gateway] (data) {\begin{minipage}{\linewidth}\textbf{data}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item mysql (StatefulSet)
+  \item kafka (StatefulSet)
+\end{itemize}\end{minipage}};
 
-\node[c_sec, below=of data] (vault) {\textbf{vault} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item vault-dev (Transit)
-  \item vault-prod (StatefulSet)
-  \item vault-agent-injector
-\end{itemize}};
+\node[c_sec, below=of data] (vault) {\begin{minipage}{\linewidth}\textbf{vault}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item vault-dev (Transit)
+  \item vault-prod (StatefulSet)
+  \item vault-agent-injector
+\end{itemize}\end{minipage}};
 
-\node[c_app, below=of vault] (apps) {\textbf{job7189-apps} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item identity-service
-  \item workspace-service
-  \item job-service
-  \item hiring-service
-  \item candidate-service
-  \item communication-service
-\end{itemize}};
+\node[c_app, below=of vault] (apps) {\begin{minipage}{\linewidth}\textbf{job7189-apps}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item identity-service
+  \item workspace-service
+  \item job-service
+  \item hiring-service
+  \item candidate-service
+  \item communication-service
+\end{itemize}\end{minipage}};
 
 % --- CỘT 2: Management -> Security -> Gatekeeper... (Ngắn đến Dài) ---
-\node[c_sys, right=of gateway] (mgmt) {\textbf{management} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item phpmyadmin
-  \item kafbat-ui
-\end{itemize}};
+\node[c_sys, right=of gateway] (mgmt) {\begin{minipage}{\linewidth}\textbf{management}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item phpmyadmin
+  \item kafbat-ui
+\end{itemize}\end{minipage}};
 
-\node[c_sec, below=of mgmt] (security) {\textbf{security} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item keycloak (OIDC)
-  \item pdp-controller
-  \item cosign-public-key
-\end{itemize}};
+\node[c_sec, below=of mgmt] (security) {\begin{minipage}{\linewidth}\textbf{security}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item keycloak (OIDC)
+  \item pdp-controller
+  \item cosign-public-key
+\end{itemize}\end{minipage}};
 
-\node[c_sec, below=of security] (gcs) {\textbf{gatekeeper / cosign / spire} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item gatekeeper-controller
-  \item gatekeeper-audit
-  \item cosign-policy-controller
-  \item spire-server
-  \item spire-agent
-  \item spire-controller-manager
-\end{itemize}};
+\node[c_sec, below=of security] (gcs) {\begin{minipage}{\linewidth}\textbf{gatekeeper / cosign / spire}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item gatekeeper-controller
+  \item gatekeeper-audit
+  \item cosign-policy-controller
+  \item spire-server
+  \item spire-agent
+  \item spire-controller-manager
+\end{itemize}\end{minipage}};
 
 % --- CỘT 3: Cert -> Ingress -> Monitoring -> Kube-system (Ngắn đến Dài) ---
-\node[c_sec, right=of mgmt] (cert) {\textbf{cert-manager} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item cert-manager
-  \item zta-internal-ca
-\end{itemize}};
+\node[c_sec, right=of mgmt] (cert) {\begin{minipage}{\linewidth}\textbf{cert-manager}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item cert-manager
+  \item zta-internal-ca
+\end{itemize}\end{minipage}};
 
-\node[c_gw, below=of cert] (ingress) {\textbf{ingress-nginx} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item nginx-controller
-\end{itemize}};
+\node[c_gw, below=of cert] (ingress) {\begin{minipage}{\linewidth}\textbf{ingress-nginx}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item nginx-controller
+\end{itemize}\end{minipage}};
 
-\node[c_mon, below=of ingress] (mon) {\textbf{monitoring} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item elasticsearch
-  \item filebeat (DaemonSet)
-  \item prometheus + grafana
-\end{itemize}};
+\node[c_mon, below=of ingress] (mon) {\begin{minipage}{\linewidth}\textbf{monitoring}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item elasticsearch
+  \item filebeat (DaemonSet)
+  \item prometheus + grafana
+\end{itemize}\end{minipage}};
 
-\node[c_sys, below=of mon] (ksys) {\textbf{kube-system} \vspace{2pt} \begin{itemize}[leftmargin=12pt, nosep]
-  \item cilium-agent
-  \item cilium-operator
-  \item hubble-relay
-  \item tetragon (Runtime)
-  \item metrics-server
-\end{itemize}};
+\node[c_sys, below=of mon] (ksys) {\begin{minipage}{\linewidth}\textbf{kube-system}\par\smallskip\begin{itemize}[leftmargin=12pt, nosep]
+  \item cilium-agent
+  \item cilium-operator
+  \item hubble-relay
+  \item tetragon (Runtime)
+  \item metrics-server
+\end{itemize}\end{minipage}};
 
 \end{tikzpicture}
 \caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm \texttt{kubeadm} 4 nút (3 Debian 13 + 1 Ubuntu 24.04 LTS).}
@@ -1439,7 +1440,10 @@ Tương tự, file \texttt{20-security-policies.yaml} áp dụng L7 restriction 
 \centering
 \caption{Ma trận microsegmentation -- luồng nào được phép, luồng nào bị chặn}
 \label{tab:microseg_matrix}
-\begin{tabularx}{\textwidth}{|l|l|l|X|c|}
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{2.8cm}|>{\raggedright\arraybackslash}p{1.4cm}|>{\raggedright\arraybackslash}X|>{\raggedright\arraybackslash}p{1.2cm}|}
 \hline
 \textbf{Nguồn} & \textbf{Đích} & \textbf{Port} & \textbf{L7 rule} & \textbf{Phép?} \\
 \hline
@@ -1450,8 +1454,8 @@ Mọi service & Redis (data) & 6379 & -- & \checkmark \\
 Mọi service & Kafka (data) & 9092 & -- & \checkmark \\
 Mọi service & Vault (vault) & 8200 & -- & \checkmark \\
 \hline
-job-service & workspace-service & 80 & GET /api/v1/internal/workspaces/.* & \checkmark \\
-hiring-service & identity-service & 80 & GET /api/v1/internal/profile/.* & \checkmark \\
+job-service & workspace-service & 80 & GET \url{/api/v1/internal/workspaces/.*} & \checkmark \\
+hiring-service & identity-service & 80 & GET \url{/api/v1/internal/profile/.*} & \checkmark \\
 job-service & identity-service & 80 & -- & \textbf{$\times$} \\
 candidate-service & workspace-service & 80 & -- & \textbf{$\times$} \\
 Mọi service & Internet & * & -- & \textbf{$\times$} \\
@@ -1761,7 +1765,10 @@ Việc áp dụng công nghệ CNCF mã nguồn mở đã giúp hệ thống job
 
 Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 
-\begin{longtable}{|p{2.5cm}|p{8cm}|p{4.5cm}|}
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+\begin{longtable}{|>{\raggedright\arraybackslash}p{2.5cm}|>{\raggedright\arraybackslash}p{8cm}|>{\raggedright\arraybackslash}p{4.5cm}|}
 \caption{Đánh giá mức độ trưởng thành ZTMM của job7189}
 \label{tab:cisa_ztmm_assessment} \\
 
@@ -1781,15 +1788,15 @@ Dưới đây là bảng tự đánh giá hiện trạng hệ thống job7189:
 \hline
 \endlastfoot
 
-\textbf{Identity}~\parencite{keycloak_docs,spiffe_spec,spire_docs,vault_docs} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
+\textbf{Identity} \parencite{keycloak_docs,spiffe_spec,spire_docs,vault_docs} & OIDC Keycloak (User) + SPIFFE/SPIRE (Workload Identity) + Vault Kubernetes Auth. Dual-Realm architecture: realm \texttt{7189\_internal} cho admin/SysOps, realm \texttt{job7189} cho người dùng cuối. Role Mapping qua \texttt{realm\_access.roles} claim trong JWT payload. & \textbf{Advanced:} Hệ thống loại bỏ hoàn toàn rào cản IP, đánh giá quyền dựa trên thuộc tính động của JWT và SVID. Mỗi ServiceAccount được map 1:1 với Vault Role. \\
 \hline
 \textbf{Devices} & Quét lỗ hổng Container Image qua Trivy. Baseline Kube-bench (kế hoạch). Chưa triển khai EDR/MDM cho thiết bị End-User. & \textbf{Initial:} Do giới hạn PoC, hệ thống chủ yếu kiểm tra Workload Posture. Chưa tích hợp quản lý thiết bị End-User (Laptop, Mobile). \\
 \hline
-\textbf{Networks}~\parencite{cilium_docs,ebpf_io,hubble_docs} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway $\leftrightarrow$ Applications, (2) Applications $\leftrightarrow$ Vault, (3) Applications $\leftrightarrow$ Database (MySQL), (4) Applications $\leftrightarrow$ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) $\leftrightarrow$ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
+\textbf{Networks} \parencite{cilium_docs,ebpf_io,hubble_docs} & Cilium eBPF L3/L4/L7 Network Policies với Default Deny trên 7 namespace: \texttt{gateway}, \texttt{security}, \texttt{job7189-apps}, \texttt{data}, \texttt{management}, \texttt{vault}, \texttt{monitoring}. Triển khai 7 chính sách CiliumNetworkPolicy chi tiết kiểm soát: (1) Gateway $\leftrightarrow$ Applications, (2) Applications $\leftrightarrow$ Vault, (3) Applications $\leftrightarrow$ Database (MySQL), (4) Applications $\leftrightarrow$ Cache (Redis), (5) Applications → Kafka/Broker, (6) Monitoring (EFK) → All, (7) Management (phpMyAdmin) $\leftrightarrow$ Database port 3306 only. Namespace \texttt{data} (MySQL/Kafka) và \texttt{vault} cô lập tuyệt đối — không pod khác có thể initiate kết nối, chỉ accept incoming từ whitelist. & \textbf{Advanced:} Mạng đã đạt phân đoạn vi mô sâu và kiểm soát L7 theo method/path. Để đạt \textbf{Optimal}, cần bổ sung cơ chế tự động thích nghi theo rủi ro thời gian thực (AI/ML-driven policy adaptation) (bổ sung sau). \\
 \hline
-\textbf{Applications \& Workloads}~\parencite{kong_docs,tetragon_docs,owasp_api2023} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
+\textbf{Applications \& Workloads} \parencite{kong_docs,tetragon_docs,owasp_api2023} & API Gateway Kong kiểm tra JWT Token. Tetragon eBPF ở trạng thái thiết kế (bổ sung sau). CI/CD pipeline tự động build-push-deploy. & \textbf{Advanced (một phần):} Đã bảo vệ tốt lớp API và chuỗi triển khai. Runtime enforcement tự động bằng Tetragon đang ở trạng thái bổ sung sau. \\
 \hline
-\textbf{Data}~\parencite{vault_docs,nist800204_microservices} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
+\textbf{Data} \parencite{vault_docs,nist800204_microservices} & Vault Dynamic Database Credentials (JIT) với TTL 1 giờ. Mỗi service nhận MySQL user ngẫu nhiên tạm thời, được revoke tự động khi hết hạn. Credential được lưu trên tmpfs (RAM-only), không bao giờ chạm đĩa. Tự động xoay vòng (rotation) mỗi 1 giờ qua Vault Agent. & \textbf{Advanced:} Đã loại bỏ Secret tĩnh và triển khai JIT thành công. Để đạt \textbf{Optimal}, cần bổ sung phân loại/gắn nhãn dữ liệu tự động và điều phối chính sách dữ liệu theo ngữ cảnh toàn hệ thống (bổ sung sau). \\
 \hline
 \end{longtable}
 
@@ -2036,43 +2043,59 @@ Toàn bộ hệ thống được triển khai thông qua \textbf{một orchestra
 
 \begin{table}[H]
 \centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
 \caption{16 phase trong \texttt{zta-rebuild.sh} -- phase, script và thành phần được tạo}
 \label{tab:zta_rebuild_pipeline}
-\begin{tabularx}{\textwidth}{|c|p{3.0cm}|X|}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.7cm}|>{\raggedright\arraybackslash}p{3.4cm}|>{\raggedright\arraybackslash}X|}
 \hline
 \textbf{Phase} & \textbf{Script} & \textbf{Thành phần được tạo / hoạt động chính} \\
 \hline
 \texttt{00-prep} & \texttt{do\_preflight} & Kiểm tra tool (kubectl, kubeadm, helm, helmfile, jq, yq, tailscale CLI nếu \texttt{ZTA\_CLUSTER\_MODE=external}), per-node RAM tối thiểu (\texttt{require\_node\_ram\_mi}), trạng thái git repo. \\
 \hline
-\texttt{01-cluster} & \texttt{01-setup-cluster.sh} & Xác minh cụm \texttt{kubeadm} 4 nút đã sẵn sàng (\texttt{ZTA\_CLUSTER\_MODE=external}, bootstrap bởi \texttt{doc/migration/scripts/bootstrap.sh}); cài Gateway API CRDs, Cilium CNI 1.19 trên Tailscale underlay (\texttt{enable-l7-proxy=true}, \texttt{mesh-auth=false}, \texttt{enable-wireguard=false} -- tránh mã hoá hai lớp với Tailscale), cert-manager, Nginx Ingress (NodePort 30001/30003), metrics-server. \\
+\texttt{01-}\allowbreak\texttt{cluster} & \texttt{01-setup-}\allowbreak\texttt{cluster.sh} & Xác minh cụm \texttt{kubeadm} 4 nút đã sẵn sàng (\texttt{ZTA\_CLUSTER\_MODE=external}, bootstrap bởi \url{doc/migration/scripts/bootstrap.sh}); cài Gateway API CRDs, Cilium CNI 1.19 trên Tailscale underlay (\texttt{enable-l7-proxy=true}, \texttt{mesh-auth=false}, \texttt{enable-wireguard=false} -- tránh mã hoá hai lớp với Tailscale), cert-manager, Nginx Ingress (NodePort 30001/30003), metrics-server. \\
 \hline
-\texttt{02-infra} & \texttt{02-deploy-infrastructure.sh} & Sinh credentials \texttt{openssl rand}, deploy Vault (vault-dev Transit + vault-prod TLS), MySQL, Keycloak (\texttt{--import-realm}), Kafka, Kong (DB-less), oauth2-proxy, Ingress routes, EFK stack. \\
+\texttt{02-infra} & \texttt{02-deploy-}\allowbreak\texttt{infrastructure.sh} & Sinh credentials \texttt{openssl rand}, deploy Vault (vault-dev Transit + vault-prod TLS), MySQL, Keycloak (\texttt{--import-realm}), Kafka, Kong (DB-less), oauth2-proxy, Ingress routes, EFK stack. \\
 \hline
-\texttt{03-microservices} & \texttt{03-deploy-microservices.sh} & Local Docker registry, gọi \texttt{04-build-and-push-images.sh} build 7 Laravel image, đợi Vault DB role ready, \texttt{helmfile apply} cho 7 service. \\
+\texttt{03-}\allowbreak\texttt{microservices} & \texttt{03-deploy-}\allowbreak\texttt{microservices.sh} & Local Docker registry, gọi \url{04-build-and-push-images.sh} build 7 Laravel image, đợi Vault DB role ready, \texttt{helmfile apply} cho 7 service. \\
 \hline
-\texttt{05-seed} & \texttt{05-seed-databases.sh} & Login Vault bằng AppRole (provisioner) → đọc \texttt{vault-manager} credential → load 7 schema MySQL. \\
+\texttt{05-seed} & \texttt{05-seed-}\allowbreak\texttt{databases.sh} & Login Vault bằng AppRole (provisioner) → đọc \texttt{vault-manager} credential → load 7 schema MySQL. \\
 \hline
-\texttt{07-monitoring} & \texttt{07-deploy-monitoring-exporters.sh} & node-exporter (DaemonSet) + kube-state-metrics. \\
+\texttt{07-}\allowbreak\texttt{monitoring} & \texttt{07-deploy-}\allowbreak\texttt{monitoring}-\allowbreak\texttt{exporters.sh} & node-exporter (DaemonSet) + kube-state-metrics. \\
 \hline
 \texttt{08-harden} & \texttt{do\_harden\_full} (08a--08f) & 6 sub-phase: bật \texttt{mesh-auth-enabled}, bật WireGuard, áp \texttt{CiliumNetworkPolicy} cho từng namespace, gắn \texttt{cilium.zta/*} labels lên 7 service, áp L7 HTTP policies, verify Cilium agent restart không gây cascade. \\
 \hline
-\texttt{10-tetragon} & \texttt{10-deploy-tetragon.sh} & Tetragon DaemonSet + \texttt{TracingPolicy} block exec \texttt{/bin/sh, /usr/bin/curl, wget, nc, socat, ssh} trong \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}. \\
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\caption{16 phase trong \texttt{zta-rebuild.sh} -- phase, script và thành phần được tạo (tiếp)}
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.7cm}|>{\raggedright\arraybackslash}p{3.4cm}|>{\raggedright\arraybackslash}X|}
 \hline
-\texttt{20-spire} & \texttt{zta-deploy-spire.sh} & spire-server StatefulSet, spire-agent DaemonSet, spire-controller-manager + 3 \texttt{ClusterSPIFFEID} (Tier 1/2/3). \\
+\textbf{Phase} & \textbf{Script} & \textbf{Thành phần được tạo / hoạt động chính} \\
 \hline
-\texttt{21-cosign-keygen} & \texttt{zta-cosign-keygen.sh} & ECDSA keypair vào \texttt{infras/cosign-keys/} + ConfigMap \texttt{security/zta-cosign-public-key}. \\
+\texttt{10-}\allowbreak\texttt{tetragon} & \texttt{10-deploy-}\allowbreak\texttt{tetragon.sh} & Tetragon DaemonSet + \texttt{TracingPolicy} block exec \texttt{/bin/sh, /usr/bin/curl, wget, nc, socat, ssh} trong \texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}. \\
 \hline
-\texttt{22-cosign-sign} & \texttt{do\_cosign\_sign\_workloads} & Ký 7 Deployment manifest, viết 5 annotation \texttt{image.zta/*}, apply lại workload. \\
+\texttt{20-}\allowbreak\texttt{spire} & \texttt{zta-deploy-}\allowbreak\texttt{spire.sh} & spire-server StatefulSet, spire-agent DaemonSet, spire-controller-manager + 3 \texttt{ClusterSPIFFEID} (Tier 1/2/3). \\
 \hline
-\texttt{23-policy-controller} & \texttt{zta-deploy-policy-controller.sh} & Sigstore \texttt{policy-controller} (validating + mutating webhook) + ClusterImagePolicy. \\
+\parbox[t]{\linewidth}{\texttt{21-}\\\texttt{cosign-}\\\texttt{keygen}} & \parbox[t]{\linewidth}{\texttt{zta-cosign-}\\\texttt{keygen.sh}} & ECDSA keypair vào \url{infras/cosign-keys/} + ConfigMap \texttt{security/zta-cosign-public-key}. \\
 \hline
-\texttt{24-hubble-export} & \texttt{zta-deploy-hubble-export.sh --enable-cilium-export} & DaemonSet filebeat-shipper, patch \texttt{cilium-config} bật \texttt{hubble-export-file-path}, index template \texttt{hubble-flows-*}. \\
+\parbox[t]{\linewidth}{\texttt{22-}\\\texttt{cosign-}\\\texttt{sign}} & \parbox[t]{\linewidth}{\texttt{do\_cosign\_sign\_}\\\texttt{workloads}} & Ký 7 Deployment manifest, viết 5 annotation \texttt{image.zta/*}, apply lại workload. \\
 \hline
-\texttt{26-gatekeeper} & \texttt{zta-deploy-gatekeeper.sh} & OPA Gatekeeper + 3 ConstraintTemplate Rego (\texttt{ztarequiredlabels}, \texttt{ztablockhostmounts}, \texttt{ztarestrictprivileged} -- tương đồng với Pod Security Standard \textit{Restricted}~\parencite{k8s_pod_security_standards}) + 3 ConstraintTemplate image (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) -- \texttt{enforcementAction: dryrun}. \\
+\parbox[t]{\linewidth}{\texttt{23-}\\\texttt{policy-}\\\texttt{controller}} & \parbox[t]{\linewidth}{\texttt{zta-deploy-}\\\texttt{policy-}\\\texttt{controller.sh}} & Sigstore \texttt{policy-controller} (validating + mutating webhook) + ClusterImagePolicy. \\
 \hline
-\texttt{27-pdp} & \texttt{zta-deploy-pdp.sh} & PDP Controller (Python kopf) trong namespace \texttt{security}: watch label drift, tính \texttt{pdp\_trust\_score}, expose Prometheus metrics. \\
+\parbox[t]{\linewidth}{\texttt{24-}\\\texttt{hubble-}\\\texttt{export}} & \parbox[t]{\linewidth}{\texttt{zta-deploy-}\\\texttt{hubble-export.sh}\\\texttt{--enable-cilium-}\\\texttt{export}} & DaemonSet filebeat-shipper, patch \texttt{cilium-config} bật \texttt{hubble-export-file-path}, index template \texttt{hubble-flows-*}. \\
 \hline
-\texttt{90-verify} & \texttt{09-verify-zta.sh} & Test 0 (cluster healthy) → Test 6 (Phase 4 modules) bao gồm Test 4i (SPIRE), Test 4j (Cosign), Test 4k (PDP). \\
+\texttt{26-}\allowbreak\texttt{gatekeeper} & \texttt{zta-deploy-}\allowbreak\texttt{gatekeeper.sh} & OPA Gatekeeper + 3 ConstraintTemplate Rego (\texttt{ztarequiredlabels}, \texttt{ztablockhostmounts}, \texttt{ztarestrictprivileged} -- tương đồng với Pod Security Standard \textit{Restricted}~\parencite{k8s_pod_security_standards}) + 3 ConstraintTemplate image (\texttt{K8sImageDigestRequired}, \texttt{K8sBlockLatestTag}, \texttt{K8sSignedImageAnnotation}) -- \texttt{enforcementAction: dryrun}. \\
+\hline
+\texttt{27-}\allowbreak\texttt{pdp} & \texttt{zta-deploy-}\allowbreak\texttt{pdp.sh} & PDP Controller (Python kopf) trong namespace \texttt{security}: watch label drift, tính \texttt{pdp\_trust\_score}, expose Prometheus metrics. \\
+\hline
+\texttt{90-}\allowbreak\texttt{verify} & \texttt{09-verify-zta.sh} & Test 0 (cluster healthy) → Test 6 (Phase 4 modules) bao gồm Test 4i (SPIRE), Test 4j (Cosign), Test 4k (PDP). \\
 \hline
 \end{tabularx}
 \end{table}

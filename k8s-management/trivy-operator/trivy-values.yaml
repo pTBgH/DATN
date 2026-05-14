@@ -1,0 +1,45 @@
+# Trivy Operator — disable Rego-dependent scanners (config-audit, RBAC, exposed-secret, infra, compliance)
+# Keep ONLY vulnerability scanner (CVE on container images) — không cần Rego
+operator:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  nodeSelector:
+    kubernetes.io/hostname: 7189srv05
+  scanJobsConcurrentLimit: 2
+  scanJobsRetryAfter: 30s
+  # ✅ Keep only vuln scanner
+  vulnerabilityScannerEnabled: true
+  # ❌ Disable all Rego-dependent
+  configAuditScannerEnabled: false
+  rbacAssessmentScannerEnabled: false
+  exposedSecretScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  clusterComplianceEnabled: false
+  metricsFindingsEnabled: true
+
+trivy:
+  ignoreUnfixed: false
+  resources:
+    requests: {cpu: 50m, memory: 100Mi}
+    limits: {cpu: 1, memory: 500Mi}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: ["7189srv02"]
+
+nodeCollector:
+  resources:
+    requests: {cpu: 50m, memory: 50Mi}
+    limits: {cpu: 200m, memory: 200Mi}
+
+# Required: nested object cần explicit để tránh nil pointer
+alternateReportStorage:
+  enabled: false
+
+serviceMonitor:
+  enabled: true

@@ -37,6 +37,7 @@ spec:
   - glob: "rancher/local-path-provisioner**"
   - glob: "elastic.co/**"
   - glob: "docker.elastic.co/**"
+  - glob: "100.74.189.43:5000/**"
   authorities:
   # 'static' authority always evaluates true; effectively allow-list.
   - static:

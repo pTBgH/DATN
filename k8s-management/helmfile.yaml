@@ -6,7 +6,7 @@ releases:
     values:
       - values/laravel-common-values.yaml
       - values/identity-values.yaml
-      - { internalReloadToken: "another-really-secure-token", image: { registry: "localhost:5000", repository: "job7189/identity-service", tag: "v2.8.16", pullPolicy: "Always" } }
+      - { internalReloadToken: "another-really-secure-token", image: { registry: "localhost:5000", repository: "job7189/identity-service", tag: "v2.8.18", pullPolicy: "Always" } }
 
   # Workspace (Thay cho Company)
   - name: workspace-service

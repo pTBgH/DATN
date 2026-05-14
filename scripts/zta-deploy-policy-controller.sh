@@ -300,7 +300,45 @@ fi
 blue "[4/5] Patching ClusterImagePolicy with cosign public key from $COSIGN_CM_NS/$COSIGN_CM_NAME..."
 apply_policies_with_key
 
-blue "[5/5] Opt-in namespace '$APP_NAMESPACE' for image signature verification..."
+blue "[5/6] Narrowing webhook scope on resource 'pods' to CREATE-only..."
+# Sigstore policy-controller upstream chart binds both CREATE and UPDATE for
+# `pods` and `pods/ephemeralcontainers`. UPDATE coverage means every external
+# controller that patches an existing pod (kopf PDP controller, kube-controller-
+# manager, kubectl label, …) re-triggers full pod-spec validation. When a
+# Vault Agent–injected pod has a tag-based sidecar image (e.g. hashicorp/vault:1.21.2),
+# every PATCH then trips `validation failed: must be an image digest`, even
+# though the pod was admitted cleanly at CREATE time.
+#
+# Cosign verifies SUPPLY-CHAIN at admission. `pod.spec.containers[*].image` is
+# immutable post-CREATE in Kubernetes, so UPDATE-time validation does not
+# defend against any additional image-substitution attack. The only attack
+# vector on a running pod is ephemeralContainer insertion — but that is
+# defence-in-depth covered by Tetragon TracingPolicy (Step 2.3.4) and the
+# Gatekeeper image-trust ConstraintTemplates (PR #16). Trade-off accepted.
+# See doc/28-sigstore-policy-controller.md §7a for full rationale.
+WEBHOOK_NAME="policy.sigstore.dev"
+if kubectl get validatingwebhookconfiguration "$WEBHOOK_NAME" >/dev/null 2>&1; then
+  # The chart deploys 3 rules under webhooks[0]:
+  #   rules[0] -> pods, pods/ephemeralcontainers
+  #   rules[1] -> daemonsets, deployments, ...   (apps/v1)
+  #   rules[2] -> cronjobs, jobs                 (batch/v1)
+  # Each rule object carries its own .operations list. We rewrite each one
+  # to CREATE-only. (`pods/ephemeralcontainers` lives inside rules[0].resources
+  # alongside `pods`, so it follows the same operation list — this is the
+  # one trade-off; if you need stricter ephemeralcontainer enforcement, split
+  # that into its own webhook rule.)
+  for IDX in 0 1 2; do
+    kubectl patch validatingwebhookconfiguration "$WEBHOOK_NAME" \
+      --type='json' \
+      -p="[{\"op\": \"replace\", \"path\": \"/webhooks/0/rules/$IDX/operations\", \"value\": [\"CREATE\"]}]" \
+      >/dev/null 2>&1 || yellow "    (rule index $IDX not present — skipped)"
+  done
+  green "  ✓ webhook rules patched to CREATE-only on pods/apps/batch"
+else
+  yellow "  (webhook $WEBHOOK_NAME not found yet — chart may still be initialising)"
+fi
+
+blue "[6/6] Opt-in namespace '$APP_NAMESPACE' for image signature verification..."
 kubectl label ns "$APP_NAMESPACE" policy.sigstore.dev/include=true --overwrite
 
 green "============================================================"

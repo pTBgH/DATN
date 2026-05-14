@@ -17,7 +17,7 @@ Câu hỏi PDP trả lời:
                 │   • watch Pod label changes                 │
                 │   • compute trust-score                     │
                 │   • emit drift event                        │
-                │   • annotate cilium.zta/trust-score         │
+                │   • annotate zta.job7189/trust-score        │
                 └────────────────┬────────────────────────────┘
                                  │
        ┌─────────────────────────┼─────────────────────────────┐
@@ -34,16 +34,22 @@ PDP **không** trực tiếp tạo CNP (giảm rủi ro auto-policy gen) — tha
 
 ## 6 ZTA labels được verify
 
-(Định nghĩa chi tiết ở `doc/19-label-schema.md`):
+(Định nghĩa chi tiết ở `doc/19-label-schema.md`. Schema theo Phase 4 hardening — prefix `zta.job7189/*`, **KHÔNG** dùng prefix `cilium.zta/*` cũ.)
 
 | Label | Giá trị mẫu | Mục đích |
 |-------|-------------|----------|
-| `cilium.zta/tier` | `T0` / `T1` / `T2` / `T3` | Phân tier theo độ nhạy data (T0 = public, T3 = secret) |
-| `cilium.zta/source` | `identity-service` / `vault` / ... | Tên logical service (Source trong 5W1H) |
-| `cilium.zta/destination` | `kube-apiserver` / `mysql` / ... | Đích chính của pod (Destination trong 5W1H) |
-| `cilium.zta/role` | `gateway` / `database` / `identity` / ... | Vai trò trong kiến trúc (Why trong 5W1H) |
-| `cilium.zta/owner` | `security-team` / `data-team` / ... | Team/SA chịu trách nhiệm (Who trong 5W1H) |
-| `cilium.zta/sensitivity` | `public` / `internal` / `confidential` / `secret` | Phân loại data nhạy cảm (What trong 5W1H) |
+| `zta.job7189/tier` | `T0` / `T1` / `T2` / `T3` | Phân tier theo độ nhạy data (T0 = public/edge, T3 = restricted) |
+| `zta.job7189/role` | `api` / `db` / `gateway` / `sso` / `proxy` / `pdp` / ... | Vai trò workload trong kiến trúc (Why trong 5W1H) |
+| `zta.job7189/team` | `security` / `data` / `platform` / `backend` | Team/SA chịu trách nhiệm (Who trong 5W1H) |
+| `zta.job7189/data-classification` | `public` / `internal` / `confidential` / `none` | Phân loại data nhạy cảm (What trong 5W1H) |
+| `zta.job7189/env` | `prod` / `staging` / `dev` | Môi trường runtime (lifecycle) |
+| `zta.job7189/exposure` | `cluster-only` / `internal` / `external` | Mức exposure ra ngoài cluster (Where) |
+
+> **Lưu ý lịch sử:** Schema ban đầu (PR #15 ZTA gap-fix) dùng prefix `cilium.zta/*`
+> với 6 labels `{tier,source,destination,role,owner,sensitivity}`. Phase 4 ZTA
+> hardening (B14 series) chuẩn hoá toàn cluster về `zta.job7189/*` để đồng bộ
+> với CNP selectors và Trivy Operator scan-policy. PDP Controller đã được
+> migrate sang schema mới (commit branch `devin/*-pdp-zta-label-schema`).
 
 ## Cấu trúc
 
@@ -85,7 +91,7 @@ kubectl -n security logs -l app=zta-pdp --tail=30
 
 # Trust-score annotation đã được PDP ghi?
 kubectl -n job7189-apps get pod -o json \
-  | jq '.items[] | {pod: .metadata.name, score: .metadata.annotations["cilium.zta/trust-score"]}'
+  | jq '.items[] | {pod: .metadata.name, score: .metadata.annotations["zta.job7189/trust-score"], bucket: .metadata.labels["zta.job7189/score-bucket"]}'
 
 # Prometheus metrics
 kubectl -n security port-forward svc/zta-pdp-metrics 9100:9100 &
@@ -104,16 +110,20 @@ bash 09-verify-zta.sh | grep "Test 4g" -A 6
 ```bash
 # 1. Xóa 1 label trên 1 pod → PDP phải log drift trong < 60s
 POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
-kubectl -n job7189-apps label pod $POD cilium.zta/sensitivity- --overwrite
+kubectl -n job7189-apps label pod $POD zta.job7189/data-classification- --overwrite
 
 # 2. Xem PDP log
 sleep 65
 kubectl -n security logs -l app=zta-pdp --tail=10 | grep label-drift
-# Mong đợi: {"event":"label-drift","ns":"job7189-apps","pod":"...","missing":"cilium.zta/sensitivity","score":"83"}
+# Mong đợi: {"event":"label-drift","ns":"job7189-apps","pod":"...","missing":"zta.job7189/data-classification","score":"95","bucket":"high"}
 
 # 3. Trust score giảm
-kubectl -n job7189-apps get pod $POD -o jsonpath='{.metadata.annotations.cilium\.zta/trust-score}'
-# Mong đợi: "83" (5/6 labels)
+kubectl -n job7189-apps get pod $POD -o jsonpath='{.metadata.annotations.zta\.job7189/trust-score}'
+# Mong đợi: "95" (5/6 labels, missing_ratio = 1/6, score = 100 - round(30 * 1/6) = 95)
+
+# 4. Score-bucket label đã update?
+kubectl -n job7189-apps get pod $POD -o jsonpath='{.metadata.labels.zta\.job7189/score-bucket}'
+# Mong đợi: "high" (95 >= 80)
 ```
 
 ## CISA ZTMM tác động

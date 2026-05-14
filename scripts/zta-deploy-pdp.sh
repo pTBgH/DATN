@@ -46,12 +46,12 @@ metadata:
   name: zta-pdp-script
   namespace: security
   labels:
-    cilium.zta/tier: T1
-    cilium.zta/source: zta-pdp
-    cilium.zta/destination: kube-apiserver
-    cilium.zta/role: control-plane
-    cilium.zta/owner: security-team
-    cilium.zta/sensitivity: confidential
+    zta.job7189/tier: T1
+    zta.job7189/role: pdp
+    zta.job7189/team: security
+    zta.job7189/data-classification: confidential
+    zta.job7189/env: prod
+    zta.job7189/exposure: cluster-only
 data:
   pdp_controller.py: |
 {indent_block(script)}

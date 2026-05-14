@@ -126,6 +126,59 @@ kubectl -n job7189-apps get pod $POD -o jsonpath='{.metadata.labels.zta\.job7189
 # Mong đợi: "high" (95 >= 80)
 ```
 
+## Bằng chứng triển khai (Phase 5.B.1, 2026-05)
+
+Sau khi merge `fix(pdp): migrate ... zta.job7189/* label schema` và
+`bash scripts/zta-deploy-pdp.sh`, PDP đã reconcile và gán trust-score
+cho **35 / 35** pod trong 7 ZTA namespaces.
+
+```
+NAME                       READY   STATUS    RESTARTS   AGE
+zta-pdp-5bc48b78bd-t49fl   1/1     Running   0          ~3m
+```
+
+### Bản đồ trust-score thực tế (`namespace: job7189-apps`)
+
+| Nhóm pod | Số pod | Score | Bucket | Lý do |
+|---|---|---|---|---|
+| 8 microservice chính (candidate, communication, hiring, identity, job, storage, workspace, +backend) | 8 | **100** | **high** | Đủ 6 label, image Trivy không có CVE Critical/High |
+| 5 Redis sidecar (`*-service-redis`) | 5 | **30** | **low** | Đủ 6 label, **image `library/redis` có Critical + High CVE** |
+| Redis của storage/workspace | 2 | **30** | **low** | Cùng nhóm Redis ở trên |
+
+### Score formula áp dụng cho Redis (ví dụ minh hoạ)
+
+```
+score = max(0, 100 - WEIGHT_LABEL × missing_ratio − WEIGHT_CRITICAL × has_crit
+                       − WEIGHT_HIGH × has_high)
+      = max(0, 100 − 30 × (0/6) − 50 × 1 − 20 × 1)
+      = 30
+bucket = "low"   (< BUCKET_MEDIUM_THRESHOLD = 50)
+```
+
+→ Đây **không phải bug** mà chính là đầu ra mong muốn của vòng adaptive:
+PDP đã đọc `VulnerabilityReport` của Trivy Operator, phát hiện image
+Redis có CVE nặng, và hạ trust-score cho mọi pod dùng image đó. CNP/Gatekeeper
+phía sau có thể bắt vào nhãn `zta.job7189/score-bucket=low` để hạn chế
+egress hoặc reject re-schedule.
+
+### Caveat — Cosign webhook chặn PATCH
+
+Trong lần deploy đầu, 4 pod (`storage-service`, `workspace-service` và 2
+Redis tương ứng) **không nhận được trust-score** vì Vault Agent Injector
+chèn sidecar `hashicorp/vault:1.21.2` (tag-based, không phải digest) vào
+spec pod, và `ValidatingWebhookConfiguration policy.sigstore.dev` re-validate
+toàn pod spec mỗi khi PDP gọi `kubectl patch`. Webhook trả về:
+
+```
+admission webhook "policy.sigstore.dev" denied the request:
+validation failed: invalid value: hashicorp/vault:1.21.2 must be an image digest:
+spec.containers[3].image, spec.initContainers[0].image
+```
+
+Giải pháp: thu hẹp scope webhook về **chỉ CREATE** (không re-validate UPDATE),
+xem chi tiết ở `doc/28-sigstore-policy-controller.md` §7a. Sau khi patch
+webhook và restart PDP pod, cả 4 pod đều nhận trust-score đúng quy luật trên.
+
 ## CISA ZTMM tác động
 
 | Trục | Trước PDP | Sau PDP |

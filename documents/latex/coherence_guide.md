@@ -71,7 +71,7 @@
 - [ ] Mỗi section kết thúc bằng `\cite{}` thay vì "Nguồn trích dẫn:" bullet list
 - [ ] Tất cả figure đều có `\label{}` và được `\ref{}` trong văn bản
 - [ ] Không có placeholder text kiểu "[Hình ảnh minh họa: ...]" (trừ Chương 3 đã xử lý riêng)
-- [ ] Khi nhắc tới cụm thực nghiệm phải là **`kubeadm` 4 nút trên 4 máy ảo Debian 13** (không phải "Kind 4 node" của baseline cũ); ngân sách RAM tổng **~15.5 GiB phân bố trên 4 VM** (không phải "12 GiB chung kernel"); mặt phẳng L3 đi qua **Tailscale WireGuard**, mặt phẳng pod đi qua **Cilium VXLAN**.
+- [ ] Khi nhắc tới cụm thực nghiệm phải là **`kubeadm` 4 nút trên 4 máy ảo (3 Debian 13 + 1 Ubuntu 24.04 LTS)** (không phải "Kind 4 node" của baseline cũ); ngân sách RAM tổng **~15.5 GiB phân bố trên 4 VM** (không phải "12 GiB chung kernel"); mặt phẳng L3 đi qua **Tailscale WireGuard**, mặt phẳng pod đi qua **Cilium VXLAN**. Nút data-tier `7189srv05` (Ubuntu 24.04 LTS, libvirt **bridge**) thay thế `7189srv04` (Debian, libvirt NAT) -- chi tiết `doc/migration/transition-srv04-to-srv05.md`.
 
 ---
 
@@ -111,4 +111,4 @@ Kiểm thử nhanh: `docker compose up -d` → mở `main.pdf` → nếu xuất 
 > "Chương 1 đã xác lập nền tảng lý luận về kiến trúc Zero Trust và ánh xạ sơ bộ các thành phần logic NIST sang công nghệ mã nguồn mở. Tuy nhiên, việc triển khai ZTA trong môi trường Microservices đặt ra những thách thức đặc thù mà lý thuyết chung chưa thể giải đáp. Chương 2 sẽ phân tích những thách thức này và đề xuất một khung kiến trúc ZTA 5 lớp cụ thể."
 
 ### Cuối Chương 2 → Chương 3
-> "Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng JOB7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 nút `kubeadm` phân bố trên 4 máy ảo Debian 13 — theo đúng lộ trình 4 giai đoạn đã đề xuất."
+> "Chương 2 đã hoàn tất việc thiết kế khung kiến trúc Zero Trust 5 lớp và quy trình triển khai 4 giai đoạn trên phương diện lý thuyết. Chương 3 sẽ chứng minh tính khả thi của khung kiến trúc này thông qua việc triển khai thực nghiệm trên hệ thống tuyển dụng JOB7189 — một ứng dụng Microservices gồm 7 backend service vận hành trên cụm Kubernetes 4 nút `kubeadm` phân bố trên 4 máy ảo (3 Debian 13 + 1 Ubuntu 24.04 LTS) — theo đúng lộ trình 4 giai đoạn đã đề xuất."

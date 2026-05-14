@@ -86,7 +86,7 @@ Yêu cầu thiết kế bắt nguồn từ phát biểu bài toán ở đầu ch
 \paragraph{Yêu cầu phi chức năng (non-functional).}
 \begin{enumerate}[label=R-N\arabic*., leftmargin=1.6cm]
     \item \textbf{Độ trễ thấp:} latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở tầng L4 và $\leq 30\,\text{ms}$ ở tầng L7 cho 95-percentile.
-    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm \texttt{kubeadm} 4 nút phân bố trên 4 máy ảo Debian 13 (\textbf{tổng ngân sách RAM $\sim$15.5\,GiB}, headroom per-node mục tiêu $\geq 0.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md} và \texttt{doc/migration/03-vm-sizing.md}.
+    \item \textbf{Tài nguyên có giới hạn:} toàn bộ hạ tầng ZTA + ứng dụng chạy được trong cụm \texttt{kubeadm} 4 nút (3 Debian 13 + 1 Ubuntu 24.04 LTS) (\textbf{tổng ngân sách RAM $\sim$15.5\,GiB}, headroom per-node mục tiêu $\geq 0.3\,\text{GiB}$) theo Quyết định 4 trong \texttt{doc/zta-gap-decision.md} và \texttt{doc/migration/03-vm-sizing.md}.
     \item \textbf{Tự phục hồi:} pipeline triển khai (\texttt{zta-rebuild.sh}) có thể chạy lại từ một bước bất kỳ mà không cần xoá toàn bộ cluster; mỗi bước có \texttt{ZTA\_REBUILD\_SKIP=...} cho chế độ low-RAM, và cờ \texttt{ZTA\_CLUSTER\_MODE=external} cho phép pipeline bám trên cụm \texttt{kubeadm} có sẵn thay vì tạo cluster nội tại.
     \item \textbf{Có thể quan sát từ ngoài:} mọi metric/dashboard phải truy cập được qua trình duyệt mà không cần \texttt{kubectl port-forward} thủ công.
     \item \textbf{Mã hoá in-transit và at-rest:} mọi flow nội bộ giữa namespace nhạy cảm phải mã hoá (mTLS hoặc WireGuard); credential lưu trên \texttt{tmpfs} thay vì K8s Secret on-disk.
@@ -301,31 +301,33 @@ PIP observability & EFK + Prometheus + Grafana + Hubble & Bộ ``CNCF chuẩn'';
 \subsection{Mô hình triển khai vật lý (deployment view)}
 \label{subsec:deployment_view}
 
-\paragraph{Cụm Kubernetes.} job7189 chạy trên một cụm \texttt{kubeadm} 4 nút phân bố trên 4 máy ảo Debian 13 ``Trixie''~\parencite{kubeadm_docs,debian_trixie} (\textbf{1 control-plane + 3 worker}, tổng ngân sách RAM $\sim$15.5\,GiB) -- chi tiết topology xem Bảng~\ref{tab:vm_topology}. CNI mặc định của kubeadm (\texttt{kube-proxy} kèm bridge) được tắt để Cilium 1.19 tiếp quản hoàn toàn data plane mạng (\texttt{kubeProxyReplacement=true})~\parencite{cilium_docs}. Bốn nút giao tiếp L3 với nhau qua một tailnet WireGuard do Tailscale cung cấp (CGNAT \texttt{100.64.0.0/10}); Cilium dùng VXLAN tunnel trên overlay đó và \textit{không} bật WireGuard riêng để tránh mã hoá hai lớp~\parencite{tailscale_docs}. Mỗi worker chạy: \texttt{cilium-agent}, \texttt{tetragon}, \texttt{spire-agent}, \texttt{filebeat}, \texttt{node-exporter} (5 DaemonSet bắt buộc); riêng \texttt{tetragon} có thể bỏ qua \texttt{7189srv01} để dành RAM cho control-plane.
+\paragraph{Cụm Kubernetes.} job7189 chạy trên một cụm \texttt{kubeadm} 4 nút (1 control-plane + 3 worker, tổng ngân sách RAM $\sim$15.5\,GiB)~\parencite{kubeadm_docs}. Ba nút worker đầu chạy Debian 13 ``Trixie''~\parencite{debian_trixie}; nút data-tier \texttt{7189srv05} chạy Ubuntu 24.04 LTS trên libvirt bridge. Chi tiết topology xem Bảng~\ref{tab:vm_topology}. CNI mặc định của kubeadm bị tắt để Cilium 1.19 tiếp quản data plane với \texttt{kubeProxyReplacement=true}~\parencite{cilium_docs}. Bốn nút giao tiếp L3 qua một tailnet WireGuard do Tailscale cung cấp (CGNAT \texttt{100.64.0.0/10}); Cilium dùng VXLAN tunnel trên overlay đó và \textit{không} bật WireGuard riêng để tránh mã hoá hai lớp~\parencite{tailscale_docs}. Mỗi worker chạy 5 DaemonSet bắt buộc: \texttt{cilium-agent}, \texttt{tetragon}, \texttt{spire-agent}, \texttt{filebeat}, \texttt{node-exporter}; riêng \texttt{tetragon} có thể bỏ qua \texttt{7189srv01} để dành RAM cho control-plane.
 
 \begin{table}[H]
 \centering
 \small
-\caption{Bốn máy ảo Debian 13 cấu thành cụm \texttt{kubeadm} job7189}
+\caption{Topology bốn máy ảo cấu thành cụm \texttt{kubeadm} job7189 (3 Debian 13 + 1 Ubuntu 24.04 LTS)}
 \label{tab:vm_topology}
 \begin{tabularx}{\textwidth}{|l|l|l|l|X|}
 \hline
-\textbf{Hostname} & \textbf{Host vật lý} & \textbf{Vai trò} & \textbf{vCPU / RAM} & \textbf{Workload chính} \\
+\textbf{Hostname} & \textbf{Host / OS} & \textbf{Vai trò} & \textbf{vCPU / RAM} & \textbf{Workload chính} \\
 \hline
-\texttt{7189srv01} & Windows (VMware) & control-plane & 1 / 2.0\,GiB & etcd, kube-apiserver, scheduler, controller-manager, \texttt{cilium-agent} (DS) \\
+\texttt{7189srv01} & Windows VMware / Debian 13 & control-plane & 1 / 2.0\,GiB & etcd, kube-apiserver, scheduler, controller-manager, \texttt{cilium-agent} (DS) \\
 \hline
-\texttt{7189srv02} & Windows (VMware) & worker & 2 / 4.5\,GiB & Stateless Laravel/Kong/Keycloak, Elasticsearch (\texttt{emptyDir}), DaemonSet \\
+\texttt{7189srv02} & Windows VMware / Debian 13 & worker & 2 / 4.5\,GiB & Stateless Laravel/Kong/Keycloak, Elasticsearch (\texttt{emptyDir}), DaemonSet \\
 \hline
-\texttt{7189srv03} & Windows (VMware) & worker & 2 / 5.0\,GiB & Stateless còn lại, Prometheus (\texttt{emptyDir}), DaemonSet \\
+\texttt{7189srv03} & Windows VMware / Debian 13 & worker & 2 / 5.0\,GiB & Stateless còn lại, Prometheus (\texttt{emptyDir}), DaemonSet \\
 \hline
-\texttt{7189srv04} & Ubuntu (libvirt) & worker -- data tier always-on & 2 / 4.0\,GiB & \texttt{vault-dev}, \texttt{vault-prod}, MySQL, Kafka, SPIRE server, docker-registry (pin \texttt{nodeAffinity hostname=7189srv04}) \\
+\texttt{7189srv05} & Ubuntu libvirt bridge / Ubuntu 24.04 LTS & worker -- data tier always-on & 2 / 4.0\,GiB & \texttt{vault-dev}, \texttt{vault-prod}, MySQL, Kafka, SPIRE server, docker-registry (pin \texttt{nodeAffinity hostname=7189srv05}) \\
 \hline
 \multicolumn{3}{|r|}{\textbf{Tổng}} & \textbf{7 / $\sim$15.5\,GiB} & \\
 \hline
 \end{tabularx}
 \end{table}
 
-\paragraph{Phân bổ workload theo trạng thái (stateful/stateless).} Chỉ workload có \texttt{PersistentVolumeClaim} hoặc đòi hỏi \textit{always-on} (cụ thể \texttt{vault-dev} chạy RAM-only nhưng cấp khoá Transit cho \texttt{vault-prod} tự unseal) mới được pin \texttt{nodeAffinity hostname=7189srv04} -- nút này nằm trên host Ubuntu có thời gian bật cao nhất. Phần còn lại (7 Laravel apps, Kong, ingress-nginx, cert-manager, Keycloak Deployment H2-in-memory, oauth2-proxy, Grafana, Kibana, Hubble Relay/UI, Gatekeeper, Sigstore policy-controller, PDP, Hubble shipper, kube-state-metrics, metrics-server, Cilium operator) không gắn \texttt{nodeAffinity}; Kubernetes scheduler tự cân theo RAM/CPU pressure giữa \texttt{7189srv02} và \texttt{7189srv03}. Để giữ \texttt{7189srv04} trong ngân sách 4\,GiB, Elasticsearch và Prometheus được dịch chuyển sang worker Windows kèm \texttt{emptyDir} (chấp nhận mất dữ liệu khi pod restart -- xem Bảng~\ref{tab:vm_topology}). Chi tiết ma trận \texttt{nodeAffinity} đầy đủ được trình bày trong \texttt{doc/migration/02-target-architecture.md}.
+\paragraph{Phân bổ workload theo trạng thái.} Chỉ workload có \texttt{PersistentVolumeClaim} hoặc đòi hỏi \textit{always-on} (\texttt{vault-dev} chạy RAM-only cấp khoá Transit cho \texttt{vault-prod} auto-unseal) được pin \texttt{nodeAffinity hostname=7189srv05} -- nút này nằm trên host Ubuntu có uptime cao nhất. Phần còn lại (7 Laravel apps, Kong, ingress-nginx, cert-manager, Keycloak, oauth2-proxy, Grafana, Kibana, Hubble Relay/UI, Gatekeeper, Sigstore policy-controller, PDP, Hubble shipper, kube-state-metrics, metrics-server, Cilium operator) không gắn \texttt{nodeAffinity}; scheduler tự cân theo RAM/CPU pressure giữa \texttt{7189srv02} và \texttt{7189srv03}. Để giữ \texttt{7189srv05} trong ngân sách 4\,GiB, Elasticsearch và Prometheus được dịch chuyển sang worker Windows kèm \texttt{emptyDir} (chấp nhận mất dữ liệu khi pod restart). Chi tiết ma trận \texttt{nodeAffinity} xem \texttt{doc/migration/02-target-architecture.md}.
+
+\paragraph{Ghi chú di trú srv04 $\to$ srv05.} Topology hiện tại là kết quả của một lần thay node data-tier giữa kỳ thực nghiệm. Phiên bản đầu tiên dùng \texttt{7189srv04} (Debian, libvirt NAT trên cùng host Ubuntu); double-NAT giữa libvirt và CGNAT của ISP khiến Tailscale không thiết lập được kết nối P2P trực tiếp, toàn bộ lưu lượng \texttt{kubelet} và \texttt{cilium} phải đi qua DERP relay và bão hoà dưới tải. Nút \texttt{7189srv05} thay thế chạy Ubuntu 24.04 LTS trên libvirt \textbf{bridge} (cùng dải LAN với host), loại bỏ lớp NAT bên trong và phục hồi đường P2P. Bài học rút ra: nút stateful của cụm phải có đúng một lớp NAT; chi tiết xem \texttt{doc/migration/transition-srv04-to-srv05.md} và \texttt{doc/migration/incident-srv04-tailscale-derp-2026-05-13.md}.
 
 \paragraph{Phân bố namespace.} 9 namespace được nhóm theo trách nhiệm:
 \begin{itemize}
@@ -352,7 +354,7 @@ Bản đồ chi tiết được trình bày ở Hình~\ref{fig:namespace_map} (M
     \item \textbf{Trust Score 2-input thay vì 4-input đầy đủ} (Quyết định 1): chỉ tổng hợp \textit{label coverage} + \textit{CVE severity}, bỏ qua \textit{kill event Tetragon} và \textit{IoC match} vì hai input này đã được xử lý ở các tầng khác (Tetragon \texttt{SIGKILL} ở kernel; IoC match ở \texttt{CiliumClusterwideNetworkPolicy} egress). Output là 3 bucket (\texttt{high/medium/low}) thay vì số 0--100, để bind được vào \texttt{matchLabels} của Cilium.
     \item \textbf{Không cài Alertmanager} (Quyết định 2): chỉ deploy \texttt{PrometheusRule} + Grafana panel hiển thị \texttt{ALERTS{...}}; bỏ Alertmanager để tiết kiệm $\sim$80\,MiB RAM và tránh \textit{production concern} (Slack/PagerDuty routing) vốn không thuộc phạm vi PoC.
     \item \textbf{Threat-intel feed không token} (Quyết định 3): chọn FireHOL Level1 (CIDR) + URLhaus (FQDN) -- cả hai miễn phí, không cần API key, refresh 1h/lần qua CronJob; tránh phụ thuộc credential ngoài.
-    \item \textbf{RAM budget $\sim$15.5\,GiB phân bố trên 4 VM, không tăng} (Quyết định 4): mọi quyết định khác (chọn Tetragon thay Falco, tắt Alertmanager, không cấu hình Trust Score 4-input, dịch Elasticsearch/Prometheus khỏi \texttt{7189srv04} sang worker Windows với \texttt{emptyDir}\dots) đều xuất phát từ ràng buộc này. Tổng RAM thêm cho phase Trivy + threat-intel + Grafana dashboard là $\sim$200\,MiB. Việc chuyển từ Kind 1-host 12\,GiB sang 4 VM tách kernel cho phép cô lập áp lực RAM theo node (xem mục~\ref{sec:resource_budget_lessons}) và là động lực chính của quyết định di trú mô tả trong \texttt{doc/migration/}.
+    \item \textbf{RAM budget $\sim$15.5\,GiB phân bố trên 4 VM, không tăng} (Quyết định 4): mọi quyết định khác (chọn Tetragon thay Falco, tắt Alertmanager, không cấu hình Trust Score 4-input, dịch Elasticsearch/Prometheus khỏi \texttt{7189srv05} sang worker Windows với \texttt{emptyDir}\dots) đều xuất phát từ ràng buộc này. Tổng RAM thêm cho phase Trivy + threat-intel + Grafana dashboard là $\sim$200\,MiB. Việc chuyển từ Kind 1-host 12\,GiB sang 4 VM tách kernel cho phép cô lập áp lực RAM theo node (xem mục~\ref{sec:resource_budget_lessons}) và là động lực chính của quyết định di trú mô tả trong \texttt{doc/migration/}.
     \item \textbf{Vault dual-mode (Transit auto-unseal):} \texttt{vault-dev} đóng vai trò Transit cho \texttt{vault-prod} -- khi \texttt{vault-prod} restart, nó tự động unseal qua \texttt{vault-dev}; loại bỏ thao tác thủ công trong PoC.
     \item \textbf{ServiceAccount-based microsegmentation:} \texttt{CiliumNetworkPolicy} \texttt{matchLabels} dùng \texttt{io.kubernetes.pod.namespace} + \texttt{io.cilium.k8s.policy.serviceaccount} thay vì pod label tự khai báo -- để chính sách không thể bị bypass bằng cách tự gắn label.
 \end{enumerate}
@@ -367,7 +369,7 @@ Thiết kế hiện tại chấp nhận một số giới hạn rõ ràng, ghi l
     \item \textbf{Không có CAEP / session-level revocation:} OpenID CAEP \parencite{openid_caep} chưa được triển khai; PE chỉ thu hồi quyền theo TTL của JWT/SVID, không phải theo sự kiện thay đổi posture.
     \item \textbf{Trust Score 2-input:} các input \textit{kill event} và \textit{IoC match} không trực tiếp ảnh hưởng score; lý do trình bày ở quyết định 1 phía trên.
     \item \textbf{Tetragon thay Falco do RAM:} đánh đổi giữa số lượng built-in rule và bộ nhớ lab; rule set chính được tự viết qua \texttt{TracingPolicy}.
-    \item \textbf{Cụm \texttt{kubeadm} trên máy ảo, không phải bare-metal:} 4 VM Debian 13 chạy trên hai host VMware/libvirt và nói chuyện cross-host qua Tailscale WireGuard. Một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG, latency mạng L2 thuần\dots) không được kiểm chứng trong đồ án -- chi tiết trade-off so sánh với baseline Kind 1-host cũ xem \texttt{doc/migration/01-context-and-rationale.md}.
+    \item \textbf{Cụm \texttt{kubeadm} trên máy ảo, không phải bare-metal:} 4 VM (3 Debian 13 + 1 Ubuntu 24.04 LTS) chạy trên hai host VMware/libvirt và nói chuyện cross-host qua Tailscale WireGuard. Một số đặc tính của hạ tầng vật lý thật (BGP peering, hardware RNG, latency mạng L2 thuần\dots) không được kiểm chứng trong đồ án -- chi tiết trade-off so sánh với baseline Kind 1-host cũ xem \texttt{doc/migration/01-context-and-rationale.md}.
 \end{itemize}
 
 Sau khi nắm thiết kế tổng thể, mục tiếp theo (\ref{sec:zta_roadmap}) trình bày \textit{trình tự các bước} hiện thực hoá thiết kế này, theo đúng khuyến nghị của NIST SP 800-207 Mục 7.
@@ -618,7 +620,7 @@ Hình~\ref{fig:namespace_map} là sơ đồ TikZ tóm tắt 9 namespace + tất 
 };
 
 \end{tikzpicture}
-\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm \texttt{kubeadm} 4 nút (4 máy ảo Debian 13).}
+\caption{Bản đồ workload theo namespace -- mỗi khối là một namespace, các bullet là Deployment/StatefulSet/DaemonSet thực tế sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Số ×N là replica trên cụm \texttt{kubeadm} 4 nút (3 Debian 13 + 1 Ubuntu 24.04 LTS).}
 \label{fig:namespace_map}
 \end{figure}
 
@@ -686,7 +688,7 @@ Prom + Grafana & Scrape 7 service + Cilium + Vault + PDP + node-exporter + ksm; 
 
 \subsection{Danh mục tài sản: 7 microservice, 5 namespace}
 
-Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \texttt{kubeadm} gồm \textbf{1 Control Plane + 3 Worker nodes} phân bố trên 4 máy ảo Debian 13 (xem Bảng~\ref{tab:vm_topology}). Bốn nút nói chuyện L3 qua Tailscale WireGuard~\parencite{tailscale_docs}; CNI mặc định không được kubeadm cài, Cilium 1.19 tiếp quản hoàn toàn mặt phẳng dữ liệu mạng với \texttt{kubeProxyReplacement=true}~\parencite{cilium_docs,kubeadm_docs}.
+Hệ thống job7189 là nền tảng tuyển dụng trực tuyến, triển khai trên cụm Kubernetes \texttt{kubeadm} gồm \textbf{1 Control Plane + 3 Worker nodes} phân bố trên 4 máy ảo (3 Debian 13 + 1 Ubuntu 24.04 LTS, xem Bảng~\ref{tab:vm_topology}). Bốn nút nói chuyện L3 qua Tailscale WireGuard~\parencite{tailscale_docs}; CNI mặc định không được kubeadm cài, Cilium 1.19 tiếp quản hoàn toàn mặt phẳng dữ liệu mạng với \texttt{kubeProxyReplacement=true}~\parencite{cilium_docs,kubeadm_docs}.
 
 \begin{table}[H]
 \centering
@@ -1628,7 +1630,7 @@ Theo Quyết định~2 trong \texttt{doc/zta-gap-decision.md}, đồ án \emph{c
 
 \subsection{Cilium mTLS và WireGuard}
 
-mTLS sidecarless được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên cụm 4 VM Debian 13 với ngân sách RAM $\sim$15.5\,GiB (\texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kubeadm_docs}. Cilium WireGuard \emph{tắt vĩnh viễn} (\texttt{enable-wireguard: false}) vì Tailscale đã đảm nhiệm việc mã hoá đầu cuối ở underlay L3 giữa bốn nút; bật thêm sẽ tạo hai lớp WireGuard chồng nhau, lãng phí CPU mà không tăng bảo mật~\parencite{tailscale_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
+mTLS sidecarless được \emph{thiết kế nhưng tạm tắt} trong baseline để ưu tiên ổn định trên cụm 4 VM (3 Debian 13 + 1 Ubuntu 24.04 LTS) với ngân sách RAM $\sim$15.5\,GiB (\texttt{mesh-auth-enabled: false}, \texttt{enable-l7-proxy: true})~\parencite{cilium_docs,kubeadm_docs}. Cilium WireGuard \emph{tắt vĩnh viễn} (\texttt{enable-wireguard: false}) vì Tailscale đã đảm nhiệm việc mã hoá đầu cuối ở underlay L3 giữa bốn nút; bật thêm sẽ tạo hai lớp WireGuard chồng nhau, lãng phí CPU mà không tăng bảo mật~\parencite{tailscale_docs}. Khi bật \texttt{mesh-auth-enabled=true}, Cilium tiêu thụ SVID do SPIRE cấp~\parencite{spire_docs,spiffe_spec}, thực hiện handshake mTLS trong kernel eBPF -- chặn IP spoofing hoàn toàn mà không cần Envoy sidecar~\parencite{istio_ambient,zhu2023meshinsight}.
 
 
 %==============================================================================

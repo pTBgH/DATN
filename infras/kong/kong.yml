@@ -257,3 +257,120 @@ plugins:
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
       headers: ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"]
       credentials: true
+
+  # --------------------------------------------------------------------
+  # Phase 5.B.2 — OPA user-authz gate (forwards role decisions to OPA).
+  #
+  # Kong runs the `jwt` plugin first (per-route) — it has already verified
+  # the JWT signature against the Keycloak realm public key by the time the
+  # pre-function `access` block executes. We re-decode the payload here only
+  # to forward the realm-access roles to OPA; we do NOT re-verify the
+  # signature.
+  #
+  # For routes WITHOUT a `jwt` plugin (public ones — /api/health, /api/public/*)
+  # the Authorization header is usually absent, so the script falls through
+  # and lets OPA decide via public.rego. If OPA is unreachable we fail-open
+  # (log + allow) so a transient OPA outage doesn't brick the gateway.
+  # Set ZTA_OPA_FAIL_CLOSED=1 (env on Kong pod) to flip to fail-closed.
+  # --------------------------------------------------------------------
+  - name: pre-function
+    config:
+      access:
+        - |
+          local cjson   = require("cjson.safe")
+          local http    = require("resty.http")
+
+          -- Where to ask OPA. Resolves via cluster DNS — OPA Service is
+          -- `security/opa` on port 8181, deployed by scripts/zta-deploy-opa.sh.
+          local OPA_URL = os.getenv("ZTA_OPA_URL")
+            or "http://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
+          local FAIL_CLOSED = os.getenv("ZTA_OPA_FAIL_CLOSED") == "1"
+          local TIMEOUT_MS  = 1000   -- 1s upper bound on OPA round-trip
+
+          local auth = kong.request.get_header("authorization") or ""
+          local token = auth:match("^[Bb]earer%s+(.+)$") or ""
+
+          -- Decode the JWT payload (base64-url segment 2) — Kong's jwt
+          -- plugin already verified the signature on protected routes; we
+          -- only need the claims for OPA input.
+          local function b64url_decode(s)
+            s = s:gsub("-", "+"):gsub("_", "/")
+            local pad = 4 - (#s % 4)
+            if pad < 4 then s = s .. string.rep("=", pad) end
+            return ngx.decode_base64(s)
+          end
+
+          local claims = {}
+          if token ~= "" then
+            local _, payload_b64, _ = token:match("([^.]+)%.([^.]+)%.([^.]+)")
+            if payload_b64 then
+              local raw = b64url_decode(payload_b64)
+              if raw then
+                claims = cjson.decode(raw) or {}
+              end
+            end
+          end
+
+          -- Build OPA input.
+          local path = ngx.var.uri or "/"
+          local segments = {}
+          for seg in path:gmatch("[^/]+") do
+            table.insert(segments, seg)
+          end
+
+          local opa_input = {
+            input = {
+              method        = kong.request.get_method(),
+              path          = path,
+              path_segments = segments,
+              jwt           = claims,
+            }
+          }
+
+          local body = cjson.encode(opa_input)
+
+          -- Call OPA.
+          local httpc = http.new()
+          httpc:set_timeout(TIMEOUT_MS)
+          local res, err = httpc:request_uri(OPA_URL, {
+            method  = "POST",
+            body    = body,
+            headers = { ["Content-Type"] = "application/json" },
+          })
+
+          if not res then
+            kong.log.err("ZTA OPA call failed: ", err or "nil",
+              " path=", path, " method=", opa_input.input.method)
+            if FAIL_CLOSED then
+              return kong.response.exit(503,
+                { message = "authorization service unavailable" })
+            end
+            -- fail-open (default thesis posture: visibility > availability impact)
+            return
+          end
+
+          if res.status ~= 200 then
+            kong.log.err("ZTA OPA non-200: ", res.status,
+              " body=", res.body or "")
+            if FAIL_CLOSED then
+              return kong.response.exit(503,
+                { message = "authorization service error" })
+            end
+            return
+          end
+
+          local decoded = cjson.decode(res.body or "") or {}
+          local allow = decoded.result == true
+
+          kong.log.info("ZTA OPA decision allow=", tostring(allow),
+            " user=", claims.preferred_username or "anonymous",
+            " method=", opa_input.input.method, " path=", path)
+
+          if not allow then
+            return kong.response.exit(403, {
+              message = "forbidden",
+              reason  = "OPA denied user-authz",
+              user    = claims.preferred_username or "anonymous",
+              roles   = (claims.realm_access or {}).roles or {},
+            })
+          end

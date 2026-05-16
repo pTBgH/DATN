@@ -1,0 +1,147 @@
+# =============================================================================
+# Helm values for the opa-kube-mgmt chart — Phase 5.B.2 user-authz PDP.
+#
+# Repo:  https://open-policy-agent.github.io/kube-mgmt/charts
+# Chart: opa-kube-mgmt   (deploys OPA REST + kube-mgmt sidecar that auto-loads
+#                         ConfigMaps labelled openpolicyagent.org/policy=rego)
+#
+# Deployment topology:
+#   namespace:                security  (alongside Keycloak + zta-pdp)
+#   pods:                     1 replica (deny rules are stateless, but kube-mgmt
+#                              keeps in-memory index → no need for HA at thesis
+#                              scale)
+#   policies source:          ConfigMap `opa-policies` in `security` ns
+#                              (label openpolicyagent.org/policy=rego)
+#   REST endpoint:            http://opa.security.svc.cluster.local:8181
+#   metrics endpoint:         http://opa.security.svc.cluster.local:8181/metrics
+#                              (Prometheus annotations applied below)
+#
+# Resource budget (4 GB nodes, ~2 components):
+#   opa container:     50m / 64Mi  →  200m / 192Mi
+#   kube-mgmt sidecar: 20m / 32Mi  →  100m / 96Mi
+#   total per pod:     ~70m / ~96Mi RAM idle
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Where to deploy + how to label.
+# ---------------------------------------------------------------------------
+nameOverride: opa
+fullnameOverride: opa
+useExistingNamespace: true   # we deploy into `security` which already exists
+
+# ---------------------------------------------------------------------------
+# OPA container (the policy engine itself).
+# ---------------------------------------------------------------------------
+image:
+  repository: openpolicyagent/opa
+  tag: "1.0.1-rootless"
+  pullPolicy: IfNotPresent
+
+# Listen on the public port (kube-mgmt manages its own internal port).
+opa:
+  port: 8181
+  # Bundle settings disabled — policies come from in-cluster ConfigMap watch
+  # via the kube-mgmt sidecar, not from a remote bundle server.
+  default:
+    decision: zta/authz/allow
+  # Log every decision (truncated) to stdout — Filebeat ships these to ES.
+  # For thesis, "decisions logged at INFO" is the evidence trail.
+  logFormat: json
+  logLevel: info
+
+# Resource budget.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 192Mi
+
+# Wire Prometheus to scrape :8181/metrics.
+prometheus:
+  enabled: true
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8181"
+  prometheus.io/path: "/metrics"
+
+# 6 ZTA labels (Phase 4 hardening — same schema as PDP, doc/19-label-schema.md).
+podLabels:
+  zta.job7189/tier: T1
+  zta.job7189/role: pdp
+  zta.job7189/team: security
+  zta.job7189/data-classification: confidential
+  zta.job7189/env: prod
+  zta.job7189/exposure: cluster-only
+
+# Hardening — runAsNonRoot is enforced by Gatekeeper restrict-privileged.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# ---------------------------------------------------------------------------
+# kube-mgmt — watches ConfigMaps in `security` and pushes Rego into OPA.
+# ---------------------------------------------------------------------------
+mgmt:
+  enabled: true
+  configmapPolicies:
+    enabled: true
+    # OPA loads any ConfigMap in this namespace whose label matches the
+    # selector. The deploy script creates `opa-policies` with this label.
+    namespaces:
+      - security
+    requireLabel: true     # only ConfigMaps with the label are watched
+  data:
+    enabled: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 96Mi
+
+# ---------------------------------------------------------------------------
+# Service — Kong reaches OPA at this DNS name.
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8181
+  annotations:
+    zta.job7189/exposure: cluster-only
+
+# RBAC — kube-mgmt needs read access to ConfigMaps in `security` to discover
+# policies; opa container needs no kube permissions.
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: opa
+
+# Pod can tolerate scheduling on infrastructure-flagged nodes if needed.
+nodeSelector: {}
+tolerations: []
+
+# Avoid scheduling on srv02 (90% RAM, per phase5-progress notes).
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: NotIn
+              values:
+                - 7189srv02

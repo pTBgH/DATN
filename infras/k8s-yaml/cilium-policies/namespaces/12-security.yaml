@@ -194,3 +194,47 @@ spec:
         protocol: TCP
       - port: "4180"
         protocol: TCP
+      - port: "8181"
+        protocol: TCP
+---
+# 8) Allow Kong gateway → OPA user-authz PDP (8181) — Phase 5.B.2
+#    The gateway-side egress rule is defined in
+#    infras/k8s-yaml/cilium-policies/namespaces/14-gateway.yaml (rule 5b).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-ingress-opa
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: opa
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway
+        app: kong-gateway
+    toPorts:
+    - ports:
+      - port: "8181"
+        protocol: TCP
+---
+# 9) OPA → Kubernetes API (kube-mgmt sidecar watches ConfigMaps)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-opa-egress-apiserver
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: opa
+  egress:
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+      - port: "443"
+        protocol: TCP

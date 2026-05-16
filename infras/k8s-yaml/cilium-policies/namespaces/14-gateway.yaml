@@ -131,6 +131,30 @@ spec:
       - port: "8080"
         protocol: TCP
 ---
+# 5b) Egress kong → OPA user-authz PDP (security/8181) — Phase 5.B.2
+#     Every authenticated request hits OPA before reaching its upstream
+#     service for a role-based authz decision (Lua pre-function plugin
+#     in infras/kong/kong.yml). Failure-mode: fail-open by default so a
+#     transient OPA outage doesn't brick the gateway.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-egress-opa
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: opa
+    toPorts:
+    - ports:
+      - port: "8181"
+        protocol: TCP
+---
 # 6) Egress kong → phpmyadmin (qua route admin) — Tier 3, optional
 #    (kafbat removed — Kafka UI never used; see infras/k8s-yaml/03-kafka.yaml Phần 2)
 apiVersion: cilium.io/v2

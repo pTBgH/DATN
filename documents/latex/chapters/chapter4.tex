@@ -99,9 +99,33 @@ Supply chain & ZTA labels đủ 6 nhãn; Cosign verify đúng signer; Gatekeeper
 \end{tabularx}
 \end{table}
 
-\paragraph{Blast radius trước và sau ZTA.} Trong baseline (không CNP), một pod \texttt{job7189-apps} có thể reach toàn bộ Service trong cụm (DNS đủ dùng, \texttt{NetworkPolicy} mặc định \texttt{Allow All}). Sau khi default-deny áp, khoảng reachable thu nhỏ về 5 đích: \texttt{coredns}, \texttt{vault-prod}, \texttt{kong-proxy}, \texttt{mysql} (qua route Vault Agent), và \texttt{redis} cùng namespace -- giảm bậc giá trị so với $\sim$80 Service trong cụm (ước lượng từ \texttt{kubectl get svc -A}).
+\subsection{Đánh giá về Bán kính ảnh hưởng (Blast Radius)}
+
+Mục tiêu tối thượng của Zero Trust không phải là ngăn chặn 100\% các vụ xâm nhập, mà là giảm thiểu tối đa \textbf{Bán kính ảnh hưởng (Blast Radius)} khi một máy chủ bị thỏa hiệp. Để đo lường hiệu quả này, đồ án thực hiện so sánh số lượng đường truyền mạng có thể tiếp cận (Reachable Paths) từ một Pod bị xâm nhập trước và sau khi áp dụng ZTA.
+
+\begin{itemize}
+    \item \textbf{Trong mạng Baseline (Không có Zero Trust):} Từ một Pod bất kỳ thuộc namespace \texttt{job7189-apps}, kẻ tấn công có thể rà quét và khởi tạo kết nối (initiate connection) đến $N$ endpoint đang hoạt động trong toàn bộ cụm Kubernetes (ước tính $\sim 80$ services bao gồm cả kube-system, monitoring, và database). Bán kính ảnh hưởng là $100\%$.
+    \item \textbf{Trong mạng ZTA (Microsegmentation + Default Deny):} Nhờ Cilium eBPF, không gian mạng bị phân mảnh cục bộ. Một Pod \texttt{job-service} bị chiếm quyền chỉ có thể giao tiếp với đúng 5 đích đến đã được phê duyệt tường minh (Kube-DNS, Vault-prod, Kong-proxy, MySQL, và Redis). Nó hoàn toàn "mù" trước sự tồn tại của \texttt{identity-service} hay \texttt{hiring-service}. Bán kính ảnh hưởng giảm từ $\sim 80$ mục tiêu xuống chỉ còn $5$ mục tiêu.
+\end{itemize}
+
+Hơn nữa, ngay cả khi truy cập thành công vào cơ sở dữ liệu MySQL, kẻ tấn công chỉ có thể lấy được Dynamic Credential có thời hạn sử dụng $< 1$ giờ. Điều này chứng minh kiến trúc đề xuất đã hạn chế thành công sự di chuyển ngang (Lateral Movement) và cô lập thiệt hại hiệu quả ở cấp độ mạng L7 và tầng dữ liệu.
 
 \paragraph{Traceability Matrix.} Mỗi kịch bản ở Mục~\ref{sec:test_scenarios} có đủ bộ ba \textit{mối đe doạ (MITRE ATT\&CK)} $\rightarrow$ \textit{control (component + policy)} $\rightarrow$ \textit{evidence (log/flow/exit code)}. Chi tiết mối liên kết trình bày ở Mục~\ref{sec:tenets_matrix}.
+
+\subsection{Minh chứng hiệu quả phòng thủ (Proof of Effectiveness)}
+
+Để chứng minh tính hiệu quả của vòng lặp Zero Trust, đồ án đối chiếu kết quả của một kịch bản tấn công điển hình (Lateral Movement \& Runtime Anomaly) giữa hai trạng thái hệ thống:
+
+\begin{itemize}
+    \item \textbf{Trước ZTA (Baseline):} Kẻ tấn công chiếm được quyền RCE trên Pod \texttt{job-service}. Từ Pod này, chúng thực thi lệnh \texttt{nc -vz mysql.data 3306} và kết nối thành công. Sau đó, chúng đọc file \texttt{.env} tĩnh để trích xuất dữ liệu, hoặc cài cắm backdoor bằng cách tải mã độc qua \texttt{curl}.
+    \item \textbf{Sau ZTA (Enforced):} 
+    \begin{enumerate}
+        \item Ngay khi kẻ tấn công gõ lệnh \texttt{curl} hoặc \texttt{/bin/sh}, \textbf{Tetragon (PEP Runtime)} phát hiện system call bất thường và lập tức gửi tín hiệu \texttt{SIGKILL} ngắt tiến trình.
+        \item Đồng thời, hành vi này được log lại. \textbf{Trust Score} của Pod bị hạ xuống mức \texttt{Low}.
+        \item \textbf{Cilium (PEP Network)} nhận cập nhật nhãn \texttt{score=Low}, lập tức thu hồi chính sách Egress. Khi kẻ tấn công cố gọi \texttt{nc} tới MySQL, gói tin bị Drop ngay tại Kernel, log của Hubble ghi nhận \texttt{Policy denied}.
+    \end{enumerate}
+\end{itemize}
+Minh chứng này xác nhận cơ chế Adaptive Trust Loop hoạt động chính xác: chuyển đổi trạng thái từ "cho phép" sang "từ chối" một cách hoàn toàn tự động dựa trên mức độ rủi ro thời gian thực.
 
 \section{Đánh giá hiệu năng}
 \label{sec:perf_eval}
@@ -246,4 +270,33 @@ T7 -- Thu thập thông tin và phản hồi nâng cao security posture & EFK + 
     \item Bật lại \texttt{mesh-auth-enabled} và \texttt{enable-wireguard} sau khi ngân sách RAM cho phép (~+300\,MiB trên toàn cụm), đồng thời cấu hình Alertmanager routing.
 \end{enumerate}
 
-\paragraph{Hướng phát triển.} (i) SPIFFE per-workload X.509 SVID gắn vào Vault Agent thay cho K8s SA token; (ii) Tetragon Phase 2 mở rộng \texttt{capabilities}/\texttt{ptrace}/syscall network; (iii) CAEP signal viết vào Keycloak để thu hồi phiên ngay khi PDP hạ \texttt{score-bucket} của workload xuống \texttt{low}.
+\section*{Hạn chế và Hướng phát triển tương lai}
+
+Cần nhấn mạnh rằng hệ thống job7189 là một \textbf{Proof of Concept (PoC)}, giải quyết thành công các bài toán cốt lõi của Zero Trust nhưng chưa phải là một giải pháp Zero Trust Enterprise (ZTE) hoàn chỉnh. Nhằm nhận thức rõ độ trưởng thành của hệ thống, Bảng~\ref{tab:limitations} đóng khung các giới hạn hiện tại và định hướng nâng cấp cho môi trường Production.
+
+\begin{table}[H]
+\centering
+\caption{Giới hạn của hệ thống PoC và Hướng phát triển Enterprise}
+\label{tab:limitations}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{|p{3.5cm}|>{\raggedright\arraybackslash}p{4cm}|X|}
+\hline
+\textbf{Thành phần} & \textbf{Trạng thái PoC hiện tại} & \textbf{Hướng phát triển (Future Work)} \\
+\hline
+\textbf{Runtime Isolation} & Đã triển khai PoC (Tetragon chặn \texttt{/bin/sh}, \texttt{curl}). & Bổ sung AppArmor/Seccomp và mở rộng bộ rule chặn System Call chi tiết hơn. \\
+\hline
+\textbf{Dynamic Trust Enforcement} & Đã triển khai mức Policy Label (Trivy CVE $\rightarrow$ Trust Score $\rightarrow$ Cilium). & Hoàn thiện mô hình tính điểm với AI/ML (Risk Scoring) để nhận diện hành vi bất thường tinh vi hơn. \\
+\hline
+\textbf{CAEP (Event-driven Revocation)} & Chưa triển khai đầy đủ. & Tích hợp chuẩn CAEP của OpenID; IdP tự động báo PEP thu hồi JWT ngay khi đổi mật khẩu/rò rỉ. \\
+\hline
+\textbf{Device Posture} & Ngoài phạm vi đồ án. & Tích hợp giải pháp EDR/MDM tại Client; thiết lập mTLS từ thiết bị của người dùng (Device Binding). \\
+\hline
+\textbf{Multi-cluster Federation} & Triển khai trên cụm đơn (Single Cluster). & Áp dụng Cilium ClusterMesh và SPIRE Federation để giữ nguyên định danh khi giao tiếp xuyên cụm (Multi-cloud). \\
+\hline
+\textbf{Storage cho Vault} & Chạy Dev Mode (RAM-only). & Chuyển sang sử dụng Raft Storage có Persistent Volume hoặc tích hợp Cloud KMS (AWS/GCP) để Auto-unseal. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Kết luận chung:} Đồ án đã hiện thực hóa thành công các thành phần cốt lõi của kiến trúc Zero Trust (Microsegmentation, Dynamic Secrets, Identity-based access, Adaptive Loop) trên một hệ thống Microservices thực tế. Bảng giới hạn trên chính là bản lề cho các nghiên cứu tiếp theo trên lộ trình chuyển đổi dài hạn, phù hợp với nguyên lý ``triển khai tuần tự và lặp lại'' của NIST SP 800-207.

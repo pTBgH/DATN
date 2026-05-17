@@ -49,6 +49,30 @@ opa:
   logFormat: json
   logLevel: info
 
+# ---------------------------------------------------------------------------
+# Admin/Data API authentication & authorization.
+#
+# Chart 11.0.7 ships with `authz.enabled: true` by default, which sets the
+# OPA flags `--authentication=token --authorization=basic` and loads a
+# bootstrap authz policy that DENIES all requests unless they carry a
+# Bearer token matched by the bootstrap `system.authz` rules.
+#
+# For Phase 5.B.2 the OPA Service is reachable only from inside the cluster
+# (Cilium CNP `12-security.yaml` rule 8 + 9), and Kong is the only legitimate
+# caller. Running OPA without API auth is acceptable in this perimeter and
+# keeps the smoke-test / Hubble-trace evidence path simple.
+#
+# In a production deployment the right answer is to keep authz on and pre-load
+# a `system.authz.allow` rule that whitelists Kong's ServiceAccount JWT. We
+# leave that as future work (doc/36 §7).
+# ---------------------------------------------------------------------------
+authz:
+  enabled: false
+
+extraArgs:
+  - "--authentication=off"
+  - "--authorization=off"
+
 # Resource budget.
 
 resources:

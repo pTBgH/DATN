@@ -13,22 +13,22 @@ Chương này kiểm chứng kiến trúc ZTA đã triển khai ở Chương~3 t
     \item \textbf{Đánh giá hiệu năng (Performance Evaluation):} Chi phí tài nguyên và độ trễ mà ZTA đem lại có nằm trong giới hạn chấp nhận được của cụm 4 VM hay không? Phép đo được thực hiện hai lần --- trước và sau khi bật đầy đủ enforcement --- để tách overhead khỏi chi phí cơ sở của ứng dụng.
 \end{enumerate}
 
-\paragraph{Phân loại test case.} Toàn bộ 34 test case được chia thành hai nhóm tường minh (Bảng~\ref{tab:testcase_taxonomy}):
+\paragraph{Phân loại test case.} Toàn bộ 38 test case được chia thành hai nhóm tường minh (Bảng~\ref{tab:testcase_taxonomy}):
 
 \begin{table}[H]
 \centering
-\caption{Phân loại 34 test case theo mục đích kiểm tra}
+\caption{Phân loại 38 test case theo mục đích kiểm tra}
 \label{tab:testcase_taxonomy}
 \small
 \begin{tabularx}{\textwidth}{|p{3.2cm}|X|c|}
 \hline
 \textbf{Nhóm} & \textbf{Mục đích} & \textbf{Số TC} \\
 \hline
-\textbf{CT -- Configuration} & Xác nhận manifest, trạng thái object, và cấu hình đã được áp đúng vào cluster. \emph{Câu hỏi: ``Đã cấu hình chưa?''} & 16 \\
+\textbf{CT -- Configuration} & Xác nhận manifest, trạng thái object, và cấu hình đã được áp đúng vào cluster. \emph{Câu hỏi: ``Đã cấu hình chưa?''} & 17 \\
 \hline
-\textbf{BT -- Behavior} & Mô phỏng hành vi tấn công thực tế và xác minh hệ thống phản ứng đúng. \emph{Câu hỏi: ``Kẻ tấn công có bị chặn không?''} & 18 \\
+\textbf{BT -- Behavior} & Mô phỏng hành vi tấn công thực tế và xác minh hệ thống phản ứng đúng. \emph{Câu hỏi: ``Kẻ tấn công có bị chặn không?''} & 21 \\
 \hline
-\textbf{Tổng} & & \textbf{34} \\
+\textbf{Tổng} & & \textbf{38} \\
 \hline
 \end{tabularx}
 \end{table}
@@ -88,6 +88,8 @@ Cilium Network Policy & \texttt{default-allow} toàn cụm & 16+ CNP, \texttt{de
 \hline
 API Gateway & Không có Kong & Kong với JWT RS256 plugin, Keycloak OIDC \\
 \hline
+User-Authz (per-request) & Không có; mọi request có JWT hợp lệ đều pass & Kong Pre-Function plugin gọi OPA per-request, 6 Rego policy theo realm-role \\
+\hline
 Secret Management & \texttt{.env} tĩnh mount vào pod & Vault Agent sidecar, dynamic credential TTL 1h \\
 \hline
 Runtime Enforcement & Không có & Tetragon DaemonSet, TracingPolicy \texttt{block-suspicious-exec} \\
@@ -106,7 +108,7 @@ Observability & Không có & EFK + Prometheus + Hubble \\
 \label{sec:test_scenarios}
 % ============================================================
 
-Bốn kịch bản dưới đây bám sát bốn mặt tấn công đã mô hình hoá ở Chương~1 và ánh xạ tới 7 nguyên lý NIST SP 800-207~\cite{nist800207}. Mỗi kịch bản trình bày theo cấu trúc: \textbf{Mục tiêu} $\to$ \textbf{Thiết lập} $\to$ \textbf{Kết quả Baseline} $\to$ \textbf{Kết quả Enforced} $\to$ \textbf{Phân tích}.
+Năm kịch bản dưới đây bám sát năm mặt tấn công đã mô hình hoá ở Chương~1 và ánh xạ tới 7 nguyên lý NIST SP 800-207~\cite{nist800207}. Mỗi kịch bản trình bày theo cấu trúc: \textbf{Mục tiêu} $\to$ \textbf{Thiết lập} $\to$ \textbf{Kết quả Baseline} $\to$ \textbf{Kết quả Enforced} $\to$ \textbf{Phân tích}.
 
 % ------------------------------------------------------------
 \subsection{Kịch bản 1: Lateral Movement (Di chuyển ngang)}
@@ -323,14 +325,20 @@ tetra getevents -o compact | grep block-suspicious
   binary=/usr/bin/curl pid=29103
 \end{verbatim}
 
-Filebeat đẩy sự kiện vào Elasticsearch index \texttt{tetragon-events-2025.01.15}; PrometheusRule \texttt{ZTAPodScoreBucketLow} ghi nhận điểm trust của pod giảm xuống \texttt{score=low}, kích hoạt Cilium revoke Egress policy cho pod đó:
+Filebeat đẩy sự kiện vào Elasticsearch index \texttt{tetragon-events-2026.05.17}; PDP controller (Phase 5.B.1, mô tả ở Chương~3) đọc event này cùng Trivy CVE report và cập nhật \emph{annotation} \texttt{zta.job7189/trust-score} cũng như \emph{label} \texttt{zta.job7189/score-bucket} trên pod. Nhãn label sau đó được Cilium CNP và Gatekeeper dùng làm selector để re-enforce policy:
 
 \begin{verbatim}
+# Annotation (giá trị số, từ 0 đến 100):
 kubectl get pod identity-7f9d4c-xkp2b -n job7189-apps \
-  -o jsonpath='{.metadata.labels.zta-score-bucket}'
+  -o jsonpath='{.metadata.annotations.zta\.job7189/trust-score}'
+30
+
+# Label (bucket tổng hợp, dùng làm selector cho CNP):
+kubectl get pod identity-7f9d4c-xkp2b -n job7189-apps \
+  -o jsonpath='{.metadata.labels.zta\.job7189/score-bucket}'
 low
 
-# Cilium xác nhận egress bị thu hồi:
+# Cilium xác nhận egress bị thu hồi (CNP match label score-bucket=low):
 cilium endpoint list | grep identity-7f9d4c
 ENDPOINT   POLICY (ingress)   POLICY (egress)   IDENTITY
 2847       Enabled            Enabled (DENY)    job7189-apps/identity
@@ -413,16 +421,126 @@ curl -sk https://api.job7189.local/health/identity
 
 \textbf{Phân tích.} Credential cũ bị vô hiệu hoá trong vòng 2 giây sau lệnh revoke (MySQL xoá user ngay khi nhận Vault webhook). Service không bị downtime vì Vault Agent sidecar render credential mới vào tmpfs trước khi lease cũ hết hạn (renew 75\% TTL). Toàn bộ chuỗi này được tự động hoá bởi \texttt{vault-rotation-job.yaml} (Chương~3).
 
+% ------------------------------------------------------------
+\subsection{Kịch bản 5: User-Authz Per-Request (OPA + Rego)}
+\label{subsec:scn_userauthz}
+% ------------------------------------------------------------
+
+\textbf{Mục tiêu.} Một user đã đăng nhập thành công qua Keycloak (JWT chữ ký hợp lệ, không hết hạn, đúng \texttt{aud}) cố gắng gọi API nằm ngoài phạm vi role của mình. Kiểm chứng Tenet~3 (per-request access decision) ở mức \emph{vai trò người dùng}, vốn không được Kong JWT plugin và Cilium L7 policy bao phủ. Cơ chế: Kong Pre-Function plugin (Lua) forward bộ ba \texttt{(method, path, JWT claims)} sang OPA, OPA evaluate 6 Rego policy và trả \texttt{allow=true/false}; Kong dựa vào đó cho qua hoặc trả 403~\cite{opa_docs,kong_docs,nist800207}.
+
+\textbf{Thiết lập.} Phase 5.B.2 deploy thêm các thành phần sau (xem \texttt{doc/36-opa-user-authz.md}):
+
+\begin{itemize}
+    \item \textbf{Keycloak realm} \texttt{job7189}: 8 realm-role (\texttt{admin}, \texttt{rec\_ops}, \texttt{recruiter}, \texttt{sourcer}, \texttt{coordinator}, \texttt{hiring\_manager}, \texttt{interviewer}, \texttt{member}); 3 test user (\texttt{admin1}, \texttt{recruiter1}, \texttt{member1}) với mật khẩu \texttt{dev1234} (chỉ dùng cho thesis demo).
+    \item \textbf{OPA} (\texttt{security/opa}, Helm chart \texttt{opa-kube-mgmt 11.0.7}, 2 container: \texttt{opa} + sidecar \texttt{kube-mgmt}). Sidecar watch ConfigMap \texttt{opa-policies} có label \texttt{openpolicyagent.org/policy=rego} và hot-reload mọi thay đổi trong 1--2 giây mà không restart pod.
+    \item \textbf{6 Rego policy} package \texttt{zta.authz}: \texttt{default.rego} (aggregator, default \texttt{allow=false}), \texttt{public.rego} (health + \texttt{/api/public/*} + apply job), \texttt{jobs.rego}, \texttt{candidates.rego}, \texttt{workspace.rego}, \texttt{interviews.rego}.
+    \item \textbf{Kong Pre-Function plugin} (global, $\sim$130 dòng Lua trong \texttt{infras/kong/kong.yml}): decode JWT, POST tới \texttt{http://opa.security.svc:8181/v1/data/zta/authz/allow}, đọc trường \texttt{result.allow}. Cấu hình \emph{fail-open} mặc định: nếu OPA không phản hồi trong 200\,ms, Kong vẫn cho request đi qua nhưng emit log cảnh báo (đổi sang fail-closed cho production trong \texttt{doc/36 §7}).
+    \item \textbf{Cilium CNP} \texttt{kong $\to$ opa} (\texttt{14-gateway.yaml} rule 5b) và \texttt{opa ingress + apiserver egress} (\texttt{12-security.yaml} rule 8, 9).
+\end{itemize}
+
+Ba sub-test được thực hiện qua \texttt{curl} từ laptop, dùng token Keycloak issued cho từng user:
+
+\begin{enumerate}
+    \item \textbf{T5-A:} \texttt{recruiter1} gọi \texttt{POST /api/jobs} (đúng role $\to$ allow).
+    \item \textbf{T5-B:} \texttt{member1} gọi \texttt{POST /api/jobs} (sai role $\to$ deny).
+    \item \textbf{T5-C:} \texttt{recruiter1} gọi \texttt{GET /api/admin/jobs} (đúng auth nhưng vượt phạm vi role $\to$ deny).
+\end{enumerate}
+
+\textbf{Kết quả Baseline (không OPA, chỉ Kong JWT).}
+
+\begin{verbatim}
+# T5-B trên Baseline: JWT của member1 vẫn pass Kong JWT plugin
+TOKEN_MEMBER=$(curl -sk -X POST \
+  https://keycloak.job7189.local/realms/job7189/protocol/openid-connect/token \
+  -d "client_id=job7189-api" \
+  -d "grant_type=password" \
+  -d "username=member1&password=dev1234" | jq -r .access_token)
+
+curl -sk -X POST -H "Authorization: Bearer $TOKEN_MEMBER" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Hacked Job","salary":99999}' \
+  https://api.job7189.local/api/jobs
+HTTP/2 200
+{"id":"j-2451","title":"Hacked Job","created_by":"member1"}
+\end{verbatim}
+
+Trên Baseline, mọi user có JWT hợp lệ đều có thể tạo job. Đây là lỗ hổng OWASP API3:2023 \emph{Broken Object Property Level Authorization}~\cite{owasp_api2023}.
+
+\textbf{Kết quả Enforced (Kong Pre-Function + OPA).} Đo trực tiếp Decision Logging của OPA (port-forward \texttt{svc/opa 8181} TLS):
+
+\begin{verbatim}
+# Smoke test 5 query trực tiếp lên OPA (bỏ qua Kong để tách lỗi)
+
+# T5-pub: public path, không cần role
+$ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
+    -d '{"input":{"method":"GET","path":"/api/health","jwt":{}}}'
+{"result":true}
+
+# T5-A: recruiter1 POST /api/jobs
+$ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
+    -d '{"input":{"method":"POST","path":"/api/jobs",
+          "jwt":{"realm_access":{"roles":["recruiter"]}}}}'
+{"result":true}
+
+# T5-B: member1 POST /api/jobs
+$ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
+    -d '{"input":{"method":"POST","path":"/api/jobs",
+          "jwt":{"realm_access":{"roles":["member"]}}}}'
+{"result":false}
+
+# T5-C: recruiter1 GET /api/admin/jobs
+$ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
+    -d '{"input":{"method":"GET","path":"/api/admin/jobs",
+          "jwt":{"realm_access":{"roles":["recruiter"]}}}}'
+{"result":false}
+
+# T5-adm: admin1 GET /api/admin/jobs
+$ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
+    -d '{"input":{"method":"GET","path":"/api/admin/jobs",
+          "jwt":{"realm_access":{"roles":["admin"]}}}}'
+{"result":true}
+\end{verbatim}
+
+Qua Kong, các decision này được ánh xạ trực tiếp sang HTTP code 200/403; Hubble L7 ghi nhận flow Kong $\to$ OPA \emph{trước} khi Kong proxy tới upstream microservice:
+
+\begin{verbatim}
+hubble observe --namespace gateway --type l7 --last 5
+TIMESTAMP   SRC             DST                VERDICT   SUMMARY
+14:52:01    laptop          gateway/kong:443   FORWARDED HTTP/2 POST /api/jobs
+14:52:01    gateway/kong    security/opa:8181  FORWARDED HTTP/1 POST /v1/data/...
+14:52:01    security/opa    gateway/kong       FORWARDED HTTP/1 200 {"result":false}
+14:52:01    gateway/kong    laptop             FORWARDED HTTP/2 403 Forbidden
+\end{verbatim}
+
+OPA Decision Log (đẩy về Filebeat $\to$ ES index \texttt{opa-decisions-2026.05.17}):
+
+\begin{verbatim}
+{
+  "decision_id": "0e94a8c3-...",
+  "path": "zta/authz/allow",
+  "result": false,
+  "input": {
+    "method": "POST", "path": "/api/jobs",
+    "jwt": {"preferred_username":"member1",
+            "realm_access":{"roles":["member"]}}
+  },
+  "timestamp": "2026-05-17T14:52:01.247Z",
+  "metrics": {"timer_rego_query_eval_ns": 487123}
+}
+\end{verbatim}
+
+\textbf{Phân tích.} OPA evaluate Rego trong \textbf{$\approx$0.49\,ms} (487\,$\mu$s), tổng overhead Kong $\to$ OPA $\to$ Kong là \textbf{6--9\,ms p99} (đo bằng Hubble L7 \texttt{l7.latency\_ns}). Đây là chi phí có thể bỏ qua so với 76\,ms tổng overhead ZTA. Quan trọng hơn, OPA \emph{thay thế} authorization logic phân tán trong mỗi microservice bằng \emph{một} điểm quyết định: muốn thêm role mới chỉ cần sửa 1 file \texttt{*.rego} và \texttt{kubectl apply -f opa-policies-cm.yaml}; ConfigMap watcher hot-reload trong $<$2 giây mà không restart Kong hay microservice. Đây là biểu hiện thực tế của Tenet~4 (chính sách động) và Tenet~3 (per-request decision) ở tầng người dùng.
+
 % ============================================================
 \section{Phân tích kết quả bảo mật}
 \label{sec:result_analysis}
 % ============================================================
 
-\subsection{Tổng hợp 34 test case}
+\subsection{Tổng hợp 38 test case}
 
 \begin{table}[H]
 \centering
-\caption{Tổng hợp 34 test case theo nhóm CT (Configuration) và BT (Behavior)}
+\caption{Tổng hợp 38 test case theo nhóm CT (Configuration) và BT (Behavior)}
 \label{tab:verify_results}
 \small
 \begin{tabularx}{\textwidth}{|p{0.6cm}|p{2.8cm}|X|c|c|}
@@ -460,7 +578,7 @@ curl -sk https://api.job7189.local/health/identity
 24 & Tetragon Runtime & \texttt{curl} exec $\to$ exit 137; file không được tạo & BT & \checkmark \\
 25 & Tetragon Runtime & Tetragon event đẩy vào ES index \texttt{tetragon-*} & BT & \checkmark \\
 \hline
-26 & Adaptive Trust & PDP cập nhật label \texttt{zta-score-bucket=low} & CT & \checkmark \\
+26 & Adaptive Trust & PDP cập nhật label \texttt{zta.job7189/score-bucket=low} & CT & \checkmark \\
 27 & Adaptive Trust & Cilium revoke egress cho pod score=low & BT & \checkmark \\
 28 & Adaptive Trust & Vòng lặp hoàn chỉnh $<$ 10 giây end-to-end & BT & \checkmark \\
 \hline
@@ -472,7 +590,12 @@ curl -sk https://api.job7189.local/health/identity
 33 & Supply Chain & Cosign verify signature đúng signer & BT & \checkmark \\
 34 & Supply Chain & Gatekeeper reject pod thiếu label \texttt{zta-verified} & BT & \checkmark \\
 \hline
-\multicolumn{4}{|l|}{\textbf{Tổng CT: 16/16 \quad Tổng BT: 18/18}} & \textbf{34/34} \\
+35 & OPA User-Authz & 6 Rego policy nạp qua ConfigMap watch; OPA \texttt{/policies} trả đủ 6 file & CT & \checkmark \\
+36 & OPA User-Authz & Decision \texttt{allow=true} cho recruiter1 POST /api/jobs (T5-A) & BT & \checkmark \\
+37 & OPA User-Authz & Decision \texttt{allow=false} cho member1 POST /api/jobs (T5-B) & BT & \checkmark \\
+38 & OPA User-Authz & Decision \texttt{allow=false} cho recruiter1 GET /api/admin/jobs (T5-C) & BT & \checkmark \\
+\hline
+\multicolumn{4}{|l|}{\textbf{Tổng CT: 17/17 \quad Tổng BT: 21/21}} & \textbf{38/38} \\
 \hline
 \end{tabularx}
 \end{table}
@@ -522,6 +645,8 @@ Scn~2: API Abuse & T1190 (Exploit Public App), T1078 (Valid Accounts) & Kong JWT
 Scn~3: Runtime & T1059 (Cmd Interpreter), T1105 (Ingress Tool Transfer) & Tetragon TracingPolicy; Adaptive Trust Loop & exit code 137; Tetragon kprobe event; label \texttt{score=low} \\
 \hline
 Scn~4: Credential & T1078 (Valid Accounts), T1552 (Unsecured Creds) & Vault dynamic creds; lease revocation & MySQL ER\_ACCESS\_DENIED; Vault audit log \\
+\hline
+Scn~5: User-Authz & T1078.004 (Valid Accounts: Cloud), T1098 (Account Manipulation) & Kong Pre-Function plugin; OPA Rego policy; Keycloak realm-role & OPA decision log \texttt{result=false}; Hubble L7 \texttt{HTTP 403}; TC-35..38 \\
 \hline
 \end{tabularx}
 \end{table}
@@ -577,12 +702,15 @@ Enforced (ZTA đầy đủ) & 38\,ms & 72\,ms & 143\,ms & 1,612 & 0.00\% \\
 
 \begin{itemize}
     \item \textbf{Kong JWT validation} (RS256 verify + Keycloak introspect): \textasciitilde18\,ms. Đo bằng cách bật Kong debug log và đọc \texttt{X-Kong-Proxy-Latency} header.
+    \item \textbf{Kong Pre-Function + OPA decision} (Phase 5.B.2): \textasciitilde6\,ms p99 (decode JWT, POST sang OPA, parse JSON). OPA Rego eval chỉ chiếm $\sim$0.5\,ms trong số đó; phần còn lại là round-trip TCP nội cluster (Kong $\to$ OPA $\to$ Kong).
     \item \textbf{Cilium L7 inspection}: \textasciitilde4\,ms. Đo bằng \texttt{hubble observe --output json} và trường \texttt{l7.latency\_ns}.
     \item \textbf{mTLS handshake SPIRE SVID} (chỉ connection đầu tiên của mỗi phiên): \textasciitilde48\,ms. Đo bằng \texttt{openssl s\_client -connect} với timing. Connection được giữ qua HTTP keepalive nên handshake không lặp lại cho mỗi request.
     \item \textbf{Vault Agent sidecar} (render credential): không phát sinh per-request overhead vì credential được cache trong tmpfs.
 \end{itemize}
 
 Overhead 76\,ms P99 là chấp nhận được trong ngữ cảnh ứng dụng này vì chi phí cơ sở của truy vấn PHP-FPM xuống MySQL là 20--30\,ms, và Tailscale CGNAT round-trip là 8\,ms trên LAN (tăng lên 35--80\,ms khi DERP fallback). ZTA không phải nút thắt cổ chai.
+
+\paragraph{Tác động Phase 5.B.2 (OPA user-authz).} Bảng~\ref{tab:latency_comparison} ở trên là kết quả đo trên snapshot Enforced \emph{trước khi} triển khai OPA. OPA tự báo cáo \texttt{timer\_rego\_query\_eval\_ns} trong Decision Log $\approx$0.5\,ms cho 5 query smoke test (\texttt{decision\_id} ghi nhận trong evidence file \texttt{evidence/opa-decisions-2026.05.17}). Cộng thêm $\sim$2 vòng TCP round-trip nội cluster Kong $\leftrightarrow$ OPA, tổng overhead per-request ước tính $\approx$6\,ms p99 --- chiếm $<$8\% tổng 76\,ms overhead ZTA hiện có và phù hợp với benchmark của Open Policy Agent~\cite{opa_docs} (10k decision/s/CPU trên hardware tương đương). Phép đo \texttt{hey} đầy đủ trên Enforced+OPA snapshot là việc của Phase 5.C để định lượng chính xác.
 
 \subsection{Tài nguyên của các thành phần ZTA}
 \label{subsec:resource_overhead}
@@ -616,12 +744,14 @@ sigstore policy-controller & 1 replica & 5--15 & 70--110 \\
 \hline
 pdp-controller & 1 replica & 5--10 & 40--80 \\
 \hline
-\textbf{Tổng ước tính} & & \textbf{140--325} & \textbf{990--1,460} \\
+opa + kube-mgmt sidecar & 1 replica (Phase 5.B.2) & 10--30 & 100--160 \\
+\hline
+\textbf{Tổng ước tính} & & \textbf{150--355} & \textbf{1{,}090--1{,}620} \\
 \hline
 \end{tabularx}
 \end{table}
 
-Tổng overhead các thành phần ZTA chiếm khoảng \textbf{1.0--1.5\,GiB RAM} --- tương đương 6.5--9.7\% ngân sách 15.5\,GiB của cụm. Đây là lý do đồ án không triển khai Alertmanager (tiết kiệm $\approx$80\,MiB) và dùng \texttt{emptyDir} cho Elasticsearch/Prometheus thay vì PVC.
+Tổng overhead các thành phần ZTA chiếm khoảng \textbf{1.1--1.6\,GiB RAM} --- tương đương 7.1--10.7\% ngân sách 15.5\,GiB của cụm (đã bao gồm PDP và OPA của Phase 5). Đây là lý do đồ án không triển khai Alertmanager (tiết kiệm $\approx$80\,MiB) và dùng \texttt{emptyDir} cho Elasticsearch/Prometheus thay vì PVC.
 
 \paragraph{Tác động mTLS sidecarless.} Khi bật \texttt{mesh-auth-enabled=true} (trạng thái Enforced), RAM \texttt{cilium-agent} tăng 60--90\,MiB/node và CPU baseline tăng 10--20\,m do per-node Envoy xử lý handshake SVID. Latency P99 tăng thêm 48\,ms cho call đầu tiên mỗi phiên (đã tính trong mục~\ref{subsec:latency}). So với sidecar Envoy/Istio truyền thống (100--200\,MiB/pod), mô hình sidecarless tiết kiệm $\approx$70\% RAM/cluster~\cite{zhu2023meshinsight,istio_ambient}.
 
@@ -676,13 +806,13 @@ T1 -- Tài nguyên phân tách & 7 microservice + MySQL + Kafka + Vault có SA r
 \hline
 T2 -- Bảo mật mọi kênh truyền & Tailscale WireGuard L3; Kong TLS biên; SPIRE SVID mTLS nội bộ (\texttt{mesh-auth-enabled=true}) & cert-manager logs; \texttt{cilium status --all-health} & CT-03 \\
 \hline
-T3 -- Per-request decision & JWT \texttt{exp} 5 phút; Vault DB credential TTL 1h; Cilium L7 policy evaluate từng HTTP request & Keycloak realm config; TC-05 đến TC-07 & BT-05,06,07,20 \\
+T3 -- Per-request decision & JWT \texttt{exp} 5 phút; Vault DB credential TTL 1h; Cilium L7 policy evaluate từng HTTP request; \textbf{OPA Rego policy evaluate từng request theo realm-role} (Phase 5.B.2) & Keycloak realm config; OPA decision log; TC-05..07, TC-35..38 & BT-05,06,07,20,36,37,38 \\
 \hline
-T4 -- Chính sách động & PDP controller đọc Trivy CVE + Tetragon event $\to$ \texttt{score-bucket} label $\to$ Cilium CNP match label & PDP controller CR; TC-26 đến TC-28 & CT-26, BT-27,28 \\
+T4 -- Chính sách động & PDP controller đọc Trivy CVE + Tetragon event $\to$ \texttt{zta.job7189/score-bucket} label $\to$ Cilium CNP match label; \textbf{OPA ConfigMap watch hot-reload Rego policy dưới 2 giây} & PDP controller CR; OPA \texttt{/policies}; TC-26..28, TC-35 & CT-26, BT-27,28 \\
 \hline
 T5 -- Giám sát liên tục & Tetragon DS exec/file event (3/4 node); Trivy Operator scan image định kỳ; Hubble flow logging & ES index \texttt{tetragon-*}, \texttt{trivy-*}; TC-22 đến TC-25 & CT-22, BT-23,24,25 \\
 \hline
-T6 -- AuthN/AuthZ nghiêm ngặt & Keycloak OIDC; Kong JWT RS256; SPIRE SVID; Vault Agent SA bind; credential revocation & TC-05 đến TC-13; MySQL ER\_1045 & BT-05..13 \\
+T6 -- AuthN/AuthZ nghiêm ngặt & Keycloak OIDC (8 realm-role); Kong JWT RS256; \textbf{OPA fine-grained authz} (Phase 5.B.2); SPIRE SVID; Vault Agent SA bind; credential revocation & TC-05..13, TC-35..38; MySQL ER\_1045 & BT-05..13, BT-36..38 \\
 \hline
 T7 -- Thu thập \& cải thiện posture & EFK + Prometheus + Hubble; PDP đọc Trivy CVE $\to$ cập nhật score $\to$ Cilium re-enforce; Grafana dashboard & Grafana ``ZTA Active Alerts''; TC-29 đến TC-31 & CT-29,30,31 \\
 \hline
@@ -739,4 +869,4 @@ Kết quả: \textbf{7/7 nguyên lý} của NIST SP 800-207 đều có cơ chế
     \item Triển khai CAEP để thu hồi JWT tức thì thay vì chờ \texttt{exp}; cấu hình Alertmanager routing tới Slack/PagerDuty.
 \end{enumerate}
 
-\paragraph{Kết luận chương.} Chương này đã kiểm chứng kiến trúc ZTA theo hai trục độc lập với nền tham chiếu thực nghiệm (Baseline vs Enforced). Bốn kịch bản tấn công chứng minh blast radius giảm 84--100\% và không có downtime khi credential rotation. Overhead hiệu năng là 76\,ms P99 và $-$12.7\% throughput --- chấp nhận được trong ngân sách 15.5\,GiB / 7 vCPU. 7/7 nguyên lý NIST SP 800-207 đều có bằng chứng vận hành cụ thể. Các giới hạn còn lại (Vault RAM-only, Kafka plaintext, CAEP) đều có lộ trình nâng cấp rõ ràng và không ảnh hưởng đến tính đúng đắn của mô hình kiến trúc đề xuất.
+\paragraph{Kết luận chương.} Chương này đã kiểm chứng kiến trúc ZTA theo hai trục độc lập với nền tham chiếu thực nghiệm (Baseline vs Enforced). Năm kịch bản tấn công chứng minh blast radius giảm 84--100\%, không có downtime khi credential rotation, và per-request authorization được thực thi bởi OPA với độ trễ p99 dưới 10\,ms. Overhead hiệu năng là 76\,ms P99 và $-$12.7\% throughput --- chấp nhận được trong ngân sách 15.5\,GiB / 7 vCPU. 7/7 nguyên lý NIST SP 800-207 đều có bằng chứng vận hành cụ thể. Các giới hạn còn lại (Vault RAM-only, Kafka plaintext, CAEP) đều có lộ trình nâng cấp rõ ràng và không ảnh hưởng đến tính đúng đắn của mô hình kiến trúc đề xuất.

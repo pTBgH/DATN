@@ -282,8 +282,15 @@ plugins:
 
           -- Where to ask OPA. Resolves via cluster DNS — OPA Service is
           -- `security/opa` on port 8181, deployed by scripts/zta-deploy-opa.sh.
+          --
+          -- The opa-kube-mgmt Helm chart (11.0.7) provisions a self-signed
+          -- TLS cert (`--tls-cert-file=/certs/tls.crt`) so OPA listens on
+          -- HTTPS by default. We connect via TLS but skip verification —
+          -- the call never leaves the cluster (Cilium CNP `12-security.yaml`
+          -- rule 8 confines the OPA Service to gateway namespace) and the
+          -- chart-generated cert is not in Kong's CA bundle.
           local OPA_URL = os.getenv("ZTA_OPA_URL")
-            or "http://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
+            or "https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
           local FAIL_CLOSED = os.getenv("ZTA_OPA_FAIL_CLOSED") == "1"
           local TIMEOUT_MS  = 1000   -- 1s upper bound on OPA round-trip
 
@@ -333,9 +340,10 @@ plugins:
           local httpc = http.new()
           httpc:set_timeout(TIMEOUT_MS)
           local res, err = httpc:request_uri(OPA_URL, {
-            method  = "POST",
-            body    = body,
-            headers = { ["Content-Type"] = "application/json" },
+            method     = "POST",
+            body       = body,
+            headers    = { ["Content-Type"] = "application/json" },
+            ssl_verify = false,
           })
 
           if not res then

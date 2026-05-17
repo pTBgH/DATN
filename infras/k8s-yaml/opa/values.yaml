@@ -34,7 +34,7 @@ useExistingNamespace: true   # we deploy into `security` which already exists
 # ---------------------------------------------------------------------------
 image:
   repository: openpolicyagent/opa
-  tag: "1.0.1-rootless"
+  tag: "1.10.1"
   pullPolicy: IfNotPresent
 
 # Listen on the public port (kube-mgmt manages its own internal port).
@@ -50,6 +50,7 @@ opa:
   logLevel: info
 
 # Resource budget.
+
 resources:
   requests:
     cpu: 50m

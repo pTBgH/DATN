@@ -1,157 +1,237 @@
 #!/usr/bin/env bash
 # =============================================================================
 # zta-deploy-opa.sh — Phase 5.B.2.b (OPA user-authz PDP)
-#
-# Workflow:
-#   1. helm repo add open-policy-agent https://open-policy-agent.github.io/kube-mgmt/charts
-#   2. ConfigMap `opa-policies` in ns `security` from infras/k8s-yaml/opa/policies/*
-#      with the label `openpolicyagent.org/policy=rego` so kube-mgmt picks it up
-#   3. helm upgrade --install opa open-policy-agent/opa-kube-mgmt
-#        -f infras/k8s-yaml/opa/values.yaml -n security
-#   4. Wait for rollout, smoke-test /v1/data/zta/authz/allow with admin & member tokens
-#
-# Usage:
-#   bash scripts/zta-deploy-opa.sh                  # full deploy
-#   bash scripts/zta-deploy-opa.sh --policies-only  # only refresh ConfigMap
-#   bash scripts/zta-deploy-opa.sh --uninstall      # remove
-#
-# Deps: helm 3.x, kubectl, jq.
-# Doc:  doc/36-opa-user-authz.md §3.2
+# Stable version with rollout + health-aware smoke test
 # =============================================================================
-set -euo pipefail
+
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 NAMESPACE="${OPA_NAMESPACE:-security}"
 RELEASE="${OPA_RELEASE:-opa}"
+
 HELM_REPO_NAME="open-policy-agent"
 HELM_REPO_URL="https://open-policy-agent.github.io/kube-mgmt/charts"
+
 HELM_CHART="${HELM_REPO_NAME}/opa-kube-mgmt"
-HELM_CHART_VERSION="${OPA_CHART_VERSION:-8.4.1}"
+HELM_CHART_VERSION="${OPA_CHART_VERSION:-11.0.7}"
 
 VALUES_FILE="$SCRIPT_DIR/infras/k8s-yaml/opa/values.yaml"
 POLICIES_DIR="$SCRIPT_DIR/infras/k8s-yaml/opa/policies"
+
 CM_NAME="opa-policies"
 
+# =============================================================================
+# COLORS
+# =============================================================================
+
 red()    { printf '\033[31m%s\033[0m\n' "$*" >&2; }
-green()  { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
-blue()   { printf '\033[34m%s\033[0m\n' "$*"; }
+green()  { printf '\033[32m%s\033[0m\n' "$*" >&2; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*" >&2; }
+blue()   { printf '\033[34m%s\033[0m\n' "$*" >&2; }
+
+# =============================================================================
+# FLAGS
+# =============================================================================
 
 UNINSTALL=0
 POLICIES_ONLY=0
+
 case "${1:-}" in
-  --uninstall) UNINSTALL=1 ;;
-  --policies-only) POLICIES_ONLY=1 ;;
-  -h|--help) sed -n '2,20p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  "") : ;;
-  *) red "Unknown flag: $1"; exit 1 ;;
+  --uninstall)
+    UNINSTALL=1
+    ;;
+  --policies-only)
+    POLICIES_ONLY=1
+    ;;
+  -h|--help)
+    sed -n '2,40p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    red "Unknown flag: $1"
+    exit 1
+    ;;
 esac
 
-# ---------------------------------------------------------------------------
-# Helper: render the ConfigMap from local .rego files. kube-mgmt's sidecar
-# is configured (in values.yaml) to require the label
-# `openpolicyagent.org/policy=rego` so the data ConfigMap is excluded.
-# ---------------------------------------------------------------------------
+# =============================================================================
+# PRECHECKS
+# =============================================================================
+
+command -v helm >/dev/null 2>&1 || {
+  red "helm missing"
+  exit 1
+}
+
+command -v kubectl >/dev/null 2>&1 || {
+  red "kubectl missing"
+  exit 1
+}
+
+command -v python3 >/dev/null 2>&1 || {
+  red "python3 missing"
+  exit 1
+}
+
+python3 - <<'PY' >/dev/null 2>&1 || {
+import yaml
+PY
+  red "python3 package missing: pyyaml"
+  exit 1
+}
+
+# =============================================================================
+# CONFIGMAP BUILDER
+# =============================================================================
+
 apply_policies_configmap() {
+
   if [ ! -d "$POLICIES_DIR" ]; then
-    red "ERROR: policies dir not found: $POLICIES_DIR"
+    red "Policies dir not found: $POLICIES_DIR"
     exit 1
   fi
 
-  blue "Building ConfigMap $NAMESPACE/$CM_NAME from $POLICIES_DIR/*.rego..."
-  CM_ARGS=()
-  for f in "$POLICIES_DIR"/*.rego; do
-    CM_ARGS+=("--from-file=$(basename "$f")=$f")
+  shopt -s nullglob
+
+  local rego_files=("$POLICIES_DIR"/*.rego)
+
+  if [ ${#rego_files[@]} -eq 0 ]; then
+    red "No .rego files found in $POLICIES_DIR"
+    exit 1
+  fi
+
+  blue "Building ConfigMap $NAMESPACE/$CM_NAME"
+
+  local cm_args=()
+
+  for f in "${rego_files[@]}"; do
+    cm_args+=("--from-file=$(basename "$f")=$f")
   done
 
   kubectl create configmap "$CM_NAME" \
     -n "$NAMESPACE" \
-    "${CM_ARGS[@]}" \
+    "${cm_args[@]}" \
     --dry-run=client -o yaml \
-    | python3 - <<'PY'
+  | python3 -c '
 import sys, yaml
-cm = yaml.safe_load(sys.stdin)
-cm.setdefault("metadata", {}).setdefault("labels", {})
-cm["metadata"]["labels"]["openpolicyagent.org/policy"] = "rego"
-cm["metadata"]["labels"]["zta.job7189/role"] = "pdp-policy"
-cm["metadata"]["labels"]["zta.job7189/team"] = "security"
+
+cm = yaml.safe_load(sys.stdin.read())
+
+if cm is None:
+    raise SystemExit("Failed to parse generated ConfigMap YAML")
+
+meta = cm.setdefault("metadata", {})
+labels = meta.setdefault("labels", {})
+
+labels["openpolicyagent.org/policy"] = "rego"
+labels["zta.job7189/role"] = "pdp-policy"
+labels["zta.job7189/team"] = "security"
+
 print(yaml.safe_dump(cm, default_flow_style=False))
-PY
+'
 }
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # UNINSTALL
-# ---------------------------------------------------------------------------
+# =============================================================================
+
 if [ "$UNINSTALL" -eq 1 ]; then
-  yellow "[1/3] Removing helm release $RELEASE..."
-  if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "^${RELEASE}"; then
-    helm uninstall "$RELEASE" -n "$NAMESPACE" || true
-  fi
 
-  yellow "[2/3] Removing ConfigMap $CM_NAME..."
-  kubectl -n "$NAMESPACE" delete configmap "$CM_NAME" --ignore-not-found
+  yellow "[1/2] Removing Helm release"
+  helm uninstall "$RELEASE" -n "$NAMESPACE" || true
 
-  yellow "[3/3] Done."
+  yellow "[2/2] Removing policy ConfigMap"
+  kubectl -n "$NAMESPACE" delete configmap "$CM_NAME" \
+    --ignore-not-found
+
   green "✓ OPA removed"
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# POLICIES-ONLY refresh
-# ---------------------------------------------------------------------------
+# =============================================================================
+# POLICIES ONLY
+# =============================================================================
+
 if [ "$POLICIES_ONLY" -eq 1 ]; then
+
   apply_policies_configmap | kubectl apply -f -
-  green "✓ Policies ConfigMap refreshed — kube-mgmt sidecar will hot-reload."
-  echo
-  echo "Verify reload (watch for 'msg=\"Reloaded policy\"' lines):"
-  echo "  kubectl -n $NAMESPACE logs -l app=opa -c mgmt --tail=20"
+
+  green "✓ Policies refreshed"
   exit 0
 fi
 
-# ---------------------------------------------------------------------------
-# INSTALL
-# ---------------------------------------------------------------------------
-if ! command -v helm >/dev/null 2>&1; then
-  red "ERROR: helm not installed"; exit 1
-fi
-if ! command -v kubectl >/dev/null 2>&1; then
-  red "ERROR: kubectl not installed"; exit 1
-fi
-if ! command -v python3 >/dev/null 2>&1; then
-  red "ERROR: python3 needed for ConfigMap label injection"; exit 1
-fi
+# =============================================================================
+# MAIN
+# =============================================================================
 
 blue "============================================================"
 blue " ZTA Phase 5.B.2 — OPA user-authz PDP"
-blue "   namespace:     $NAMESPACE"
-blue "   helm chart:    $HELM_CHART $HELM_CHART_VERSION"
-blue "   values file:   $VALUES_FILE"
-blue "   policies dir:  $POLICIES_DIR"
 blue "============================================================"
 
-blue "[1/5] Adding helm repo: $HELM_REPO_NAME"
-helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" >/dev/null 2>&1 || true
-helm repo update "$HELM_REPO_NAME" >/dev/null 2>&1 || \
-  yellow "    (helm repo update failed — proceeding with cache)"
+# =============================================================================
+# HELM REPO
+# =============================================================================
 
-blue "[2/5] Applying ConfigMap $CM_NAME (policies) — required BEFORE OPA pod starts so kube-mgmt has something to load on first reconcile"
+blue "[1/5] Helm repository"
+
+helm repo add "$HELM_REPO_NAME" "$HELM_REPO_URL" \
+  >/dev/null 2>&1 || true
+
+helm repo update "$HELM_REPO_NAME" \
+  >/dev/null 2>&1 || true
+
+# =============================================================================
+# CONFIGMAP
+# =============================================================================
+
+blue "[2/5] Applying policy ConfigMap"
+
 apply_policies_configmap | kubectl apply -f -
 
-blue "[3/5] helm upgrade --install $RELEASE $HELM_CHART"
+# =============================================================================
+# HELM DEPLOY
+# =============================================================================
+
+blue "[3/5] Deploying OPA"
+
 helm upgrade --install "$RELEASE" "$HELM_CHART" \
   --version "$HELM_CHART_VERSION" \
   -n "$NAMESPACE" \
   -f "$VALUES_FILE" \
-  --wait --timeout 300s
+  --wait \
+  --timeout 300s
 
-blue "[4/5] Waiting for OPA pod ready..."
-kubectl -n "$NAMESPACE" rollout status deploy/"$RELEASE" --timeout=180s
+# =============================================================================
+# ROLLOUT
+# =============================================================================
 
-blue "[5/5] Smoke test — POST a synthetic input to /v1/data/zta/authz/allow"
+blue "[4/5] Waiting rollout"
+
+kubectl -n "$NAMESPACE" rollout status deployment/"$RELEASE" \
+  --timeout=180s
+
+# =============================================================================
+# SMOKE TEST
+# =============================================================================
+
+blue "[5/5] Smoke test"
+
 TMP_JSON=$(mktemp)
-trap 'rm -f "$TMP_JSON"' EXIT
+
+cleanup() {
+  rm -f "$TMP_JSON"
+
+  if [ -n "${PF_PID:-}" ]; then
+    kill "$PF_PID" >/dev/null 2>&1 || true
+    wait "$PF_PID" >/dev/null 2>&1 || true
+  fi
+}
+
+trap cleanup EXIT
 
 cat > "$TMP_JSON" <<'EOF'
 {
@@ -160,42 +240,77 @@ cat > "$TMP_JSON" <<'EOF'
     "path": "/api/jobs",
     "jwt": {
       "preferred_username": "admin1",
-      "realm_access": { "roles": ["admin", "default-roles-job7189"] }
+      "realm_access": {
+        "roles": ["admin", "default-roles-job7189"]
+      }
     }
   }
 }
 EOF
 
-# Port-forward in background, run curl, kill PF.
-kubectl -n "$NAMESPACE" port-forward svc/opa 28181:8181 >/dev/null 2>&1 &
+kubectl -n "$NAMESPACE" port-forward svc/opa 28181:8181 \
+  >/dev/null 2>&1 &
+
 PF_PID=$!
-sleep 3
 
-RESULT=$(curl -s -X POST -H 'Content-Type: application/json' \
-  --data @"$TMP_JSON" \
-  http://127.0.0.1:28181/v1/data/zta/authz/allow 2>/dev/null \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin).get("result"))' \
-  2>/dev/null || echo "ERROR")
+# -----------------------------------------------------------------------------
+# Wait until OPA health endpoint responds
+# -----------------------------------------------------------------------------
 
-kill "$PF_PID" 2>/dev/null || true
-wait "$PF_PID" 2>/dev/null || true
+READY=0
 
-if [ "$RESULT" = "True" ]; then
-  green "  ✓ Smoke test PASS — admin1 GET /api/jobs → allow=true"
+for _ in {1..20}; do
+
+  if curl -sf http://127.0.0.1:28181/health >/dev/null 2>&1; then
+    READY=1
+    break
+  fi
+
+  sleep 1
+done
+
+if [ "$READY" -ne 1 ]; then
+  red "OPA health endpoint not ready"
+  exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# Call policy endpoint
+# -----------------------------------------------------------------------------
+
+RAW_RESPONSE=$(
+  curl -s -X POST \
+    -H 'Content-Type: application/json' \
+    --data @"$TMP_JSON" \
+    http://127.0.0.1:28181/v1/data/zta/authz/allow
+)
+
+if [ -z "$RAW_RESPONSE" ]; then
+  red "Smoke test failed: empty response"
+  exit 1
+fi
+
+RESULT=$(
+  printf '%s' "$RAW_RESPONSE" \
+  | python3 -c '
+import sys, json
+
+try:
+    data = json.load(sys.stdin)
+    print(data.get("result"))
+except Exception:
+    print("PARSE_ERROR")
+'
+)
+
+blue "OPA response: $RAW_RESPONSE"
+
+if [[ "$RESULT" =~ ^([Tt]rue|1)$ ]]; then
+  green "✓ Smoke test PASS — allow=true"
 else
-  yellow "  ⚠ Smoke test returned: $RESULT (expected: True)"
-  yellow "  Check policies loaded: kubectl -n $NAMESPACE logs -l app=opa -c mgmt --tail=30"
+  yellow "⚠ Smoke test FAILED — result=$RESULT"
 fi
 
 green "============================================================"
-green " ✓ OPA user-authz PDP installed"
+green "✓ OPA READY ($HELM_CHART_VERSION)"
 green "============================================================"
-echo
-echo "Verify:"
-echo "  kubectl -n $NAMESPACE get pod -l app=opa"
-echo "  kubectl -n $NAMESPACE logs -l app=opa -c mgmt --tail=20 | grep -i policy"
-echo "  kubectl -n $NAMESPACE port-forward svc/opa 8181:8181 &"
-echo "  curl localhost:8181/health"
-echo "  curl localhost:8181/v1/policies | jq 'keys'"
-echo
-echo "Next step: bash scripts/zta-deploy-opa-kong-plugin.sh — wires Kong → OPA"

@@ -289,9 +289,14 @@ plugins:
           -- the call never leaves the cluster (Cilium CNP `12-security.yaml`
           -- rule 8 confines the OPA Service to gateway namespace) and the
           -- chart-generated cert is not in Kong's CA bundle.
-          local OPA_URL = os.getenv("ZTA_OPA_URL")
-            or "https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
-          local FAIL_CLOSED = os.getenv("ZTA_OPA_FAIL_CLOSED") == "1"
+          --
+          -- Constants are hardcoded because the Kong pre-function sandbox
+          -- does not expose `os.getenv` by default. To override these in
+          -- the future, edit this file and re-apply the kong-declarative-config
+          -- ConfigMap, or extend `KONG_UNTRUSTED_LUA_SANDBOX_ENVIRONMENT` to
+          -- whitelist `os.getenv`.
+          local OPA_URL     = "https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
+          local FAIL_CLOSED = false
           local TIMEOUT_MS  = 1000   -- 1s upper bound on OPA round-trip
 
           local auth = kong.request.get_header("authorization") or ""

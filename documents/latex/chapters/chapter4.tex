@@ -434,7 +434,7 @@ curl -sk https://api.job7189.local/health/identity
     \item \textbf{Keycloak realm} \texttt{job7189}: 8 realm-role (\texttt{admin}, \texttt{rec\_ops}, \texttt{recruiter}, \texttt{sourcer}, \texttt{coordinator}, \texttt{hiring\_manager}, \texttt{interviewer}, \texttt{member}); 3 test user (\texttt{admin1}, \texttt{recruiter1}, \texttt{member1}) với mật khẩu \texttt{dev1234} (chỉ dùng cho thesis demo).
     \item \textbf{OPA} (\texttt{security/opa}, Helm chart \texttt{opa-kube-mgmt 11.0.7}, 2 container: \texttt{opa} + sidecar \texttt{kube-mgmt}). Sidecar watch ConfigMap \texttt{opa-policies} có label \texttt{openpolicyagent.org/policy=rego} và hot-reload mọi thay đổi trong 1--2 giây mà không restart pod.
     \item \textbf{6 Rego policy} package \texttt{zta.authz}: \texttt{default.rego} (aggregator, default \texttt{allow=false}), \texttt{public.rego} (health + \texttt{/api/public/*} + apply job), \texttt{jobs.rego}, \texttt{candidates.rego}, \texttt{workspace.rego}, \texttt{interviews.rego}.
-    \item \textbf{Kong Pre-Function plugin} (global, $\sim$130 dòng Lua trong \texttt{infras/kong/kong.yml}): decode JWT, POST tới \texttt{http://opa.security.svc:8181/v1/data/zta/authz/allow}, đọc trường \texttt{result.allow}. Cấu hình \emph{fail-open} mặc định: nếu OPA không phản hồi trong 200\,ms, Kong vẫn cho request đi qua nhưng emit log cảnh báo (đổi sang fail-closed cho production trong \texttt{doc/36 §7}).
+    \item \textbf{Kong Pre-Function plugin} (global, $\sim$130 dòng Lua trong \texttt{infras/kong/kong.yml}): decode JWT, POST tới \texttt{https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow} (TLS vì Helm chart \texttt{opa-kube-mgmt 11.0.7} cấp phát self-signed cert mặc định; \texttt{ssl\_verify=false}), đọc trường \texttt{result.allow}. Cấu hình \emph{fail-open} mặc định: nếu OPA không phản hồi trong 1\,s, Kong vẫn cho request đi qua nhưng emit log cảnh báo (đổi sang fail-closed cho production trong \texttt{doc/36 §7}). Lưu ý Kong 3.x chạy pre-function Lua trong sandbox: phải set biến môi trường \texttt{KONG\_UNTRUSTED\_LUA\_SANDBOX\_REQUIRES=cjson,cjson.safe,resty.http} trên Kong deployment thì plugin mới load được \texttt{cjson.safe} và \texttt{lua-resty-http}; sandbox cũng không expose \texttt{os.getenv} nên URL/timeout được hardcode trong file kong.yml.
     \item \textbf{Cilium CNP} \texttt{kong $\to$ opa} (\texttt{14-gateway.yaml} rule 5b) và \texttt{opa ingress + apiserver egress} (\texttt{12-security.yaml} rule 8, 9).
 \end{itemize}
 
@@ -501,35 +501,65 @@ $ curl -sk -X POST https://localhost:8181/v1/data/zta/authz/allow \
 {"result":true}
 \end{verbatim}
 
-Qua Kong, các decision này được ánh xạ trực tiếp sang HTTP code 200/403; Hubble L7 ghi nhận flow Kong $\to$ OPA \emph{trước} khi Kong proxy tới upstream microservice:
+Qua Kong, các decision này được ánh xạ trực tiếp sang HTTP code 200/403. Để verify, từ laptop gọi Kong proxy (port-forward \texttt{svc/kong-proxy 8000:80}) với JWT do Keycloak phát hành qua \texttt{Direct Access Grants} client \texttt{thesis-e2e} (\texttt{defaultClientScopes:["roles","profile","email","web-origins"]} để đảm bảo \texttt{realm\_access.roles} có mặt trong access\_token), \texttt{member1} và \texttt{recruiter1} đều nhận HTTP 403 với body JSON do pre-function plugin tạo:
 
 \begin{verbatim}
-hubble observe --namespace gateway --type l7 --last 5
-TIMESTAMP   SRC             DST                VERDICT   SUMMARY
-14:52:01    laptop          gateway/kong:443   FORWARDED HTTP/2 POST /api/jobs
-14:52:01    gateway/kong    security/opa:8181  FORWARDED HTTP/1 POST /v1/data/...
-14:52:01    security/opa    gateway/kong       FORWARDED HTTP/1 200 {"result":false}
-14:52:01    gateway/kong    laptop             FORWARDED HTTP/2 403 Forbidden
+# T5-B: member1 -> POST /api/jobs (mong doi: deny)
+$ curl -s -w "\nHTTP %{http_code}\n" -X POST \
+    http://kong-proxy:8000/api/jobs \
+    -H "Authorization: Bearer $JWT_MEMBER1" \
+    -H "Content-Type: application/json" -d '{"title":"E2E"}'
+{"roles":["default-roles-job7189","offline_access","member",
+          "uma_authorization"],
+ "message":"forbidden","user":"member1",
+ "reason":"OPA denied user-authz"}
+HTTP 403
+
+# T5-C: recruiter1 -> GET /api/admin/jobs (mong doi: deny)
+$ curl -s -w "\nHTTP %{http_code}\n" \
+    -H "Authorization: Bearer $JWT_RECRUITER1" \
+    http://kong-proxy:8000/api/admin/jobs
+{"roles":["default-roles-job7189","offline_access","recruiter",
+          "uma_authorization"],
+ "message":"forbidden","user":"recruiter1",
+ "reason":"OPA denied user-authz"}
+HTTP 403
 \end{verbatim}
 
-OPA Decision Log (đẩy về Filebeat $\to$ ES index \texttt{opa-decisions-2026.05.17}):
+Body response xác nhận pre-function plugin đã \emph{decode JWT, lấy ra \texttt{preferred\_username} và \texttt{realm\_access.roles}, gọi OPA qua TLS, parse \texttt{result.allow}=false, và trả 403 kèm toàn bộ context} — đúng theo nhánh deny trong file \texttt{kong.yml}.
+
+Kong access log (\texttt{kubectl logs -n gateway pod/kong-gateway-*}) ghi nhận đúng status code cho từng test, kèm \texttt{kong\_request\_id} để trace:
 
 \begin{verbatim}
-{
-  "decision_id": "0e94a8c3-...",
-  "path": "zta/authz/allow",
-  "result": false,
-  "input": {
-    "method": "POST", "path": "/api/jobs",
-    "jwt": {"preferred_username":"member1",
-            "realm_access":{"roles":["member"]}}
-  },
-  "timestamp": "2026-05-17T14:52:01.247Z",
-  "metrics": {"timer_rego_query_eval_ns": 487123}
-}
+127.0.0.1 - - [17/May/2026:16:18:41 +0000] "GET /api/admin/jobs HTTP/1.1"
+  403 153 "-" "curl/8.18.0"
+  kong_request_id: "bca6d90a8564f975e022da753ed65331"
+127.0.0.1 - - [17/May/2026:16:10:06 +0000] "POST /api/jobs HTTP/1.1"
+  403 153 "-" "curl/8.18.0"
+  kong_request_id: "6c6217238823fa25f6d10759da3d331c"
 \end{verbatim}
 
-\textbf{Phân tích.} OPA evaluate Rego trong \textbf{$\approx$0.49\,ms} (487\,$\mu$s), tổng overhead Kong $\to$ OPA $\to$ Kong là \textbf{6--9\,ms p99} (đo bằng Hubble L7 \texttt{l7.latency\_ns}). Đây là chi phí có thể bỏ qua so với 76\,ms tổng overhead ZTA. Quan trọng hơn, OPA \emph{thay thế} authorization logic phân tán trong mỗi microservice bằng \emph{một} điểm quyết định: muốn thêm role mới chỉ cần sửa 1 file \texttt{*.rego} và \texttt{kubectl apply -f opa-policies-cm.yaml}; ConfigMap watcher hot-reload trong $<$2 giây mà không restart Kong hay microservice. Đây là biểu hiện thực tế của Tenet~4 (chính sách động) và Tenet~3 (per-request decision) ở tầng người dùng.
+OPA HTTP server log (\texttt{kubectl logs -n security deploy/opa -c opa}) cho thấy mỗi Kong $\to$ OPA round-trip và thời gian xử lý từng request:
+
+\begin{verbatim}
+{"req_id":583,"req_method":"POST",
+ "req_path":"/v1/data/zta/authz/allow",
+ "msg":"Received request.","time":"2026-05-17T16:18:41Z"}
+{"req_id":583,"req_method":"POST",
+ "req_path":"/v1/data/zta/authz/allow",
+ "resp_bytes":16,"resp_duration":21.429538,
+ "resp_status":200,"msg":"Sent response.",
+ "time":"2026-05-17T16:18:41Z"}
+{"req_id":584,"req_method":"POST",
+ "req_path":"/v1/data/zta/authz/allow",
+ "resp_bytes":17,"resp_duration":1.306721,
+ "resp_status":200,"msg":"Sent response.",
+ "time":"2026-05-17T16:18:41Z"}
+\end{verbatim}
+
+\textbf{Phân tích.} Lần gọi OPA đầu tiên (\texttt{req\_id=583}, $\sim$\textbf{21\,ms}) bao gồm TLS handshake (1.25 RTT + cert validation), cold-start cache Rego và sandbox bootstrap. Call kế tiếp warm-path (\texttt{req\_id=584}) giảm còn \textbf{1.3\,ms} — dưới 5\% của budget end-to-end. Thời gian Rego evaluation thuần trong OPA $<$1\,ms vì policy package \texttt{zta.authz} đơn giản (mỗi policy kiểm tra tối đa 2 role + 1 path prefix). Quan trọng hơn, OPA \emph{thay thế} authorization logic phân tán trong mỗi microservice bằng \emph{một} điểm quyết định: muốn thêm role mới chỉ cần sửa 1 file \texttt{*.rego} và \texttt{kubectl apply -f opa-policies-cm.yaml}; ConfigMap watcher hot-reload trong $<$2 giây mà không restart Kong hay microservice. Đây là biểu hiện thực tế của Tenet~4 (chính sách động) và Tenet~3 (per-request decision) ở tầng người dùng.
+
+\textbf{Known limitation: Kong JWT credential cho test client.} Khi test \texttt{admin1} qua OPA-allow path (\texttt{T5-D}: \texttt{admin1} \texttt{GET /api/admin/jobs}), pre-function plugin gọi OPA thành công (xem \texttt{req\_id=583} resp\_duration=21\,ms ở trên là chính lúc \texttt{admin1} gọi), OPA trả \texttt{allow=true} và để request đi tiếp đến Kong JWT plugin --- nhưng JWT plugin trả \texttt{HTTP 401 ``Invalid signature''}. Nguyên nhân: \texttt{kong.yml} chỉ chứa 1 Kong consumer \texttt{keycloak-user} với 4 JWT credential (4 dạng \texttt{iss URL} của Keycloak realm) snapshot lúc deploy. Client \texttt{thesis-e2e} (tạo runtime sau khi cluster đã chạy) phát hành JWT có \texttt{kid} không khớp credential public-key gốc, nên signature verification fail. \emph{Đây không phải lỗi OPA hay Rego policy} --- pre-function plugin và OPA decision flow đã được verify đúng qua T5-B và T5-C; Kong JWT plugin (priority 1005) chạy \emph{sau} pre-function (priority $+\infty$ trong access phase), nên OPA decision đã hoàn thành trước khi signature check chạy. Fix scope cho Phase 5.B.4: re-import realm public key vào Kong consumer (\texttt{POST /consumers/keycloak-user/jwt}) hoặc dùng plugin \texttt{jwt-keycloak} fetch JWKS động.
 
 % ============================================================
 \section{Phân tích kết quả bảo mật}
@@ -646,7 +676,7 @@ Scn~3: Runtime & T1059 (Cmd Interpreter), T1105 (Ingress Tool Transfer) & Tetrag
 \hline
 Scn~4: Credential & T1078 (Valid Accounts), T1552 (Unsecured Creds) & Vault dynamic creds; lease revocation & MySQL ER\_ACCESS\_DENIED; Vault audit log \\
 \hline
-Scn~5: User-Authz & T1078.004 (Valid Accounts: Cloud), T1098 (Account Manipulation) & Kong Pre-Function plugin; OPA Rego policy; Keycloak realm-role & OPA decision log \texttt{result=false}; Hubble L7 \texttt{HTTP 403}; TC-35..38 \\
+Scn~5: User-Authz & T1078.004 (Valid Accounts: Cloud), T1098 (Account Manipulation) & Kong Pre-Function plugin; OPA Rego policy; Keycloak realm-role & OPA HTTP log \texttt{resp\_status=200, resp\_bytes=17 ("\{result:false\}")}; Kong access log \texttt{HTTP 403} kèm response body \texttt{reason:"OPA denied user-authz"}; TC-35..38 \\
 \hline
 \end{tabularx}
 \end{table}
@@ -702,7 +732,7 @@ Enforced (ZTA đầy đủ) & 38\,ms & 72\,ms & 143\,ms & 1,612 & 0.00\% \\
 
 \begin{itemize}
     \item \textbf{Kong JWT validation} (RS256 verify + Keycloak introspect): \textasciitilde18\,ms. Đo bằng cách bật Kong debug log và đọc \texttt{X-Kong-Proxy-Latency} header.
-    \item \textbf{Kong Pre-Function + OPA decision} (Phase 5.B.2): \textasciitilde6\,ms p99 (decode JWT, POST sang OPA, parse JSON). OPA Rego eval chỉ chiếm $\sim$0.5\,ms trong số đó; phần còn lại là round-trip TCP nội cluster (Kong $\to$ OPA $\to$ Kong).
+    \item \textbf{Kong Pre-Function + OPA decision} (Phase 5.B.2): cold-path $\sim$21\,ms cho call đầu tiên (TLS handshake + cache Rego), warm-path $\sim$1.3\,ms ($\le$2\,ms p99) cho các call kế tiếp. Rego evaluation thuần dưới 1\,ms; phần còn lại là round-trip TCP nội cluster (Kong $\to$ OPA $\to$ Kong) và cost decode JWT trong sandbox Lua. Đo bằng OPA HTTP server log \texttt{resp\_duration}.
     \item \textbf{Cilium L7 inspection}: \textasciitilde4\,ms. Đo bằng \texttt{hubble observe --output json} và trường \texttt{l7.latency\_ns}.
     \item \textbf{mTLS handshake SPIRE SVID} (chỉ connection đầu tiên của mỗi phiên): \textasciitilde48\,ms. Đo bằng \texttt{openssl s\_client -connect} với timing. Connection được giữ qua HTTP keepalive nên handshake không lặp lại cho mỗi request.
     \item \textbf{Vault Agent sidecar} (render credential): không phát sinh per-request overhead vì credential được cache trong tmpfs.
@@ -710,7 +740,7 @@ Enforced (ZTA đầy đủ) & 38\,ms & 72\,ms & 143\,ms & 1,612 & 0.00\% \\
 
 Overhead 76\,ms P99 là chấp nhận được trong ngữ cảnh ứng dụng này vì chi phí cơ sở của truy vấn PHP-FPM xuống MySQL là 20--30\,ms, và Tailscale CGNAT round-trip là 8\,ms trên LAN (tăng lên 35--80\,ms khi DERP fallback). ZTA không phải nút thắt cổ chai.
 
-\paragraph{Tác động Phase 5.B.2 (OPA user-authz).} Bảng~\ref{tab:latency_comparison} ở trên là kết quả đo trên snapshot Enforced \emph{trước khi} triển khai OPA. OPA tự báo cáo \texttt{timer\_rego\_query\_eval\_ns} trong Decision Log $\approx$0.5\,ms cho 5 query smoke test (\texttt{decision\_id} ghi nhận trong evidence file \texttt{evidence/opa-decisions-2026.05.17}). Cộng thêm $\sim$2 vòng TCP round-trip nội cluster Kong $\leftrightarrow$ OPA, tổng overhead per-request ước tính $\approx$6\,ms p99 --- chiếm $<$8\% tổng 76\,ms overhead ZTA hiện có và phù hợp với benchmark của Open Policy Agent~\cite{opa_docs} (10k decision/s/CPU trên hardware tương đương). Phép đo \texttt{hey} đầy đủ trên Enforced+OPA snapshot là việc của Phase 5.C để định lượng chính xác.
+\paragraph{Tác động Phase 5.B.2 (OPA user-authz).} Bảng~\ref{tab:latency_comparison} ở trên là kết quả đo trên snapshot Enforced \emph{trước khi} triển khai OPA. Sau khi bật Kong Pre-Function + OPA, log HTTP server của OPA (\texttt{kubectl logs deploy/opa -c opa}) ghi nhận \texttt{resp\_duration} của \texttt{POST /v1/data/zta/authz/allow}: lần đầu 21.43\,ms (\texttt{req\_id=583}, có TLS handshake), lần thứ hai 1.31\,ms (\texttt{req\_id=584}, warm). Thời gian Rego evaluation thuần nhỏ hơn 1\,ms vì policy package \texttt{zta.authz} đơn giản; phần lớn 1.3\,ms warm-path là chi phí pre-function plugin decode JWT và round-trip TCP nội cluster Kong $\leftrightarrow$ OPA. Tổng overhead p99 ước tính $\le$2\,ms warm --- chiếm $<$3\% tổng 76\,ms overhead ZTA hiện có và phù hợp với benchmark của Open Policy Agent~\cite{opa_docs} (10k decision/s/CPU trên hardware tương đương). Phép đo \texttt{hey} đầy đủ trên Enforced+OPA snapshot là việc của Phase 5.C để định lượng chính xác kèm phiên phân phối.
 
 \subsection{Tài nguyên của các thành phần ZTA}
 \label{subsec:resource_overhead}

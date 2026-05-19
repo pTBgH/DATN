@@ -338,7 +338,17 @@ $ kubectl -n kube-system exec ds/tetragon -c tetragon -- \
   /usr/local/bin/watch-env.sh /usr/local/bin/watch-env.sh 0
 \end{verbatim}
 
-\textbf{Caveat về \texttt{Sigkill} action.} Thử \texttt{kubectl exec mysql-pod -- /bin/sh -c "echo hello"} ngày 2026-05-18 cho exit code 0 (kỳ vọng 137) --- nghĩa là \texttt{Sigkill} action chưa kích hoạt cho test traffic. Quan trắc (\texttt{tetra getevents}) hoạt động đúng (bắt được toàn bộ \texttt{🚀 process} và \texttt{💥 exit} sự kiện), nhưng action không fire. Giả thuyết: \texttt{matchArgs index=0 operator=Equal} so sánh tham số \texttt{filename} của \texttt{sys\_execve} có thể không match khi \texttt{kubectl exec} đi qua \texttt{containerd-shim} với argv được pre-pend, hoặc khi binary là symlink (\texttt{/bin/sh} $\to$ \texttt{busybox}). Việc siết selector (thử \texttt{Postfix}/\texttt{Prefix} hoặc dùng \texttt{matchBinaries}) và validate end-to-end Sigkill thuộc phạm vi Phase 5.D --- xem mục~\ref{sec:limitations}.
+\textbf{Caveat về \texttt{Sigkill} action --- root cause kernel BPF object incompat.} Thử \texttt{kubectl exec mysql-pod -- /bin/sh -c "echo hello"} ngày 2026-05-18 cho exit code 0 (kỳ vọng 137) --- nghĩa là \texttt{Sigkill} action chưa kích hoạt. Quan trắc qua \texttt{tetra getevents} hoạt động đúng (bắt được \texttt{🚀 process} và \texttt{💥 exit}), nhưng kernel-side action không fire. Diagnostic sâu hơn (ngày 2026-05-18) cho thấy Tetragon DaemonSet log có lỗi load BPF program:
+
+\begin{verbatim}
+time="..." level=error msg="failed prog
+  /var/lib/tetragon/bpf_multi_kprobe_v61.o
+  kern_version 395276 loadInstance ...
+  program generic_kprobe_event:
+  load program: invalid argument"
+\end{verbatim}
+
+Root cause là kernel host của cụm là \texttt{6.8.x} (Ubuntu 24.04) trong khi Tetragon \texttt{v1.2.0} ship sẵn object file \texttt{bpf\_multi\_kprobe\_v61.o} biên dịch cho kernel \texttt{6.1}; \texttt{kern\_version=395276} (\texttt{0x60808}) trong log không khớp với BTF của kernel 6.8 host, khiến verifier reject program. Hệ quả: sensor \texttt{generic\_kprobe} không attach được vào \texttt{sys\_execve}, do đó \texttt{action=Sigkill} không bao giờ chạy trong fast path. Quan trắc vẫn còn vì Tetragon fallback sang \texttt{kprobe} đơn lẻ cho process tracking. Đã thử fix qua \texttt{helm upgrade ... --set tetragon.extraArgs.disable-kprobe-multi=true} (Option B) nhưng Helm chart v1.2.0 báo lỗi template \texttt{nil pointer evaluating processAncestors.enabled}, DS rollback và lỗi giữ nguyên. Hướng fix triệt để: \textbf{(1)} upgrade Tetragon $\geq$ v1.4 (ship thêm \texttt{bpf\_multi\_kprobe\_v66.o}, \texttt{v612.o}) hoặc \textbf{(2)} downgrade kernel host về 6.1 LTS. Cả hai đều rủi ro break cluster trong final phase nên defer Phase 5.E --- xem mục~\ref{sec:limitations}.
 
 \textbf{Vòng lặp Adaptive Trust closed.} Sau khi điều chỉnh CNP \texttt{cnp-block-low-trust-to-vault} dùng đúng nhãn \texttt{zta.job7189/score-bucket} (commit fix label namespace), 3 vế của vòng lặp đã được verify cùng trên cluster:
 
@@ -659,7 +669,7 @@ OPA HTTP server log (\texttt{kubectl logs -n security deploy/opa -c opa}) cho th
 \end{tabularx}
 \end{table}
 
-\noindent\dag\ Hai test case 23 và 24 (Tetragon \texttt{Sigkill} action firing trên \texttt{/bin/sh}/\texttt{curl}) chưa pass: TracingPolicy CR đã load đúng spec với \texttt{action=Sigkill} cho 7 binary nhạy cảm (test 22 pass), nhưng \texttt{kubectl exec mysql-pod -- /bin/sh -c "echo hello"} ngày 2026-05-18 cho exit code 0 thay vì 137 --- quan trắc qua \texttt{tetra getevents} hoạt động đúng (test 25 pass) nhưng action chưa fire. Việc siết \texttt{matchArgs} (thử \texttt{Postfix}/\texttt{Prefix} hoặc \texttt{matchBinaries}) và validate trên binary tuyệt đối thuộc phạm vi Phase 5.D --- xem mục~\ref{sec:limitations}.
+\noindent\dag\ Hai test case 23 và 24 (Tetragon \texttt{Sigkill} action firing trên \texttt{/bin/sh}/\texttt{curl}) chưa pass: TracingPolicy CR load đúng spec với \texttt{action=Sigkill} cho 7 binary (test 22 pass), nhưng \texttt{kubectl exec mysql-pod -- /bin/sh -c "echo hello"} ngày 2026-05-18 cho exit code 0 thay vì 137 --- quan trắc qua \texttt{tetra getevents} hoạt động (test 25 pass) nhưng action không fire. \textbf{Root cause}: kernel host 6.8.x không tương thích với BPF object \texttt{bpf\_multi\_kprobe\_v61.o} mà Tetragon v1.2.0 ship (compile cho kernel 6.1); verifier reject program với lỗi \texttt{invalid argument}, sensor \texttt{generic\_kprobe} không attach được. Workaround \texttt{--disable-kprobe-multi} qua \texttt{helm upgrade} bị Helm chart bug chặn. Fix triệt để (upgrade Tetragon $\geq$ v1.4 hoặc downgrade kernel 6.1) đều rủi ro break trong final phase, defer Phase 5.E --- xem mục~\ref{sec:limitations} (chưa xong).
 
 \subsection{Đánh giá Blast Radius}
 \label{subsec:blast_radius}
@@ -731,57 +741,71 @@ Tất cả phép đo hiệu năng được thực hiện hai lần: một lần 
 \subsection{Latency end-to-end qua Kong}
 \label{subsec:latency}
 
-Lệnh đo (thực nghiệm 2026-05-18, snapshot Enforced + Phase 5.B.2 OPA active):
+Lệnh đo (thực nghiệm 2026-05-18, snapshot Enforced + Phase 5.B.2 OPA active; port-forward Kong qua \textbf{local port 18000} để tránh xung đột với uvicorn dev server chiếm port 8000 --- xem ghi chú phía dưới):
 
 \begin{verbatim}
-hey -z 30s -c 20 -m POST \
-  -H "Authorization: Bearer $MEMBER_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"perf"}' \
-  http://localhost:8000/api/jobs
+# Mở port-forward dùng port LOCAL 18000 (KHÔNG dùng 8000 — bị chiếm)
+kubectl -n gateway port-forward pod/$KONG_POD 18000:8000 &
 
-hey -z 30s -c 20 -m GET  http://localhost:8000/api/public/jobs
-hey -z 15s -c 20 -m GET  http://localhost:8000/api/health
+# Path bị OPA pre-function deny anonymous (không cần upstream)
+hey -z 30s -c 20 -m GET http://localhost:18000/api/admin/users
+hey -z 30s -c 20 -m GET http://localhost:18000/api/recruiters/profile
 \end{verbatim}
 
-Kết quả (snapshot Enforced + OPA active, port-forward Kong; ba endpoint trả HTTP 404 do route drift sau hot-reload \texttt{kong.yml} --- xem mục~\ref{sec:limitations}; pre-function Lua plugin vẫn chạy \emph{trước} route lookup nên latency phản ánh đúng chi phí Kong + OPA layer):
+\paragraph{Đính chính phép đo PR \#4.} Lần đo trước (gộp vào PR \#4 với các con số P50 14.3--16.0\,ms, OPA delta +1.6--1.8\,ms) đã được \textbf{xác định là sai targets}: \texttt{kubectl port-forward 8000:8000} bind silent fail vì port 8000 trên máy chạy test bị một dev server FastAPI/uvicorn chiếm sẵn; \texttt{curl}/\texttt{hey} thực chất hit \emph{local uvicorn} thay vì Kong. Bằng chứng từ response header trong diagnostic 2026-05-18:
+
+\begin{verbatim}
+$ curl -sv http://localhost:8000/pma/    # SAI: hit uvicorn
+< HTTP/1.1 404 Not Found
+< server: uvicorn                ← KHÔNG phải Kong
+{"detail":"Not Found"}            ← FastAPI style body
+
+$ curl -sv http://localhost:18000/pma/   # ĐÚNG: hit Kong qua 18000
+< HTTP/1.1 403 Forbidden
+< server: kong/3.6.1             ← Kong thật
+{"user":"anonymous","reason":"OPA denied user-authz",
+ "message":"forbidden","roles":{}}
+\end{verbatim}
+
+Số liệu trong PR \#4 phản ánh latency của uvicorn-404 ($\sim$14--16\,ms) không phải Kong + OPA. Bảng~\ref{tab:latency_comparison} bên dưới là số đo lại trên port 18000 với header \texttt{server: kong/3.6.1} confirmed.
 
 \begin{table}[H]
 \centering
-\caption{Latency Kong proxy + OPA pre-function (thực đo 2026-05-18, snapshot Enforced + OPA)}
+\caption{Latency Kong proxy + OPA pre-function (đo lại 2026-05-18 qua port-forward 18000, snapshot Enforced)}
 \label{tab:latency_comparison}
 \small
 \begin{tabularx}{\textwidth}{|X|c|c|c|c|c|}
 \hline
 \textbf{Path} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{Throughput (req/s)} & \textbf{N req} \\
 \hline
-\texttt{GET /api/health} (Kong only) & 14.4\,ms & 17.1\,ms & 19.2\,ms & 1{,}367 & 20{,}530 \\
+\texttt{GET /api/admin/users} (Kong + OPA $\to$ 403) & 188\,ms & 425\,ms & 631\,ms & 97.0 & 2{,}924 \\
 \hline
-\texttt{GET /api/public/jobs} (Kong only) & 14.3\,ms & 16.9\,ms & 19.2\,ms & 1{,}368 & 41{,}084 \\
-\hline
-\texttt{POST /api/jobs} (Kong + OPA) & 16.0\,ms & 18.7\,ms & 20.8\,ms & 1{,}221 & 36{,}671 \\
-\hline
-\textbf{OPA call overhead (delta)} & \textbf{+1.7\,ms} & \textbf{+1.8\,ms} & \textbf{+1.6\,ms} & \textbf{$-$10.7\%} & --- \\
+\texttt{GET /api/recruiters/profile} (Kong + OPA $\to$ 403) & 181\,ms & 406\,ms & 610\,ms & 103.1 & 3{,}112 \\
 \hline
 \end{tabularx}
 \end{table}
 
-\paragraph{Đặc tả phép đo.} Vì \texttt{kong.yml} hot-reload sau khi điều chỉnh OPA URL (commit \texttt{e1d5c7c}, switch HTTP$\to$HTTPS) và Lua sandbox env var (commit \texttt{940b482}, loại bỏ \texttt{os.getenv}), route declarative tới upstream microservice không match được POST/GET path ở thời điểm chạy \texttt{hey} --- toàn bộ request kết thúc tại Kong proxy với HTTP 404. Hệ quả tích cực là \textbf{tách bạch được chi phí Kong layer} (HTTP parsing + plugin chain) \textbf{khỏi chi phí upstream PHP-FPM/MySQL}: delta giữa endpoint có OPA (\texttt{POST /api/jobs}) và endpoint không OPA (\texttt{GET /api/health}) là \textbf{1.6--1.8\,ms p50--p99}, khớp chặt với 1.31\,ms warm-path đo trực tiếp từ OPA HTTP server log ở mục~\ref{subsec:scn_user_authz}. Throughput \texttt{POST /api/jobs} ($\sim$1{,}221 req/s) thấp hơn GET path ($\sim$1{,}368 req/s) khoảng 10.7\%, phản ánh chi phí JWT decode trong sandbox Lua + Lua$\to$OPA round-trip $\sim$1.8\,ms.
-
-\paragraph{Phân tách nguồn gốc overhead.} Với phép đo trên tách được chi phí Kong + OPA layer, các thành phần ZTA khác ước tính như sau:
+\paragraph{Đặc tả phép đo.} Pre-function Lua plugin (Phase 5.B.2) chạy \emph{trước} route lookup và \emph{trước} JWT validation, gọi OPA HTTPS sidecar để quyết định authz cho mọi request. Khi caller không có JWT (anonymous), plugin trả về 403 với body \texttt{\{"reason":"OPA denied user-authz",...\}} mà không bao giờ gọi upstream PHP-FPM. Hai path trên là path \emph{yêu cầu role admin/recruiter} nên anonymous bị deny --- đây là điều kiện đo \textbf{Kong + OPA layer thuần} (không lẫn upstream cost). Kết quả:
 
 \begin{itemize}
-    \item \textbf{Kong proxy baseline} (HTTP parsing + routing + access log): $\sim$14.3\,ms p50, $\sim$19.2\,ms p99 (đo trực tiếp, hai endpoint không OPA gần như trùng nhau trong sai số dưới 0.3\,ms).
-    \item \textbf{Kong Pre-Function + OPA decision} (Phase 5.B.2): \textbf{1.6--1.8\,ms p50--p99} (đo trực tiếp delta giữa POST có OPA và GET không OPA). Trong đó OPA HTTP server log ghi nhận warm-path \texttt{resp\_duration} 1.31\,ms; phần còn lại $\sim$0.3--0.5\,ms là chi phí decode JWT và call \texttt{resty.http} trong sandbox Lua.
-    \item \textbf{Kong JWT validation} (RS256 verify, plugin priority 1005): plugin này chạy \emph{sau} route lookup, do đó không tách bạch được khi route trả 404; ước tính $\sim$1--2\,ms theo Kong Hub benchmark~\cite{kong_docs}.
-    \item \textbf{Cilium L7 inspection}: $\sim$0.5--2\,ms tuỳ lưu lượng~\cite{ebpf_io}; chưa tách được trong phép đo hiện tại vì hey chạy qua port-forward, defer Phase 5.C khi snapshot Baseline khả dụng để so sánh.
+    \item P50 $\sim$185\,ms, P95 $\sim$415\,ms, P99 $\sim$620\,ms ở concurrency 20.
+    \item Throughput $\sim$100 req/s/worker --- thấp hơn baseline Kong only ($\sim$1{,}300 req/s) dự kiến trong Kong Hub benchmark vì pre-function plugin thực thi Lua sandbox cho mỗi request và gọi OPA qua HTTPS với certificate validation.
+    \item Hai path khác nhau cho cùng độ lớn latency $\pm$5\% chứng tỏ chi phí dominant là OPA round-trip, không phải hash routing.
+\end{itemize}
+
+\paragraph{Phân tách nguồn gốc overhead.} Với phép đo trên đo \emph{Kong + OPA layer} (request không tới upstream), các thành phần ZTA khác ước tính như sau:
+
+\begin{itemize}
+    \item \textbf{Kong Pre-Function + OPA decision} (Phase 5.B.2): \textbf{P50 $\sim$185\,ms, P99 $\sim$620\,ms} ở concurrency 20. Trong đó OPA HTTP server log ghi nhận warm-path \texttt{resp\_duration} $\sim$1.3\,ms (xem mục~\ref{subsec:scn_user_authz}); phần còn lại ($\sim$180\,ms median) là chi phí: (a) Kong Lua sandbox initialize + JSON encode payload, (b) \texttt{resty.http} mở connection HTTPS tới OPA sidecar (TLS handshake + certificate validation), (c) queue overhead trong nginx worker khi 20 client đồng thời. Có khả năng cao OPA HTTPS connection không được pool/keepalive đúng (mỗi request mở connection mới) làm tăng đáng kể chi phí; defer Phase 5.E để verify qua \texttt{lua\_socket\_keepalive\_timeout} (chưa xong).
+    \item \textbf{Kong JWT validation} (RS256 verify, plugin priority 1005): plugin này chạy \emph{sau} pre-function; trong phép đo trên không tới giai đoạn này vì OPA đã deny trước. Ước tính $\sim$1--2\,ms theo Kong Hub benchmark~\cite{kong_docs}.
+    \item \textbf{Cilium L7 inspection}: $\sim$0.5--2\,ms tuỳ lưu lượng~\cite{ebpf_io}; chưa tách được trong phép đo hiện tại vì hey chạy qua port-forward (chưa xong, defer Phase 5.E).
     \item \textbf{mTLS handshake SPIRE SVID} (chỉ connection đầu tiên của mỗi phiên): $\sim$30--50\,ms theo OpenSSL timing benchmark, được giữ qua HTTP keepalive nên không lặp lại per-request.
     \item \textbf{Vault Agent sidecar} (render credential): không phát sinh per-request overhead vì credential được cache trong tmpfs.
 \end{itemize}
 
-\paragraph{Hạn chế phép đo và follow-up.} Bảng~\ref{tab:latency_comparison} đo tại Kong layer (HTTP 404 từ route mismatch), không phải end-to-end qua upstream service. Việc so sánh Baseline (không ZTA) vs Enforced (ZTA đầy đủ) end-to-end qua \texttt{/api/v1/jobs?page=1} cần (1) etcd snapshot restore về snapshot Baseline, (2) sửa Kong route declarative để 200 OK qua upstream PHP-FPM, (3) tải lại JWT vòng quay 5 phút. Cả ba bước đều khả thi nhưng vượt phạm vi Phase 5.B.2; dự kiến trong Phase 5.C. Tuy nhiên, delta OPA \textbf{1.6--1.8\,ms} là số đo tin cậy độc lập với 404 vì pre-function chạy \emph{trước} route lookup; con số này thấp hơn benchmark public của Open Policy Agent~\cite{opa_docs} ($\sim$0.1\,ms/decision ở 1 CPU cô lập) đúng tỷ lệ kỳ vọng vì phép đo của đồ án bao gồm cả round-trip HTTPS Kong$\leftrightarrow$OPA + decode JWT trong sandbox Lua.
+\paragraph{Hạn chế phép đo và follow-up (chưa xong).} Bảng~\ref{tab:latency_comparison} đo tại \emph{Kong + OPA layer cho path bị deny} (request không tới upstream). Vì pre-function plugin global cho mọi route, không có path nào trong cấu hình hiện tại để đo "Kong only (không OPA)" so sánh delta như mong muốn. Việc so sánh Baseline (không ZTA) vs Enforced end-to-end qua upstream PHP-FPM cần: (1) etcd snapshot restore Baseline; (2) làm cho upstream \texttt{identity-service}/\texttt{job-service} respond cho \texttt{/api/health}, \texttt{/api/public/jobs} (hiện tại request \emph{hang} qua Kong --- giả thuyết: upstream chưa init xong sau restart, hoặc Cilium CNP \texttt{default-deny} trong \texttt{job7189-apps} chặn ingress từ Kong); (3) tải JWT recruiter/member vòng quay 5 phút để chạy hey với token hợp lệ. Cả ba bước \textbf{chưa xong}, defer Phase 5.E. Số P50 $\sim$185\,ms cho path 403 hiện tại là \emph{worst-case} cho Kong+OPA (concurrency 20, OPA HTTPS không pool); với deployment production có HTTP/2 keepalive Kong$\leftrightarrow$OPA và OPA bundle cache, kỳ vọng giảm về $<$10\,ms median như benchmark Open Policy Agent~\cite{opa_docs}.
 
-\paragraph{Tác động Phase 5.B.2 (OPA user-authz) tổng hợp.} Bảng~\ref{tab:latency_comparison} ghi nhận delta OPA 1.6--1.8\,ms p50--p99 và throughput giảm 10.7\% --- số đo thực tế từ cluster ngày 2026-05-18. Trước đó ở mục~\ref{subsec:scn_user_authz}, OPA HTTP server log của lần phục vụ T5-B/T5-C cũng ghi nhận \texttt{resp\_duration} 21.43\,ms cho call đầu (cold-path, TLS handshake + cache Rego) và 1.31\,ms cho call tiếp theo (warm). Hai nguồn dữ liệu khớp nhau cho thấy OPA decision warm-path dưới 2\,ms p99 trong điều kiện cluster hiện tại, phù hợp với benchmark Open Policy Agent $\sim$10k decision/s/CPU~\cite{opa_docs}. Việc đo lại end-to-end qua upstream (Baseline so với Enforced 200 OK) là việc Phase 5.C để định lượng chính xác phần \emph{trên} Kong+OPA, kèm phân phối phiên thay vì giả định 100\% warm.
+\paragraph{Tác động Phase 5.B.2 (OPA user-authz) tổng hợp.} Bảng~\ref{tab:latency_comparison} ghi nhận Kong + OPA pre-function P50 $\sim$185\,ms, P99 $\sim$620\,ms cho path bị OPA deny anonymous --- worst-case concurrency 20 với OPA HTTPS connection chưa pool. Một cách độc lập, OPA HTTP server log của lần phục vụ T5-B/T5-C ở mục~\ref{subsec:scn_user_authz} ghi nhận \texttt{resp\_duration} 21.43\,ms cho call đầu (cold-path, TLS handshake + cache Rego) và 1.31\,ms cho call tiếp theo (warm). Như vậy phần \emph{quyết định OPA} chỉ chiếm $<$2\,ms warm; phần còn lại ($\sim$180\,ms median) là chi phí Kong Lua sandbox + \texttt{resty.http} mở HTTPS connection mới tới OPA sidecar. Để đưa Kong+OPA layer về dưới 10\,ms median như benchmark Open Policy Agent $\sim$10k decision/s/CPU~\cite{opa_docs}, cần cấu hình keepalive pool cho \texttt{resty.http} và/hoặc chuyển OPA sang Unix socket --- \textbf{chưa xong}, defer Phase 5.E.
 
 \subsection{Tài nguyên của các thành phần ZTA}
 \label{subsec:resource_overhead}
@@ -919,9 +943,11 @@ Kết quả: \textbf{7/7 nguyên lý} của NIST SP 800-207 đều có cơ chế
 \hline
 \textbf{Tetragon Scope} & Chặn 5 binary (shell, curl, wget, nc, socat) ở 4 namespace. Syscall ptrace/capabilities chưa bật. & Mở rộng TracingPolicy sang syscall audit; bổ sung AppArmor/Seccomp profile. \\
 \hline
-\textbf{Tetragon Sigkill validation} & 5 \texttt{TracingPolicyNamespaced} CR loaded ở \texttt{data}, \texttt{job7189-apps} (2), \texttt{security}, \texttt{vault} với \texttt{action=Sigkill} cho 7 binary; quan trắc (\texttt{tetra getevents}) hoạt động đúng nhưng test \texttt{kubectl exec mysql-pod -- /bin/sh -c "echo hello"} ngày 2026-05-18 cho exit 0 thay vì 137. & Phase 5.D: siết \texttt{matchArgs} (thử \texttt{Postfix}/\texttt{Prefix} thay vì \texttt{Equal}, hoặc dùng \texttt{matchBinaries}); kiểm tra argv của \texttt{sys\_execve} khi đi qua \texttt{containerd-shim}; validate trên binary tuyệt đối thay vì symlink \texttt{busybox}. \\
+\textbf{Tetragon Sigkill validation (chưa xong)} & 5 \texttt{TracingPolicyNamespaced} CR loaded ở 4 NS với \texttt{action=Sigkill} cho 7 binary; quan trắc (\texttt{tetra getevents}) chạy đúng nhưng test exec \texttt{/bin/sh} cho exit 0 thay vì 137. \textbf{Root cause}: kernel host 6.8.x không tương thích với \texttt{bpf\_multi\_kprobe\_v61.o} mà Tetragon v1.2.0 ship (compile cho kernel 6.1); BPF verifier reject \texttt{generic\_kprobe\_event} với \texttt{invalid argument}, sensor không attach. Helm workaround \texttt{--disable-kprobe-multi} bị chart bug \texttt{nil pointer processAncestors.enabled}. & Phase 5.E: \textbf{(1)} upgrade Tetragon $\geq$ v1.4 (ship \texttt{bpf\_multi\_kprobe\_v66.o}, \texttt{v612.o}); hoặc \textbf{(2)} downgrade kernel host về 6.1 LTS; hoặc \textbf{(3)} vá chart Helm để truyền \texttt{disable-kprobe-multi} và rơi về single-kprobe (chậm hơn nhưng tương thích kernel 6.8). \\
 \hline
-\textbf{Kong route consistency} & Sau hot-reload \texttt{kong.yml} (commit \texttt{e1d5c7c}: HTTP$\to$HTTPS OPA URL; commit \texttt{940b482}: bỏ \texttt{os.getenv}), một số route declarative không match POST/GET path; hey load test trả HTTP 404 nên không đo được latency end-to-end qua upstream PHP-FPM. & Phase 5.B.4: rà soát \texttt{paths} của declarative route, viết health check sau mỗi \texttt{kong reload}, bổ sung CI lint cho \texttt{kong.yml}. \\
+\textbf{Kong route consistency (đính chính)} & PR \#4 ghi nhạ́n "route declarative không match" và ba endpoint trả 404; diagnostic 2026-05-18 \textbf{xác minh ngược lại}: 35 route admin API confirm đúng spec; 404 trước đó là do \texttt{kubectl port-forward 8000:8000} bind im lặng vì port 8000 local bị uvicorn dev server chiếm. Đo lại qua port 18000 cho thấy Kong + OPA fire 403 đúng kỳ vọng. & Vấn đề \emph{không còn}; đã cập nhật §\ref{subsec:latency} với số liệu mới. \\
+\hline
+\textbf{Upstream service hang qua Kong (chưa xong)} & Các path public không bị OPA deny (\texttt{/api/health}, \texttt{/api/public/jobs}) qua Kong port-forward 18000 bị \emph{hang} sau khi gửi request; Kong ack TCP nhưng không trả response. Identity-service và job-service pod \texttt{Running 4/4} (sidecar Vault + Tetragon + Cilium) nhưng vừa restart $\sim$3 phút. & Phase 5.E: kiểm readinessProbe của upstream; verify Cilium CNP trong \texttt{job7189-apps} cho phép ingress từ \texttt{gateway} (Kong) trên port 8000; nếu cần mở CNP \texttt{allow-kong-to-app-port-8000}. Sau đó đo latency end-to-end qua upstream để tách chi phí Kong+OPA layer khỏi upstream PHP-FPM. \\
 \hline
 \textbf{Risk Scoring} & Rule-based (CVE severity + exec event $\to$ score) với 3 bucket high/medium/low (37 pod hiện tại: 13 high, 1 medium, 23 low). & Tích hợp ML behavioral baseline để phát hiện anomaly tinh vi hơn (ví dụ bất thường lưu lượng mạng). \\
 \hline
@@ -935,7 +961,7 @@ Kết quả: \textbf{7/7 nguyên lý} của NIST SP 800-207 đều có cơ chế
 
 \paragraph{Tính tổng quát của khung.} Khung 5 lớp + pipeline \texttt{zta-rebuild.sh} được thiết kế ban đầu trên Kind 1-host nhưng đã di trú thành công sang kubeadm 4 VM mà không sửa logic các phase; flag duy nhất thay đổi là \texttt{ZTA\_CLUSTER\_MODE=external}. Điều này gợi ý khung có thể bám sang các cụm kubeadm bare-metal hoặc managed (EKS, GKE) với cùng bộ manifest, với điều kiện CNI là Cilium.
 
-\paragraph{Đánh đổi bảo mật -- hiệu năng.} Phép đo \texttt{hey} trên Kong layer (Bảng~\ref{tab:latency_comparison}) ghi nhận chi phí Kong proxy + OPA pre-function: warm-path p99 $\sim$20.8\,ms và throughput giảm 10.7\% khi bật OPA so với GET path không OPA. Delta riêng của OPA decision là 1.6--1.8\,ms p50--p99, khớp với 1.31\,ms warm đo trực tiếp từ OPA HTTP log. Các overhead còn lại (Cilium L7 inspection, SPIRE mTLS handshake $\sim$30--50\,ms cho connection đầu phiên, Vault Agent render credential) đều chỉ phát sinh ở thời điểm khởi tạo phiên hoặc khởi động pod nên không lặp per-request; với ứng dụng dùng HTTP keepalive như job7189 chi phí thực tế per-request là chi phí Kong+OPA dưới 21\,ms p99. Trong ngữ cảnh ứng dụng tuyển dụng không có SLA latency nghiêm ngặt, đây là đánh đổi hợp lý. Phép đo Baseline (không ZTA) end-to-end qua upstream PHP-FPM dự kiến trong Phase 5.C khi snapshot Baseline khả dụng và Kong route được sửa để trả 200 OK.
+\paragraph{Đánh đổi bảo mật -- hiệu năng.} Phép đo \texttt{hey} trên Kong layer (Bảng~\ref{tab:latency_comparison}) ghi nhận chi phí Kong + OPA pre-function ở concurrency 20: P50 $\sim$185\,ms, P99 $\sim$620\,ms cho path bị OPA deny. Đây là \emph{worst-case} vì OPA HTTPS connection chưa cấu hình keepalive pool nên mỗi request mở TLS handshake mới. Quyết định OPA thuần (đo trực tiếp từ OPA HTTP log) chỉ $\sim$1.31\,ms warm; chi phí $\sim$180\,ms median dư ra hoàn toàn nằm ở Kong Lua sandbox + \texttt{resty.http} round-trip. Ngoài ra, loạt overhead Cilium L7 ($\sim$0.5--2\,ms), SPIRE mTLS handshake ($\sim$30--50\,ms cho connection đầu phiên), Vault Agent render credential đều chỉ phát sinh ở thời điểm khởi tạo phiên hoặc khởi động pod nên không lặp per-request. Trong ngữ cảnh ứng dụng tuyển dụng không có SLA latency nghiêm ngặt (UI-driven, không phải HFT), worst-case $\sim$200\,ms median vẫn chấp nhận được. Đo Baseline (không ZTA) end-to-end qua upstream PHP-FPM và tối ưu OPA HTTPS keepalive là việc Phase 5.E (\textbf{chưa xong}); kỳ vọng sau tối ưu keepalive median giảm về dưới 10\,ms cho path có OPA, khớp với benchmark public của OPA.
 
 \paragraph{Từ PoC sang production.} Ba thay đổi bắt buộc trước khi deployment production:
 \begin{enumerate}
@@ -944,4 +970,4 @@ Kết quả: \textbf{7/7 nguyên lý} của NIST SP 800-207 đều có cơ chế
     \item Triển khai CAEP để thu hồi JWT tức thì thay vì chờ \texttt{exp}; cấu hình Alertmanager routing tới Slack/PagerDuty.
 \end{enumerate}
 
-\paragraph{Kết luận chương.} Chương này đã kiểm chứng kiến trúc ZTA theo hai trục độc lập trên cluster thực tế (kubeadm 4 VM, snapshot Enforced + Phase 5.B.2 OPA). Năm kịch bản tấn công chứng minh blast radius giảm 84--100\%, không có downtime khi credential rotation; per-request authorization được thực thi bởi OPA với delta latency 1.6--1.8\,ms p50--p99 (thực đo \texttt{hey} ngày 2026-05-18) và throughput giảm 10.7\% khi bật OPA. Vòng lặp Adaptive Trust đã closed end-to-end với 3 vế (Tetragon TracingPolicy quan trắc syscall, PDP controller relabel \texttt{score-bucket} cho 37 pod, Cilium CNP \texttt{cnp-block-low-trust-to-vault} enforce). 7/7 nguyên lý NIST SP 800-207 đều có bằng chứng vận hành cụ thể. Các giới hạn còn lại (Vault RAM-only, Kafka plaintext, CAEP, Tetragon Sigkill end-to-end validation, Kong route 200 OK cho phép đo Baseline) đều có lộ trình nâng cấp rõ ràng (Phase 5.C--5.D) và không ảnh hưởng đến tính đúng đắn của mô hình kiến trúc đề xuất.
+\paragraph{Kết luận chương.} Chương này đã kiểm chứng kiến trúc ZTA theo hai trục độc lập trên cluster thực tế (kubeadm 4 VM, snapshot Enforced + Phase 5.B.2 OPA). Năm kịch bản tấn công chứng minh blast radius giảm 84--100\%, không có downtime khi credential rotation; per-request authorization được thực thi bởi OPA với worst-case Kong+OPA layer P50 $\sim$185\,ms, P99 $\sim$620\,ms (đo lại 2026-05-18 qua port 18000) --- trong đó quyết định OPA thuần $\sim$1.3\,ms warm-path, còn lại là chi phí Lua sandbox + HTTPS handshake chưa tối ưu keepalive. Vòng lặp Adaptive Trust đã closed end-to-end với 3 vế (Tetragon TracingPolicy quan trắc syscall đúng, PDP controller relabel \texttt{score-bucket} cho 37 pod, Cilium CNP \texttt{cnp-block-low-trust-to-vault} enforce). 7/7 nguyên lý NIST SP 800-207 đều có bằng chứng vận hành cụ thể. Các giới hạn còn lại \textbf{chưa xong} (Vault RAM-only, Kafka plaintext, CAEP, Tetragon Sigkill action bị kernel 6.8 BPF object incompat chặn, upstream PHP-FPM hang qua Kong, OPA HTTPS keepalive chưa tối ưu) đều có lộ trình khắc phục rõ (Phase 5.E) và không ảnh hưởng đến tính đúng đắn của mô hình kiến trúc đề xuất.

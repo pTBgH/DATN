@@ -94,22 +94,20 @@ Kiến trúc ZTA cần xác định đặt điểm thực thi ở đâu để đ
 \textbf{Hệ quả:} Không có một PEP duy nhất nào giải quyết được mọi bài toán. ZTA yêu cầu triển khai Đa tầng PEP (Multi-layer PEP).
 
 \subsection{Bài toán định danh mật mã học cho Workload}
-Để giải quyết sự vô nghĩa của IP (Mục 2.1.2), ZTA yêu cầu định danh phải gắn chặt vào dịch vụ thông qua mật mã học. Giải pháp tiêu chuẩn cho vấn đề này là \textbf{SPIFFE} (Secure Production Identity Framework for Everyone) \parencite{spiffe_spec} và \textbf{SPIRE} (SPIFFE Runtime Environment) \parencite{spire_docs}. 
-Thay vì dùng token dài hạn, SPIRE cấp cho mỗi Pod một chứng chỉ X.509 SVID có thời gian sống rất ngắn. Workload sử dụng SVID này để xác thực lẫn nhau qua mTLS, hoàn toàn độc lập với thiết kế mạng.
+Để giải quyết sự vô nghĩa của IP, ZTA yêu cầu định danh phải gắn chặt vào dịch vụ thông qua mật mã học. Giải pháp tiêu chuẩn cho vấn đề này là \textbf{SPIFFE} (Secure Production Identity Framework for Everyone) \parencite{spiffe_spec} và \textbf{SPIRE} (SPIFFE Runtime Environment) \parencite{spire_docs}. Thay vì dùng token dài hạn, SPIRE cấp cho mỗi Pod một chứng chỉ X.509 SVID có thời gian sống rất ngắn. Workload sử dụng SVID này để xác thực lẫn nhau qua mTLS, hoàn toàn độc lập với thiết kế mạng.
 
 \subsection{Đánh đổi kiến trúc (Architectural Trade-offs): Sidecar (Istio) vs Sidecarless (Cilium)}
-
 Mô hình Service Mesh truyền thống (như Istio/Envoy) tiêm một proxy (Sidecar) vào mỗi Pod để thực thi chính sách mạng. Mặc dù Istio có bộ tính năng L7 cực kỳ mạnh mẽ, mô hình này tạo ra \textbf{``thuế sidecar''}: tăng gấp đôi số bước nhảy mạng (network hop) và tiêu tốn lượng RAM rất lớn trên toàn cụm \parencite{zhu2023meshinsight}.
 
 Trong bối cảnh bài toán, hệ thống yêu cầu độ trễ thấp và bị giới hạn nghiêm ngặt về tài nguyên (ngân sách RAM $\sim$15.5 GiB). Do đó, đồ án ra quyết định kiến trúc \textit{không sử dụng Istio}, mà chọn cách tiếp cận \textbf{eBPF (sidecarless)} thông qua Cilium.
 \begin{itemize}
     \item \textbf{Giảm độ phức tạp vận hành (Operational Complexity):} Cilium đẩy việc xử lý L3/L4 xuống thẳng nhân hệ điều hành (Kernel) và dùng chung một proxy cho mỗi node để xử lý L7, thay vì hàng chục proxy cho hàng chục Pod.
-    \item \textbf{Tối ưu tài nguyên:} Tiết kiệm đáng kể CPU/RAM, phù hợp với môi trường PoC nhưng vẫn đảm bảo được khả năng thực thi vi phân đoạn (Microsegmentation) sâu đến L7.
+    \item \textbf{Tối ưu tài nguyên:} Tiết kiệm đáng kể CPU/RAM, phù hợp với môi trường thực nghiệm nhưng vẫn đảm bảo được khả năng thực thi vi phân đoạn (Microsegmentation) sâu đến L7.
 \end{itemize}
 Sự đánh đổi ở đây là \textit{bán kính ảnh hưởng (blast radius)}: nếu một per-node proxy bị quá tải, toàn bộ workload trên node đó sẽ bị ảnh hưởng, đòi hỏi cấu hình giới hạn tài nguyên khắt khe hơn.
 
 \subsection{Bài toán quan sát theo ngữ cảnh}
-IP thay đổi liên tục khiến các dòng log mạng thô (Ví dụ: \texttt{IP A gọi IP B bị chặn}) trở nên vô nghĩa trong quá trình điều tra sự cố. Hệ thống ZTA bắt buộc phải có khả năng \textbf{gắn nhãn ngữ cảnh tự động} (Enrichment). Mọi luồng mạng phải được ghi nhận dưới dạng: \textit{Định danh nguồn, Định danh đích, Namespace, Action, Quyết định của PEP}.
+IP thay đổi liên tục khiến các dòng log mạng thô trở nên vô nghĩa trong quá trình điều tra sự cố. Hệ thống ZTA bắt buộc phải có khả năng \textbf{gắn nhãn ngữ cảnh tự động} (Enrichment). Mọi luồng mạng phải được ghi nhận dưới dạng: \textit{Định danh nguồn, Định danh đích, Namespace, Action, Quyết định của PEP}.
 
 
 %==============================================================================
@@ -117,55 +115,9 @@ IP thay đổi liên tục khiến các dòng log mạng thô (Ví dụ: \texttt
 %==============================================================================
 \section{Đề xuất Khung kiến trúc Zero Trust 5 lớp}
 
-Dựa trên phân tích mô hình đe dọa (Mục 2.2) và các thách thức kỹ thuật (Mục 2.3), đồ án đề xuất một \textbf{khung kiến trúc Zero Trust 5 lớp}. Kiến trúc này dịch chuyển trọng tâm từ bảo vệ vành đai sang bảo vệ \textit{thực thể và dữ liệu}, đảm bảo mọi luồng giao tiếp phải tuân thủ quy trình khép kín: \textit{Định danh $\rightarrow$ Đánh giá tư thế $\rightarrow$ Xác thực $\rightarrow$ Cấp quyền $\rightarrow$ Giám sát}.
+Dựa trên phân tích mô hình đe dọa (Mục 2.2) và các thách thức kỹ thuật (Mục 2.3), đồ án đề xuất một \textbf{Khung kiến trúc Zero Trust 5 lớp} dành riêng cho môi trường Microservices trên Kubernetes. 
 
-\subsection{Lớp 1: Định danh đa thực thể (Multi-entity Identity)}
-Đóng vai trò "gốc tin cậy", áp dụng cơ chế định danh kép:
-\begin{itemize}
-    \item \textbf{Định danh người dùng:} Sử dụng OpenID Connect (OIDC) \parencite{oidc_core}. Thông tin người dùng được mã hoá trong JWT mang theo các Role và Scope để phục vụ phân quyền.
-    \item \textbf{Định danh Workload:} Sử dụng Kubernetes ServiceAccount kết hợp với X.509 SVID do SPIRE cấp phát, định danh rõ ràng ứng dụng đang gửi request là ai.
-\end{itemize}
-
-\subsection{Lớp 2: Đánh giá tư thế và Tình báo đe dọa (CDM \& Threat Intel)}
-Thu thập trạng thái an ninh của tài nguyên làm đầu vào cho Policy Engine:
-\begin{itemize}
-    \item \textbf{Posture của workload:} Mức độ tổn thương của Image (số lượng CVE), việc tuân thủ cấu hình bảo mật (không chạy quyền root).
-    \item \textbf{Tình báo đe doạ (Threat Intel):} Tự động đồng bộ các danh sách IP/Domain phát tán mã độc để chặn ngay từ lớp mạng.
-\end{itemize}
-
-\subsection{Lớp 3: Thực thi đa tầng (Multi-layer Enforcement)}
-Áp dụng phòng thủ chiều sâu với 4 lớp PEP độc lập:
-\begin{itemize}
-    \item \textbf{PEP Biên (Edge):} Gateway kiểm tra tính hợp lệ của JWT đối với mọi luồng North-South.
-    \item \textbf{PEP Mạng (Network):} eBPF thực thi phân đoạn vi mô L3/L4/L7 trong nội bộ cụm (East-West).
-    \item \textbf{PEP Admission:} Chặn việc khởi tạo Pod nếu Image không có chữ ký số hợp lệ.
-    \item \textbf{PEP Runtime:} Bắt và ngắt (SIGKILL) các System Call bất thường ngay tại Kernel.
-\end{itemize}
-
-\subsection{Lớp 4: Quản trị bí mật động (Dynamic Secrets)}
-Loại bỏ hoàn toàn bí mật tĩnh. Sử dụng Policy Administrator để cấp phát thông tin đăng nhập Database theo cơ chế Just-In-Time (JIT) với thời gian sống (TTL) ngắn. Khi hết hạn, mật khẩu tự động bị thu hồi ở phía Database. Các bí mật chỉ được lưu trên RAM (tmpfs), không ghi xuống ổ cứng.
-
-\subsection{Lớp 5: Quan sát và Vòng lặp thích ứng (Observability \& Adaptive Loop)}
-Giám sát liên tục để cung cấp ngữ cảnh ngược lại cho Policy Engine. Khi phát hiện một Container có hành vi bất thường hoặc chứa lỗ hổng Zero-day mới, điểm tín nhiệm (\textbf{Trust Score}) của Container đó sẽ bị hạ xuống, kéo theo việc các PEP mạng tự động cắt đứt quyền truy cập của nó.
-
-\begin{leftbar}
-\textbf{Công thức đánh giá Trust Score đề xuất:}
-\[
-\text{score} = \max\!\Big(0,\ 100 - 30 \cdot \frac{\text{missing\_labels}}{6} - 50 \cdot \mathbb{1}[\text{has\_critical\_cve}] - 20 \cdot \mathbb{1}[\text{has\_high\_cve}]\Big)
-\]
-\textit{Điểm số được phân thành 3 nhóm (High, Medium, Low) và gắn làm Label của Pod để thực thi tự động qua Network Policy.}
-\end{leftbar}
-
-\textbf{Biện luận toán học cho mô hình Trust Score:}\\
-Công thức trên sử dụng hàm chỉ thị $\mathbb{1}[x]$ (trả về 1 nếu điều kiện $x$ đúng, ngược lại bằng 0) để thiết lập cơ chế phạt điểm (penalty) nghiêm ngặt mang tính răn đe:
-\begin{itemize}
-    \item \textbf{Điểm cơ sở (Baseline):} Mọi workload khi khởi tạo đều được cấp 100 điểm tín nhiệm, giả định ở trạng thái lý tưởng.
-    \item \textbf{Phạt rủi ro lỗ hổng (CVE Penalty):} Việc tồn tại lỗ hổng \textit{Critical} lập tức trừ 50 điểm, và lỗ hổng \textit{High} trừ 20 điểm. Mức phạt này đảm bảo rằng bất kỳ Container nào dính mã độc cực kỳ nghiêm trọng (Critical) sẽ lập tức bị kéo tổng điểm xuống dưới 50 (Bucket \texttt{Low}), qua đó kích hoạt cơ chế cách ly mạng ngay lập tức.
-    \item \textbf{Phạt tuân thủ Quản trị (Governance Penalty):} Thành phần $30 \cdot (\text{missing\_labels} / 6)$ đánh giá sự tuân thủ các quy chuẩn nội bộ. Khung hệ thống yêu cầu 6 nhãn metadata bắt buộc (Owner, Tier, Sensitivity...). Việc thiếu sót các nhãn này thể hiện sự quản lý lỏng lẻo trong quy trình CI/CD. Mỗi nhãn thiếu sẽ làm giảm 5 điểm tín nhiệm, khiến workload dù an toàn về mặt mã nguồn nhưng thiếu minh bạch vẫn có thể bị tụt xuống hạng \texttt{Medium}.
-\end{itemize}
-Việc tính toán và rời rạc hóa điểm số thành 3 tập hợp (\texttt{High}, \texttt{Medium}, \texttt{Low}) thay vì dùng điểm số liên tục (0-100) giúp \texttt{CiliumNetworkPolicy} dễ dàng \texttt{matchLabels}, giảm tải việc thay đổi chính sách mạng liên tục do sự dao động của điểm số nhỏ.
-
-\subsection{Sơ đồ luồng dữ liệu tổng thể}
+Kiến trúc này dịch chuyển trọng tâm từ bảo vệ vành đai sang bảo vệ \textit{thực thể và dữ liệu}. Thay vì giả định an toàn nội bộ, mọi luồng giao tiếp phải tuân thủ nghiêm ngặt quy trình khép kín: \textit{Định danh $\rightarrow$ Đánh giá tư thế $\rightarrow$ Xác thực $\rightarrow$ Cấp quyền $\rightarrow$ Giám sát}.
 
 \begin{figure}[H]
     \centering
@@ -174,8 +126,61 @@ Việc tính toán và rời rạc hóa điểm số thành 3 tập hợp (\text
     \label{fig:proposed_architecture}
 \end{figure}
 
+
+Dưới đây là chi tiết chức năng và vai trò của từng lớp trong mô hình:
+
+\subsection{Lớp 1: Định danh đa thực thể (Multi-entity Identity)}
+Lớp Định danh đóng vai trò là "gốc tin cậy" (Root of Trust) cho toàn bộ hệ thống. Mô hình này áp dụng cơ chế \textbf{định danh kép} để loại bỏ hoàn toàn sự tin cậy dựa trên địa chỉ IP:
+\begin{itemize}
+    \item \textbf{Định danh người dùng (User Identity):} Sử dụng giao thức OpenID Connect (OIDC). Thông tin người dùng được đóng gói trong JWT, mang theo các quyền hạn (Role) để phục vụ quá trình ủy quyền ở các lớp sau.
+    \item \textbf{Định danh dịch vụ (Workload Identity):} Mọi Microservice khi khởi tạo đều được cấp một danh tính mật mã học duy nhất (X.509 SVID) thông qua chuẩn SPIFFE. Các chứng chỉ này có thời gian sống rất ngắn, giúp workload xác thực chéo lẫn nhau (mTLS) một cách an toàn tuyệt đối.
+\end{itemize}
+
+\subsection{Lớp 2: Đánh giá tư thế và Tình báo đe dọa (CDM \& Threat Intel)}
+Chỉ có định danh hợp lệ là chưa đủ, hệ thống cần đánh giá \textit{mức độ an toàn} của tác nhân đang gửi request. Lớp 2 thực hiện thu thập và cung cấp ngữ cảnh bảo mật cho Policy Engine:
+\begin{itemize}
+    \item \textbf{Tư thế của Workload (Posture):} Liên tục quét mã nguồn và Image của container để tìm kiếm các lỗ hổng bảo mật (CVE) hoặc các cấu hình sai lệch.
+    \item \textbf{Tình báo đe doạ (Threat Intel):} Tự động đồng bộ các danh sách IP/Domain từ các máy chủ rà quét hoặc phát tán mã độc trên Internet, giúp hệ thống phòng vệ chủ động ngay cả khi chưa có yêu cầu kết nối.
+\end{itemize}
+
+\subsection{Lớp 3: Thực thi đa tầng (Multi-layer Enforcement)}
+Để giải quyết bài toán "điểm chết đơn lẻ" (Single point of failure), hệ thống áp dụng chiến lược phòng thủ chiều sâu với 4 rào cản (PEP) độc lập:
+\begin{itemize}
+    \item \textbf{PEP Biên (Edge):} Đứng tại cửa ngõ hệ thống, kiểm tra chữ ký và hiệu lực của JWT. Từ chối ngay lập tức các request không có JWT hợp lệ.
+    \item \textbf{PEP Mạng (Network):} Đứng tại mức Kernel của Kubernetes, thực thi phân đoạn vi mô (Microsegmentation) L3/L4/L7. Nó đảm bảo các Microservices chỉ được phép giao tiếp với đúng những đối tượng đã được khai báo tường minh.
+    \item \textbf{PEP Admission:} Đứng tại API Server, chặn việc khởi tạo Pod nếu Image không có chữ ký số hợp lệ (chống tấn công chuỗi cung ứng).
+    \item \textbf{PEP Runtime:} Giám sát các System Call bên trong Container. Bắt và ngắt ngay lập tức (SIGKILL) các tiến trình bất thường.
+\end{itemize}
+
+\subsection{Lớp 4: Quản trị bí mật động (Dynamic Secrets)}
+Lớp này loại bỏ hoàn toàn phương pháp lưu trữ mật khẩu tĩnh (hardcode) truyền thống. Sử dụng Policy Administrator để cấp phát thông tin đăng nhập Cơ sở dữ liệu theo cơ chế \textbf{Just-In-Time (JIT)}. 
+Khi một Microservice cần truy cập Database, nó sẽ được cấp một User ngẫu nhiên với thời gian sống (TTL) ngắn (ví dụ: 1 giờ). Khi hết hạn, mật khẩu tự động bị thu hồi. Các bí mật này chỉ được lưu trên bộ nhớ ảo (tmpfs), tuyệt đối không ghi xuống ổ cứng vật lý.
+
+\subsection{Lớp 5: Quan sát và Vòng lặp thích ứng (Observability \& Adaptive Loop)}
+Giám sát trong Zero Trust không phải là quá trình lưu log thụ động để hậu kiểm, mà là \textbf{đầu vào trực tiếp} để hệ thống ra quyết định theo thời gian thực.
+\begin{itemize}
+    \item \textbf{Quan sát tập trung:} Thu thập toàn bộ log truy cập, lưu lượng mạng và các sự kiện bảo mật từ 4 lớp trên.
+    \item \textbf{Vòng lặp thích ứng (Adaptive Loop):} Khi phát hiện một Container có hành vi bất thường (gọi API lạ, xuất hiện CVE mới), hệ thống lập tức đánh tụt điểm tín nhiệm (\textbf{Trust Score}) của Container đó. Sự thay đổi điểm số này sẽ kích hoạt Lớp 3 (PEP Mạng) tự động cắt đứt quyền truy cập của Container bị lỗi, cách ly mối đe dọa mà không cần con người can thiệp.
+\end{itemize}
+
+\begin{leftbar}
+\textbf{Công thức đánh giá Trust Score đề xuất:}
+\[
+\text{score} = \max\!\Big(0,\ 100 - 30 \cdot \frac{\text{missing\_labels}}{6} - 50 \cdot \mathbb{1}[\text{has\_critical\_cve}] - 20 \cdot \mathbb{1}[\text{has\_high\_cve}]\Big)
+\]
+\end{leftbar}
+
+\textbf{Biện luận toán học cho mô hình Trust Score:}\\
+Công thức trên sử dụng hàm chỉ thị $\mathbb{1}[x]$ (trả về 1 nếu điều kiện $x$ đúng, ngược lại bằng 0) để thiết lập cơ chế phạt điểm (penalty) nghiêm ngặt mang tính răn đe:
+\begin{itemize}
+    \item \textbf{Điểm cơ sở (Baseline):} Mọi workload khi khởi tạo đều được cấp 100 điểm tín nhiệm, giả định ở trạng thái lý tưởng.
+    \item \textbf{Phạt rủi ro lỗ hổng (CVE Penalty):} Việc tồn tại lỗ hổng \textit{Critical} lập tức trừ 50 điểm, và lỗ hổng \textit{High} trừ 20 điểm. Mức phạt này đảm bảo rằng bất kỳ Container nào dính mã độc cực kỳ nghiêm trọng sẽ lập tức bị kéo tổng điểm xuống dưới 50 (Bucket \texttt{Low}), qua đó kích hoạt cơ chế cách ly mạng ngay lập tức.
+    \item \textbf{Phạt tuân thủ Quản trị (Governance Penalty):} Thành phần $30 \cdot (\text{missing\_labels} / 6)$ đánh giá sự tuân thủ các quy chuẩn nội bộ. Khung hệ thống yêu cầu 6 nhãn metadata bắt buộc. Việc thiếu sót các nhãn này thể hiện sự quản lý lỏng lẻo trong quy trình CI/CD. Mỗi nhãn thiếu sẽ làm giảm 5 điểm tín nhiệm.
+\end{itemize}
+Việc tính toán và rời rạc hóa điểm số thành 3 tập hợp (\texttt{High}, \texttt{Medium}, \texttt{Low}) thay vì dùng điểm số liên tục (0-100) giúp \texttt{CiliumNetworkPolicy} dễ dàng \texttt{matchLabels}, giảm tải việc thay đổi chính sách mạng liên tục do sự dao động của điểm số nhỏ.
+
 \subsection{Đề xuất bộ công nghệ hiện thực hóa}
-Để tránh sự phụ thuộc vào một nhà cung cấp duy nhất (Vendor Lock-in), khung 5 lớp trên được hiện thực hóa bằng phương pháp \textit{Best-of-Breed}, tổ hợp các công cụ mã nguồn mở xuất sắc nhất của Cloud Native Computing Foundation (CNCF). Bảng~\ref{tab:nist_comparison} ánh xạ mô hình NIST vào bộ công cụ được lựa chọn cho thực nghiệm ở Chương 3.
+Để tránh sự phụ thuộc vào một nhà cung cấp duy nhất (Vendor Lock-in), khung 5 lớp trên được hiện thực hóa bằng phương pháp \textit{Best-of-Breed}, tổ hợp các công cụ mã nguồn mở xuất sắc nhất của Cloud Native Computing Foundation (CNCF). Bảng~\ref{tab:master_mapping} ánh xạ mô hình vào bộ công cụ được lựa chọn cho thực nghiệm ở Chương 3.
 
 \begin{table}[H]
 \centering
@@ -199,6 +204,7 @@ Việc tính toán và rời rạc hóa điểm số thành 3 tập hợp (\text
 \hline
 \end{tabularx}
 \end{table}
+
 
 %==============================================================================
 % 2.5 MÔ HÌNH CHÍNH SÁCH VÀ LỘ TRÌNH TRIỂN KHAI

@@ -1,0 +1,47 @@
+# =============================================================================
+# Allow intra-namespace Redis traffic in `job7189-apps`.
+#
+# WHY (2026-05-20 incident, doc/incident-vault-tetragon-redis-cascade.md):
+# Each Laravel microservice runs an in-namespace Redis pod (cache + queue).
+# After applying the default-deny baseline, Laravel queue workers started
+# failing with `Connection timed out` / `Connection refused` on Redis.
+# Root cause: the previous version of this policy targeted egress destinations
+# with the selector `app.kubernetes.io/name=redis`, but the Redis pods in this
+# repo are deployed by the `laravel-app` Helm chart and carry the label
+# `app=<service>-redis` + `zta.job7189/role=cache`. The selector therefore
+# matched zero endpoints and all Redis egress was dropped.
+#
+# Fix: select Redis destinations by `zta.job7189/role=cache`, which is present
+# on every Redis pod produced by the chart. The role label is also part of the
+# ZTA 5W1H labelling schema (see doc/20-5w1h-policy-matrix.md), so this aligns
+# with the rest of the ZTA selectors.
+#
+# Scope:
+#  - Egress: any pod in `job7189-apps` → any pod with `role=cache` in same ns on TCP/6379
+#  - Ingress: the Redis pods accept TCP/6379 from any pod in same ns
+# =============================================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-redis"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+        zta.job7189/role: cache
+    toPorts:
+    - ports:
+      - port: "6379"
+        protocol: TCP
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "6379"
+        protocol: TCP

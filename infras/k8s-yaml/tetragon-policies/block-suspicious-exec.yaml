@@ -1,7 +1,27 @@
+# =============================================================================
+# TracingPolicyNamespaced — suspicious-binary exec monitor for `job7189-apps`.
+#
+# IMPORTANT — action downgraded to Post (2026-05-20):
+# The previous version used `action: Sigkill` and matched on `/bin/sh` /
+# `/bin/bash` as the executed binary. In this repo every container init flow
+# (vault-agent-init, env-loader, fix-perms, kubelet exec readiness probes,
+# laravel cron) legitimately exec's `/bin/sh -c '...'` during startup. The
+# kprobe therefore SIGKILL'd legitimate processes within milliseconds of pod
+# start, causing every backend pod to oscillate between Init/Running with
+# kubelet probe exit code 137 — the same symptom that originally took the
+# Vault namespace down (vault-prod readiness probe is `sh -c 'vault status'`).
+#
+# We keep the detection (Post = audit event → Tetragon → Filebeat → ES) but
+# stop the in-kernel kill. To re-enable enforcement safely, layer a
+# `matchBinaries` whitelist for known-good parents (php-fpm, dumb-init, vault,
+# etc.) and add it to a SEPARATE selector clause with `action: Sigkill`. The
+# commented-out block below shows the shape.
+#
 # Namespace-scoped policy → fires ONLY for pods in job7189-apps.
 # Replaces previous TracingPolicy + matchNamespaces[namespace=job7189-apps],
 # which was schema-invalid: matchNamespaces filters Linux kernel namespaces
 # (Mnt/Pid/Net/...), not Kubernetes namespaces.
+# =============================================================================
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicyNamespaced
 metadata:
@@ -29,4 +49,23 @@ spec:
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
       matchActions:
-      - action: Sigkill
+      # Post = generate an event into the Tetragon export stream; the kernel
+      # still allows the exec to proceed. Keeps observability without
+      # breaking legitimate shell exec from init containers and probes.
+      - action: Post
+    # ─── Future: re-enable kill on suspicious shell only from unknown parents ─
+    # - matchArgs:
+    #   - index: 0
+    #     operator: "Equal"
+    #     values: ["/bin/sh","/bin/bash","/usr/bin/curl","/usr/bin/wget"]
+    #   matchBinaries:
+    #   - operator: "NotIn"
+    #     values:
+    #     - "/usr/local/bin/php-fpm"
+    #     - "/usr/local/sbin/php-fpm"
+    #     - "/usr/local/bin/dumb-init"
+    #     - "/sbin/tini"
+    #     - "/usr/local/bin/vault"
+    #     - "/usr/bin/supervisord"
+    #   matchActions:
+    #   - action: Sigkill

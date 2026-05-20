@@ -22,6 +22,29 @@ Phase 5.D verification successfully **identified root causes**, **resolved criti
 
 ---
 
+## Phase 5.F Follow-Up Status (May 20, 13:15 UTC)
+
+⏳ **In Progress** - Vault recovery investigation revealed **vault-0 unrecoverable**
+
+### Summary
+- **vault-0:** Process hung at event system startup, SIGKILL on any exec (exit 137)
+- **vault-dev:** Running successfully (dev mode, can be used as backup)
+- **vault-agent-injector:** Removed during rebuild attempt, not restored
+- **App pods:** Running 3/3 (NO Vault injection - vault.hashicorp.com/agent-inject=false)
+- **Item J:** Ready to measure latency WITHOUT Vault injection (apps functional)
+
+### Key Findings
+1. Attempted `kubectl scale vault --replicas=1` to restore vault-0
+2. Pod spawned but process hangs mid-startup (event system initialization deadlock)
+3. Ran rebuild script: Failed at step [3/6] with "vault-dev timeout"
+4. Result: vault-agent-injector removed but not reinstalled
+5. Apps scaled down Vault injection to false, now running without secrets
+
+### Documented In
+See: [PHASE5F_VAULT_INVESTIGATION.md](PHASE5F_VAULT_INVESTIGATION.md) for full details
+
+---
+
 ## Critical Fixes Implemented
 
 ### 1. Tetragon Kernel Incompatibility ✅ FIXED

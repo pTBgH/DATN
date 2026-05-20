@@ -1,19 +1,28 @@
+# =============================================================================
 # PR #12 — Adaptive Security Loop (PEP Runtime)
 # TracingPolicy: block-suspicious-exec-t1
 #
-# Cluster-scoped TracingPolicy with podSelector on zta.job7189/tier=T1
-# (vault, mysql, kafka, keycloak, kong) — kills suspicious exec attempts
-# regardless of namespace. Complements existing namespace-scoped policy in
-# job7189-apps (block-suspicious-exec.yaml).
+# IMPORTANT — action downgraded to Post (2026-05-20):
+# The previous version used `action: Sigkill` on `/bin/sh`/`/bin/bash` exec
+# inside T1 namespaces (vault, data, security). In practice this killed the
+# Vault probe (`exec ["/bin/sh","-c","vault status..."]`), the MySQL container
+# entry (`exec ["/bin/sh","/entrypoint.sh"]`), the Keycloak start script, and
+# `kubectl exec` recovery sessions. Symptom: vault-0 entered a probe-fail
+# → kubelet restart loop within seconds of policy apply, then cascaded into
+# the whole namespace (kubectl exec returning exit 137) — see
+# doc/incident-vault-tetragon-redis-cascade.md.
 #
-# Signal source: thesis 3.4.5 — adaptive security loop must protect the
-# crown jewels (T1 / data-classification=confidential) from lateral
-# movement attacks like privilege-esc via /bin/bash exec inside Vault pod.
+# Strategy:
+#  - Keep audit visibility by switching to `action: Post`.
+#  - Drop /usr/bin/socat /usr/bin/ssh from the value list (not installed in
+#    any of the official images we ship; they were noise).
+#  - Re-introduce Sigkill ONLY after layering a `matchBinaries` whitelist for
+#    legitimate parents (vault, kubelet probe wrappers, etc.) — see the
+#    commented-out block in block-suspicious-exec.yaml.
 #
-# Caveat: Tetragon does NOT support Kubernetes label selectors directly.
-# We approximate by using "matchNamespaces" (kernel-NS, NOT k8s NS) +
-# pidNamespace match, and rely on the TracingPolicyNamespaced version
-# below for actual k8s namespace gating in T1 namespaces.
+# Cluster-shape: one namespaced policy per T1 namespace (Tetragon does not
+# support k8s label selectors; we approximate by per-namespace policies).
+# =============================================================================
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicyNamespaced
 metadata:
@@ -38,10 +47,8 @@ spec:
         - "/usr/bin/nc"
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
-        - "/usr/bin/socat"
-        - "/usr/bin/ssh"
       matchActions:
-      - action: Sigkill
+      - action: Post
 ---
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicyNamespaced
@@ -67,10 +74,8 @@ spec:
         - "/usr/bin/nc"
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
-        - "/usr/bin/socat"
-        - "/usr/bin/ssh"
       matchActions:
-      - action: Sigkill
+      - action: Post
 ---
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicyNamespaced
@@ -96,7 +101,5 @@ spec:
         - "/usr/bin/nc"
         - "/usr/bin/ncat"
         - "/usr/bin/nmap"
-        - "/usr/bin/socat"
-        - "/usr/bin/ssh"
       matchActions:
-      - action: Sigkill
+      - action: Post

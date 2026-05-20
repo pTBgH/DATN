@@ -1,3 +1,18 @@
+# =============================================================================
+# Default-deny baseline policy for namespace `job7189-apps`.
+#
+# IMPORTANT — schema fix (2026-05-20):
+# The previous version used `ingress: []` / `egress: []` which Cilium considers
+# malformed (status: "rule must have at least one of Ingress, IngressDeny,
+# Egress, EgressDeny"). The policy never enforced — it was treated as invalid
+# and silently dropped from the policy engine, so the namespace was effectively
+# wide-open instead of default-deny.
+#
+# We use the `enableDefaultDeny` API (Cilium ≥ 1.14) which is the supported way
+# to declare a true default-deny without listing any allow rule. Allow rules
+# are layered on top via the other CiliumNetworkPolicy objects in this directory.
+# Ref: https://docs.cilium.io/en/stable/security/policy/#default-deny
+# =============================================================================
 apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
 metadata:
@@ -6,5 +21,6 @@ metadata:
 spec:
   endpointSelector:
     matchLabels: {}
-  ingress: []
-  egress: []
+  enableDefaultDeny:
+    ingress: true
+    egress: true

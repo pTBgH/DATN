@@ -49,6 +49,7 @@ must validate before applying.
 | `namespaces/21-spire.yaml` | `spire` | Yes (ns-wide) | agent↔server :8081 + apiserver + Prom scrape |
 | `namespaces/22-local-path-storage.yaml` | `local-path-storage` | Yes (ns-wide) | apiserver only |
 | `namespaces/23-kube-system.yaml` | `kube-system` | **NO ns-wide deny** | CoreDNS allow-only — see §5 |
+| `namespaces/24-trivy-system.yaml` | `trivy-system` | Yes (ns-wide) | trivy-operator + scan job egress (apiserver, ghcr.io vuln DB, registry) |
 
 All drafts use the **same default-deny pattern** as files 10–16:
 
@@ -200,10 +201,11 @@ reachability, and a one-click rollback runbook.
    git but live cluster still runs old versions. Run Phase 2A apply
    block from the handover before this Phase 2C work hits production.
 
-2. **Trivy ns named `security-cdm`, not `trivy-system`** — handover
-   listed `trivy-system` as a missing ns. The actual ns deployed is
-   `security-cdm` and it already has CNP coverage
-   (`infras/k8s-yaml/trivy-operator/02-cnp.yaml`). No work needed here.
+2. **Trivy ns drift between code and cluster** — `infras/k8s-yaml/trivy-operator/02-cnp.yaml`
+   targets `security-cdm`, but the live cluster (per flow-capture pod inventory)
+   runs Trivy Operator in `trivy-system`. File `24-trivy-system.yaml` covers the
+   live ns. Reconciling the planned `security-cdm` deployment vs the actual
+   `trivy-system` deployment is a follow-up.
 
 3. **Persistent token-reviewer SA** — fix from session 2
    (`zta-fix-vault-auth-and-finish-startup.sh`) should be baked into

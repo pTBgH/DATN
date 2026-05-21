@@ -23,6 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # (file 23) KHÔNG có namespace-wide default-deny — chỉ allow rule cho CoreDNS.
 ORDER=(
   "local-path-storage:22-local-path-storage.yaml"
+  "trivy-system:24-trivy-system.yaml"
   "registry:16-registry.yaml"
   "management:15-management.yaml"
   "spire:21-spire.yaml"

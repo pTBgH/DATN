@@ -1,0 +1,143 @@
+# =============================================================================
+# Namespace: cert-manager  (Tier 2 — TLS certificate authority + webhook)
+# DAAS:
+#   Service: cert-manager (controller), cert-manager-webhook (validating
+#            webhook), cert-manager-cainjector (CA injection controller)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern (well-known cert-manager Helm chart):
+#   - cert-manager (controller) → kube-apiserver (CRUD Certificate /
+#     CertificateRequest / Order / Challenge CR, list Ingress, etc.)
+#   - cert-manager-cainjector → kube-apiserver (patch CABundle into
+#     MutatingWebhookConfiguration / APIService)
+#   - cert-manager-webhook ← kube-apiserver (admission webhook callback
+#     on TLS:10250, port name `https` in chart >= v1.6)
+#   - cert-manager controller → external (Let's Encrypt HTTP-01/DNS-01)
+#     — NOT enabled in this lab (self-signed Issuer only). Add toFQDNs
+#     when migrating to ACME.
+#   - Prometheus scrape cert-manager metrics on :9402
+#
+# Apply order rationale: T2, medium-risk. cert-manager admission webhook
+# must remain reachable from apiserver — if blocked, any cert resource
+# creation will fail (and many controllers retry forever).
+#
+# DRAFT — Phase 2C (PR microseg-phase2c). Verify against Hubble flow log
+# (`~/zta-microseg/<TS>/11-flows-by-src-ns.md`) before relying on this in
+# enforcement mode. Add allow rules for any DROPPED legitimate flow.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-cert-manager
+  namespace: cert-manager
+spec:
+  endpointSelector: {}
+  # Default-deny pattern: select-all + rule với matchLabels không tồn tại.
+  # Schema validation pass (VALID=True) + default-deny enforce.
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress (mọi cert-manager pod)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-cert-manager
+  namespace: cert-manager
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) cert-manager + cainjector → kube-apiserver
+#    Controller list/watch CR, cainjector patch webhooks.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cert-manager-egress-apiserver
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values: [cert-manager, cainjector, webhook]
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  # CIDR fallback — Cilium kube-proxy-replacement không luôn gắn identity
+  # 'kube-apiserver' cho ClusterIP 10.96.0.1. ServiceCIDR + nodeCIDR.
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 4) cert-manager-webhook ← kube-apiserver (admission webhook callback)
+#    chart >= v1.6 chuyển port webhook sang 10250 (port name `https`).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cert-manager-webhook-ingress
+  namespace: cert-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: webhook
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "10250"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 5) Allow Prometheus scrape cert-manager metrics (port 9402)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-cert-manager
+  namespace: cert-manager
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9402"
+        protocol: TCP

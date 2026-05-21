@@ -1,0 +1,138 @@
+# =============================================================================
+# Namespace: kube-system  (Tier 0 — Cluster control plane + DNS)
+# DAAS:
+#   Critical: coredns, kube-proxy, cilium (DaemonSet), cilium-operator,
+#             hubble-relay, kube-controller-manager, kube-scheduler, etcd,
+#             kube-apiserver (static pods, host network)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# !!  HIGH RISK  !!
+# Applying default-deny to kube-system can BREAK THE ENTIRE CLUSTER.
+# This file deliberately OMITS namespace-wide default-deny. It only adds
+# *per-workload* allow rules whose endpointSelector match real pods, so
+# the policy effect is bounded:
+#   - Pods matched by allow rule → become default-deny + allow per rule.
+#   - Pods NOT matched by any rule → remain unconstrained (Cilium native).
+#
+# WHAT THIS FILE DOES enforce:
+#   1) CoreDNS ingress :53 from every pod in cluster  (allow-coredns-ingress)
+#   2) CoreDNS egress kube-apiserver               (allow-coredns-egress-apiserver)
+#   3) Prometheus scrape CoreDNS :9153             (allow-prometheus-scrape-coredns)
+#
+# WHAT THIS FILE DOES NOT enforce:
+#   - hostNetwork pods (kube-proxy, kube-apiserver, kube-controller-manager,
+#     kube-scheduler, etcd, cilium-agent, hubble-relay if hostNetwork=true).
+#     These bypass Cilium endpoint identity and CANNOT be selected via
+#     endpointSelector. They are governed by `fromEntities: host/remote-node`
+#     in other namespaces' policies, not here.
+#   - cilium-operator (regular pod) — operator only talks to kube-apiserver
+#     and is short-circuited via host identity; leave default-allow for now.
+#
+# NEXT STEPS (after Hubble verifies no DROPPED legitimate flow for >24h):
+#   1) Audit all in-cluster DNS clients — confirm only CoreDNS is queried
+#      (no pod resolves via 8.8.8.8 directly).
+#   2) Audit kube-system ingress/egress flows from Hubble. Document every
+#      cross-ns flow and craft a per-workload allow rule.
+#   3) Apply namespace-wide default-deny — but ONLY after every above
+#      allow rule is verified. Use `24-kube-system-default-deny.yaml`
+#      (separate file, currently NOT created — must be authored when
+#      ready).
+#
+# DRAFT — Phase 2C. Verify with Hubble.
+# =============================================================================
+
+# 1) CoreDNS ingress :53 from every pod in cluster
+#    Endpoint selector: k8s-app=kube-dns matches coredns pods (Helm chart
+#    default label).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-coredns-ingress
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  ingress:
+  - fromEndpoints:
+    - {}    # every pod with a Cilium identity in the cluster
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: "*"
+  # hostNetwork pods (kubelet probes, system tools) reach CoreDNS via host
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 2) CoreDNS egress → kube-apiserver (kubernetes plugin resolves Services)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-coredns-egress-apiserver
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  # Optional upstream DNS resolution (recursive). Disabled by default;
+  # uncomment if Corefile has `forward . 8.8.8.8`.
+  # - toCIDR:
+  #   - 8.8.8.8/32
+  #   - 8.8.4.4/32
+  #   - 1.1.1.1/32
+  #   toPorts:
+  #   - ports:
+  #     - port: "53"
+  #       protocol: UDP
+---
+# 3) Prometheus scrape CoreDNS metrics on :9153
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-coredns
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9153"
+        protocol: TCP

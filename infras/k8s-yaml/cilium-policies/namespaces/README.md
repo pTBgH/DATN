@@ -8,11 +8,18 @@ Ref: `doc/18-daas-classification.md`.
 |------|-----------|------|----------------|
 | `10-data.yaml` | `data` | T1 | mysql, kafka |
 | `11-vault.yaml` | `vault` | T1 | vault, vault-dev |
-| `12-security.yaml` | `security` | T1 | keycloak, oauth2-proxy |
+| `12-security.yaml` | `security` | T1 | keycloak, oauth2-proxy, opa |
 | `13-monitoring.yaml` | `monitoring` | T2 | prometheus, grafana, elasticsearch, kibana, filebeat |
 | `14-gateway.yaml` | `gateway` | T2 | kong-gateway |
 | `15-management.yaml` | `management` | T3 | phpmyadmin (kafbat removed) |
 | `16-registry.yaml` | `registry` | T3 | docker-registry |
+| `17-cert-manager.yaml` | `cert-manager` | T2 | cert-manager, webhook, cainjector — **draft (Phase 2C)** |
+| `18-cosign-system.yaml` | `cosign-system` | T2 | sigstore policy-controller webhook — **draft (Phase 2C)** |
+| `19-gatekeeper-system.yaml` | `gatekeeper-system` | T2 | gatekeeper controller-manager + audit — **draft (Phase 2C)** |
+| `20-ingress-nginx.yaml` | `ingress-nginx` | T2 | ingress-nginx-controller (north-south) — **draft (Phase 2C)** |
+| `21-spire.yaml` | `spire` | T1 | spire-server, spire-agent, controller-manager — **draft (Phase 2C)** |
+| `22-local-path-storage.yaml` | `local-path-storage` | T3 | local-path-provisioner — **draft (Phase 2C)** |
+| `23-kube-system.yaml` | `kube-system` | T0 | CoreDNS allow-only (NO ns-wide default-deny) — **draft (Phase 2C)** |
 
 Mỗi file gồm:
 
@@ -39,14 +46,29 @@ bash apply-zta-namespace-policies.sh --all --apply
 **Thứ tự apply khuyến nghị** (rủi ro tăng dần):
 
 ```
-1. registry        (T3, ít người động vào)
-2. management      (T3, admin UI — có thể mất truy cập, nhưng không sập app user)
-3. monitoring      (T2, mất metrics/log nhưng app vẫn chạy)
-4. gateway         (T2, sập gateway = sập user-facing — apply vào giờ ít traffic)
-5. security        (T1, login bị ảnh hưởng nếu sai)
-6. vault           (T1, app crash sau ~1h khi creds hết TTL)
-7. data            (T1 — đã có default-deny từ trước, file này chỉ refactor)
+ 1. local-path-storage  (T3, provisioner — new PVC pending nếu sai, không ảnh hưởng app live)
+ 2. registry            (T3, ít người động vào)
+ 3. management          (T3, admin UI — có thể mất truy cập, nhưng không sập app user)
+ 4. spire               (T1, SVID issuance — nếu sai mTLS handshake fail toàn mesh)
+ 5. cert-manager        (T2, blockchain cert renewal — không sập app trừ Issuer mới)
+ 6. cosign-system       (T2, webhook fail = block admission khi failurePolicy=Fail)
+ 7. gatekeeper-system   (T2, webhook fail = block admission khi failurePolicy=Fail)
+ 8. monitoring          (T2, mất metrics/log nhưng app vẫn chạy)
+ 9. ingress-nginx       (T2, north-south — apply vào giờ ít traffic)
+10. gateway             (T2, sập gateway = sập user-facing — apply vào giờ ít traffic)
+11. security            (T1, login bị ảnh hưởng nếu sai)
+12. vault               (T1, app crash sau ~1h khi creds hết TTL)
+13. data                (T1 — đã có default-deny từ trước, file này chỉ refactor)
+14. kube-system         (T0 — file 23 KHÔNG có ns-wide default-deny; chỉ allow rule
+                         cho CoreDNS. Default-deny kube-system phải qua quy trình
+                         tách riêng sau khi Hubble verify ≥ 24h zero DROPPED legit.)
 ```
+
+> ⚠️ **Phase 2C draft files (17-23) phải được verify với Hubble flow capture
+> (`zta-microseg-step1-flow-capture.sh`) trước khi apply trên live cluster.**
+> Mỗi YAML có khối comment "DRAFT — Phase 2C" ở top + danh sách traffic pattern
+> giả định. Bổ sung allow rule cho bất kỳ flow DROPPED hợp pháp nào trong
+> `~/zta-microseg/<TS>/09-dropped-flows.csv`.
 
 > Nếu namespace không tồn tại trên cluster (vd `registry` chưa deploy), script
 > sẽ **graceful SKIP** với thông báo, KHÔNG fail. Muốn dùng registry, deploy

@@ -17,14 +17,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Order = ít rủi ro → rủi ro cao (xem README.md)
+#
+# Phase 2C — file 17..23 thêm bởi PR microseg-phase2c-drafts. Apply theo
+# thứ tự an toàn: ns infra ít flow trước, ns high-risk sau cùng. kube-system
+# (file 23) KHÔNG có namespace-wide default-deny — chỉ allow rule cho CoreDNS.
 ORDER=(
+  "local-path-storage:22-local-path-storage.yaml"
   "registry:16-registry.yaml"
   "management:15-management.yaml"
+  "spire:21-spire.yaml"
+  "cert-manager:17-cert-manager.yaml"
+  "cosign-system:18-cosign-system.yaml"
+  "gatekeeper-system:19-gatekeeper-system.yaml"
   "monitoring:13-monitoring.yaml"
+  "ingress-nginx:20-ingress-nginx.yaml"
   "gateway:14-gateway.yaml"
   "security:12-security.yaml"
   "vault:11-vault.yaml"
   "data:10-data.yaml"
+  "kube-system:23-kube-system.yaml"
 )
 
 MODE="dry-run"

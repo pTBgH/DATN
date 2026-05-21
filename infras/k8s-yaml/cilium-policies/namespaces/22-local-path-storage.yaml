@@ -1,0 +1,87 @@
+# =============================================================================
+# Namespace: local-path-storage  (Tier 3 — local-path-provisioner)
+# DAAS:
+#   Service: local-path-provisioner (Rancher) — provisions PVs on
+#            node-local hostPath for the default StorageClass
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern:
+#   - local-path-provisioner → kube-apiserver (list/watch PVC, Node;
+#     create PV; spawn `helper-pod` to mkdir/rmdir on hostPath)
+#   - helper-pod (busybox) → ephemeral, no TCP egress
+#
+# Apply order rationale: T3, LOWEST risk. Provisioner mostly idle; if
+# blocked, only impact is "new PVC stays Pending" — no live workload
+# break. Safe to apply first as smoke test for default-deny + apiserver
+# allow pattern.
+#
+# DRAFT — Phase 2C. Verify with Hubble flow.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-local-path-storage
+  namespace: local-path-storage
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-local-path-storage
+  namespace: local-path-storage
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) local-path-provisioner → kube-apiserver
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-local-path-egress-apiserver
+  namespace: local-path-storage
+spec:
+  endpointSelector:
+    matchLabels:
+      app: local-path-provisioner
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP

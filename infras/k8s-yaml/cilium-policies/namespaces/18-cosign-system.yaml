@@ -1,0 +1,168 @@
+# =============================================================================
+# Namespace: cosign-system  (Tier 2 — Sigstore policy-controller webhook)
+# DAAS:
+#   Service: policy-controller-webhook (image signature verification on
+#            admission), policy-controller-policy-webhook
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern (sigstore/policy-controller Helm chart):
+#   - kube-apiserver → policy-controller-webhook on TCP:8443 (admission
+#     review callback for ClusterImagePolicy enforcement)
+#   - policy-controller → kube-apiserver (list ClusterImagePolicy CR,
+#     leader-election lease in cosign-system ns)
+#   - policy-controller → Rekor + Fulcio (tlog verification)
+#     — NOT used in this lab (verify-via-public-key mode). Add toFQDNs
+#     when migrating to keyless signing with Sigstore public-good.
+#   - policy-controller → image registry to fetch signature blob
+#     (`<image>.sig` tag from 100.74.189.43:5000). For private insecure
+#     registry, allow egress to that CIDR + node IP.
+#
+# Apply order rationale: T2, medium-risk. If webhook becomes unreachable,
+# admission webhook timeout will block ALL pod creates in the cluster
+# (failurePolicy: Fail). Make sure ingress allow from kube-apiserver is
+# in place BEFORE applying default-deny.
+#
+# DRAFT — Phase 2C. Verify with Hubble flow + audit signature pull logs
+# before enforcement.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-cosign-system
+  namespace: cosign-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-cosign-system
+  namespace: cosign-system
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) policy-controller → kube-apiserver (CRUD ClusterImagePolicy, lease)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cosign-egress-apiserver
+  namespace: cosign-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-controller
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 4) kube-apiserver → policy-controller-webhook (admission callback)
+#    Helm chart exposes webhook on TCP:8443 (containerPort), Service port
+#    443 (ClusterIP). apiserver SNAT → fromEntities[kube-apiserver,host].
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cosign-webhook-ingress
+  namespace: cosign-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-controller
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8443"
+        protocol: TCP
+      - port: "9443"
+        protocol: TCP
+---
+# 5) policy-controller → registry for signature blob fetch
+#    Private insecure registry 100.74.189.43:5000 (lab). Tightened by
+#    CIDR rather than FQDN to avoid TLS cert mismatch on FQDN proxy.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cosign-egress-registry
+  namespace: cosign-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-controller
+  egress:
+  - toCIDR:
+    - 100.74.189.43/32
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+  # Internal cluster registry (if used)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: registry
+        app: docker-registry
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+---
+# 6) Prometheus scrape
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-cosign-system
+  namespace: cosign-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP

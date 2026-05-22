@@ -1,0 +1,210 @@
+# =============================================================================
+# Namespace: spire  (Tier 1 — SPIFFE Runtime Environment)
+# DAAS:
+#   Service: spire-server (StatefulSet), spire-agent (DaemonSet),
+#            spire-controller-manager, spiffe-csi-driver (DaemonSet)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern (spiffe/helm-charts-hardened):
+#   - spire-agent ←→ spire-server on TCP:8081 (Node API — attestation,
+#     SVID issuance)
+#   - spire-controller-manager ↔ spire-server on TCP:8081 (admin API)
+#     + kube-apiserver (CRUD ClusterSPIFFEID CRD)
+#   - spire-server federates / bundle endpoint on TCP:8443 (optional,
+#     federation disabled in this lab)
+#   - SPIFFE Workload API via Unix-domain socket (csi-driver, hostPath)
+#     — NO TCP traffic, ignored by Cilium policy
+#   - kube-apiserver → spire-controller-manager :9443 (validating webhook
+#     for ClusterSPIFFEID admission)
+#   - Prometheus scrape :9988 (spire-server metrics)
+#
+# Apply order rationale: T1, medium-risk. If spire-agent ↔ spire-server
+# is blocked, ALL workload SVIDs expire → mTLS handshakes fail across
+# the entire mesh. Critical to verify allow rules before enforcement.
+#
+# DRAFT — Phase 2C. Verify with Hubble + `spire-server entry list` health.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-spire
+  namespace: spire
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-spire
+  namespace: spire
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) spire-agent → spire-server (Node API attestation / SVID renewal)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-agent-egress-server
+  namespace: spire
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: spire
+        app.kubernetes.io/name: server
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
+---
+# 4) spire-server ingress :8081 from agent + controller-manager
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-server-ingress
+  namespace: spire
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: server
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: spire
+        app.kubernetes.io/name: agent
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: spire
+        app.kubernetes.io/name: controller-manager
+    toPorts:
+    - ports:
+      - port: "8081"
+        protocol: TCP
+---
+# 5) spire-controller-manager → kube-apiserver (ClusterSPIFFEID CRUD)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-controller-egress-apiserver
+  namespace: spire
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: controller-manager
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 6) kube-apiserver → spire-controller-manager (webhook callback)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-webhook-ingress
+  namespace: spire
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: controller-manager
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "9443"
+        protocol: TCP
+---
+# 7) spire-agent → kube-apiserver (Node Attestor k8s_psat — TokenReview)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-agent-egress-apiserver
+  namespace: spire
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+      - port: "10250"   # kubelet API (Workload Attestor)
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 8) Prometheus scrape spire-server (:9988) + spire-agent (:9988)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-spire
+  namespace: spire
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "9988"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP

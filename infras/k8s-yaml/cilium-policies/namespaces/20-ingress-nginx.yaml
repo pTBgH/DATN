@@ -1,0 +1,247 @@
+# =============================================================================
+# Namespace: ingress-nginx  (Tier 2 — North-South ingress proxy)
+# DAAS:
+#   Service: ingress-nginx-controller (terminates external HTTP/HTTPS,
+#            proxies into in-cluster services)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern (kubernetes/ingress-nginx Helm chart):
+#   - world / host / remote-node → ingress-nginx-controller :80, :443
+#     (NodePort or hostNetwork — KPR preserves source IP for `world`)
+#   - kube-apiserver → ingress-nginx-controller :8443 (admission webhook
+#     for ValidatingWebhookConfiguration `ingress-nginx-admission`)
+#   - kubelet → ingress-nginx :10254 (healthz/metrics)
+#   - ingress-nginx-controller → kube-apiserver (list Ingress, Endpoints,
+#     Service, ConfigMap)
+#   - ingress-nginx-controller → upstream services (gateway/kong-gateway,
+#     security/keycloak, security/oauth2-proxy, management/phpmyadmin,
+#     monitoring/kibana, monitoring/grafana, monitoring/elasticsearch,
+#     job7189-apps/*) — per `infras/k8s-yaml/99-ingress.yaml`
+#   - Prometheus scrape on :10254 (controller metrics)
+#
+# Apply order rationale: T2, medium-high risk. ingress-nginx is the
+# north-south entry point — blocking it = blocking user-facing traffic.
+# Apply during off-hours; have rollback ready.
+#
+# DRAFT — Phase 2C. Verify against Hubble flow.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-ingress-nginx
+  namespace: ingress-nginx
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-ingress-nginx
+  namespace: ingress-nginx
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) Public ingress: world + host + remote-node → controller :80/:443
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-nginx-public
+  namespace: ingress-nginx
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  ingress:
+  - fromEntities:
+    - world
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      - port: "443"
+        protocol: TCP
+---
+# 4) Admission webhook: kube-apiserver → controller :8443
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-nginx-webhook
+  namespace: ingress-nginx
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8443"
+        protocol: TCP
+---
+# 5) Health probe + Prometheus scrape on :10254
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-nginx-health-metrics
+  namespace: ingress-nginx
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "10254"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "10254"
+        protocol: TCP
+---
+# 6) Controller → kube-apiserver
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-nginx-egress-apiserver
+  namespace: ingress-nginx
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 7) Controller → upstream backends (per infras/k8s-yaml/99-ingress.yaml)
+#    Allow proxy to:
+#      gateway/kong-proxy :80, :8002
+#      security/keycloak :8080
+#      security/oauth2-proxy :4180
+#      management/phpmyadmin :80
+#      monitoring/kibana :5601, monitoring/grafana :3000,
+#      monitoring/elasticsearch :9200
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-ingress-nginx-egress-upstreams
+  namespace: ingress-nginx
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  egress:
+  # gateway/kong
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+      - port: "8002"
+        protocol: TCP
+      - port: "8443"
+        protocol: TCP
+  # security ns
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: keycloak
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+        app: oauth2-proxy
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      - port: "4180"
+        protocol: TCP
+  # management/phpmyadmin
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management
+        app: phpmyadmin
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+  # monitoring (kibana, grafana, ES)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: kibana
+    toPorts:
+    - ports:
+      - port: "5601"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: grafana
+    toPorts:
+    - ports:
+      - port: "3000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        app: elasticsearch
+    toPorts:
+    - ports:
+      - port: "9200"
+        protocol: TCP

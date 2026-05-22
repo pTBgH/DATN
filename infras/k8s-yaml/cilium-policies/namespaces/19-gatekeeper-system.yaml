@@ -1,0 +1,154 @@
+# =============================================================================
+# Namespace: gatekeeper-system  (Tier 2 — OPA Gatekeeper admission)
+# DAAS:
+#   Service: gatekeeper-controller-manager (admission webhook + constraint
+#            reconciler), gatekeeper-audit (background audit)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Traffic pattern (open-policy-agent/gatekeeper Helm chart, v3.x):
+#   - kube-apiserver → gatekeeper-controller-manager on TCP:8443
+#     (ValidatingWebhookConfiguration callback)
+#     + TCP:9443 (MutatingWebhookConfiguration callback if enabled)
+#   - gatekeeper-controller-manager → kube-apiserver (list ConstraintTemplate,
+#     Constraint CRD; watch every workload type)
+#   - gatekeeper-audit → kube-apiserver (list all resources for audit)
+#   - Prometheus scrape on :8888 (controller-manager + audit metrics)
+#   - kubelet health probe (TCP:9090 readiness / TCP:8080 health)
+#
+# Apply order rationale: T2, medium-high risk. Gatekeeper webhook
+# failurePolicy is configurable per ValidatingWebhookConfiguration —
+# verify failurePolicy=Ignore for non-critical constraints before
+# applying default-deny. If failurePolicy=Fail, blocking webhook callback
+# will block ALL admission, identical to cosign-system risk.
+#
+# DRAFT — Phase 2C. Verify Hubble flow before enforcement.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-gatekeeper-system
+  namespace: gatekeeper-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-gatekeeper-system
+  namespace: gatekeeper-system
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) Gatekeeper controller + audit → kube-apiserver
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gatekeeper-egress-apiserver
+  namespace: gatekeeper-system
+spec:
+  endpointSelector:
+    matchExpressions:
+    - key: control-plane
+      operator: In
+      values: [controller-manager, audit-controller]
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 4) kube-apiserver → gatekeeper-controller-manager (webhook)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gatekeeper-webhook-ingress
+  namespace: gatekeeper-system
+spec:
+  endpointSelector:
+    matchLabels:
+      control-plane: controller-manager
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8443"
+        protocol: TCP
+      - port: "9443"
+        protocol: TCP
+---
+# 5) Kubelet → gatekeeper (health probe)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gatekeeper-probe-ingress
+  namespace: gatekeeper-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+---
+# 6) Prometheus scrape gatekeeper metrics (port 8888)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-gatekeeper-system
+  namespace: gatekeeper-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "8888"
+        protocol: TCP

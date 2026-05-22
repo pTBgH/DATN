@@ -71,7 +71,9 @@ log "2/8 Đợi infrastructure layer Ready (Cilium / CoreDNS / Tetragon / Sigsto
 wait_ready kube-system    "k8s-app=cilium"              180s "cilium DaemonSet"
 wait_ready kube-system    "k8s-app=kube-dns"            120s "coredns"
 wait_ready kube-system    "app.kubernetes.io/name=tetragon" 180s "tetragon" || warn "Tetragon chưa ready (không block tiếp)"
-wait_ready cosign-system  "app=policy-controller-webhook" 180s "sigstore policy-controller" || warn "Sigstore chưa ready"
+# Label thật của sigstore policy-controller Helm chart: app.kubernetes.io/name=policy-controller
+# (không phải app=policy-controller-webhook — selector cũ luôn timeout 180s).
+wait_ready cosign-system  "app.kubernetes.io/name=policy-controller" 180s "sigstore policy-controller" || warn "Sigstore chưa ready"
 wait_ready cert-manager   "app.kubernetes.io/name=cert-manager" 120s "cert-manager" || true
 
 # ------ 3. Data Tier: MySQL trước → Kafka → Vault Dev -----------------------
@@ -134,8 +136,9 @@ else
   warn "$VAULT_INIT_JSON không tồn tại — bỏ qua unseal (vault có thể đã transit auto-unseal)"
 fi
 
-# Đợi vault-0 Ready (probe phải pass = sealed=false)
-wait_ready "$VAULT_NS" "app.kubernetes.io/name=vault" 180s "vault-0" || warn "vault-0 không pass probe"
+# Đợi vault-0 Ready (probe phải pass = sealed=false).
+# Cold-boot CPU contend trên 4-node cluster có thể vượt 180s — dãn 300s.
+wait_ready "$VAULT_NS" "app.kubernetes.io/name=vault" 300s "vault-0" || warn "vault-0 không pass probe"
 
 # Vault Agent Injector Deployment
 kubectl scale deploy -n "$VAULT_NS" vault-agent-agent-injector --replicas=1 2>/dev/null || \
@@ -145,7 +148,20 @@ wait_ready "$VAULT_NS" "app.kubernetes.io/name=vault-agent-injector" 120s "vault
 # ------ 5. Security Tier: Keycloak ------------------------------------------
 log "5/8 Khởi động Security Tier (Keycloak)"
 kubectl scale deploy -n "$SEC_NS" keycloak --replicas=1 2>/dev/null || true
-wait_ready "$SEC_NS" "app=keycloak" 240s "Keycloak" || warn "Keycloak chưa Ready"
+# Keycloak cold boot JVM + DB connection: 240s không đủ → 360s + 1 retry vòng lặp.
+KC_RETRY=0
+KC_OK=0
+while [ $KC_RETRY -lt 2 ] && [ $KC_OK -eq 0 ]; do
+  if wait_ready "$SEC_NS" "app=keycloak" 360s "Keycloak (attempt $((KC_RETRY+1))/2)"; then
+    KC_OK=1
+    break
+  fi
+  KC_RETRY=$((KC_RETRY+1))
+  warn "Keycloak chưa Ready sau 360s, retry $KC_RETRY/2 — kiểm tra DB connection nếu vẫn fail"
+done
+if [ $KC_OK -eq 0 ]; then
+  warn "Keycloak chưa Ready sau 2 lần thử — tiếp tục, login có thể fail tới khi Keycloak lên"
+fi
 
 # ------ 6. Application Tier theo wave (2-2-3 service) -----------------------
 log "6/8 Khởi động Application Tier (theo wave để tránh Vault auth-login spike)"

@@ -71,18 +71,21 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: agent
+      app.kubernetes.io/name: spire-agent
   egress:
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: spire
-        app.kubernetes.io/name: server
+        app.kubernetes.io/name: spire-server
     toPorts:
     - ports:
       - port: "8081"
         protocol: TCP
 ---
-# 4) spire-server ingress :8081 from agent + controller-manager
+# 4) spire-server ingress :8081 from spire-agent.
+#    spire-controller-manager is a sidecar inside the same pod → reaches
+#    spire-server over localhost UDS, NOT through the network, so we do
+#    NOT need an extra fromEndpoints entry for it.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -91,15 +94,12 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: server
+      app.kubernetes.io/name: spire-server
   ingress:
   - fromEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: spire
-        app.kubernetes.io/name: agent
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: spire
-        app.kubernetes.io/name: controller-manager
+        app.kubernetes.io/name: spire-agent
     toPorts:
     - ports:
       - port: "8081"
@@ -108,20 +108,19 @@ spec:
 # 5) spire-controller-manager → kube-apiserver (ClusterSPIFFEID CRUD,
 #    initial webhook certificate mint, leader election lease).
 #
-# Layout note (2026-05-22 — observed in live cluster):
-#   spire-controller-manager runs as a SIDECAR CONTAINER inside the
-#   `spire-server-0` pod (StatefulSet), NOT as a separate Deployment with
-#   its own pod. All containers in a pod share one Cilium endpoint
-#   identity, derived from POD labels — which for this chart are
-#   `app.kubernetes.io/name=server`. A selector of `controller-manager`
-#   matches zero endpoints, so the rule has no effect and the
-#   controller-manager container hits default-deny → i/o timeout to
-#   10.96.0.1:443 → CrashLoopBackOff.
+# Layout note (verified live 2026-05-22):
+#   - spire-controller-manager runs as a SIDECAR container inside the
+#     `spire-server-0` pod (StatefulSet). Containers in a pod share one
+#     Cilium endpoint identity derived from pod labels.
+#   - The actual pod label is `app.kubernetes.io/name=spire-server`
+#     (chart adds the `spire-` prefix), NOT `server` and NOT
+#     `controller-manager`. Earlier drafts (PR #1, PR #5) both used wrong
+#     values → rule matched 0 endpoints → controller container hit
+#     default-deny → dial tcp 10.96.0.1:443 i/o timeout → CrashLoopBackOff.
 #
-#   Selector therefore uses `server` (the actual pod label). This also
-#   allows the spire-server container to reach apiserver if needed (the
-#   k8s_psat attestor reads the projected token offline and does NOT
-#   require apiserver egress, but TokenReview-based attestors would).
+#   Selector here uses `spire-server`; the spire-server container in the
+#   same pod inherits the same allow, which is safe (k8s_psat reads
+#   projected token offline and does not require apiserver egress).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -130,7 +129,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: server
+      app.kubernetes.io/name: spire-server
   egress:
   - toEntities:
     - kube-apiserver
@@ -155,7 +154,7 @@ spec:
 # 6) kube-apiserver → spire-controller-manager webhook (ValidatingWebhook
 #    callback on :9443). Webhook listens on the spire-server-0 pod since
 #    controller-manager is a sidecar (see comment on rule 5). Selector
-#    therefore uses `server`.
+#    therefore uses `spire-server`.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -164,7 +163,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: server
+      app.kubernetes.io/name: spire-server
   ingress:
   - fromEntities:
     - kube-apiserver
@@ -184,7 +183,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: agent
+      app.kubernetes.io/name: spire-agent
   egress:
   - toEntities:
     - kube-apiserver

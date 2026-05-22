@@ -1,16 +1,23 @@
 # =============================================================================
 # Default-deny baseline policy for namespace `job7189-apps`.
 #
-# IMPORTANT — schema fix (2026-05-20):
-# The previous version used `ingress: []` / `egress: []` which Cilium considers
-# malformed (status: "rule must have at least one of Ingress, IngressDeny,
-# Egress, EgressDeny"). The policy never enforced — it was treated as invalid
-# and silently dropped from the policy engine, so the namespace was effectively
-# wide-open instead of default-deny.
+# History:
+# - v1 (broken): `ingress: []` / `egress: []` — CRD rejects: "rule must have
+#   at least one of Ingress, IngressDeny, Egress, EgressDeny".
+# - v2 (broken on this cluster): `enableDefaultDeny: {ingress: true, egress: true}`
+#   without ingress/egress rules — Cilium ≥ 1.14 docs say this is supported, but
+#   the CRD `validation.openAPIV3Schema` on the live cluster (Cilium 1.19.1)
+#   still requires `spec.ingress` (Required value) and `anyOf` schema match. The
+#   policy is rejected with VALID=False, identical to v1.
+# - v3 (this file): "umbrella-deny marker" pattern — same idiom used in the
+#   Phase 2C drafts (`namespaces/17-24-*.yaml`). select-all endpointSelector +
+#   a single ingress/egress rule whose `matchLabels` refer to a non-existent
+#   marker label. Schema-valid, semantically equivalent to default-deny: no
+#   real endpoint carries the `cilium.zta/marker: umbrella-deny` label, so no
+#   peer matches and the implicit deny applies to everything else.
 #
-# We use the `enableDefaultDeny` API (Cilium ≥ 1.14) which is the supported way
-# to declare a true default-deny without listing any allow rule. Allow rules
-# are layered on top via the other CiliumNetworkPolicy objects in this directory.
+# Allow rules are layered on top via the other CiliumNetworkPolicy objects in
+# this directory.
 # Ref: https://docs.cilium.io/en/stable/security/policy/#default-deny
 # =============================================================================
 apiVersion: "cilium.io/v2"
@@ -21,6 +28,11 @@ metadata:
 spec:
   endpointSelector:
     matchLabels: {}
-  enableDefaultDeny:
-    ingress: true
-    egress: true
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny

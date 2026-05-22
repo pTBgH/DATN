@@ -189,6 +189,35 @@ spec:
       - port: "6443"
         protocol: TCP
 ---
+# 7b) Kubelet → spire pods (liveness/readiness probes + metrics endpoints).
+#     Observed in baseline flow capture (`doc/35-microseg-flow-baseline.md`):
+#       - reserved:host → spire:9809  (spire-controller-manager healthz)
+#       - reserved:host → spire:8080  (spire-server healthz)
+#       - reserved:host → spire:8081  (spire-server workload API)
+#       - reserved:host → spire:8083  (spire-agent healthz)
+#     Without these, kubelet probes drop → pods restart.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-spire-probe-ingress
+  namespace: spire
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+      - port: "8081"
+        protocol: TCP
+      - port: "8083"
+        protocol: TCP
+      - port: "9809"
+        protocol: TCP
+---
 # 8) Prometheus scrape spire-server (:9988) + spire-agent (:9988)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -207,4 +236,6 @@ spec:
       - port: "9988"
         protocol: TCP
       - port: "8080"
+        protocol: TCP
+      - port: "9809"
         protocol: TCP

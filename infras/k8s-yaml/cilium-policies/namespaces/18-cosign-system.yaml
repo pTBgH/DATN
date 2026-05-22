@@ -147,6 +147,29 @@ spec:
       - port: "5000"
         protocol: TCP
 ---
+# 5b) policy-controller → Sigstore public services (Rekor / Fulcio / TUF root)
+#     Observed in baseline flow: reserved:world:443 from policy-controller.
+#     Even in verify-via-public-key mode, the chart refreshes the embedded
+#     TUF root metadata from sigstore-tuf-root by default. Allow egress to
+#     world:443 (TLS) — KHÔNG dùng default-allow `reserved:world` để giữ
+#     phạm vi hẹp ở port 443.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-cosign-egress-sigstore-public
+  namespace: cosign-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-controller
+  egress:
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+---
 # 6) Prometheus scrape
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

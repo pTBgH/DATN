@@ -50,7 +50,19 @@ fi
 ok "Sẽ dùng cilium pod để chạy hubble: $CILIUM_POD"
 
 HUBBLE_RELAY=$(kubectl -n kube-system get pod -l k8s-app=hubble-relay --no-headers 2>/dev/null | grep -c Running)
-if [ "$HUBBLE_RELAY" -lt 1 ]; then
+RELAY_POD_IP=""
+RELAY_PORT="4245"
+if [ "$HUBBLE_RELAY" -ge 1 ]; then
+  # cilium pod chạy hostNetwork=true → KHÔNG resolve được *.svc.cluster.local.
+  # Dùng podIP trực tiếp + port container (4245).
+  RELAY_POD_IP=$(kubectl -n kube-system get pod -l k8s-app=hubble-relay \
+    -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
+  if [ -n "$RELAY_POD_IP" ]; then
+    ok "Hubble relay reachable qua $RELAY_POD_IP:$RELAY_PORT (multi-node)"
+  else
+    warn "hubble-relay Running nhưng không lấy được podIP — fallback local socket"
+  fi
+else
   warn "hubble-relay không Running — flow sẽ chỉ từ 1 node (cilium pod hiện tại)"
 fi
 
@@ -90,14 +102,14 @@ log "2/4 Hubble flow capture (${CAPTURE_MIN} phút)"
 echo "  Đang capture flow từ Hubble relay (nếu có) hoặc từ cilium pod $CILIUM_POD..."
 
 HUBBLE_CMD="hubble observe --follow --output json"
-if [ "$HUBBLE_RELAY" -ge 1 ]; then
-  # Dùng hubble relay (multi-node) — exec qua cilium pod (đã có hubble CLI built-in)
-  kubectl -n kube-system exec "$CILIUM_POD" -- sh -c \
-    "$HUBBLE_CMD --server=hubble-relay.kube-system.svc:80" \
+if [ -n "$RELAY_POD_IP" ]; then
+  # Multi-node qua hubble-relay (dùng podIP vì cilium hostNetwork không resolve DNS svc)
+  kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- sh -c \
+    "$HUBBLE_CMD --server=${RELAY_POD_IP}:${RELAY_PORT}" \
     > "$OUT_DIR/07-flows.jsonl" 2> "$OUT_DIR/07-flows.err" &
 else
   # Fallback: hubble local trong cilium pod (single-node view)
-  kubectl -n kube-system exec "$CILIUM_POD" -- sh -c "$HUBBLE_CMD" \
+  kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- sh -c "$HUBBLE_CMD" \
     > "$OUT_DIR/07-flows.jsonl" 2> "$OUT_DIR/07-flows.err" &
 fi
 HUBBLE_PID=$!

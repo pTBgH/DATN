@@ -38,6 +38,7 @@ err() { printf '  ✗ %s\n' "$*" >&2; }
 # Mapping ns -> draft yaml file. Keep in sync with apply-zta-namespace-policies.sh ORDER.
 declare -A NS_FILES=(
   [local-path-storage]="22-local-path-storage.yaml"
+  [trivy-system]="24-trivy-system.yaml"
   [registry]="16-registry.yaml"
   [management]="15-management.yaml"
   [spire]="21-spire.yaml"
@@ -54,7 +55,7 @@ declare -A NS_FILES=(
 )
 
 NS_ORDER=(
-  local-path-storage registry management spire cert-manager
+  local-path-storage trivy-system registry management spire cert-manager
   cosign-system gatekeeper-system monitoring ingress-nginx gateway
   security vault data kube-system
 )

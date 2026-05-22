@@ -1,0 +1,173 @@
+# =============================================================================
+# Namespace: trivy-system  (Tier 2 — Trivy Operator vulnerability scanning)
+# DAAS:
+#   Service: trivy-operator (controller), scan-vulnerabilityreport Job pods
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Note: The repo has another file `infras/k8s-yaml/trivy-operator/02-cnp.yaml`
+# targeting namespace `security-cdm`. The LIVE cluster runs Trivy Operator in
+# namespace `trivy-system` (per ~/zta-microseg/<TS>/00-pods.txt). This file
+# covers the live deployment.
+#
+# Traffic pattern (aquasecurity/trivy-operator chart):
+#   - trivy-operator → kube-apiserver (CRUD VulnerabilityReport CR + watch
+#     workloads in every namespace).
+#   - scan job pods (`scan-vulnerabilityreport-*`) → registry to pull image
+#     for scan + ghcr.io for vulnerability DB.
+#   - Prometheus scrape on :8080.
+#
+# DRAFT — Phase 2C. Verify with Hubble flow.
+# =============================================================================
+
+# 1) Default-deny
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-trivy-system
+  namespace: trivy-system
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-trivy-system
+  namespace: trivy-system
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) trivy-operator → kube-apiserver (CR + workload watch)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-operator-egress-apiserver
+  namespace: trivy-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 4) Scan job → vuln DB (ghcr.io) + registry pull
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-scan-egress
+  namespace: trivy-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: trivy-operator
+  egress:
+  # apiserver (write VulnerabilityReport CR)
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  # Vulnerability DB pull
+  - toFQDNs:
+    - matchPattern: "*.ghcr.io"
+    - matchPattern: "ghcr.io"
+    - matchPattern: "*.githubusercontent.com"
+    - matchPattern: "*.fastly.net"
+    - matchPattern: "*.fastlylb.net"
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  # Fallback broad CIDR for first DB pull (CDN IPs rotate).
+  - toCIDR:
+    - 0.0.0.0/0
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  # Private insecure registry (lab) for image fetch
+  - toCIDR:
+    - 100.74.189.43/32
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: registry
+        app: docker-registry
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+---
+# 5) Prometheus scrape trivy-operator (:8080)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-trivy-system
+  namespace: trivy-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        io.cilium.k8s.policy.serviceaccount: prometheus
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP

@@ -62,9 +62,11 @@ spec:
         protocol: UDP
       - port: "53"
         protocol: TCP
-      rules:
-        dns:
-        - matchPattern: "*"
+      # NOTE: L7 DNS rules (`rules.dns`) are EGRESS-only in Cilium — they
+      # filter the DNS QUERY a client may send. Placing them on CoreDNS's
+      # INGRESS side is invalid and causes the CNP to be rejected (VALID=
+      # False). Per-pod DNS visibility/restriction should be expressed as
+      # an egress rule on the CLIENT pod's namespace policy, not here.
   # hostNetwork pods (kubelet probes, system tools) reach CoreDNS via host
   - fromEntities:
     - host

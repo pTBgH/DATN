@@ -1,0 +1,33 @@
+# =============================================================================
+# TracingPolicy — kernel module load (cluster-wide, all namespaces incl. host).
+#
+# Hooks `security_kernel_module_request` (LSM-style function in kernel/module),
+# called when a process triggers autoload of a kernel module via
+# request_module(). Args[0] = const char *kmod_name. Stable ABI across
+# kernel versions ≥ 5.x.
+#
+# Why cluster-wide (TracingPolicy, not Namespaced): kernel module load is a
+# host-level privileged action. Legitimate load attempts happen at node boot
+# (cilium, tetragon, kubelet); runtime loads from a workload container are an
+# anomaly worth investigating (T1611: Escape to Host).
+#
+# Detection only (Post). Audit signal goes to Tetragon stdout/JSON export →
+# Filebeat → ES. The corresponding Prometheus alert `ZTATetragonKernelModuleLoad`
+# fires on the `tetragon_events_total{type="PROCESS_KPROBE"}` rate counter; see
+# doc/14-tetragon-runtime.md §"Han che metric label" — chart 1.7.0 metric does
+# not expose `function` label so the alert proxies via namespace filter.
+# =============================================================================
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: monitor-kernel-module-load
+spec:
+  kprobes:
+  - call: "security_kernel_module_request"
+    syscall: false
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchActions:
+      - action: Post

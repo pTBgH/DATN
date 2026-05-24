@@ -64,7 +64,14 @@ TETRAGON_FRESH_INSTALL="${TETRAGON_FRESH_INSTALL:-1}"
 TETRAGON_PER_NODE_HEADROOM_MI="${TETRAGON_PER_NODE_HEADROOM_MI:-320}"
 
 # Pin chart version for reproducibility.
-TETRAGON_CHART_VERSION="${TETRAGON_CHART_VERSION:-1.2.0}"
+#
+# 1.7.0 (vs 1.2.0): ships rebuilt BPF objects (bpf_multi_kprobe_v61.o etc.)
+# compatible with kernel ≥6.10 — required for TracingPolicies with kprobe
+# hooks to load on the cluster's Debian trixie hosts (6.12.86). Chart 1.2.0
+# produced `load program: invalid argument` for every TracingPolicy with a
+# kprobes: section, silently leaving the cluster with no real runtime
+# enforcement.
+TETRAGON_CHART_VERSION="${TETRAGON_CHART_VERSION:-1.7.0}"
 
 # RAM target for pre-flight on the host. If host avail < target, free-ram
 # script runs. 900Mi gives buffer for 3 × 256Mi (=768Mi) plus operator + churn.
@@ -262,17 +269,30 @@ HELM_SET_FLAGS=(
   # Prometheus, not Operator).
   --set "tetragon.prometheus.enabled=true"
   --set "tetragon.prometheus.serviceMonitor.enabled=false"
-  # chart 1.2.0: .Values.tetragon.prometheus.address is the listen address
+  # chart 1.2.0+: .Values.tetragon.prometheus.address is the listen address
   # (e.g. "" for all interfaces, "127.0.0.1" for loopback). The port comes
   # from .Values.tetragon.prometheus.port. Passing "address=:2112" used to
   # render `metrics-server: :2112:2112` in tetragon-config and the agent
   # would silently not bind 2112.
   --set "tetragon.prometheus.address="
   --set "tetragon.prometheus.port=2112"
-  # chart 1.2.0: podAnnotations is TOP-LEVEL (.Values.podAnnotations), not
+  # chart 1.2.0+: podAnnotations is TOP-LEVEL (.Values.podAnnotations), not
   # nested under .Values.tetragon.podAnnotations. The latter is silently
   # ignored, leaving the kubernetes-pods scrape job with nothing to match.
   --set-json 'podAnnotations={"prometheus.io/scrape":"true","prometheus.io/port":"2112","prometheus.io/path":"/metrics"}'
+  # chart 1.7.0: new field `tetragon.processAncestors.enabled` is a
+  # comma-separated list of event types to record ancestor process chains
+  # for. Empty ("") disables ancestors completely; "base" enables the
+  # minimal ancestor record on exec/exit only (no extra BPF map cost on
+  # kprobe hooks). Required because the chart's configmap template would
+  # otherwise nil-pointer if the field is not set. Using --set-string to
+  # avoid helm interpreting commas inside the value as separators.
+  --set-string "tetragon.processAncestors.enabled=base"
+  # chart 1.7.0: gRPC default changed from TCP `localhost:54321` to a Unix
+  # socket. Doc/33 §6.1 plans a PDP subscriber over TCP — keep TCP for now
+  # to preserve forward compatibility. Switch to socket once the PDP
+  # integration lands.
+  --set "tetragon.grpc.address=localhost:54321"
 )
 
 # By default keep Tetragon off the control-plane node — saves ~192Mi RAM
@@ -516,9 +536,12 @@ fi
 echo ""
 echo "━━━ Step 7: Verification ━━━"
 
-POLICY_COUNT=$(kubectl get tracingpoliciesnamespaced -A --no-headers 2>/dev/null | wc -l || echo "0")
-echo "   TracingPoliciesNamespaced: ${POLICY_COUNT}"
-kubectl get tracingpoliciesnamespaced -A 2>/dev/null || true
+POLICY_NS_COUNT=$(kubectl get tracingpoliciesnamespaced -A --no-headers 2>/dev/null | wc -l || echo "0")
+POLICY_CW_COUNT=$(kubectl get tracingpolicies --no-headers 2>/dev/null | wc -l || echo "0")
+POLICY_COUNT=$((POLICY_NS_COUNT + POLICY_CW_COUNT))
+echo "   TracingPolicy (cluster-wide):  ${POLICY_CW_COUNT}"
+echo "   TracingPolicyNamespaced:       ${POLICY_NS_COUNT}"
+kubectl get tracingpolicy,tracingpolicynamespaced -A 2>/dev/null || true
 
 if [ "$POLICY_FAILED" -gt 0 ]; then
   echo "❌ ${POLICY_FAILED} policy(ies) failed to apply"

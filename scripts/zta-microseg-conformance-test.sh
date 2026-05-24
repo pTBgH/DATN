@@ -118,7 +118,7 @@ trap cleanup EXIT INT TERM
 # ---------------------------------------------------------------------------
 # CSV write helper
 # ---------------------------------------------------------------------------
-echo "id,src_ns,src_labels,dst_host,dst_port,protocol,expected,observed,result,duration_ms,cnp_ref,description,err" \
+echo "id,src_ns,src_labels,dst_host,dst_port,protocol,expected,observed,result,duration_s,cnp_ref,description,err" \
   > "$RESULTS_CSV"
 
 emit_row() {
@@ -183,7 +183,14 @@ probe_row() {
   # `kubectl run --command -- nc -zvw5 host port` returns the exit code of
   # nc directly via the Job-style runner (Restart=Never + --attach + --wait).
   # Use --rm=false so we control deletion via SPAWNED_PODS for cleanup.
-  local start_ms=$(date +%s%3N)
+  #
+  # Duration in whole seconds. We originally used `date +%s%3N` but the
+  # `%3N` format produced inconsistent output on at least one operator's
+  # GNU coreutils build (mixing 13-digit ms timestamps with 19-digit ns
+  # timestamps), yielding meaningless huge / negative durations in the
+  # CSV. Second-precision is enough to spot a 5 s `nc` timeout vs. an
+  # immediate handshake.
+  local start_s=$(date +%s)
   local probe_out=""
   local probe_rc=0
   # NB: shellcheck word-splitting on $label_args is intentional.
@@ -199,8 +206,8 @@ probe_row() {
   else
     probe_rc=$?
   fi
-  local end_ms=$(date +%s%3N)
-  local dur=$((end_ms - start_ms))
+  local end_s=$(date +%s)
+  local dur=$((end_s - start_s))
   SPAWNED_PODS+=("${src_ns}/${pod_name}")
 
   # nc exit code semantics (busybox 1.37):
@@ -223,11 +230,11 @@ probe_row() {
   if [ "$observed" = "$expected" ]; then
     result="PASS"
     PASS=$((PASS+1))
-    green "       PASS  (observed=$observed, ${dur}ms)"
+    green "       PASS  (observed=$observed, ${dur}s)"
   else
     result="FAIL"
     FAIL=$((FAIL+1))
-    red   "       FAIL  expected=$expected observed=$observed (${dur}ms)"
+    red   "       FAIL  expected=$expected observed=$observed (${dur}s)"
     FAILURES+=("[$id] $src_ns → $dst_host:$dst_port  expected=$expected observed=$observed  ref=$cnp_ref")
     # nc -v emits the probe error string to stderr — embed first 120 chars
     # in the CSV for triage without dumping log binaries.

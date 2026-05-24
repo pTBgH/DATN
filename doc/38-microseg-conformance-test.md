@@ -99,7 +99,21 @@ These rows are commented out in v1 so that running the script with
 `--anomaly` on a fresh cluster is a no-op until the operator
 intentionally uncomments the rows they want exercised.
 
-## 7. What this PR does NOT do
+## 7. Known intentional deviations from strict ZTA
+
+A few rows in the matrix carry `expected=ALLOW` even though, under a
+strict "everything goes through Kong" reading of the ZTA model, you
+might expect `DROP`. These are documented here so a reviewer doesn't
+mistake them for over-permissive policy:
+
+| Row | Flow | Why allowed |
+|---|---|---|
+| `N07` | `job7189-apps → keycloak.security:8080` | The OIDC discovery document (`/realms/<r>/.well-known/openid-configuration`) and JWKS (`/protocol/openid-connect/certs`) are public-key endpoints that Kong does not proxy. Workloads in `job7189-apps` need direct egress to Keycloak to verify JWT signatures locally. Tightening this to a per-app allow list — and ideally to a URL-path L7 policy that restricts apps to just the discovery + JWKS routes — is tracked for Phase 2D. |
+
+When Phase 2D L7 policies land, these rows should flip to `DROP` for
+everything except the explicit method+path combinations.
+
+## 8. What this PR does NOT do
 
 - Does **not** implement L7 (HTTP method / path) policy validation —
   that is Phase 2D.

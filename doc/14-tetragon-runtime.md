@@ -77,32 +77,54 @@ spec:
 | Hang muc | Trang thai | Ghi chu |
 |----------|------------|---------|
 | Thiet ke policy | ✅ Hoan thanh | TracingPolicy YAML da viet |
-| Tich hop deploy chain | ❌ Chua | Can them vao script chain |
-| Test thu nghiem | ❌ Chua | Can tao attacker pod de test |
-| Resource estimate | ~128Mi/node (DaemonSet) | 4 nodes = 512Mi them |
+| Tich hop deploy chain | ✅ Hoan thanh | `10-deploy-tetragon.sh` (Helm chart 1.2.0) |
+| DaemonSet 3/3 worker | ✅ Hoat dong | srv02 + srv03 + srv05 |
+| Prometheus scrape | ✅ Hoat dong | 3 target `up`, port 2112, annotation-based |
+| TracingPolicy applied | ✅ 5 policy | block-suspicious-exec (4 ns) + monitor-sensitive-files |
+| Test thu nghiem | ⚠ Mot phan | block-suspicious-exec OK; monitor-sensitive-files kprobe load fail (kernel 6.12.86) |
+| Resource thuc te | ~128Mi req / 384Mi limit per node | 3 worker × 128Mi = 384Mi them |
 
-## Ly do chua trien khai trong PoC
+## Luu y chart cilium/tetragon 1.2.0 (Helm values schema)
 
-1. **Resource**: He thong dang 8.7Gi/12Gi, them 512Mi co the gay OOM
-2. **Complexity**: TracingPolicy can fine-tune ky de tranh false positive
-3. **Scope**: Bao cao thesis da khai bao ro "bo sung sau" — khong phai GAP
-4. **Priority**: mTLS + WireGuard + Microseg da cover phan lon attack surface
+Chart 1.2.0 co cac values path dang note vi de nham:
 
-## Ke hoach trien khai (neu co them RAM)
+| Muc dich | Path DUNG | Path SAI (bi ignore) |
+|----------|-----------|---------------------|
+| Pod annotations | `podAnnotations` (top-level) | `tetragon.podAnnotations` |
+| Prometheus listen addr | `tetragon.prometheus.address` (IP, vd `""` hoac `"127.0.0.1"`) | `tetragon.prometheus.address=:2112` (bi render `:2112:2112`) |
+| Prometheus port | `tetragon.prometheus.port` (int, default 2112) | — |
+
+ConfigMap render: `metrics-server: <address>:<port>`. Neu address="" → `:2112` (bind all
+interfaces). Neu address=":2112" → `:2112:2112` (agent KHONG bind).
+
+## Deploy command (hien tai)
 
 ```bash
-# 1. Cai Tetragon qua Helm
-helm repo add cilium https://helm.cilium.io
-helm install tetragon cilium/tetragon -n kube-system \
-  --set tetragon.resources.limits.memory=128Mi
+# Full deploy (bao gom preflight + cleanup + helm install + TracingPolicy apply)
+bash 10-deploy-tetragon.sh
 
-# 2. Apply TracingPolicy
-kubectl apply -f infras/k8s-yaml/tetragon-policies/block-suspicious-exec.yaml
-
-# 3. Verify
-kubectl exec -n job7189-apps deploy/identity-service -- /bin/sh
-# → SIGKILL expected
+# Override headroom check (rui ro thap nếu node thuc te con >=200Mi)
+TETRAGON_PER_NODE_HEADROOM_MI=200 bash 10-deploy-tetragon.sh
 ```
+
+## Ordering luu y (fix 2026-05-24)
+
+Script cu chay cleanup (helm uninstall + delete CRD) TRUOC preflight → neu preflight
+fail (thieu RAM), cluster mat Tetragon + CRD khong phuc hoi duoc. Script moi chay:
+
+1. **Step 0**: Pre-flight (RAM check, per-node headroom) — abort som neu fail
+2. **Step 1**: Cleanup existing release (chi chay neu Step 0 pass)
+3. **Step 2+**: Helm install, wait CRD, apply TracingPolicy
+
+## BPF kprobe known issue (kernel 6.12.86)
+
+TracingPolicy `monitor-sensitive-files` dung `multi_kprobe` de hook `do_filp_open`.
+Kernel 6.12.86 (Debian trixie) thay doi kprobe function signature, gay:
+```
+load program: invalid argument
+```
+Khong anh huong den cac TracingPolicy `block-suspicious-exec` (dung `sys_execve` —
+stable ABI). Doi tetragon chart 1.3.x hoac patch BTF-aware kprobe.
 
 ## Xem them
 

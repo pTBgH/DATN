@@ -108,6 +108,7 @@ mistake them for over-permissive policy:
 
 | Row | Flow | Why allowed |
 |---|---|---|
+| `N05` | `job7189-apps → vault.vault:8200` | The Vault Database Secrets Engine issues short-lived dynamic DB credentials on demand. Workloads in `job7189-apps` (and the `data` namespace, where DB-side hooks live) need direct egress to Vault to call `vault read database/creds/<service>` at runtime. `allow-vault-api-ingress` (11-vault.yaml) whitelists both namespaces on `:8200`. Tightening this to a per-app allow list — only the specific services that consume Vault — is tracked for Phase 2D. |
 | `N07` | `job7189-apps → keycloak.security:8080` | The OIDC discovery document (`/realms/<r>/.well-known/openid-configuration`) and JWKS (`/protocol/openid-connect/certs`) are public-key endpoints that Kong does not proxy. Workloads in `job7189-apps` need direct egress to Keycloak to verify JWT signatures locally. Tightening this to a per-app allow list — and ideally to a URL-path L7 policy that restricts apps to just the discovery + JWKS routes — is tracked for Phase 2D. |
 
 When Phase 2D L7 policies land, these rows should flip to `DROP` for

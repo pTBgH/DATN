@@ -91,13 +91,14 @@ echo ""
 avail_mi() { free -m | awk '/^Mem:/ {print $7}'; }
 
 # ========================
-# Step 0: Clean up any existing/broken install
+# Step 1: Clean up any existing/broken install (DESTRUCTIVE — only runs after
+# Step 0 pre-flight passes so we don't lose Tetragon + CRDs on a no-RAM abort).
 # ========================
 # Tetragon is observation-only (eBPF tracepoints are kernel-side; uninstalling
 # the userspace agent doesn't disrupt workloads). A clean reinstall is the
 # fastest way to recover from a CrashLoopBackOff state, and idempotent.
 cleanup_existing() {
-  echo "━━━ Step 0: Clean-up existing Tetragon (FRESH_INSTALL=${TETRAGON_FRESH_INSTALL}) ━━━"
+  echo "━━━ Step 1: Clean-up existing Tetragon (FRESH_INSTALL=${TETRAGON_FRESH_INSTALL}) ━━━"
   if [ "$TETRAGON_FRESH_INSTALL" != "1" ]; then
     echo "   Skipped — will attempt in-place helm upgrade later."
     return 0
@@ -132,12 +133,12 @@ cleanup_existing() {
   echo "   ✓ Cleanup complete"
   echo ""
 }
-cleanup_existing
 
 # ========================
-# Step 1: RAM-first pre-flight
+# Step 0: RAM-first pre-flight (runs BEFORE destructive cleanup so an under-RAM
+# cluster doesn't lose Tetragon + CRDs on abort).
 # ========================
-echo "━━━ Step 1: Pre-flight (RAM-first) ━━━"
+echo "━━━ Step 0: Pre-flight (RAM-first) ━━━"
 echo "   Available RAM: $(avail_mi)Mi (target ${TETRAGON_RAM_TARGET_MI}Mi)"
 
 if [ "$(avail_mi)" -lt "$TETRAGON_RAM_TARGET_MI" ]; then
@@ -228,6 +229,9 @@ if [ "$NODE_FAILED" -gt 0 ]; then
   exit 1
 fi
 
+# Pre-flight passed — safe to clean up the existing release (if any).
+cleanup_existing
+
 # ========================
 # Step 2: Install Tetragon via Helm
 # ========================
@@ -258,8 +262,17 @@ HELM_SET_FLAGS=(
   # Prometheus, not Operator).
   --set "tetragon.prometheus.enabled=true"
   --set "tetragon.prometheus.serviceMonitor.enabled=false"
-  --set "tetragon.prometheus.address=:2112"
-  --set-json 'tetragon.podAnnotations={"prometheus.io/scrape":"true","prometheus.io/port":"2112","prometheus.io/path":"/metrics"}'
+  # chart 1.2.0: .Values.tetragon.prometheus.address is the listen address
+  # (e.g. "" for all interfaces, "127.0.0.1" for loopback). The port comes
+  # from .Values.tetragon.prometheus.port. Passing "address=:2112" used to
+  # render `metrics-server: :2112:2112` in tetragon-config and the agent
+  # would silently not bind 2112.
+  --set "tetragon.prometheus.address="
+  --set "tetragon.prometheus.port=2112"
+  # chart 1.2.0: podAnnotations is TOP-LEVEL (.Values.podAnnotations), not
+  # nested under .Values.tetragon.podAnnotations. The latter is silently
+  # ignored, leaving the kubernetes-pods scrape job with nothing to match.
+  --set-json 'podAnnotations={"prometheus.io/scrape":"true","prometheus.io/port":"2112","prometheus.io/path":"/metrics"}'
 )
 
 # By default keep Tetragon off the control-plane node — saves ~192Mi RAM

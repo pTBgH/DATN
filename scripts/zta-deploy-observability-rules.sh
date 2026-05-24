@@ -50,9 +50,8 @@ DEPLOY_SUCCESS=0
 GRAFANA_CM_APPLIED=0
 PROM_CM_APPLIED=0
 GRAFANA_SPEC_BACKUP=""
-PROM_SPEC_BACKUP=""
 GRAFANA_PATCHED=0
-PROM_PATCHED=0
+PROM_RELOADED=0
 
 rollback() {
   [ "$ROLLBACK_TRIGGERED" -eq 1 ] && return
@@ -66,10 +65,9 @@ rollback() {
     yellow "  rollback: restoring Grafana deployment spec..."
     kubectl replace -f "$GRAFANA_SPEC_BACKUP" 2>/dev/null || true
   fi
-  if [ "$PROM_PATCHED" -eq 1 ] && [ -n "$PROM_SPEC_BACKUP" ] && [ -f "$PROM_SPEC_BACKUP" ]; then
-    yellow "  rollback: restoring Prometheus deployment spec..."
-    kubectl replace -f "$PROM_SPEC_BACKUP" 2>/dev/null || true
-  fi
+  # No Prometheus Deployment patching happens any more (PR-N) — the rules
+  # ConfigMap is mounted statically in 08-prometheus.yaml, so the only
+  # rollback step for Prom is removing the rules CM (done below).
   if [ "$PROM_CM_APPLIED" -eq 1 ]; then
     yellow "  rollback: removing prometheus-zta-rules ConfigMap..."
     kubectl delete cm -n monitoring prometheus-zta-rules --ignore-not-found 2>/dev/null || true
@@ -99,8 +97,9 @@ uninstall() {
   kubectl delete cm -n monitoring grafana-zta-dashboard --ignore-not-found
   kubectl delete cm -n monitoring prometheus-zta-rules --ignore-not-found
   green "ZTA observability rules uninstalled"
-  echo "Note: Grafana/Prometheus deployment patches remain — they are harmless"
-  echo "      (volumes point to deleted ConfigMaps → Grafana/Prometheus ignore missing mounts)."
+  echo 'Note: Grafana deployment patch remains (volume points to deleted ConfigMap → harmless).'
+  echo '      Prometheus mounts the rules ConfigMap as optional=true, so it keeps running'
+  echo '      with zero ZTA rules loaded after this uninstall.'
   exit 0
 }
 
@@ -127,9 +126,7 @@ blue "================================================================"
 # Save deployment specs for rollback
 # ---------------------------------------------------------------------------
 GRAFANA_SPEC_BACKUP=$(mktemp /tmp/grafana-deploy-backup-XXXXXX.yaml)
-PROM_SPEC_BACKUP=$(mktemp /tmp/prom-deploy-backup-XXXXXX.yaml)
 kubectl get deployment grafana -n monitoring -o yaml > "$GRAFANA_SPEC_BACKUP" 2>/dev/null || true
-kubectl get deployment prometheus -n monitoring -o yaml > "$PROM_SPEC_BACKUP" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Deploy ConfigMaps
@@ -198,54 +195,57 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Patch Prometheus — add rules volume mount
+# Reload Prometheus to pick up the new rules ConfigMap
 # ---------------------------------------------------------------------------
-blue "[4/4] Patching Prometheus deployment to mount ZTA rules..."
-PROM_PATCH=$(cat <<'PATCH'
-{
-  "spec": {
-    "template": {
-      "spec": {
-        "volumes": [
-          {
-            "name": "zta-rules",
-            "configMap": {
-              "name": "prometheus-zta-rules"
-            }
-          }
-        ],
-        "containers": [
-          {
-            "name": "prometheus",
-            "args": [
-              "--config.file=/etc/prometheus/prometheus.yml",
-              "--storage.tsdb.path=/prometheus",
-              "--storage.tsdb.retention.time=3d",
-              "--web.enable-lifecycle",
-              "--rules.path=/etc/prometheus/zta-rules/*.yml"
-            ],
-            "volumeMounts": [
-              {
-                "name": "zta-rules",
-                "mountPath": "/etc/prometheus/zta-rules",
-                "readOnly": true
-              }
-            ]
-          }
-        ]
-      }
-    }
-  }
-}
-PATCH
-)
-if kubectl patch deployment prometheus -n monitoring \
-  --type=strategic -p "$PROM_PATCH" 2>/dev/null; then
-  PROM_PATCHED=1
-  green "  ✓ Prometheus patched"
+# Prometheus deployment in `infras/k8s-yaml/08-prometheus.yaml` already
+# mounts `prometheus-zta-rules` ConfigMap at /etc/prometheus/zta-rules
+# (optional volume) and its `prometheus.yml` has `rule_files:
+# /etc/prometheus/zta-rules/*.yml`. So once the ConfigMap is applied above,
+# we just need Prometheus to re-read its config + rule files. With
+# `--web.enable-lifecycle` enabled (default in 08-prometheus.yaml), a
+# POST to /-/reload is the lightweight way to trigger that without
+# bouncing the pod.
+#
+# Historical bug (B1, fixed in PR-N): this step used to patch the
+# Prometheus Deployment with a non-existent `--rules.path=...` CLI flag
+# (Prometheus has no such flag — rules are loaded via `rule_files:` in
+# the YAML config). The patch either silently no-op'd or crash-looped
+# the pod. Both modes resulted in ZTA rules never being loaded.
+blue "[4/4] Restarting Prometheus to load the rules ConfigMap..."
+# We restart instead of POST /-/reload because:
+#   1. `prom/prometheus` v2.45+ is distroless (no wget/curl in pod) so
+#      we can't reload from inside the pod itself.
+#   2. The Cilium CNP `allow-prometheus-ingress` (13-monitoring.yaml)
+#      only permits ingress on :9090 from grafana / oauth2-proxy /
+#      ingress-nginx. An ephemeral busybox pod is rejected before reaching
+#      /-/reload, so the in-cluster reload trick doesn't work either.
+#   3. Rolling restart takes ~30s, costs nothing in this lab, and
+#      guarantees Prometheus picks up the freshly-applied ConfigMap on
+#      the kubelet's next volume mount (no stale subPath caching).
+#
+# Note: a 15-30 s gap in metrics during the rollout is acceptable for
+# a PoC. If that is unacceptable in a future production setup, expose
+# /-/reload through grafana (already in the allow-prometheus-ingress
+# whitelist) or add a dedicated reloader SA to the CNP.
+PROM_POD=$(kubectl -n monitoring get pod -l app=prometheus \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [ -n "$PROM_POD" ]; then
+  if kubectl -n monitoring rollout restart deployment/prometheus >/dev/null 2>&1; then
+    kubectl -n monitoring rollout status deployment/prometheus --timeout=120s >/dev/null 2>&1 || true
+    PROM_RELOADED=1
+    green "  ✓ Prometheus restarted (rules active after fresh boot)"
+  else
+    yellow "  (rollout restart failed — restart the Prometheus pod manually)"
+  fi
 else
-  yellow "  (Prometheus already has ZTA rules mount or patch not needed)"
+  yellow "  (Prometheus pod not running — rules will load when pod starts)"
 fi
+
+# Re-fetch the new pod name after restart (used by the verification step
+# below to call /api/v1/rules from grafana — see comment block above for
+# why we don't probe directly from a busybox pod).
+PROM_POD=$(kubectl -n monitoring get pod -l app=prometheus \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
 
 # ---------------------------------------------------------------------------
 # Health check — wait for Grafana + Prometheus rollout (timeout 120s)
@@ -264,14 +264,34 @@ if [ "$GRAFANA_PATCHED" -eq 1 ]; then
   fi
 fi
 
-if [ "$PROM_PATCHED" -eq 1 ]; then
-  blue "Waiting for Prometheus rollout (timeout ${HEALTH_TIMEOUT}s)..."
-  if kubectl rollout status deployment/prometheus -n monitoring --timeout="${HEALTH_TIMEOUT}s"; then
-    green "  ✓ Prometheus rollout complete"
+# After PR-N, the rules ConfigMap is mounted statically in 08-prometheus.yaml,
+# so the deploy script never modifies the Prometheus Deployment. Instead we
+# probe the rules API to confirm Prometheus actually loaded the rules.
+if [ "$PROM_CM_APPLIED" -eq 1 ] && [ -n "$PROM_POD" ]; then
+  blue "Verifying ZTA rules are loaded in Prometheus..."
+  # We can't probe directly from a busybox pod (see Cilium-policy note in
+  # step [4/4] above), so we re-use the grafana pod — already in the
+  # allow-prometheus-ingress whitelist and based on alpine, which ships
+  # wget. Falls back to a non-fatal warning if grafana is not deployed.
+  GRAFANA_POD=$(kubectl -n monitoring get pod -l app=grafana \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -n "$GRAFANA_POD" ]; then
+    RULES_JSON=$(kubectl -n monitoring exec "$GRAFANA_POD" -- \
+      wget -qO- http://prometheus.monitoring.svc.cluster.local:9090/api/v1/rules \
+      2>/dev/null || true)
+    ZTA_RULE_GROUPS=$(echo "$RULES_JSON" | grep -oE '"name":"zta-[a-z-]+"' | sort -u | wc -l)
+    if [ "${ZTA_RULE_GROUPS:-0}" -ge 1 ]; then
+      green "  ✓ Prometheus has ${ZTA_RULE_GROUPS} ZTA rule group(s) loaded"
+    else
+      yellow "  ✗ Prometheus is up but no ZTA rule groups loaded yet"
+      yellow "     (Probe from a host w/ kubectl port-forward:"
+      yellow "        kubectl -n monitoring port-forward svc/prometheus 9090:9090 &"
+      yellow "        curl -s localhost:9090/api/v1/rules | jq '.data.groups[].name')"
+      deploy_ok=0
+    fi
   else
-    red "  ✗ Prometheus rollout failed"
-    kubectl -n monitoring logs deployment/prometheus --tail=20 2>/dev/null || true
-    deploy_ok=0
+    yellow "  (grafana pod not found — skipping in-cluster verification"
+    yellow "   Use: kubectl -n monitoring port-forward svc/prometheus 9090:9090)"
   fi
 fi
 
@@ -282,7 +302,7 @@ if [ "$deploy_ok" -eq 0 ]; then
 fi
 
 # Cleanup backup files on success
-rm -f "$GRAFANA_SPEC_BACKUP" "$PROM_SPEC_BACKUP" 2>/dev/null || true
+rm -f "$GRAFANA_SPEC_BACKUP" 2>/dev/null || true
 
 DEPLOY_SUCCESS=1
 

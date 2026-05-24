@@ -58,6 +58,14 @@ data:
       scrape_interval: 15s
       evaluation_interval: 15s
 
+    # ZTA alerting/recording rules — loaded from `prometheus-zta-rules`
+    # ConfigMap mounted at /etc/prometheus/zta-rules. See PR-N: previously
+    # the rules ConfigMap existed but Prometheus never loaded it because
+    # the runtime patch tried to use a non-existent `--rules.path` CLI flag.
+    # Loading via `rule_files:` is the only supported mechanism.
+    rule_files:
+      - /etc/prometheus/zta-rules/*.yml
+
     scrape_configs:
 
       # Prometheus tự scrape chính nó
@@ -164,6 +172,9 @@ spec:
         volumeMounts:
         - name: config
           mountPath: /etc/prometheus
+        - name: zta-rules
+          mountPath: /etc/prometheus/zta-rules
+          readOnly: true
         - name: data
           mountPath: /prometheus
         resources:
@@ -177,6 +188,14 @@ spec:
       - name: config
         configMap:
           name: prometheus-config
+      - name: zta-rules
+        configMap:
+          # Populated by scripts/zta-deploy-observability-rules.sh
+          # (applies infras/k8s-yaml/prometheus-rules.yaml). Optional so
+          # Prometheus still boots before that script has been run — the
+          # `rule_files:` glob will simply match zero files.
+          name: prometheus-zta-rules
+          optional: true
       - name: data
         persistentVolumeClaim:
           claimName: prometheus-pvc

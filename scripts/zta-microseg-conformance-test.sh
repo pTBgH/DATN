@@ -165,8 +165,12 @@ probe_row() {
       ;;
   esac
 
-  # Spawn pod
-  local pod_name="zta-conf-${id,,}-${RUN_TS:8:6}"
+  # Spawn pod.
+  # Pod names must be DNS-1123 (lowercase alphanumeric + '-' only). The
+  # session timestamp contains a `_` so we use a deterministic
+  # `<pid>-<row-counter>` suffix instead — guarantees uniqueness for
+  # parallel runs without smuggling invalid characters into the name.
+  local pod_name="zta-conf-${id,,}-${$}-${ROW_NO}"
   local label_args=""
   if [ -n "$src_labels" ]; then
     label_args="--labels=zta.conformance/test=true,zta.conformance/id=${id,,},$src_labels"

@@ -1,0 +1,76 @@
+id,src_ns,src_labels,dst_host,dst_port,protocol,expected,cnp_ref,description
+# =============================================================================
+# ZTA L4 Microsegmentation Conformance Matrix
+#
+# Each row is one synthetic probe (`nc -zvw5 dst:port`) issued from a
+# busybox pod created in `src_ns` with the supplied labels. `expected`
+# is what Cilium's L4 policy engine SHOULD do:
+#   ALLOW = TCP handshake completes within 5s (nc exit 0)
+#   DROP  = connection times out / refused (nc exit non-zero)
+#
+# `src_labels` is a comma-separated list of `key=value` pairs added to
+# the test pod via `kubectl run --labels`. Add labels here to match the
+# `fromEndpoints` selector of a CNP and exercise its allow path. Leave
+# blank to spawn a vanilla pod (identity = just-the-namespace), which
+# is the right shape for testing negative / cross-tier flows.
+#
+# `cnp_ref` links the row to the CNP YAML file + rule name that the
+# matrix entry exercises, so a failure points the operator straight at
+# the offending policy.
+#
+# A leading `#` marks a comment row (skipped by the runner).
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# Positive — flows that ARE in the allow list (expect ALLOW)
+# ----------------------------------------------------------------------------
+# DNS from anywhere to kube-system/kube-dns:53 — broad allow (23-kube-system.yaml).
+# Tested from 5 representative tiers to make sure CoreDNS L7 ingress fix sticks.
+P01,data,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system.yaml/allow-coredns-ingress,DNS from data tier
+P02,gateway,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system.yaml/allow-coredns-ingress,DNS from gateway tier
+P03,monitoring,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system.yaml/allow-coredns-ingress,DNS from monitoring tier
+P04,vault,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system.yaml/allow-coredns-ingress,DNS from vault tier
+P05,security,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system.yaml/allow-coredns-ingress,DNS from security tier
+
+# Kafka ingress from any pod in job7189-apps ns (selector by NS only — safe to test
+# with a vanilla busybox pod, no app-label spoofing required).
+P06,job7189-apps,,kafka.data.svc.cluster.local,9092,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9092
+P07,job7189-apps,,kafka.data.svc.cluster.local,9093,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9093
+
+# ----------------------------------------------------------------------------
+# Negative — flows that should be DENIED by default-deny + no matching allow
+# ----------------------------------------------------------------------------
+# Cross-tier bypass: an unprivileged pod in T3 (job7189-apps) tries to reach
+# MySQL directly. Only `identity-service` and `keycloak`/`vault`/`phpmyadmin`
+# are whitelisted on :3306; a vanilla pod must be dropped.
+N01,job7189-apps,,mysql.data.svc.cluster.local,3306,TCP,DROP,10-data.yaml/default-deny-data,Random apps pod -> MySQL (not whitelisted)
+
+# Kong admin API must never be reachable from outside the gateway namespace.
+N02,job7189-apps,,kong-gateway.gateway.svc.cluster.local,8001,TCP,DROP,14-gateway.yaml/allow-kong-proxy-ingress,Apps pod -> Kong admin :8001
+
+# Random pod in management can't talk to Kafka — only apps tier.
+N03,management,,kafka.data.svc.cluster.local,9092,TCP,DROP,10-data.yaml/default-deny-data,Management pod -> Kafka (cross-tier)
+
+# Random pod in monitoring (NOT prometheus SA) can't scrape Kong status.
+N04,monitoring,,kong-gateway.gateway.svc.cluster.local,8100,TCP,DROP,14-gateway.yaml/allow-prometheus-scrape-gateway,Random monitoring pod -> Kong :8100 (no prometheus SA)
+
+# Random pod across tiers can't reach Vault API.
+N05,job7189-apps,,vault.vault.svc.cluster.local,8200,TCP,DROP,11-vault.yaml/default-deny-vault,Apps pod -> Vault API (cross-tier)
+N06,management,,vault.vault.svc.cluster.local,8200,TCP,DROP,11-vault.yaml/default-deny-vault,Management pod -> Vault API (cross-tier)
+
+# Random pod can't bypass Kong to reach Keycloak admin.
+N07,job7189-apps,,keycloak.security.svc.cluster.local,8080,TCP,DROP,12-security.yaml/default-deny-security,Apps pod -> Keycloak (must go via Kong)
+
+# Random pod can't reach OPA decision endpoint (only Kong is whitelisted).
+N08,job7189-apps,,opa.security.svc.cluster.local,8181,TCP,DROP,12-security.yaml/default-deny-security,Apps pod -> OPA (only Kong allowed)
+
+# ----------------------------------------------------------------------------
+# Anomaly-injection scenarios (NOT executed by --quick / --full modes —
+# only the dedicated --anomaly mode runs these). Captured here so the
+# Phase 2 ML detector (Tetragon kprobe + statistical UEBA) has a
+# repeatable corpus of "known bad" behaviour for training / evaluation.
+# ----------------------------------------------------------------------------
+# A01,job7189-apps,zta.test/scenario=burst,kafka.data.svc.cluster.local,9092,TCP,ANOMALY,phase2-ueba,Burst 200 req/s for 60s (vs baseline ~1 req/s)
+# A02,job7189-apps,zta.test/scenario=exec-shell,n/a,n/a,EXEC,ANOMALY,phase2-tetragon,exec /bin/sh inside container that never uses a shell
+# A03,job7189-apps,zta.test/scenario=ti-egress,8.8.8.8,80,TCP,ANOMALY,phase2-ti-feed,Egress to threat-intel CIDR (FireHOL block list)
+# A04,job7189-apps,zta.test/scenario=dns-exfil,c2.evil.example,53,UDP,ANOMALY,phase2-ti-feed,DNS query for known-bad domain

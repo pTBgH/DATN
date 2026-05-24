@@ -77,16 +77,16 @@ spec:
 | Hang muc | Trang thai | Ghi chu |
 |----------|------------|---------|
 | Thiet ke policy | ✅ Hoan thanh | TracingPolicy YAML da viet |
-| Tich hop deploy chain | ✅ Hoan thanh | `10-deploy-tetragon.sh` (Helm chart 1.2.0) |
+| Tich hop deploy chain | ✅ Hoan thanh | `10-deploy-tetragon.sh` (Helm chart 1.7.0) |
 | DaemonSet 3/3 worker | ✅ Hoat dong | srv02 + srv03 + srv05 |
 | Prometheus scrape | ✅ Hoat dong | 3 target `up`, port 2112, annotation-based |
-| TracingPolicy applied | ✅ 5 policy | block-suspicious-exec (4 ns) + monitor-sensitive-files |
-| Test thu nghiem | ⚠ Mot phan | block-suspicious-exec OK; monitor-sensitive-files kprobe load fail (kernel 6.12.86) |
+| TracingPolicy applied | ✅ 5 policy | block-suspicious-exec (4 ns) + monitor-sensitive-files + monitor-kernel-module-load |
+| BPF kprobe sensor load | ✅ OK | chart 1.7 ships rebuilt `bpf_multi_kprobe_v61.o` cho kernel ≥6.10 |
 | Resource thuc te | ~128Mi req / 384Mi limit per node | 3 worker × 128Mi = 384Mi them |
 
-## Luu y chart cilium/tetragon 1.2.0 (Helm values schema)
+## Luu y chart cilium/tetragon 1.7.0 (Helm values schema)
 
-Chart 1.2.0 co cac values path dang note vi de nham:
+Chart 1.2.0+ co cac values path dang note vi de nham:
 
 | Muc dich | Path DUNG | Path SAI (bi ignore) |
 |----------|-----------|---------------------|
@@ -96,6 +96,32 @@ Chart 1.2.0 co cac values path dang note vi de nham:
 
 ConfigMap render: `metrics-server: <address>:<port>`. Neu address="" → `:2112` (bind all
 interfaces). Neu address=":2112" → `:2112:2112` (agent KHONG bind).
+
+Chart 1.7.0 them field bat buoc:
+
+| Field | Gia tri dung | Ghi chu |
+|-------|--------------|---------|
+| `tetragon.processAncestors.enabled` | `"base"` (string, comma-separated list) | Nil pointer neu khong set; `--set-string` de tranh helm parse `,` lam separator |
+| `tetragon.grpc.address` | `localhost:54321` (giu TCP cho PDP §6.1) | Default 1.7 chuyen sang Unix socket `unix:///var/run/tetragon/tetragon.sock` |
+
+## Han che metric label (chart 1.7.0 va truoc)
+
+Chart hard-code `metrics-label-filter: "namespace,workload,pod,binary"` (xem
+`templates/tetragon_configmap.yaml`). Metric `tetragon_events_total` chi co 5
+label: `namespace, workload, pod, binary, type` (type = PROCESS_EXEC, PROCESS_EXIT,
+PROCESS_KPROBE, ...). KHONG co `function`, `file`, `policy`, `arg0`.
+
+He qua cho Prometheus alert rule (PR-O):
+
+| Alert | Phu hop voi label set? | Cach work-around |
+|-------|------------------------|------------------|
+| `ZTATetragonShellExec` | ✅ (dung `type="PROCESS_EXEC"` + `binary=~".../sh"`) | Fire ngay khi user exec shell trong workload |
+| `ZTATetragonSensitiveFileRead` | ⚠ (khong co `file` label) | Match `type="PROCESS_KPROBE"` + `namespace="job7189-apps"` — alert proxy, can `tetra getevents` de xem path cu the |
+| `ZTATetragonKernelModuleLoad` | ⚠ (khong co `function` label) | Match `type="PROCESS_KPROBE"` voi `namespace` ngoai cac NS dang co policy nguon-mo |
+
+Ky thuat unblock alert lop file/function: chuyen sang stdout/JSON export +
+Filebeat → ES → alert ES query (path/function la field trong JSON event, khong
+phai metric label). Hoac patch chart de mo `--metrics-label-filter` cho thu them.
 
 ## Deploy command (hien tai)
 
@@ -116,15 +142,30 @@ fail (thieu RAM), cluster mat Tetragon + CRD khong phuc hoi duoc. Script moi cha
 2. **Step 1**: Cleanup existing release (chi chay neu Step 0 pass)
 3. **Step 2+**: Helm install, wait CRD, apply TracingPolicy
 
-## BPF kprobe known issue (kernel 6.12.86)
+## BPF kprobe load fail (chart 1.2.0 → 1.7.0, fix 2026-05-24)
 
-TracingPolicy `monitor-sensitive-files` dung `multi_kprobe` de hook `do_filp_open`.
-Kernel 6.12.86 (Debian trixie) thay doi kprobe function signature, gay:
+Tren cluster Debian trixie (kernel 6.12.86), chart 1.2.0 dong goi BPF object
+`bpf_multi_kprobe_v61.o` build cho kernel ≤5.x. TAT CA TracingPolicy co
+`kprobes:` section deu fail load:
+
 ```
-load program: invalid argument
+sensor gkp-sensor-5 from collection block-suspicious-exec failed to load:
+  failed prog /var/lib/tetragon/bpf_multi_kprobe_v61.o kern_version 396288
+  loadInstance: opening collection ... failed:
+  program generic_kprobe_process_event: load program: invalid argument
 ```
-Khong anh huong den cac TracingPolicy `block-suspicious-exec` (dung `sys_execve` —
-stable ABI). Doi tetragon chart 1.3.x hoac patch BTF-aware kprobe.
+
+Log agent ke ra ca `block-suspicious-exec` lan `monitor-sensitive-files` deu
+fail — cluster KHONG co policy nao thuc su trien khai du `kubectl get
+tracingpolicy` van liet ke 5 doi tuong CRD. PR-N B3 nang chart → 1.7.0 voi
+BPF object rebuilt cho kernel ≥6.10. Verify log agent sau upgrade:
+
+```
+Loaded generic kprobe sensor: /var/lib/tetragon/bpf_multi_kprobe_v61.o
+  -> kprobe_multi (1 functions)
+```
+
+Khong con `level=warning msg="adding tracing policy failed"`.
 
 ## Xem them
 

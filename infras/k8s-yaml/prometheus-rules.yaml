@@ -273,19 +273,32 @@ data:
     # ----------------------------------------------------------------------
     # PR-O Phase 2: Tetragon kernel-event signals
     #   Metric source: tetragon DaemonSet /metrics on :2112 (PR-N B2 fix).
-    #   The specific kprobe-driven alerts (shell exec, sensitive file,
-    #   kernel module) require the matching TracingPolicies to be
-    #   installed; those ship in PR-P. Until then those three alerts
-    #   stay quiet because their target metric series does not exist.
+    #
+    #   Label set is limited to (chart 1.7.0 hard-codes the filter):
+    #     namespace=<tetragon ns, always kube-system>
+    #     pod=<tetragon pod name, ephemeral>
+    #     exported_namespace=<target workload's ns>
+    #     exported_pod=<target workload's pod>
+    #     workload=<target workload's controller name (Deployment/StatefulSet)>
+    #     binary=<path of binary exec'ing>
+    #     type=PROCESS_EXEC|PROCESS_EXIT|PROCESS_KPROBE|PROCESS_LSM
+    #
+    #   No `function`, `file`, `policy`, `arg0` labels are exported — see
+    #   doc/14-tetragon-runtime.md "Han che metric label". For path/function
+    #   level detail use `tetra getevents` against the Tetragon stdout/JSON
+    #   export pipeline (Filebeat → ES → Kibana).
     # ----------------------------------------------------------------------
     - name: zta-runtime
       interval: 30s
       rules:
+      # Group by exported_* (target workload), not pod/namespace which on
+      # tetragon_events_total refer to the tetragon AGENT pod (ephemeral, on
+      # kube-system) — useless for incident triage.
       - alert: ZTATetragonEventRateSpike
         expr: |
-          sum by (pod, namespace) (rate(tetragon_events_total[5m]))
+          sum by (exported_pod, exported_namespace, workload) (rate(tetragon_events_total[5m]))
             > 5 *
-          sum by (pod, namespace) (rate(tetragon_events_total[1h] offset 5m))
+          sum by (exported_pod, exported_namespace, workload) (rate(tetragon_events_total[1h] offset 5m))
           and on() (sum(rate(tetragon_events_total[5m])) > 0.5)
         for: 10m
         labels:
@@ -293,14 +306,14 @@ data:
           team: security
           mitre_tid: T1059
         annotations:
-          summary: "Tetragon event rate spike in {{ $labels.namespace }}/{{ $labels.pod }}"
-          description: "Per-pod kernel event rate is >5x the 1h baseline. Inspect with `kubectl exec -n kube-system <tetragon-pod> -- tetra getevents -o compact --namespace {{ $labels.namespace }} --pod {{ $labels.pod }}`."
+          summary: "Tetragon event rate spike in workload {{ $labels.exported_namespace }}/{{ $labels.workload }} (pod {{ $labels.exported_pod }})"
+          description: "Per-workload kernel event rate is >5x the 1h baseline. Inspect with `kubectl exec -n kube-system <tetragon-pod> -c tetragon -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`."
           runbook_url: "doc/14-tetragon-runtime.md"
 
       - alert: ZTATetragonShellExec
         expr: |
-          sum by (pod, namespace, binary) (
-            rate(tetragon_events_total{event_type="process_exec", binary=~"/bin/(ash|sh|bash|zsh|dash)"}[2m])
+          sum by (exported_pod, exported_namespace, workload, binary) (
+            rate(tetragon_events_total{type="PROCESS_EXEC", exported_namespace="job7189-apps", binary=~"/(usr/)?bin/(ash|sh|bash|zsh|dash|busybox)"}[2m])
           ) > 0
         for: 1m
         labels:
@@ -308,18 +321,26 @@ data:
           team: security
           mitre_tid: T1059
         annotations:
-          summary: "Shell exec inside workload {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.binary }})"
+          summary: "Shell exec inside workload {{ $labels.exported_namespace }}/{{ $labels.exported_pod }} ({{ $labels.binary }})"
           description: |
-            Tetragon TracingPolicy `shell-exec-watch` (PR-P prereq) saw
-            a shell binary spawn inside a workload that does not declare
-            `zta.job7189/allow-shell=true`. Common precursor to lateral
-            movement; freeze the pod and capture forensics.
+            Tetragon recorded a shell binary spawn inside a job7189-apps
+            workload (`{{ $labels.workload }}`). PROCESS_EXEC is a core event
+            — fires regardless of TracingPolicy. Common precursor to lateral
+            movement; freeze the pod and capture forensics with
+            `kubectl exec -n kube-system <tetragon-pod> -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`.
           runbook_url: "doc/14-tetragon-runtime.md"
 
+      # NOTE: chart 1.7.0 does not export `file` label on tetragon_events_total
+      # so we cannot alert on a specific path via metric. Instead, alert on any
+      # PROCESS_KPROBE event in job7189-apps — the only Namespaced TracingPolicy
+      # there with a kprobe hook is `monitor-sensitive-files`, so a non-zero rate
+      # implies a sensitive-path match. (`block-suspicious-exec` is also kprobe
+      # but its event_type emits as PROCESS_KPROBE only on a matched shell exec,
+      # which is *also* worth alerting on — either path is critical.)
       - alert: ZTATetragonSensitiveFileRead
         expr: |
-          sum by (pod, namespace, file) (
-            rate(tetragon_events_total{event_type="process_kprobe", file=~"/etc/shadow|/etc/kubernetes/admin\\.conf|/var/run/secrets/.*sa.*"}[2m])
+          sum by (exported_pod, exported_namespace, workload) (
+            rate(tetragon_events_total{type="PROCESS_KPROBE", exported_namespace="job7189-apps"}[2m])
           ) > 0
         for: 1m
         labels:
@@ -327,17 +348,38 @@ data:
           team: security
           mitre_tid: T1556
         annotations:
-          summary: "Sensitive file read by {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.file }})"
+          summary: "Tetragon kprobe match in {{ $labels.exported_namespace }}/{{ $labels.exported_pod }} (sensitive-file or suspicious-exec)"
           description: |
-            Tetragon TracingPolicy `sensitive-file-watch` (PR-P prereq)
-            recorded a read of a credential-bearing path. Quarantine
-            the pod and rotate the credential.
+            Tetragon TracingPolicy `monitor-sensitive-files` or
+            `block-suspicious-exec` matched in workload `{{ $labels.workload }}`.
+            Chart 1.7.0 metric does not expose path/function labels — use
+            `tetra getevents` to retrieve the exact file path and kprobe call:
+            `kubectl exec -n kube-system <tetragon-pod> -c tetragon -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`.
+            Quarantine the pod and rotate any credential it may have read.
           runbook_url: "doc/14-tetragon-runtime.md"
 
+      # NOTE: chart 1.7.0 does not export `function` label, so we cannot scope
+      # this to `security_kernel_module_request` via metric alone. The cluster-
+      # wide TracingPolicy `monitor-kernel-module-load` hooks ONLY that LSM
+      # function, but the metric series for ANY kprobe match looks identical.
+      #
+      # Filtering strategy:
+      #   - `exported_namespace=""` (host namespace) — module loads happen here
+      #     because no pod context is attached to the calling process.
+      #   - Exclude legitimate host binaries that match block-suspicious-exec
+      #     kprobe via container-launch path (runc/containerd-shim invoke
+      #     sys_execve with /bin/sh argv when starting any container) — these
+      #     are NOT module-load events. Whitelist tuned against the cluster's
+      #     observed binary set (kubelet, containerd, runc, crun, conmon).
+      #   - Confirm function name post-fire with `tetra getevents`.
       - alert: ZTATetragonKernelModuleLoad
         expr: |
-          sum by (pod, namespace) (
-            rate(tetragon_events_total{event_type="process_kprobe", function=~"init_module|finit_module"}[2m])
+          sum by (exported_pod, exported_namespace, workload, binary) (
+            rate(tetragon_events_total{
+              type="PROCESS_KPROBE",
+              exported_namespace="",
+              binary!~"/usr/s?bin/(runc|containerd|containerd-shim.*|crun|conmon|kubelet)|/opt/cni/.*"
+            }[2m])
           ) > 0
         for: 1m
         labels:
@@ -345,8 +387,13 @@ data:
           team: security
           mitre_tid: T1611
         annotations:
-          summary: "Kernel module load attempt from {{ $labels.namespace }}/{{ $labels.pod }}"
-          description: "Container tried to load a kernel module — strong signal of container-escape. Pod should not have CAP_SYS_MODULE and the runtime should block this; alert anyway for audit trail."
+          summary: "Tetragon kprobe match in host namespace (binary {{ $labels.binary }})"
+          description: |
+            Likely a kernel-module load (the only cluster-wide kprobe policy
+            installed is `monitor-kernel-module-load`). Container should not
+            have CAP_SYS_MODULE; this is a strong container-escape signal.
+            Confirm function name with
+            `kubectl exec -n kube-system <tetragon-pod> -c tetragon -- tetra getevents -o compact`.
           runbook_url: "doc/14-tetragon-runtime.md"
 
     # ----------------------------------------------------------------------

@@ -259,6 +259,28 @@ plugins:
       credentials: true
 
   # --------------------------------------------------------------------
+  # Prometheus exporter — PIP 7 (Observability) Phase 1.
+  # Exposes per-service / per-route / per-consumer metrics at
+  # GET <status_listen>/metrics (default :8100/metrics, see
+  # KONG_STATUS_LISTEN in 04-kong-dbless.yaml). Prometheus auto-discovers
+  # the kong-gateway pod via the `prometheus.io/scrape: "true"` annotation
+  # configured on the pod template, so no per-Service ServiceMonitor is
+  # required for this vanilla-Prometheus lab.
+  #
+  # status_code + latency + bandwidth are the metrics consumed by the
+  # PR-O alert rule group `zta-l7` (request-rate, 5xx-rate, p95 latency).
+  # per_consumer is enabled so we can attribute 401/403 spikes to the
+  # offending JWT consumer for the Adaptive Security Loop (PIP 6).
+  # --------------------------------------------------------------------
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+      per_consumer: true
+
+  # --------------------------------------------------------------------
   # Phase 5.B.2 — OPA user-authz gate (forwards role decisions to OPA).
   #
   # Kong runs the `jwt` plugin first (per-route) — it has already verified

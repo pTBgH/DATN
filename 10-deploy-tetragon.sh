@@ -247,6 +247,19 @@ HELM_SET_FLAGS=(
   --set "export.stdout.enabled=true"
   --set "export.stdout.resources.requests.memory=16Mi"
   --set "export.stdout.resources.limits.memory=32Mi"
+  # ----- PIP 7 (Observability) — expose Tetragon Prometheus metrics -----
+  # The Tetragon chart ships a built-in metrics endpoint on :2112 but it is
+  # gated behind `tetragon.prometheus.enabled`. Once enabled the agent
+  # exposes counters such as `tetragon_events_total`, `tetragon_ringbuf_*`
+  # and per-policy event counts. The DaemonSet runs with `hostNetwork: true`
+  # so the pod IP equals the node IP — annotation-based scrape via the
+  # `kubernetes-pods` job in 08-prometheus.yaml works without any extra
+  # scrape_config. ServiceMonitor is intentionally disabled (vanilla
+  # Prometheus, not Operator).
+  --set "tetragon.prometheus.enabled=true"
+  --set "tetragon.prometheus.serviceMonitor.enabled=false"
+  --set "tetragon.prometheus.address=:2112"
+  --set-json 'tetragon.podAnnotations={"prometheus.io/scrape":"true","prometheus.io/port":"2112","prometheus.io/path":"/metrics"}'
 )
 
 # By default keep Tetragon off the control-plane node — saves ~192Mi RAM

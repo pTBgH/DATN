@@ -1224,9 +1224,77 @@ if kubectl -n monitoring get cm prometheus-zta-rules >/dev/null 2>&1; then
   else
     result WARN "Prometheus ZTA rules ConfigMap exists but has no alerts"
   fi
+
+  # Active probe: confirm Prometheus actually parsed and loaded the rule
+  # groups (the historic B1 bug — `--rules.path=` non-existent CLI flag —
+  # left the ConfigMap mounted but un-parsed by Prometheus, so this
+  # ConfigMap-presence check above used to be a false-positive).
+  # Cilium `allow-prometheus-ingress` only permits grafana/oauth2-proxy/
+  # ingress-nginx → :9090, so we exec inside grafana (alpine, has wget).
+  PROM_POD=$(kubectl -n monitoring get pod -l app=prometheus \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  GRAFANA_POD=$(kubectl -n monitoring get pod -l app=grafana \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -n "$PROM_POD" ] && [ -n "$GRAFANA_POD" ]; then
+    LOADED_GROUPS=$(kubectl -n monitoring exec "$GRAFANA_POD" -- \
+      wget -qO- http://prometheus.monitoring.svc.cluster.local:9090/api/v1/rules \
+      2>/dev/null | grep -oE '"name":"zta-[a-z-]+"' | sort -u | wc -l)
+    if [ "${LOADED_GROUPS:-0}" -ge 1 ]; then
+      result PASS "Prometheus loaded ${LOADED_GROUPS} ZTA rule group(s) at runtime"
+    else
+      result FAIL "Prometheus pod is up but no ZTA rule groups loaded" \
+        "Check 08-prometheus.yaml mounts zta-rules ConfigMap; reapply + restart Prom"
+    fi
+  fi
 else
   result WARN "Prometheus ZTA rules not deployed" \
     "Run scripts/zta-deploy-observability-rules.sh"
+fi
+
+
+# ========================
+# Test 4q: Kong + Tetragon Prometheus scrape (PR-N — B2 fix)
+# ========================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📈 Test 4q: Kong + Tetragon Prometheus Scrape"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+PROM_POD=${PROM_POD:-$(kubectl -n monitoring get pod -l app=prometheus \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)}
+GRAFANA_POD=${GRAFANA_POD:-$(kubectl -n monitoring get pod -l app=grafana \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)}
+
+if [ -z "$PROM_POD" ]; then
+  result WARN "Prometheus pod not running — cannot verify scrape targets"
+elif [ -z "$GRAFANA_POD" ]; then
+  result WARN "Grafana pod not running — cannot probe Prometheus targets API" \
+    "Grafana is the only in-cluster client whitelisted to call prom :9090"
+else
+  # Exec inside grafana (allowed by Cilium CNP, has wget) to read targets.
+  TARGETS_JSON=$(kubectl -n monitoring exec "$GRAFANA_POD" -- \
+    wget -qO- 'http://prometheus.monitoring.svc.cluster.local:9090/api/v1/targets?state=active' \
+    2>/dev/null || true)
+
+  # Kong: pod IP scraped via annotation, namespace=gateway
+  KONG_TARGETS=$(echo "$TARGETS_JSON" \
+    | grep -oE '"pod":"kong-gateway[^"]*"' | sort -u | wc -l)
+  if [ "${KONG_TARGETS:-0}" -ge 1 ]; then
+    result PASS "Prometheus scraping Kong (${KONG_TARGETS} target(s) discovered)"
+  else
+    result WARN "Kong /metrics not yet scraped — annotation may be missing" \
+      "kubectl -n gateway get pod -l app=kong-gateway -o yaml | grep prometheus.io"
+  fi
+
+  # Tetragon: hostNetwork DaemonSet, pod label app.kubernetes.io/name=tetragon
+  TETRAGON_TARGETS=$(echo "$TARGETS_JSON" \
+    | grep -oE '"pod":"tetragon-[a-z0-9-]+"' | sort -u | wc -l)
+  if [ "${TETRAGON_TARGETS:-0}" -ge 1 ]; then
+    result PASS "Prometheus scraping Tetragon (${TETRAGON_TARGETS} target(s) discovered)"
+  else
+    result WARN "Tetragon /metrics not yet scraped" \
+      "Re-run 10-deploy-tetragon.sh after PR-N to apply podAnnotations + prometheus.enabled"
+  fi
 fi
 
 

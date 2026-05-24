@@ -31,6 +31,13 @@ spec:
         zta.job7189/data-classification: none
         zta.job7189/exposure: external
         zta.job7189/team: platform
+      # Prometheus annotation-based discovery (see kubernetes-pods job in
+      # 08-prometheus.yaml). The status listener exposes /metrics on :8100
+      # via the `prometheus` plugin enabled globally in infras/kong/kong.yml.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8100"
+        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: kong-gateway
       containers:
@@ -45,12 +52,21 @@ spec:
           value: "0.0.0.0:8000"
         - name: KONG_ADMIN_LISTEN
           value: "0.0.0.0:8001"
+        # Status / metrics endpoint — the `prometheus` plugin exposes
+        # GET :8100/metrics. Listener bound to all interfaces so the
+        # Prometheus pod (different node) can reach it; Cilium CNP
+        # `allow-prometheus-scrape-gateway` in 14-gateway.yaml restricts
+        # ingress on :8100 to the monitoring/prometheus ServiceAccount.
+        - name: KONG_STATUS_LISTEN
+          value: "0.0.0.0:8100"
         # Bật tính năng tự động reload khi file thay đổi
         - name: KONG_WATCH_CONFIG
           value: "on" 
         ports:
         - containerPort: 8000
         - containerPort: 8001
+        - containerPort: 8100
+          name: metrics
         volumeMounts:
         - name: kong-config-volume
           mountPath: /opt/kong

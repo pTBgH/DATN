@@ -5,12 +5,56 @@
 # rules are loaded via Prometheus recording/alerting rules ConfigMap. The
 # rules are formatted as standard Prometheus rule groups.
 #
-# Alerts:
-#   - ZTATrustScoreDropped: pod trust score < 60 for 2 minutes
-#   - ZTACVECriticalImage: namespace has critical CVEs detected by Trivy
-#   - ZTALabelDriftHigh: label drift rate > 5/min for 5 minutes
+# Loading: ConfigMap is mounted into the prometheus pod by 08-prometheus.yaml
+# (volume `zta-rules`, mount path `/etc/prometheus/zta-rules`) and picked
+# up by the `rule_files: /etc/prometheus/zta-rules/*.yml` glob in the
+# prometheus.yml config. Apply via `scripts/zta-deploy-observability-rules.sh`.
 #
-# Reference: doc/zta-gap-decision.md (Decision 2)
+# Layout (groups, all severity at `warning` unless noted, all `team:` label
+# routes the alert via Alertmanager to the right channel in PR-R):
+#
+#   zta-trust-score (PR-L)  — PDP-side risk signals
+#     ZTATrustScoreDropped         pdp_trust_score < 60               warning
+#     ZTACVECriticalImage          Trivy critical findings            critical
+#     ZTALabelDriftHigh            label drift > 5/min                warning
+#
+#   zta-network (PR-L + PR-O)  — Cilium / Hubble / DNS L4 signals
+#     ZTACiliumDropsHigh           per-reason drop rate > 10/s        warning
+#     ZTACiliumCrossTierDropSpike  cross-tier drops > 3× 1h baseline  warning   (PR-O)
+#     ZTAHubbleDNSExfilSuspect     long-subdomain DNS rate            warning   (PR-O)
+#     ZTAHubbleEgressToThreatCIDR  egress to FireHOL CIDR             critical  (PR-O)
+#
+#   zta-l7 (PR-O)  — Kong gateway L7 signals
+#     ZTAKongRequestRateSpike      per-service rate >3× 1h baseline   warning
+#     ZTAKong5xxRateHigh           5xx rate > 5% for 5m               critical
+#     ZTAKongLatencyP95High        p95 latency > 1s for 5m            warning
+#     ZTAKongJWTAuthFailureSpike   per-consumer 401 > 10/min          warning
+#
+#   zta-runtime (PR-O)  — Tetragon kernel-event signals
+#     ZTATetragonEventRateSpike    per-pod event rate >5× baseline    warning
+#     ZTATetragonShellExec         shell-binary exec inside workload  critical
+#     ZTATetragonSensitiveFileRead read of /etc/shadow / kube creds   critical
+#     ZTATetragonKernelModuleLoad  init_module / finit_module event   critical
+#
+#   zta-cdm-trust (PR-O)  — supply-chain + identity signals
+#     ZTACosignAdmissionDenied     policy-controller webhook deny     critical
+#     ZTASpireAttestFailureRate    SPIRE agent attestation failures   warning
+#     ZTACertExpirySoon            cert-manager cert expires < 7d     warning
+#
+# Total: 18 alerts (4 PR-L baseline + 14 PR-O Phase 2 Security Analytics).
+#
+# MITRE ATT&CK technique mapping is stored as the `mitre_tid` label on each
+# alert (T1059 = Command and Scripting Interpreter, T1190 = Exploit
+# Public-Facing App, T1611 = Escape to Host, T1078 = Valid Accounts,
+# T1041 = Exfiltration over C2, T1071 = Application Layer Protocol,
+# T1556 = Modify Auth Process, T1543 = Create or Modify System Process,
+# T1486 = Data Encrypted for Impact). See doc/39-zta-alert-catalog.md
+# for the full table.
+#
+# Alerts referencing metrics that need the matching collector to be deployed
+# (Kong /metrics, Tetragon /metrics, Hubble metrics, cert-manager metrics,
+# SPIRE metrics) will stay quiet — never fire — until those collectors are
+# scraped. The corresponding scrape config landed in PR-N (B2 fix).
 # =============================================================================
 apiVersion: v1
 kind: ConfigMap
@@ -23,6 +67,9 @@ metadata:
 data:
   zta-rules.yml: |
     groups:
+    # ----------------------------------------------------------------------
+    # PR-L baseline: PDP-side risk signals
+    # ----------------------------------------------------------------------
     - name: zta-trust-score
       interval: 30s
       rules:
@@ -32,6 +79,7 @@ data:
         labels:
           severity: warning
           team: security
+          mitre_tid: T1078
         annotations:
           summary: "Pod {{ $labels.pod }} in {{ $labels.namespace }} has low trust score ({{ $value }})"
           description: "Trust score dropped below 60 for 2+ minutes. Check label coverage and CVE posture."
@@ -43,6 +91,7 @@ data:
         labels:
           severity: critical
           team: security
+          mitre_tid: T1190
         annotations:
           summary: "Namespace {{ $labels.namespace }} has {{ $value }} critical CVE(s)"
           description: "Trivy Operator detected critical CVEs. Investigate and patch affected images."
@@ -59,6 +108,9 @@ data:
           description: "More than 5 label drift events per minute. Pods may be recreated without proper ZTA labels."
           runbook_url: "doc/19-label-schema.md"
 
+    # ----------------------------------------------------------------------
+    # PR-L baseline + PR-O Phase 2: Cilium / Hubble L4 signals
+    # ----------------------------------------------------------------------
     - name: zta-network
       interval: 30s
       rules:
@@ -71,3 +123,285 @@ data:
         annotations:
           summary: "Cilium drops elevated: {{ $labels.reason }} ({{ $value }}/s)"
           description: "High rate of Cilium packet drops. Check CNP rules and pod connectivity."
+          runbook_url: "doc/05-observability-stack.md"
+
+      # Cross-tier drop spike — compares the 5m rate against the 1h
+      # baseline of cross-namespace drops. A 3× spike usually means
+      # someone is probing the network from a new workload or a CNP
+      # was just tightened and is now blocking expected traffic.
+      - alert: ZTACiliumCrossTierDropSpike
+        expr: |
+          sum by (source_namespace, destination_namespace) (
+            rate(hubble_drop_total[5m])
+          )
+            > 3 *
+          sum by (source_namespace, destination_namespace) (
+            rate(hubble_drop_total[1h] offset 5m)
+          )
+          and on() (sum(rate(hubble_drop_total[5m])) > 0.5)
+        for: 10m
+        labels:
+          severity: warning
+          team: network
+          mitre_tid: T1071
+        annotations:
+          summary: "Cross-tier drop spike {{ $labels.source_namespace }} -> {{ $labels.destination_namespace }}"
+          description: |
+            5m drop rate is more than 3x the 1h baseline. Either a new
+            workload is probing the network or a recently-tightened CNP
+            is blocking expected traffic. Inspect with:
+            hubble observe --from-namespace {{ $labels.source_namespace }} --to-namespace {{ $labels.destination_namespace }} --verdict DROPPED --since 10m
+          runbook_url: "doc/34-microseg-phase2c-plan.md"
+
+      # DNS exfil — abnormally long subdomains are a known C2 channel
+      # (DNS-tunnel tooling encodes payloads into FQDNs). Hubble exposes
+      # query length via hubble_dns_queries_total when Hubble L7 visibility
+      # is on, otherwise this stays quiet.
+      - alert: ZTAHubbleDNSExfilSuspect
+        expr: |
+          sum by (source_pod, source_namespace) (
+            rate(hubble_dns_queries_total{query=~".{60,}"}[5m])
+          ) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          team: security
+          mitre_tid: T1071
+        annotations:
+          summary: "Suspicious long-subdomain DNS pattern from {{ $labels.source_namespace }}/{{ $labels.source_pod }}"
+          description: "Pod is issuing > 12/min DNS queries with subdomain length > 60. Possible DNS tunnelling."
+          runbook_url: "doc/30-hubble-flow-sink.md"
+
+      # Egress to a CIDR that the threat-intel CCNP labelled as known-bad.
+      # Cilium tags drops to those CIDRs with reason=ThreatIntel via the
+      # toEntities label, see PR-Q for the CCNP itself.
+      - alert: ZTAHubbleEgressToThreatCIDR
+        expr: |
+          sum by (source_namespace, source_pod, destination_ip) (
+            rate(hubble_drop_total{reason="ThreatIntel"}[2m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1041
+        annotations:
+          summary: "Pod {{ $labels.source_namespace }}/{{ $labels.source_pod }} tried to reach threat-intel CIDR {{ $labels.destination_ip }}"
+          description: "Egress to FireHOL / TI block list. Quarantine the pod and inspect the image / SBOM."
+          runbook_url: "doc/24-adaptive-security-loop.md"
+
+    # ----------------------------------------------------------------------
+    # PR-O Phase 2: Kong gateway L7 signals
+    #   Metric source: prometheus plugin (infras/kong/kong.yml) +
+    #   kong-gateway pod annotation (04-kong-dbless.yaml) scraped by the
+    #   default kubernetes-pods job in 08-prometheus.yaml.
+    # ----------------------------------------------------------------------
+    - name: zta-l7
+      interval: 30s
+      rules:
+      - alert: ZTAKongRequestRateSpike
+        expr: |
+          sum by (service) (
+            rate(kong_http_requests_total[5m])
+          ) > 3 *
+          sum by (service) (
+            rate(kong_http_requests_total[1h] offset 5m)
+          )
+          and on() (sum(rate(kong_http_requests_total[5m])) > 1)
+        for: 10m
+        labels:
+          severity: warning
+          team: gateway
+          mitre_tid: T1190
+        annotations:
+          summary: "Kong service {{ $labels.service }} request rate is >3x its 1h baseline"
+          description: |
+            Either a legitimate traffic surge (verify with the product
+            team) or an enumeration / scraping campaign. Cross-reference
+            with `kong_http_requests_total{code=~"4.."}` for the same
+            service to spot scanners.
+          runbook_url: "doc/05-observability-stack.md"
+
+      - alert: ZTAKong5xxRateHigh
+        expr: |
+          sum by (service) (rate(kong_http_requests_total{code=~"5.."}[5m]))
+          /
+          sum by (service) (rate(kong_http_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: gateway
+          mitre_tid: T1190
+        annotations:
+          summary: "Kong service {{ $labels.service }} 5xx rate {{ $value | humanizePercentage }}"
+          description: "More than 5% of requests are returning 5xx for 5 minutes. Backend pod may be unhealthy OR being actively exploited."
+          runbook_url: "doc/05-observability-stack.md"
+
+      - alert: ZTAKongLatencyP95High
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, le) (rate(kong_latency_bucket[5m]))
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: gateway
+        annotations:
+          summary: "Kong service {{ $labels.service }} p95 latency {{ $value }}ms"
+          description: "Upstream is slow (>1s p95). Saturation, GC pause, DB-creds wait, or DoS attempt."
+          runbook_url: "doc/05-observability-stack.md"
+
+      - alert: ZTAKongJWTAuthFailureSpike
+        expr: |
+          sum by (consumer) (
+            rate(kong_http_requests_total{code="401"}[5m])
+          ) > 10/60
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+          mitre_tid: T1078
+        annotations:
+          summary: "JWT auth failures spiking for consumer {{ $labels.consumer }}"
+          description: |
+            Consumer is seeing > 10 401-responses/min for 5 minutes.
+            Either a stale token in a service that needs rotating, or a
+            credential-stuffing attempt against a leaked token.
+          runbook_url: "doc/api-authentication-guide.md"
+
+    # ----------------------------------------------------------------------
+    # PR-O Phase 2: Tetragon kernel-event signals
+    #   Metric source: tetragon DaemonSet /metrics on :2112 (PR-N B2 fix).
+    #   The specific kprobe-driven alerts (shell exec, sensitive file,
+    #   kernel module) require the matching TracingPolicies to be
+    #   installed; those ship in PR-P. Until then those three alerts
+    #   stay quiet because their target metric series does not exist.
+    # ----------------------------------------------------------------------
+    - name: zta-runtime
+      interval: 30s
+      rules:
+      - alert: ZTATetragonEventRateSpike
+        expr: |
+          sum by (pod, namespace) (rate(tetragon_events_total[5m]))
+            > 5 *
+          sum by (pod, namespace) (rate(tetragon_events_total[1h] offset 5m))
+          and on() (sum(rate(tetragon_events_total[5m])) > 0.5)
+        for: 10m
+        labels:
+          severity: warning
+          team: security
+          mitre_tid: T1059
+        annotations:
+          summary: "Tetragon event rate spike in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Per-pod kernel event rate is >5x the 1h baseline. Inspect with `kubectl exec -n kube-system <tetragon-pod> -- tetra getevents -o compact --namespace {{ $labels.namespace }} --pod {{ $labels.pod }}`."
+          runbook_url: "doc/14-tetragon-runtime.md"
+
+      - alert: ZTATetragonShellExec
+        expr: |
+          sum by (pod, namespace, binary) (
+            rate(tetragon_events_total{event_type="process_exec", binary=~"/bin/(ash|sh|bash|zsh|dash)"}[2m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1059
+        annotations:
+          summary: "Shell exec inside workload {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.binary }})"
+          description: |
+            Tetragon TracingPolicy `shell-exec-watch` (PR-P prereq) saw
+            a shell binary spawn inside a workload that does not declare
+            `zta.job7189/allow-shell=true`. Common precursor to lateral
+            movement; freeze the pod and capture forensics.
+          runbook_url: "doc/14-tetragon-runtime.md"
+
+      - alert: ZTATetragonSensitiveFileRead
+        expr: |
+          sum by (pod, namespace, file) (
+            rate(tetragon_events_total{event_type="process_kprobe", file=~"/etc/shadow|/etc/kubernetes/admin\\.conf|/var/run/secrets/.*sa.*"}[2m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1556
+        annotations:
+          summary: "Sensitive file read by {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.file }})"
+          description: |
+            Tetragon TracingPolicy `sensitive-file-watch` (PR-P prereq)
+            recorded a read of a credential-bearing path. Quarantine
+            the pod and rotate the credential.
+          runbook_url: "doc/14-tetragon-runtime.md"
+
+      - alert: ZTATetragonKernelModuleLoad
+        expr: |
+          sum by (pod, namespace) (
+            rate(tetragon_events_total{event_type="process_kprobe", function=~"init_module|finit_module"}[2m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1611
+        annotations:
+          summary: "Kernel module load attempt from {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Container tried to load a kernel module — strong signal of container-escape. Pod should not have CAP_SYS_MODULE and the runtime should block this; alert anyway for audit trail."
+          runbook_url: "doc/14-tetragon-runtime.md"
+
+    # ----------------------------------------------------------------------
+    # PR-O Phase 2: supply-chain (CDM) + identity-trust signals
+    # ----------------------------------------------------------------------
+    - name: zta-cdm-trust
+      interval: 30s
+      rules:
+      - alert: ZTACosignAdmissionDenied
+        expr: |
+          sum by (namespace) (
+            rate(policy_controller_admission_decisions_total{decision="deny"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1543
+        annotations:
+          summary: "Cosign policy-controller denied admission in {{ $labels.namespace }}"
+          description: |
+            An unsigned image (or image whose signature failed Cosign
+            verification) was attempted in {{ $labels.namespace }}.
+            Inspect with `kubectl get events -n {{ $labels.namespace }} | grep policy-controller` and verify the image is built+signed by the
+            project's release pipeline.
+          runbook_url: "doc/28-sigstore-policy-controller.md"
+
+      - alert: ZTASpireAttestFailureRate
+        expr: |
+          sum by (instance) (
+            rate(spire_server_node_attestor_failure_total[5m])
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+          mitre_tid: T1078
+        annotations:
+          summary: "SPIRE attestation failures on {{ $labels.instance }} ({{ $value }}/s)"
+          description: |
+            Node-attestation is failing > 12/min sustained. Possible
+            causes: agent-server clock skew, trust bundle mismatch
+            (re-bootstrap), or an attacker workload presenting an
+            invalid selector.
+          runbook_url: "doc/27-spire-workload-attestation.md"
+
+      - alert: ZTACertExpirySoon
+        expr: |
+          certmanager_certificate_expiration_timestamp_seconds
+            - time() < 7 * 24 * 60 * 60
+        for: 1h
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Cert {{ $labels.name }} ({{ $labels.namespace }}) expires in < 7 days"
+          description: "cert-manager will rotate automatically, but if the cert is older than the issuer config something is wrong. Check `kubectl describe certificate -n {{ $labels.namespace }} {{ $labels.name }}`."
+          runbook_url: "doc/15-encryption-mtls-spiffe.md"

@@ -34,8 +34,10 @@ P05,security,,kube-dns.kube-system.svc.cluster.local,53,TCP,ALLOW,23-kube-system
 
 # Kafka ingress from any pod in job7189-apps ns (selector by NS only — safe to test
 # with a vanilla busybox pod, no app-label spoofing required).
-P06,job7189-apps,,kafka.data.svc.cluster.local,9092,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9092
-P07,job7189-apps,,kafka.data.svc.cluster.local,9093,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9093
+# Service name is `kafka-svc` (headless, ClusterIP=None) — the in-cluster
+# DNS name `kafka.data.svc.cluster.local` does NOT resolve.
+P06,job7189-apps,,kafka-svc.data.svc.cluster.local,9092,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9092
+P07,job7189-apps,,kafka-svc.data.svc.cluster.local,9093,TCP,ALLOW,10-data.yaml/allow-kafka-from-apps,Apps -> Kafka 9093
 
 # ----------------------------------------------------------------------------
 # Negative — flows that should be DENIED by default-deny + no matching allow
@@ -49,7 +51,7 @@ N01,job7189-apps,,mysql.data.svc.cluster.local,3306,TCP,DROP,10-data.yaml/defaul
 N02,job7189-apps,,kong-gateway.gateway.svc.cluster.local,8001,TCP,DROP,14-gateway.yaml/allow-kong-proxy-ingress,Apps pod -> Kong admin :8001
 
 # Random pod in management can't talk to Kafka — only apps tier.
-N03,management,,kafka.data.svc.cluster.local,9092,TCP,DROP,10-data.yaml/default-deny-data,Management pod -> Kafka (cross-tier)
+N03,management,,kafka-svc.data.svc.cluster.local,9092,TCP,DROP,10-data.yaml/default-deny-data,Management pod -> Kafka (cross-tier)
 
 # Random pod in monitoring (NOT prometheus SA) can't scrape Kong status.
 N04,monitoring,,kong-gateway.gateway.svc.cluster.local,8100,TCP,DROP,14-gateway.yaml/allow-prometheus-scrape-gateway,Random monitoring pod -> Kong :8100 (no prometheus SA)
@@ -58,8 +60,14 @@ N04,monitoring,,kong-gateway.gateway.svc.cluster.local,8100,TCP,DROP,14-gateway.
 N05,job7189-apps,,vault.vault.svc.cluster.local,8200,TCP,DROP,11-vault.yaml/default-deny-vault,Apps pod -> Vault API (cross-tier)
 N06,management,,vault.vault.svc.cluster.local,8200,TCP,DROP,11-vault.yaml/default-deny-vault,Management pod -> Vault API (cross-tier)
 
-# Random pod can't bypass Kong to reach Keycloak admin.
-N07,job7189-apps,,keycloak.security.svc.cluster.local,8080,TCP,DROP,12-security.yaml/default-deny-security,Apps pod -> Keycloak (must go via Kong)
+# Apps -> Keycloak :8080 is INTENTIONALLY allowed by `allow-keycloak-ingress`
+# (12-security.yaml) so workloads in `job7189-apps` can fetch the OIDC
+# discovery document (`/realms/<r>/.well-known/openid-configuration`) and
+# JWKS (`/protocol/openid-connect/certs`) directly — Kong does not proxy
+# these public-key endpoints. This is documented as an explicit
+# microsegmentation deviation in chap-4. Tightening this to a per-app
+# allow list is tracked for Phase 2D (L7 policy: restrict by URL path).
+N07,job7189-apps,,keycloak.security.svc.cluster.local,8080,TCP,ALLOW,12-security.yaml/allow-keycloak-ingress,Apps -> Keycloak (direct OIDC/JWKS — intentional)
 
 # Random pod can't reach OPA decision endpoint (only Kong is whitelisted).
 N08,job7189-apps,,opa.security.svc.cluster.local,8181,TCP,DROP,12-security.yaml/default-deny-security,Apps pod -> OPA (only Kong allowed)

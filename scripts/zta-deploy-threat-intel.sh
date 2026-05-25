@@ -171,14 +171,15 @@ kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh \
 # ---------------------------------------------------------------------------
 # Health check — wait for init job to complete (configurable timeout)
 # ---------------------------------------------------------------------------
-# Default 300s budget breakdown (worst-case on a busy Kind lab):
-#   - init container sleep + retries on DNS race  : up to ~120s
-#   - bitnami/kubectl:1.29 image pull (first time) : up to ~60s
-#   - apply container kubectl apply round-trip     :     ~5s
-#   - safety margin                                 : ~115s
-# 120s (the previous default) was too tight: the polling timed out before
-# the apply container even got a chance to log "Building ConfigMap".
-HEALTH_TIMEOUT="${THREAT_INTEL_HEALTH_TIMEOUT:-300}"
+# Default 600s budget breakdown (worst-case on the 3-node Cilium 1.19 lab):
+#   - init container sleep + retries on DNS race    : up to ~120s
+#   - alpine/k8s:1.29.10 image pull (first time)    : up to ~120s (~850MB)
+#   - curl fetches (FireHOL + URLhaus) with retries : up to ~200s
+#   - apply container kubectl apply round-trip       :       ~5s
+#   - safety margin                                   :     ~155s
+# 300s was too tight once bitnami/kubectl was replaced with the larger
+# alpine/k8s image; 600s matches the CronJob's activeDeadlineSeconds.
+HEALTH_TIMEOUT="${THREAT_INTEL_HEALTH_TIMEOUT:-600}"
 blue "Waiting for initial fetch job to complete (timeout ${HEALTH_TIMEOUT}s)..."
 
 job_ok=0

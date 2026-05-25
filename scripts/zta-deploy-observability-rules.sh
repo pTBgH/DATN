@@ -132,8 +132,14 @@ kubectl get deployment grafana -n monitoring -o yaml > "$GRAFANA_SPEC_BACKUP" 2>
 # Deploy ConfigMaps
 # ---------------------------------------------------------------------------
 blue "[1/4] Grafana ZTA dashboard ConfigMap..."
+# Phase 3: ship 2 dashboards in one ConfigMap.
+#   - zta-overview.json:       PR-L trust-score + label compliance (kept)
+#   - zta-runtime-network.json: Phase 3 runtime/network/L7/CDM-trust panels (new)
+# Grafana auto-discovers any *.json in /var/lib/grafana/dashboards/zta/ via
+# the provider config in 09-grafana.yaml.
 if kubectl create configmap grafana-zta-dashboard \
   --from-file=zta-overview.json="$SCRIPT_DIR/infras/k8s-yaml/grafana-dashboards/zta-overview.json" \
+  --from-file=zta-runtime-network.json="$SCRIPT_DIR/infras/k8s-yaml/grafana-dashboards/zta-runtime-network.json" \
   -n monitoring \
   --dry-run=client -o yaml | kubectl apply -f -; then
   GRAFANA_CM_APPLIED=1

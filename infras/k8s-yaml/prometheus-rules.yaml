@@ -18,30 +18,37 @@
 #     ZTACVECriticalImage          Trivy critical findings            critical
 #     ZTALabelDriftHigh            label drift > 5/min                warning
 #
-#   zta-network (PR-L + PR-O)  — Cilium / Hubble / DNS L4 signals
-#     ZTACiliumDropsHigh           per-reason drop rate > 10/s        warning
-#     ZTACiliumCrossTierDropSpike  cross-tier drops > 3× 1h baseline  warning   (PR-O)
-#     ZTAHubbleDNSExfilSuspect     long-subdomain DNS rate            warning   (PR-O)
-#     ZTAHubbleEgressToThreatCIDR  egress to FireHOL CIDR             critical  (PR-O)
+#   zta-network (PR-L + PR-O + Phase 3)  — Cilium / Hubble / DNS L4 signals
+#     ZTACiliumDropsHigh             per-reason drop rate > 10/s              warning
+#     ZTACiliumCrossTierDropZScore   cross-tier drop z-score > 3 sigma        warning   (Phase 3 — replaces > 3x baseline)
+#     ZTAHubbleDNSExfilSuspect       long-subdomain DNS rate                  warning   (PR-O — needs Hubble metrics, enabled in Phase 3)
+#     ZTAHubbleEgressToThreatCIDR    pod egress to external reserved:world    critical  (Phase 3 — rewritten: Policy denied + destination=reserved:world)
 #
-#   zta-l7 (PR-O)  — Kong gateway L7 signals
-#     ZTAKongRequestRateSpike      per-service rate >3× 1h baseline   warning
-#     ZTAKong5xxRateHigh           5xx rate > 5% for 5m               critical
-#     ZTAKongLatencyP95High        p95 latency > 1s for 5m            warning
-#     ZTAKongJWTAuthFailureSpike   per-consumer 401 > 10/min          warning
+#   zta-l7 (PR-O + Phase 3)  — Kong gateway L7 signals
+#     ZTAKongRequestRateZScore     per-service request z-score > 3 sigma    warning   (Phase 3 — replaces > 3x baseline)
+#     ZTAKong5xxRateHigh           5xx rate > 5% for 5m                     critical
+#     ZTAKongLatencyP95High        p95 latency > 1s for 5m                  warning
+#     ZTAKongJWTAuthFailureSpike   per-consumer 401 > 10/min                warning
 #
-#   zta-runtime (PR-O)  — Tetragon kernel-event signals
-#     ZTATetragonEventRateSpike    per-pod event rate >5× baseline    warning
-#     ZTATetragonShellExec         shell-binary exec inside workload  critical
-#     ZTATetragonSensitiveFileRead read of /etc/shadow / kube creds   critical
-#     ZTATetragonKernelModuleLoad  init_module / finit_module event   critical
+#   zta-runtime (PR-O + Phase 3)  — Tetragon kernel-event signals
+#     ZTATetragonEventRateZScore   per-workload event z-score > 3 sigma      warning   (Phase 3 — replaces > 5x baseline)
+#     ZTATetragonShellExec         shell exec > 0.1/s sustained              critical  (Phase 3 — tuned: filter healthcheck baseline)
+#     ZTATetragonShellExecBurst    shell exec > 1/s burst                    critical  (Phase 3 — new)
+#     ZTATetragonSensitiveFileRead read of /etc/shadow / kube creds         critical
+#     ZTATetragonKernelModuleLoad  init_module / finit_module event         critical
 #
 #   zta-cdm-trust (PR-O)  — supply-chain + identity signals
-#     ZTACosignAdmissionDenied     policy-controller webhook deny     critical
-#     ZTASpireAttestFailureRate    SPIRE agent attestation failures   warning
-#     ZTACertExpirySoon            cert-manager cert expires < 7d     warning
+#     ZTACosignAdmissionDenied     policy-controller webhook deny           critical
+#     ZTASpireAttestFailureRate    SPIRE agent attestation failures         warning
+#     ZTACertExpirySoon            cert-manager cert expires < 7d           warning
 #
-# Total: 18 alerts (4 PR-L baseline + 14 PR-O Phase 2 Security Analytics).
+#   zta-baselines (Phase 3)  — recording rules backing z-score alerts above
+#     zta:hubble_drop:cross_tier:rate_5m         + :avg1h + :stddev1h
+#     zta:kong_http_requests:service:rate_5m     + :avg1h + :stddev1h
+#     zta:tetragon_events:workload:rate_5m       + :avg1h + :stddev1h
+#
+# Total: 19 alerts (4 PR-L baseline + 13 PR-O Phase 2 + 2 Phase 3 new) +
+# 9 recording rules in `zta-baselines`.
 #
 # MITRE ATT&CK technique mapping is stored as the `mitre_tid` label on each
 # alert (T1059 = Command and Scripting Interpreter, T1190 = Exploit
@@ -125,31 +132,47 @@ data:
           description: "High rate of Cilium packet drops. Check CNP rules and pod connectivity."
           runbook_url: "doc/05-observability-stack.md"
 
-      # Cross-tier drop spike — compares the 5m rate against the 1h
-      # baseline of cross-namespace drops. A 3× spike usually means
-      # someone is probing the network from a new workload or a CNP
-      # was just tightened and is now blocking expected traffic.
-      - alert: ZTACiliumCrossTierDropSpike
+      # Cross-tier drop z-score (Tier-2 statistical detection, Phase 3).
+      #
+      # Replaces the previous `> 3x baseline` rule. Z-score = (current -
+      # avg1h) / stddev1h. Alert when current value is 3 sigma above its
+      # 1h baseline mean. This handles low-variance pairs (where "3x" is
+      # noisy due to single drops) and high-variance ones (where 3x is
+      # too lenient) symmetrically.
+      #
+      # Baselines come from `zta-baselines` recording rules below so the
+      # subquery + stddev_over_time only runs once per evaluation period,
+      # not once per alert.
+      #
+      # clamp_min(stddev, 0.001) avoids divide-by-zero for namespace pairs
+      # that have been completely flat for the last hour (a fresh deploy
+      # window — the alert correctly does not fire in that case).
+      #
+      # Pre-req: Hubble metrics MUST be enabled in cilium-values.yaml
+      # with labelsContext exposing `source_namespace` and
+      # `destination_namespace`. See `k8s-management/cilium/cilium-values.yaml`
+      # — without it `hubble_drop_total` has no namespace labels and this
+      # alert silently never fires.
+      - alert: ZTACiliumCrossTierDropZScore
         expr: |
-          sum by (source_namespace, destination_namespace) (
-            rate(hubble_drop_total[5m])
+          (
+            zta:hubble_drop:cross_tier:rate_5m
+            - zta:hubble_drop:cross_tier:rate_5m:avg1h
           )
-            > 3 *
-          sum by (source_namespace, destination_namespace) (
-            rate(hubble_drop_total[1h] offset 5m)
-          )
-          and on() (sum(rate(hubble_drop_total[5m])) > 0.5)
+          / clamp_min(zta:hubble_drop:cross_tier:rate_5m:stddev1h, 0.001)
+          > 3
+          and on() (sum(zta:hubble_drop:cross_tier:rate_5m) > 0.5)
         for: 10m
         labels:
           severity: warning
           team: network
           mitre_tid: T1071
         annotations:
-          summary: "Cross-tier drop spike {{ $labels.source_namespace }} -> {{ $labels.destination_namespace }}"
+          summary: "Cross-tier drop z-score {{ $labels.source_namespace }} -> {{ $labels.destination_namespace }} ({{ $value | printf \"%.1f\" }} sigma)"
           description: |
-            5m drop rate is more than 3x the 1h baseline. Either a new
-            workload is probing the network or a recently-tightened CNP
-            is blocking expected traffic. Inspect with:
+            5m drop rate is more than 3 sigma above its 1h baseline.
+            Either a new workload is probing the network or a CNP was
+            just tightened and is blocking expected traffic. Inspect with:
             hubble observe --from-namespace {{ $labels.source_namespace }} --to-namespace {{ $labels.destination_namespace }} --verdict DROPPED --since 10m
           runbook_url: "doc/34-microseg-phase2c-plan.md"
 
@@ -172,22 +195,46 @@ data:
           description: "Pod is issuing > 12/min DNS queries with subdomain length > 60. Possible DNS tunnelling."
           runbook_url: "doc/30-hubble-flow-sink.md"
 
-      # Egress to a CIDR that the threat-intel CCNP labelled as known-bad.
-      # Cilium tags drops to those CIDRs with reason=ThreatIntel via the
-      # toEntities label, see PR-Q for the CCNP itself.
+      # Egress to an external destination (reserved:world) that the
+      # threat-intel CCNP drops. Cilium does NOT emit a custom
+      # reason=ThreatIntel label — it tags every CCNP-denied flow with
+      # reason="Policy denied". To distinguish threat-intel hits from
+      # generic in-cluster CNP denies we filter by:
+      #   - traffic_direction="EGRESS" (drop on the way out)
+      #   - destination=~".*reserved:(world|unknown).*" (no in-cluster
+      #     workload, i.e. an external IP)
+      # The only CCNP that egress-denies the entire cluster to the world
+      # is `cnp-threat-intel-egress-deny` (PR-Q), so any sustained match
+      # here is effectively a threat-intel hit.
+      #
+      # Pre-req: Hubble metrics enabled with destinationContext including
+      # `reserved-identity`. See `k8s-management/cilium/cilium-values.yaml`.
+      # The chart default does NOT include `reason="Policy denied"` drops
+      # in `hubble_drop_total`; you must set `hubble.metrics.enabled:
+      # [drop:sourceContext=...;destinationContext=workload-name|reserved-identity;...]`.
       - alert: ZTAHubbleEgressToThreatCIDR
         expr: |
-          sum by (source_namespace, source_pod, destination_ip) (
-            rate(hubble_drop_total{reason="ThreatIntel"}[2m])
+          sum by (source_namespace, source_pod, destination) (
+            rate(hubble_drop_total{
+              reason="Policy denied",
+              traffic_direction="EGRESS",
+              destination=~".*reserved:(world|unknown).*"
+            }[2m])
           ) > 0
-        for: 1m
+        for: 2m
         labels:
           severity: critical
           team: security
           mitre_tid: T1041
         annotations:
-          summary: "Pod {{ $labels.source_namespace }}/{{ $labels.source_pod }} tried to reach threat-intel CIDR {{ $labels.destination_ip }}"
-          description: "Egress to FireHOL / TI block list. Quarantine the pod and inspect the image / SBOM."
+          summary: "Pod {{ $labels.source_namespace }}/{{ $labels.source_pod }} tried to reach external destination {{ $labels.destination }} (blocked by threat-intel CCNP)"
+          description: |
+            Sustained egress-deny from a workload pod to an external IP /
+            unresolved-identity for 2+ minutes. Likely a hit on the
+            FireHOL / URLhaus threat-intel block list — quarantine the
+            pod and inspect its image + SBOM. Confirm the specific
+            destination IP / FQDN with:
+            hubble observe --from-namespace {{ $labels.source_namespace }} --from-pod {{ $labels.source_pod }} --verdict DROPPED --since 5m
           runbook_url: "doc/24-adaptive-security-loop.md"
 
     # ----------------------------------------------------------------------
@@ -199,27 +246,30 @@ data:
     - name: zta-l7
       interval: 30s
       rules:
-      - alert: ZTAKongRequestRateSpike
+      # Phase 3: replaces ZTAKongRequestRateSpike (>3x baseline) with
+      # a z-score alert backed by the recording rules in `zta-baselines`.
+      - alert: ZTAKongRequestRateZScore
         expr: |
-          sum by (service) (
-            rate(kong_http_requests_total[5m])
-          ) > 3 *
-          sum by (service) (
-            rate(kong_http_requests_total[1h] offset 5m)
+          (
+            zta:kong_http_requests:service:rate_5m
+            - zta:kong_http_requests:service:rate_5m:avg1h
           )
-          and on() (sum(rate(kong_http_requests_total[5m])) > 1)
+          / clamp_min(zta:kong_http_requests:service:rate_5m:stddev1h, 0.001)
+          > 3
+          and on() (sum(zta:kong_http_requests:service:rate_5m) > 1)
         for: 10m
         labels:
           severity: warning
           team: gateway
           mitre_tid: T1190
         annotations:
-          summary: "Kong service {{ $labels.service }} request rate is >3x its 1h baseline"
+          summary: "Kong service {{ $labels.service }} request z-score {{ $value | printf \"%.1f\" }} sigma"
           description: |
-            Either a legitimate traffic surge (verify with the product
-            team) or an enumeration / scraping campaign. Cross-reference
-            with `kong_http_requests_total{code=~"4.."}` for the same
-            service to spot scanners.
+            Per-service request rate is more than 3 sigma above its 1h
+            baseline. Either a legitimate traffic surge (verify with the
+            product team) or an enumeration / scraping campaign.
+            Cross-reference with `kong_http_requests_total{code=~\"4..\"}`
+            for the same service to spot scanners.
           runbook_url: "doc/05-observability-stack.md"
 
       - alert: ZTAKong5xxRateHigh
@@ -291,43 +341,87 @@ data:
     - name: zta-runtime
       interval: 30s
       rules:
-      # Group by exported_* (target workload), not pod/namespace which on
-      # tetragon_events_total refer to the tetragon AGENT pod (ephemeral, on
-      # kube-system) — useless for incident triage.
-      - alert: ZTATetragonEventRateSpike
+      # Phase 3: replaces ZTATetragonEventRateSpike (>5x baseline) with
+      # a z-score alert. Per-workload kernel-event rate compared against
+      # its own 1h baseline (mean + stddev). Group by exported_*
+      # (target workload), not pod/namespace which on tetragon_events_total
+      # refer to the tetragon AGENT pod (ephemeral, on kube-system) —
+      # useless for incident triage.
+      - alert: ZTATetragonEventRateZScore
         expr: |
-          sum by (exported_pod, exported_namespace, workload) (rate(tetragon_events_total[5m]))
-            > 5 *
-          sum by (exported_pod, exported_namespace, workload) (rate(tetragon_events_total[1h] offset 5m))
-          and on() (sum(rate(tetragon_events_total[5m])) > 0.5)
+          (
+            zta:tetragon_events:workload:rate_5m
+            - zta:tetragon_events:workload:rate_5m:avg1h
+          )
+          / clamp_min(zta:tetragon_events:workload:rate_5m:stddev1h, 0.001)
+          > 3
+          and on() (sum(zta:tetragon_events:workload:rate_5m) > 0.5)
         for: 10m
         labels:
           severity: warning
           team: security
           mitre_tid: T1059
         annotations:
-          summary: "Tetragon event rate spike in workload {{ $labels.exported_namespace }}/{{ $labels.workload }} (pod {{ $labels.exported_pod }})"
-          description: "Per-workload kernel event rate is >5x the 1h baseline. Inspect with `kubectl exec -n kube-system <tetragon-pod> -c tetragon -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`."
+          summary: "Tetragon event z-score in {{ $labels.exported_namespace }}/{{ $labels.workload }}, pod {{ $labels.exported_pod }} ({{ $value | printf \"%.1f\" }} sigma)"
+          description: |
+            Per-workload kernel event rate is >3 sigma above its 1h
+            baseline. Inspect with `kubectl exec -n kube-system
+            <tetragon-pod> -c tetragon -- tetra getevents -o compact
+            --namespace {{ $labels.exported_namespace }} --pod
+            {{ $labels.exported_pod }}`.
           runbook_url: "doc/14-tetragon-runtime.md"
 
+      # Phase 3 tuning: previous rule fired on EVERY shell exec (> 0),
+      # which generated 5-7 false positives per minute (one per healthchecked
+      # workload — k8s livenessProbe / readinessProbe routinely invokes
+      # `/bin/sh -c ...`). Threshold raised to > 0.1/s sustained over 2m
+      # = >12 exec/min, well above any reasonable healthcheck baseline
+      # (most healthcheck cadences are 10-30s = 0.03-0.1/s).
+      #
+      # If a real attacker enters a workload via exec, they spawn shells
+      # back-to-back (loops, tab-completion, history navigation) and
+      # easily exceed 0.1/s.
       - alert: ZTATetragonShellExec
         expr: |
           sum by (exported_pod, exported_namespace, workload, binary) (
             rate(tetragon_events_total{type="PROCESS_EXEC", exported_namespace="job7189-apps", binary=~"/(usr/)?bin/(ash|sh|bash|zsh|dash|busybox)"}[2m])
-          ) > 0
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+          mitre_tid: T1059
+        annotations:
+          summary: "Shell exec spike inside workload {{ $labels.exported_namespace }}/{{ $labels.exported_pod }} ({{ $labels.binary }} at {{ $value | printf \"%.2f\" }}/s)"
+          description: |
+            Tetragon recorded sustained shell-binary spawns (>0.1/s for 2m)
+            inside a job7189-apps workload (`{{ $labels.workload }}`).
+            Above the healthcheck baseline — likely interactive session or
+            scripted attack loop. PROCESS_EXEC fires regardless of
+            TracingPolicy. Freeze the pod and capture forensics with
+            `kubectl exec -n kube-system <tetragon-pod> -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`.
+          runbook_url: "doc/14-tetragon-runtime.md"
+
+      # Phase 3: catch sudden burst of shell execs (>1/s, ~60+ exec/min)
+      # within 1 minute window. Distinct from the sustained alert above —
+      # this fires on the FIRST minute of a scripted attack loop, before
+      # 2m duration accrues.
+      - alert: ZTATetragonShellExecBurst
+        expr: |
+          sum by (exported_pod, exported_namespace, workload, binary) (
+            rate(tetragon_events_total{type="PROCESS_EXEC", exported_namespace="job7189-apps", binary=~"/(usr/)?bin/(ash|sh|bash|zsh|dash|busybox)"}[1m])
+          ) > 1
         for: 1m
         labels:
           severity: critical
           team: security
           mitre_tid: T1059
         annotations:
-          summary: "Shell exec inside workload {{ $labels.exported_namespace }}/{{ $labels.exported_pod }} ({{ $labels.binary }})"
+          summary: "Shell exec BURST in {{ $labels.exported_namespace }}/{{ $labels.exported_pod }} ({{ $value | printf \"%.1f\" }}/s)"
           description: |
-            Tetragon recorded a shell binary spawn inside a job7189-apps
-            workload (`{{ $labels.workload }}`). PROCESS_EXEC is a core event
-            — fires regardless of TracingPolicy. Common precursor to lateral
-            movement; freeze the pod and capture forensics with
-            `kubectl exec -n kube-system <tetragon-pod> -- tetra getevents -o compact --namespace {{ $labels.exported_namespace }} --pod {{ $labels.exported_pod }}`.
+            >1 shell exec per second sustained for 1m — almost certainly
+            an attacker loop (init scripts use slower cadences and stop
+            after first failure). Quarantine the pod immediately.
           runbook_url: "doc/14-tetragon-runtime.md"
 
       # NOTE: chart 1.7.0 does not export `file` label on tetragon_events_total
@@ -452,3 +546,59 @@ data:
           summary: "Cert {{ $labels.name }} ({{ $labels.namespace }}) expires in < 7 days"
           description: "cert-manager will rotate automatically, but if the cert is older than the issuer config something is wrong. Check `kubectl describe certificate -n {{ $labels.namespace }} {{ $labels.name }}`."
           runbook_url: "doc/15-encryption-mtls-spiffe.md"
+
+    # ----------------------------------------------------------------------
+    # Phase 3: recording rules backing Tier-2 z-score alerts.
+    #
+    # Why recording rules: the z-score alerts above reference an
+    # `avg_over_time` + `stddev_over_time` subquery over a 1h window. If
+    # we put those inline in each alert expr, Prometheus would re-compute
+    # them every evaluation tick (30s) per series. Recording rules pre-
+    # compute the rolling baseline ONCE per evaluation, so each alert
+    # only does a single divide + comparison.
+    #
+    # Naming convention: `zta:<source_metric>:<grouping>:<window>` per
+    # Prometheus best practice. `:avg1h` and `:stddev1h` suffixes are
+    # the 1h rolling baselines for z-score computation.
+    #
+    # Cold-start behaviour: during the first 1h after deploy the
+    # `*:avg1h` and `*:stddev1h` series ramp up from empty. The alert
+    # expressions are gated by `clamp_min(stddev1h, 0.001)` so a zero
+    # stddev never explodes the z-score, and by an absolute lower bound
+    # (e.g. `> 0.5`) so trivially-low traffic doesn't trigger.
+    # ----------------------------------------------------------------------
+    - name: zta-baselines
+      interval: 30s
+      rules:
+      # Hubble cross-tier drops (per source_namespace → destination_namespace)
+      - record: zta:hubble_drop:cross_tier:rate_5m
+        expr: |
+          sum by (source_namespace, destination_namespace) (
+            rate(hubble_drop_total[5m])
+          )
+      - record: zta:hubble_drop:cross_tier:rate_5m:avg1h
+        expr: avg_over_time(zta:hubble_drop:cross_tier:rate_5m[1h])
+      - record: zta:hubble_drop:cross_tier:rate_5m:stddev1h
+        expr: stddev_over_time(zta:hubble_drop:cross_tier:rate_5m[1h])
+
+      # Kong per-service request rate baseline
+      - record: zta:kong_http_requests:service:rate_5m
+        expr: |
+          sum by (service) (
+            rate(kong_http_requests_total[5m])
+          )
+      - record: zta:kong_http_requests:service:rate_5m:avg1h
+        expr: avg_over_time(zta:kong_http_requests:service:rate_5m[1h])
+      - record: zta:kong_http_requests:service:rate_5m:stddev1h
+        expr: stddev_over_time(zta:kong_http_requests:service:rate_5m[1h])
+
+      # Tetragon per-workload kernel event rate baseline
+      - record: zta:tetragon_events:workload:rate_5m
+        expr: |
+          sum by (exported_pod, exported_namespace, workload) (
+            rate(tetragon_events_total[5m])
+          )
+      - record: zta:tetragon_events:workload:rate_5m:avg1h
+        expr: avg_over_time(zta:tetragon_events:workload:rate_5m[1h])
+      - record: zta:tetragon_events:workload:rate_5m:stddev1h
+        expr: stddev_over_time(zta:tetragon_events:workload:rate_5m[1h])

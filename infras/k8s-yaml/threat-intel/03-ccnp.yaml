@@ -18,6 +18,32 @@ metadata:
 spec:
   description: "Deny egress to known-bad IPs (FireHOL Level1) — updated hourly by CronJob"
   endpointSelector: {}
+  # CRITICAL: enableDefaultDeny.egress=false is required here.
+  #
+  # Cilium default behaviour: any policy whose endpointSelector matches an
+  # endpoint and which contains egress rules (allow OR deny) flips that
+  # endpoint into "policy-enforced for egress" mode. In that mode, only
+  # explicitly-allowed egress is permitted; everything else is dropped.
+  #
+  # With endpointSelector: {} (= every endpoint cluster-wide) and only
+  # egressDeny rules, every pod in the cluster gets flipped to
+  # policy-enforced egress with no allow rule from this policy. Pods that
+  # do not have their own allow-egress CNP (most notably coredns in
+  # kube-system) lose ALL upstream egress, including DNS to 8.8.8.8 /
+  # Tailscale MagicDNS — which silently breaks DNS resolution for the
+  # entire cluster.
+  #
+  # Setting enableDefaultDeny.egress=false makes this policy purely
+  # additive: it only contributes explicit deny rules for the listed CIDRs
+  # without altering each endpoint's default-allow / default-deny posture
+  # (that posture continues to be governed by per-namespace CNPs, e.g.
+  # default-deny-<ns> + allow-*). Microsegmentation is preserved, and the
+  # deny rules still apply because deny takes precedence over allow.
+  #
+  # Ref: https://docs.cilium.io/en/stable/security/policy/intro/#default-deny
+  enableDefaultDeny:
+    egress: false
+    ingress: false
   egressDeny:
   - toCIDR:
     # Placeholder — replaced by CronJob with actual FireHOL CIDRs.

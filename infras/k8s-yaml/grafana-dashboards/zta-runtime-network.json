@@ -1,0 +1,355 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Active ZTA Alerts (firing now)",
+      "description": "Live view of all firing ZTA alerts. Source: Prometheus ALERTS pseudo-metric.",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "ALERTS{alertname=~\"ZTA.*\", alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left", "displayMode": "auto" },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "severity" }, "properties": [{ "id": "custom.displayMode", "value": "color-background" }] }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": { "show": false }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "__name__": true, "Time": true, "Value": true, "team": false },
+            "indexByName": { "alertname": 0, "severity": 1, "exported_namespace": 2, "exported_pod": 3, "workload": 4, "binary": 5, "source_namespace": 6, "destination": 7 }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Tetragon event rate per workload (rate 5m)",
+      "description": "Per-workload kernel event rate. Backs ZTATetragonEventRateZScore alert.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "expr": "zta:tetragon_events:workload:rate_5m",
+          "legendFormat": "{{ exported_namespace }}/{{ workload }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10 },
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Tetragon shell exec rate (per workload)",
+      "description": "PROCESS_EXEC for shell binaries (sh/bash/ash/dash/busybox) inside job7189-apps. Backs ZTATetragonShellExec / Burst alerts.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum by (exported_namespace, workload, binary) (rate(tetragon_events_total{type=\"PROCESS_EXEC\", exported_namespace=\"job7189-apps\", binary=~\"/(usr/)?bin/(ash|sh|bash|zsh|dash|busybox)\"}[2m]))",
+          "legendFormat": "{{ workload }} ({{ binary }})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "stepBefore", "fillOpacity": 10 },
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "title": "Tetragon kprobe match rate (sensitive-file / suspicious-exec)",
+      "description": "PROCESS_KPROBE events in job7189-apps. Source: monitor-sensitive-files + block-suspicious-exec policies.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        {
+          "expr": "sum by (exported_namespace, workload) (rate(tetragon_events_total{type=\"PROCESS_KPROBE\", exported_namespace=\"job7189-apps\"}[2m]))",
+          "legendFormat": "{{ workload }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 20 },
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Hubble drops by reason",
+      "description": "Per-reason packet drops observed by Hubble. reason=\"Policy denied\" = CNP/CCNP enforcement (incl. threat-intel CCNP).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        {
+          "expr": "sum by (reason, traffic_direction) (rate(hubble_drop_total[5m]))",
+          "legendFormat": "{{ reason }} [{{ traffic_direction }}]",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 20, "stacking": { "mode": "normal" } },
+          "unit": "pps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Hubble cross-tier drop rate (per ns→ns)",
+      "description": "Cross-namespace drop rate. Spike vs 1h baseline drives ZTACiliumCrossTierDropZScore alert.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "targets": [
+        {
+          "expr": "zta:hubble_drop:cross_tier:rate_5m",
+          "legendFormat": "{{ source_namespace }} -> {{ destination_namespace }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10 },
+          "unit": "pps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Kong request rate per service",
+      "description": "Per-service request rate (5m). Backs ZTAKongRequestRateZScore alert.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [
+        {
+          "expr": "zta:kong_http_requests:service:rate_5m",
+          "legendFormat": "{{ service }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10 },
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Kong 5xx ratio per service",
+      "description": "5xx / all-codes ratio per Kong service. Backs ZTAKong5xxRateHigh alert (threshold 5%).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(kong_http_requests_total{code=~\"5..\"}[5m])) / clamp_min(sum by (service) (rate(kong_http_requests_total[5m])), 1e-9)",
+          "legendFormat": "{{ service }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 20 },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Kong p95 latency per service",
+      "description": "p95 upstream latency. Backs ZTAKongLatencyP95High alert (threshold 1s).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(kong_latency_bucket[5m])))",
+          "legendFormat": "{{ service }} p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10 },
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Cosign admission decisions (deny rate)",
+      "description": "Rate of admission denials by Sigstore policy-controller. Non-zero = unsigned/invalid image attempted. Backs ZTACosignAdmissionDenied alert.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 41 },
+      "targets": [
+        {
+          "expr": "sum by (namespace) (rate(policy_controller_admission_decisions_total{decision=\"deny\"}[5m]))",
+          "legendFormat": "{{ namespace }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.001 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Tetragon BPF sensor health (per node)",
+      "description": "Tetragon agent BPF map memory + events scraped. Drops > 0 = events lost (kernel ring buffer overflow).",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 41 },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(tetragon_events_total[5m]))",
+          "legendFormat": "{{ instance }} events/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Threat-intel blocklist (CIDR + FQDN count)",
+      "description": "Hourly CronJob threat-intel-refresh updates this. Zero = CronJob has not run successfully yet.",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 41 },
+      "targets": [
+        {
+          "expr": "kube_configmap_annotations{namespace=\"security-cdm\", configmap=\"threat-intel-blocklist\"}",
+          "legendFormat": "CM exists ({{ annotation_threat_intel_last_updated }})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["zta", "phase3", "runtime", "network", "l7", "tetragon", "hubble"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "ZTA Phase 3 — Runtime / Network / L7 / CDM-Trust",
+  "uid": "zta-phase3-runtime",
+  "version": 1
+}

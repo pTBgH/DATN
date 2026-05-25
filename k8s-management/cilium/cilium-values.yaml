@@ -27,6 +27,36 @@ hubble:
     enabled: true
   ui:
     enabled: true
+  # PR-Q (Phase 3): Bật Hubble Prometheus metrics + context labels.
+  #
+  # `enabled` lay tu Cilium docs (https://docs.cilium.io/en/stable/observability/metrics/).
+  # `contextOptions` (sourceContext, destinationContext, labelsContext) la BAT BUOC
+  # cho alerts trong `infras/k8s-yaml/prometheus-rules.yaml`:
+  #   - ZTACiliumCrossTierDropSpike (source_namespace, destination_namespace)
+  #   - ZTAHubbleDNSExfilSuspect    (source_namespace, source workload + query length)
+  #   - ZTAHubbleEgressToThreatCIDR (source_namespace + destination = reserved:world)
+  #
+  # Mac dinh chart KHONG export `source_namespace` etc — chi co `protocol` + `reason`.
+  # labelsContext promote chung len metric label de Prometheus group/filter duoc.
+  #
+  # Port mac dinh: 9965 (cilium-agent). Annotation `prometheus.io/port: 9965` duoc
+  # them o `prometheus.io/scrape: true` cua DS cilium-agent — Prom scrape qua
+  # job `kubernetes-pods` (xem `infras/k8s-yaml/08-prometheus.yaml`).
+  metrics:
+    enableOpenMetrics: false
+    port: 9965
+    enabled:
+    - "dns:query;ignoreAAAA;labelsContext=source_namespace,source_pod,source_workload,destination_namespace,traffic_direction"
+    - "drop:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity;labelsContext=source_namespace,source_pod,source_workload,destination_namespace,destination_pod,destination_workload,traffic_direction"
+    - "tcp:labelsContext=source_namespace,destination_namespace,traffic_direction"
+    - "flow:labelsContext=source_namespace,destination_namespace,traffic_direction"
+    - "icmp:labelsContext=source_namespace,destination_namespace,traffic_direction"
+    - "http:labelsContext=source_namespace,destination_namespace,traffic_direction"
+    # serviceMonitor disabled - ta scrape qua Prom kubernetes_sd_configs:role=pod
+    # voi annotation `prometheus.io/scrape: true` + `prometheus.io/port: 9965` —
+    # khong can ServiceMonitor CRD (Prom Operator).
+    serviceMonitor:
+      enabled: false
 
 # 6. Tắt IPv6 để hệ thống gọn nhẹ, tránh xung đột
 ipv6:

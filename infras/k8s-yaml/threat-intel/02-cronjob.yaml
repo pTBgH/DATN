@@ -89,16 +89,32 @@ spec:
               echo "[threat-intel] Waiting ${SETTLE_S}s for Cilium L7 DNS proxy to settle..."
               sleep "$SETTLE_S"
 
+              # Helper: download URL with retries, --compressed (so the CDN
+              # cannot ship a gzip-encoded body that curl forwards verbatim
+              # to disk — observed empirically on raw.githubusercontent.com),
+              # and report curl exit code + downloaded byte count.
+              fetch() {
+                local url="$1" out="$2"
+                curl -sSL --compressed \
+                  --max-time 90 --retry 5 --retry-delay 10 \
+                  --retry-all-errors --connect-timeout 15 \
+                  -o "$out" "$url"
+              }
+
               echo "[threat-intel] Fetching FireHOL Level1..."
               firehol_ok=0
-              if curl -sSL --max-time 90 --retry 5 --retry-delay 10 \
-                   --retry-all-errors --connect-timeout 15 \
-                   -o /feeds/firehol.raw \
-                   "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"; then
+              if fetch \
+                   "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" \
+                   /feeds/firehol.raw; then
                 firehol_ok=1
               else
                 echo "[threat-intel] FireHOL fetch failed after retries (curl exit $?)"
                 : > /feeds/firehol.raw
+              fi
+              firehol_bytes=$(wc -c < /feeds/firehol.raw | tr -d ' ')
+              echo "[threat-intel] FireHOL raw: ${firehol_bytes} bytes"
+              if [ "$firehol_bytes" -lt 100 ]; then
+                echo "[threat-intel] FireHOL raw head(200B): $(head -c 200 /feeds/firehol.raw | od -An -c | tr -s ' ' | head -3)"
               fi
               grep -E '^[0-9]+\.' /feeds/firehol.raw 2>/dev/null \
                 | sort -u | head -2000 > /feeds/firehol.txt || : > /feeds/firehol.txt
@@ -107,15 +123,16 @@ spec:
 
               echo "[threat-intel] Fetching URLhaus blocklist..."
               urlhaus_ok=0
-              if curl -sSL --max-time 90 --retry 5 --retry-delay 10 \
-                   --retry-all-errors --connect-timeout 15 \
-                   -o /feeds/urlhaus.raw \
-                   "https://urlhaus.abuse.ch/downloads/hostfile/"; then
+              if fetch \
+                   "https://urlhaus.abuse.ch/downloads/hostfile/" \
+                   /feeds/urlhaus.raw; then
                 urlhaus_ok=1
               else
                 echo "[threat-intel] URLhaus fetch failed after retries (curl exit $?)"
                 : > /feeds/urlhaus.raw
               fi
+              urlhaus_bytes=$(wc -c < /feeds/urlhaus.raw | tr -d ' ')
+              echo "[threat-intel] URLhaus raw: ${urlhaus_bytes} bytes"
               grep -E '^127\.0\.0\.1' /feeds/urlhaus.raw 2>/dev/null \
                 | awk '{print $2}' | grep -v '^#' | sort -u | head -1000 \
                 > /feeds/urlhaus.txt || : > /feeds/urlhaus.txt

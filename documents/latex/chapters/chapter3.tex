@@ -14,7 +14,7 @@ Khi hệ thống chuyển sang vận hành theo mô hình phân tán trên nền
 Từ bối cảnh đó, bài toán của chương này là \textbf{thiết kế và kiểm chứng lộ trình tăng cường bảo mật Zero Trust cho hệ thống job7189 hiện hữu}, thay vì xây dựng mới chức năng nghiệp vụ. Việc triển khai cần chứng minh được bốn năng lực kỹ thuật sau:
 \begin{itemize}
   \item Kiểm soát truy cập biên bắt buộc theo định danh cho các API quan trọng.
-  \item Cô lập và phân đoạn vi mô (microsegmentation) lưu lượng nội bộ theo nguyên tắc \textit{Default-Deny, Allow-Explicit}.
+  \item Cô lập và phân đoạn vi mô (microsegmentation) lưu lượng nội bộ theo nguyên tắc từ chối mặc định (Default Deny), cho phép tường minh (Allow-Explicit).
   \item Quản trị bí mật theo cơ chế động (JIT, TTL ngắn, Auto-rotation), giảm phụ thuộc vào secret tĩnh.
   \item Thiết lập khả năng quan sát tập trung để phát hiện, truy vết và tinh chỉnh chính sách liên tục.
 \end{itemize}
@@ -72,7 +72,7 @@ Yêu cầu thiết kế bắt nguồn từ nguyên lý NIST SP 800-207 \parencit
 
 \paragraph{Yêu cầu phi chức năng (Non-functional):}
 \begin{enumerate}[label=R-N\arabic*., leftmargin=1.6cm]
-    \item \textbf{Độ trễ thấp:} Latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở tầng L4 và $\leq 30\,\text{ms}$ ở tầng L7.
+    \item \textbf{Độ trễ thấp:} Latency tăng thêm do PEP $\leq 5\,\text{ms}$ ở L4 và $\leq 30\,\text{ms}$ ở L7.
     \item \textbf{Tài nguyên có giới hạn:} Toàn bộ hạ tầng ZTA + ứng dụng chạy được trong ngân sách RAM $\sim$15.5\,GiB.
     \item \textbf{Tự phục hồi:} Pipeline triển khai tự động (Infrastructure as Code) có khả năng bỏ qua lỗi và tự khôi phục các control loop.
 \end{enumerate}
@@ -109,7 +109,7 @@ Hệ thống tuân thủ kiến trúc logic của NIST SP 800-207 và SP 1800-35
 \label{fig:logic_design_model}
 \end{figure}
 
-Dựa trên mô hình logic này, thiết kế vật lý được cụ thể hóa thành \textbf{Khung kiến trúc ZTA 5 lớp}. Mỗi lớp đảm nhận một chức năng độc lập, tích hợp công nghệ theo phương pháp \textit{Best-of-Breed} thuộc hệ sinh thái Cloud Native Computing Foundation (CNCF) \parencite{kubernetes_docs}:
+Dựa trên mô hình logic này, thiết kế vật lý được cụ thể hóa thành \textbf{Khung kiến trúc ZTA 5 lớp}. Mỗi lớp đảm nhận một chức năng độc lập, tích hợp công nghệ theo phương pháp lựa chọn tốt nhất theo từng loại (Best-of-Breed) thuộc hệ sinh thái Cloud Native Computing Foundation (CNCF) \parencite{kubernetes_docs}:
 
 \begin{figure}[H]
 \centering

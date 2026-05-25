@@ -73,8 +73,18 @@ spec:
               set -euo pipefail
               # Give Cilium agent time to program the freshly-applied CNP /
               # CCNP before issuing DNS queries through the L7 proxy.
-              echo "[threat-intel] Waiting 15s for Cilium L7 DNS proxy to settle..."
-              sleep 15
+              #
+              # Empirically 15s was not enough on this cluster: the very first
+              # init run after `zta-deploy-threat-intel.sh` (which freshly
+              # applies the threat-intel CNP/CCNP) consistently failed with
+              # `curl: (6) Could not resolve host` because the L7 DNS proxy
+              # redirect for the threat-intel pod's identity had not been
+              # programmed by the cilium-agent yet. 60s is safely above the
+              # observed convergence window on a 3-node 1.19.4 cluster and
+              # still well inside the Job activeDeadlineSeconds (300s).
+              SETTLE_S="${POLICY_SETTLE_S:-60}"
+              echo "[threat-intel] Waiting ${SETTLE_S}s for Cilium L7 DNS proxy to settle..."
+              sleep "$SETTLE_S"
 
               echo "[threat-intel] Fetching FireHOL Level1..."
               firehol_ok=0

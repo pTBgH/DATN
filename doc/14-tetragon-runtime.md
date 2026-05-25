@@ -111,11 +111,13 @@ Chart hard-code `metrics-label-filter: "namespace,workload,pod,binary"` (xem
 label: `namespace, workload, pod, binary, type` (type = PROCESS_EXEC, PROCESS_EXIT,
 PROCESS_KPROBE, ...). KHONG co `function`, `file`, `policy`, `arg0`.
 
-He qua cho Prometheus alert rule (PR-O):
+He qua cho Prometheus alert rule (PR-O + Phase 3):
 
 | Alert | Phu hop voi label set? | Cach work-around |
 |-------|------------------------|------------------|
-| `ZTATetragonShellExec` | ✅ (dung `type="PROCESS_EXEC"` + `binary=~".../sh"`) | Fire ngay khi user exec shell trong workload |
+| `ZTATetragonShellExec` | ✅ (dung `type="PROCESS_EXEC"` + `binary=~".../sh"`) | Phase 3 tune: threshold `> 0.1/s` for 2m de filter healthcheck baseline (~10-30s cadence). Tham khao zta-alert-catalog §7 |
+| `ZTATetragonShellExecBurst` (Phase 3) | ✅ | Bao loop attack: `> 1/s` for 1m. Phat hien scripted exec loop ngay tu 1 phut dau |
+| `ZTATetragonEventRateZScore` (Phase 3 Tier-2) | ✅ | Thay `> 5x baseline` cu bang z-score (current vs 1h mean + stddev). Backed by recording rule `zta:tetragon_events:workload:rate_5m`. Bao thoi ky cold-start dau (~1h) trong khi baseline build len |
 | `ZTATetragonSensitiveFileRead` | ⚠ (khong co `file` label) | Match `type="PROCESS_KPROBE"` + `namespace="job7189-apps"` — alert proxy, can `tetra getevents` de xem path cu the |
 | `ZTATetragonKernelModuleLoad` | ⚠ (khong co `function` label) | Match `type="PROCESS_KPROBE"` voi `namespace` ngoai cac NS dang co policy nguon-mo |
 

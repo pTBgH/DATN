@@ -231,6 +231,12 @@ else
   apply_manifest "$MANIFEST_DIR/06-coredns-sinkhole.yaml" "  creating empty skeleton (CronJob will populate)"
 fi
 
+# Track whether we caused a CoreDNS rolling restart — if yes, the Cilium
+# L7 DNS proxy needs extra time to reconverge against the new CoreDNS pod
+# identities before the threat-intel init Job (which runs under L7 DNS
+# policy) starts issuing DNS queries.
+COREDNS_RESTARTED=0
+
 blue "[8/9] CoreDNS Deployment — mount coredns-sinkhole at /etc/coredns/sinkhole/..."
 if kubectl -n kube-system get deploy coredns -o jsonpath='{.spec.template.spec.volumes[*].name}' 2>/dev/null \
      | tr ' ' '\n' | grep -qx 'sinkhole-volume'; then
@@ -272,9 +278,10 @@ else
   }'
   blue "  waiting for CoreDNS rollout (sigstore skips kube-system; restart is safe)..."
   kubectl -n kube-system rollout status deploy/coredns --timeout=180s
+  COREDNS_RESTARTED=1
 fi
 
-blue "[9/9] CoreDNS Corefile — splice `hosts` plugin block..."
+blue "[9/9] CoreDNS Corefile — splice hosts plugin block..."
 CURRENT_COREFILE=$(kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}')
 if printf '%s' "$CURRENT_COREFILE" | grep -q 'hosts /etc/coredns/sinkhole/hosts.txt'; then
   yellow "  hosts plugin already present in Corefile — skipping patch"
@@ -300,7 +307,26 @@ else
   ')
   jq -n --arg c "$NEW_COREFILE" '{data:{Corefile:$c}}' \
     | kubectl -n kube-system patch cm coredns --type=merge --patch-file=/dev/stdin
-  blue "  Corefile updated; CoreDNS `reload` plugin will pick it up within ~30s"
+  blue "  Corefile updated; CoreDNS reload plugin will pick it up within ~30s"
+fi
+
+# ---------------------------------------------------------------------------
+# Post-CoreDNS-restart reconvergence wait
+# ---------------------------------------------------------------------------
+# When [8/9] rolled CoreDNS, the new CoreDNS pods come up with fresh
+# Cilium endpoint IDs. Other pods that use Cilium's L7 DNS proxy (e.g.
+# the threat-intel CronJob with its allow-threat-intel-egress CNP) need
+# the agent to re-program the DNS proxy redirect against those new IDs.
+# Skipping this wait can manifest as the init container's curl getting
+# stuck for hundreds of seconds on DNS resolution, eventually tripping
+# the deploy script's HEALTH_TIMEOUT and triggering a full rollback.
+#
+# Empirically, 60s is enough on the 3-node lab; override with
+# THREAT_INTEL_COREDNS_SETTLE_S for slower hosts.
+if [ "$COREDNS_RESTARTED" -eq 1 ]; then
+  COREDNS_SETTLE="${THREAT_INTEL_COREDNS_SETTLE_S:-60}"
+  blue "Waiting ${COREDNS_SETTLE}s for Cilium L7 DNS proxy to reconverge against the new CoreDNS pods..."
+  sleep "$COREDNS_SETTLE"
 fi
 
 # ---------------------------------------------------------------------------

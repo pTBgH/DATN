@@ -16,62 +16,69 @@ export function TopNav() {
   };
 
   return (
-    <header className="border-b bg-white">
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-        <Link href="/" className="text-lg font-semibold text-brand">
-          Job7189 <span className="text-slate-400">/ ATD</span>
+    <header className="border-b border-slate-200 bg-white sticky top-0 z-40">
+      <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 py-4">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold">
+          <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center text-white text-sm font-bold">
+            J
+          </div>
+          <span className="text-brand">Job7189</span>
+          <span className="text-slate-400 text-sm ml-1">/ ATD</span>
         </Link>
 
-        <nav className="flex items-center gap-4 text-sm text-slate-600">
+        <nav className="flex items-center gap-6 text-sm text-slate-600 font-medium">
           <NavLink href="/jobs" active={path === "/" || path?.startsWith("/jobs")}>
-            Việc làm
+            🔍 Việc làm
           </NavLink>
           {email ? (
             <>
               <NavLink href="/applications" active={path?.startsWith("/applications")}>
-                Đã ứng tuyển
+                📋 Đã ứng tuyển
               </NavLink>
               <NavLink href="/saved" active={path?.startsWith("/saved")}>
-                Đã lưu
+                ❤️ Đã lưu
               </NavLink>
               <NavLink href="/cvs" active={path?.startsWith("/cvs")}>
-                CV
+                📄 CV
               </NavLink>
               <NavLink href="/messages" active={path?.startsWith("/messages")}>
-                Tin nhắn
-              </NavLink>
-              <NavLink href="/profile" active={path?.startsWith("/profile")}>
-                Hồ sơ
+                💬 Tin nhắn
               </NavLink>
             </>
           ) : null}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3 text-sm">
+        <div className="ml-auto flex items-center gap-4 text-sm">
           {config.useMock ? (
-            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-              MOCK MODE
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+              MOCK
             </span>
           ) : null}
           {email ? (
             <>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                <div className="w-6 h-6 rounded-full bg-brand/20 flex items-center justify-center text-xs font-bold text-brand">
+                  {name?.charAt(0).toUpperCase() ?? email?.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-slate-700 font-medium">{name ?? email}</span>
+              </div>
               <Link
                 href="/profile"
-                className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
+                className="text-slate-600 hover:text-brand hover:bg-slate-50 px-3 py-2 rounded-lg transition"
               >
-                {name ?? email}
+                ⚙️ Hồ sơ
               </Link>
               <button
                 onClick={handleSignOut}
-                className="rounded border px-3 py-1.5 text-sm hover:bg-slate-50"
+                className="text-slate-600 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition border border-transparent hover:border-red-200"
               >
-                Đăng xuất
+                🚪 Đăng xuất
               </button>
             </>
           ) : (
             <Link
               href="/login"
-              className="rounded bg-brand px-3 py-1.5 text-white hover:bg-brand-dark"
+              className="rounded-lg bg-brand px-4 py-2 text-white font-semibold hover:bg-brand-dark transition shadow-sm"
             >
               Đăng nhập
             </Link>

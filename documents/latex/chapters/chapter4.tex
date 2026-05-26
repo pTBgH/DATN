@@ -54,7 +54,7 @@ mTLS nội bộ & Plaintext & SPIRE SVID + \texttt{mesh-auth-enabled=true} \\
 
 Các kịch bản dưới đây bám sát mô hình đe dọa đã xây dựng ở Chương 1. Để đảm bảo tính khách quan, mỗi kịch bản được thực thi và trích xuất bằng chứng (log hệ thống) nhằm chứng minh tính hiệu quả của các rào cản Zero Trust.
 
-\subsection{Kịch bản 1: Lateral Movement (Di chuyển ngang)}
+\subsection{Kịch bản 1: Di chuyển ngang}
 \textbf{Mục tiêu:} Mô phỏng việc tin tặc chiếm quyền một Pod thuộc \texttt{job7189-apps} và cố gắng truy cập trực tiếp vào cơ sở dữ liệu MySQL, bỏ qua Vault Agent.
 
 \textbf{Kết quả Baseline (Không ZTA):} Từ Pod bị chiếm quyền, lệnh \texttt{nmap} phát hiện toàn bộ các dịch vụ nội bộ (MySQL, Redis, Elasticsearch...) và cho phép truy vấn dữ liệu tự do.
@@ -195,7 +195,7 @@ Tổng overhead ZTA lớp Gateway: \textbf{~10x so với OPA logic thuần} (1.3
 
 Kiến trúc 5 lớp đã chứng minh được khả năng chặn đúng các vector tấn công thiết kế:
 \begin{itemize}
-    \item \textbf{Layer 1 (Edge/Network):} Cilium eBPF chặn 98\% lateral movement, ngăn chặn toàn bộ port không được phép.
+    \item \textbf{Layer 1 (Edge/Network):} Cilium eBPF chặn 98\% di chuyển ngang, ngăn chặn toàn bộ port không được phép.
     \item \textbf{Layer 2 (API Gateway):} Kong + OPA ngăn chặn 100\% unauthorized requests, enforce per-request authorization.
     \item \textbf{Layer 3 (Secrets/Vault):} Dynamic credentials tự động revoke, credential reuse 100\% không khả thi.
     \item \textbf{Layer 4 (Identity/mTLS):} SPIRE SVID binding enforcement; unauthenticated HTTPS connections bị reject.
@@ -206,7 +206,7 @@ Kiến trúc 5 lớp đã chứng minh được khả năng chặn đúng các v
 
 Overhead của ZTA lớp Gateway (Kong+OPA) đạt ~180-220ms P50, tương đương ~10x OPA logic. Tuy nhiên:
 \begin{itemize}
-    \item \textbf{Chấp nhận được cho service-to-service:} Microservices thường có SLA ~500-1000ms; overhead 180ms nằm trong ngưỡng.
+    \item \textbf{Chấp nhận được cho service-to-service:} Vi dịch vụ thường có SLA ~500-1000ms; overhead 180ms nằm trong ngưỡng.
     \item \textbf{Không phải bottleneck:} Throughput đạt ~97-103 req/s, đủ cho enterprise workload.
     \item \textbf{Tối ưu khả thi:} Connection pooling, disable buffering có thể giảm overhead xuống 50-100ms.
 \end{itemize}
@@ -254,4 +254,4 @@ Tuy nhiên, với tính chất là một mô hình thử nghiệm (PoC), hệ th
 \end{tabularx}
 \end{table}
 
-\textbf{Tổng kết:} Đồ án đã chứng minh được tính khả thi và hiệu quả của việc ứng dụng Zero Trust vào Microservices. Các giới hạn công nghệ hiện tại đều có lộ trình khắc phục rõ ràng, không làm ảnh hưởng đến tính đúng đắn của khung kiến trúc đề xuất.
+\textbf{Tổng kết:} Đồ án đã chứng minh được tính khả thi và hiệu quả của việc ứng dụng Zero Trust bảo mật Microservices. Các giới hạn công nghệ hiện tại đều có lộ trình khắc phục rõ ràng, không làm ảnh hưởng đến tính đúng đắn của khung kiến trúc đề xuất.

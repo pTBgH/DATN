@@ -7,7 +7,7 @@ Sau thời gian nghiên cứu và triển khai thực nghiệm đề tài \textb
 
 \paragraph{Về mặt lý thuyết:}
 \begin{itemize}
-    \item Hệ thống hóa triết lý bảo mật Zero Trust và kiến trúc tham chiếu ZTA theo tiêu chuẩn \textbf{NIST SP 800-207}~\parencite{nist800207,kindervag2010build,gilman2017zero}, bao gồm 7 nguyên lý, mô hình logic (PE, PA, PEP và các Data Sources), và 3 hướng tiếp cận triển khai (Enhanced Identity Governance, Micro-segmentation, SDP).
+    \item Hệ thống hóa triết lý bảo mật Zero Trust và kiến trúc tham chiếu ZTA theo tiêu chuẩn \textbf{NIST SP 800-207}~\parencite{nist800207,kindervag2010build,gilman2017zero}, bao gồm 7 nguyên lý, mô hình logic (PE, PA, PEP và các Data Sources), và 3 hướng tiếp cận triển khai (Enhanced Identity Governance, Phân đoạn Vi mô, SDP).
     \item Phân tích chuyên sâu các đặc điểm bảo mật đặc thù của kiến trúc Microservices trên Kubernetes: sự bùng nổ lưu lượng East-West, tính tạm thời của workload (ephemeral), thách thức quản lý bí mật (Secrets Sprawl), và rủi ro hạ tầng dùng chung~\parencite{nist800204_microservices,rice2019kubernetes,machine_identity_report}.
     \item Đề xuất \textbf{khung kiến trúc ZTA 5 lớp tích hợp} ánh xạ trực tiếp từ các thành phần logic NIST sang công cụ mã nguồn mở CNCF~\parencite{nist800207,kubernetes_docs}, theo phương pháp \textit{Best-of-Breed} — giải quyết bài toán Vendor Lock-in thường gặp khi áp dụng Zero Trust~\parencite{cisa_ztmm2023}.
     \item Xây dựng mô hình đe dọa chi tiết với ánh xạ MITRE ATT\&CK cho Kubernetes~\parencite{mitre_containers,owasp_api2023}, chỉ rõ các kỹ thuật tấn công và lớp ZTA phòng thủ tương ứng.

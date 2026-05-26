@@ -18,7 +18,7 @@
 #
 # Reference: doc/zta-gap-decision.md (Decision 3, updated)
 # =============================================================================
-apiVersion: cilium.io/v2alpha1
+apiVersion: cilium.io/v2
 kind: CiliumCIDRGroup
 metadata:
   name: threat-intel-firehol

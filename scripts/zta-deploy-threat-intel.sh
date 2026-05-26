@@ -152,7 +152,18 @@ apply_manifest "$MANIFEST_DIR/02-cronjob.yaml"      "[3/6] CronJob threat-intel-
 # Cilium tolerates a dangling cidrGroupRef (treats the group as empty),
 # but applying in this order keeps the policy effective from the moment
 # it is admitted to the cluster.
-apply_manifest "$MANIFEST_DIR/05-cidrgroup.yaml"    "[4/6] CiliumCIDRGroup threat-intel-firehol (seed)..."
+# CiliumCIDRGroup: apply ONLY if it does not exist yet. Re-applying
+# would wipe the live externalCIDRs list (the CronJob is the sole
+# writer of that field; kubectl apply uses replace-semantics for
+# unkeyed string lists). Existence check is a deliberate, idempotent
+# guard — do not remove without rethinking the data ownership model.
+blue "[4/6] CiliumCIDRGroup threat-intel-firehol (skeleton)..."
+if kubectl get ciliumcidrgroup threat-intel-firehol >/dev/null 2>&1; then
+  yellow "  already exists — skipping apply to preserve live CIDR list"
+  APPLIED_MANIFESTS+=("$MANIFEST_DIR/05-cidrgroup.yaml")
+else
+  apply_manifest "$MANIFEST_DIR/05-cidrgroup.yaml" "  creating empty skeleton (CronJob will populate)"
+fi
 apply_manifest "$MANIFEST_DIR/03-ccnp.yaml"         "[5/6] CCNP cnp-threat-intel-egress-deny..."
 apply_manifest "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" "[6/6] CNP allow-threat-intel-egress..."
 

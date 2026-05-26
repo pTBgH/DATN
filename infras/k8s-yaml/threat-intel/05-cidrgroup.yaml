@@ -31,10 +31,16 @@ metadata:
     cilium.zta/owner: security-team
     cilium.zta/sensitivity: confidential
 spec:
-  # Placeholder seed — overwritten by the CronJob's apply-configmap
-  # container once the first feed fetch succeeds. Two RFC5737
-  # documentation CIDRs keep the group valid and the CCNP useful for
-  # smoke-testing the deny path even before the first feed run.
-  externalCIDRs:
-  - "198.51.100.0/24"
-  - "203.0.113.0/24"
+  # IMPORTANT: this manifest is a *skeleton only*. The list below is
+  # intentionally empty so a manual `kubectl apply -f 05-cidrgroup.yaml`
+  # cannot wipe the live blocklist (kubectl apply uses replace-semantics
+  # for lists-of-strings without a patchMergeKey — the YAML list always
+  # overwrites the live list). The CronJob's apply-configmap container
+  # patches `spec.externalCIDRs` with the freshly-fetched FireHOL CIDRs
+  # on every run; that is the *only* writer of this field.
+  #
+  # Operators: to refresh the blocklist manually, run
+  #   kubectl -n security-cdm create job --from=cronjob/threat-intel-refresh \
+  #     ti-manual-$(date +%s)
+  # — do NOT `kubectl apply -f` this file expecting it to repopulate.
+  externalCIDRs: []

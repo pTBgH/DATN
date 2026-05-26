@@ -27,7 +27,7 @@ export default async function JobDetailPage({
       <div>
         <Link
           href="/jobs"
-          className="text-sm text-cyan-600 hover:text-cyan-700 font-medium"
+          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
         >
           ← Quay lại danh sách
         </Link>
@@ -45,10 +45,10 @@ export default async function JobDetailPage({
           <Badge variant="default">{job.view_count} lượt xem</Badge>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
           <div>
             <p className="text-sm text-slate-600">Mức lương</p>
-            <p className="text-2xl font-bold text-cyan-600">
+            <p className="text-2xl font-bold text-blue-600">
               {fmtSalary(job.salary_min)}–{fmtSalary(job.salary_max)} VND
             </p>
           </div>
@@ -67,12 +67,12 @@ export default async function JobDetailPage({
       </header>
 
       <div className="space-y-4">
-        <Section title="📋 Mô tả công việc" body={job.description} />
-        <Section title="✓ Yêu cầu" body={job.requirements} />
-        <Section title="🎁 Quyền lợi" body={job.benefits} />
+        <Section title="Mô tả công việc" body={job.description} />
+        <Section title="Yêu cầu" body={job.requirements} />
+        <Section title="Quyền lợi" body={job.benefits} />
       </div>
 
-      <Card className="bg-slate-50">
+      <Card className="bg-gray-50 border border-gray-200">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div>
             <p className="text-sm text-slate-600">Tổng lượt xem</p>

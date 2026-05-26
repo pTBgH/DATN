@@ -21,9 +21,9 @@ export default async function ResumeManagerPage() {
       </div>
 
       {cvs.length === 0 ? (
-        <Card className="py-12 text-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-5xl">📄</div>
+            <div className="text-4xl text-gray-400">[ CV ]</div>
             <div>
               <p className="font-semibold text-slate-900">Chưa có CV nào</p>
               <p className="mt-1 text-sm text-slate-600">
@@ -35,22 +35,22 @@ export default async function ResumeManagerPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-lg bg-cyan-50 p-4">
-            <p className="text-sm text-cyan-900">
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <p className="text-sm text-blue-900">
               Bạn có <span className="font-semibold">{cvs.length}</span> CV. 
-              <span className="font-semibold text-cyan-700"> {cvs.filter(cv => cv.is_default).length}</span> được đặt là mặc định.
+              <span className="font-semibold text-blue-700"> {cvs.filter(cv => cv.is_default).length}</span> được đặt là mặc định.
             </p>
           </div>
 
           <ul className="space-y-3">
             {cvs.map((cv, index) => (
               <li key={cv.cv_id}>
-                <Card hover>
+                <Card hover className="border border-gray-200">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100">
-                          <span className="text-lg font-semibold text-cyan-700">{index + 1}</span>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                          <span className="text-lg font-semibold text-blue-700">{index + 1}</span>
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-slate-900">
@@ -66,7 +66,7 @@ export default async function ResumeManagerPage() {
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       {cv.is_default && (
                         <Badge variant="primary" size="sm">
-                          ★ Mặc định
+                          Mặc định
                         </Badge>
                       )}
                       {!cv.is_default && (
@@ -80,14 +80,14 @@ export default async function ResumeManagerPage() {
                           href={cv.view_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
                         >
-                          👁️ Xem
+                          Xem
                         </a>
                       ) : null}
 
                       <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50">
-                        🗑️ Xoá
+                        Xoá
                       </Button>
                     </div>
                   </div>
@@ -96,9 +96,9 @@ export default async function ResumeManagerPage() {
             ))}
           </ul>
 
-          <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 p-4">
+          <Card className="bg-gray-50 border border-gray-200 p-4">
             <div className="flex items-start gap-3">
-              <div className="text-2xl">💡</div>
+              <div className="text-lg font-bold text-gray-600">i</div>
               <div>
                 <p className="font-medium text-slate-900">Mẹo Sử Dụng</p>
                 <ul className="mt-2 space-y-1 text-sm text-slate-700">

@@ -20,15 +20,15 @@ export default async function SavedJobsPage() {
         </div>
         {saved.length > 0 && (
           <Badge variant="primary" size="md">
-            ★ {saved.length} công việc
+            {saved.length} công việc
           </Badge>
         )}
       </div>
 
       {saved.length === 0 ? (
-        <Card className="py-12 text-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-5xl">⭐</div>
+            <div className="text-4xl text-gray-400">[ ★ ]</div>
             <div>
               <p className="font-semibold text-slate-900">Chưa lưu công việc nào</p>
               <p className="mt-1 text-sm text-slate-600">
@@ -46,7 +46,7 @@ export default async function SavedJobsPage() {
             {saved.map((j) => (
               <li key={j.job_id}>
                 <Link href={`/jobs/${j.slug ?? j.job_id}`}>
-                  <Card hover>
+                  <Card hover className="border border-gray-200">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
@@ -58,7 +58,7 @@ export default async function SavedJobsPage() {
                           </p>
                         </div>
                         <Badge variant="primary" size="sm">
-                          ★ Đã lưu
+                          Đã lưu
                         </Badge>
                       </div>
 
@@ -68,10 +68,10 @@ export default async function SavedJobsPage() {
                         </p>
                       )}
 
-                      <div className="flex items-center justify-between border-t pt-3">
+                      <div className="flex items-center justify-between border-t border-gray-100 pt-3">
                         <div>
                           <p className="text-xs text-slate-500">Mức lương</p>
-                          <p className="font-semibold text-cyan-600">
+                          <p className="font-semibold text-blue-600">
                             {fmtSalary(j.salary_min)}–{fmtSalary(j.salary_max)} VND
                           </p>
                         </div>
@@ -92,9 +92,9 @@ export default async function SavedJobsPage() {
             ))}
           </ul>
 
-          <Card className="bg-gradient-to-r from-cyan-50 to-blue-50">
+          <Card className="bg-gray-50 border border-gray-200">
             <div className="flex items-start gap-3 p-4">
-              <div className="text-2xl">💾</div>
+              <div className="text-lg font-bold text-gray-600">i</div>
               <div>
                 <p className="font-semibold text-slate-900">Gợi Ý</p>
                 <p className="mt-1 text-sm text-slate-700">

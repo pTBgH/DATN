@@ -22,9 +22,9 @@ export default async function RecruiterHomePage() {
       </div>
 
       {workspaces.length === 0 ? (
-        <Card className="py-12 text-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-5xl">🏢</div>
+            <div className="text-4xl text-gray-400">[ WS ]</div>
             <div>
               <p className="font-semibold text-slate-900">Chưa có workspace nào</p>
               <p className="mt-1 text-sm text-slate-600">
@@ -36,8 +36,8 @@ export default async function RecruiterHomePage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-lg bg-cyan-50 p-4">
-            <p className="text-sm text-cyan-900">
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <p className="text-sm text-blue-900">
               Bạn có <span className="font-semibold">{workspaces.length}</span> workspace.
               Chọn workspace để xem chi tiết tuyển dụng.
             </p>
@@ -49,7 +49,7 @@ export default async function RecruiterHomePage() {
                 key={w.id}
                 href={`/recruiter/${w.id}`}
               >
-                <Card hover className="h-full space-y-4">
+                <Card hover className="h-full space-y-4 bg-white border border-gray-200">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-slate-900 line-clamp-1">
@@ -64,10 +64,10 @@ export default async function RecruiterHomePage() {
                     </Badge>
                   </div>
 
-                  <div className="space-y-2 pt-2 border-t">
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-600">Công Việc Hoạt Động</span>
-                      <span className="font-bold text-cyan-600">{w.active_jobs}</span>
+                      <span className="font-bold text-blue-600">{w.active_jobs}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-600">Lượt Xem</span>
@@ -75,7 +75,7 @@ export default async function RecruiterHomePage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-600">Tỷ Lệ Ứng Tuyển</span>
-                      <span className="font-bold text-green-600">{w.apply_rate}%</span>
+                      <span className="font-bold text-orange-600">{w.apply_rate}%</span>
                     </div>
                   </div>
 

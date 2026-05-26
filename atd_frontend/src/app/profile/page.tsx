@@ -23,21 +23,21 @@ export default async function ProfilePage() {
                 <input
                   defaultValue={profile.last_name ?? ""}
                   placeholder="VD: Nguyễn"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
               <Field label="Tên">
                 <input
                   defaultValue={profile.first_name ?? ""}
                   placeholder="VD: Văn A"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
               <Field label="Tên Người Dùng">
                 <input
                   defaultValue={profile.user_name ?? ""}
                   placeholder="VD: nguyenvana"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
               <Field label="Email (Không Thể Sửa)">
@@ -52,14 +52,14 @@ export default async function ProfilePage() {
                   defaultValue={profile.phone_number ?? ""}
                   type="tel"
                   placeholder="VD: 0123456789"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
               <Field label="Ngày Sinh">
                 <input
                   type="date"
                   defaultValue={profile.birth ?? ""}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
             </div>
@@ -77,13 +77,13 @@ export default async function ProfilePage() {
                   min={0}
                   max={50}
                   defaultValue={profile.experience_years ?? 0}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
               </Field>
               <Field label="Giới Tính">
                 <select
                   defaultValue={profile.sex_id ?? ""}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">— Chọn giới tính —</option>
                   <option value="1">Nam</option>
@@ -107,16 +107,16 @@ export default async function ProfilePage() {
       </form>
 
       {/* Help Section */}
-      <Card className="bg-gradient-to-r from-blue-50 to-cyan-50">
+      <Card className="bg-gray-50 border border-gray-200">
         <div className="p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <div className="text-2xl">💡</div>
+            <div className="text-lg font-bold text-gray-600">i</div>
             <div>
               <p className="font-semibold text-slate-900">Mẹo Hoàn Thành Hồ Sơ</p>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                <li>✓ Thêm ảnh đại diện để tăng tỷ lệ được nhìn thấy</li>
-                <li>✓ Điền đầy đủ thông tin giúp nhà tuyển dụng hiểu rõ hơn</li>
-                <li>✓ Cập nhật năm kinh nghiệm để phù hợp với vị trí</li>
+                <li>• Thêm ảnh đại diện để tăng tỷ lệ được nhìn thấy</li>
+                <li>• Điền đầy đủ thông tin giúp nhà tuyển dụng hiểu rõ hơn</li>
+                <li>• Cập nhật năm kinh nghiệm để phù hợp với vị trí</li>
               </ul>
             </div>
           </div>

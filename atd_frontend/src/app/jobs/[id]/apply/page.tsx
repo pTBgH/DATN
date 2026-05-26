@@ -64,8 +64,8 @@ export default async function ApplyJobPage({
         <CardHeader title="Chọn CV Để Ứng Tuyển" />
         <CardContent className="space-y-4">
           {cvs.length === 0 ? (
-            <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <p className="text-4xl mb-3">📄</p>
+            <div className="rounded-lg border-2 border-dashed border-slate-300 bg-gray-50 p-6 text-center">
+              <p className="text-4xl text-gray-400 mb-3">[ CV ]</p>
               <p className="font-semibold text-slate-900">Chưa có CV nào</p>
               <p className="mt-1 text-sm text-slate-600">
                 Bạn cần có ít nhất 1 CV để ứng tuyển
@@ -82,17 +82,17 @@ export default async function ApplyJobPage({
                 {cvs.map((cv, index) => (
                   <label
                     key={cv.cv_id}
-                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-slate-200 hover:border-cyan-300 cursor-pointer transition"
+                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-slate-200 hover:border-blue-300 cursor-pointer transition"
                   >
                     <input
                       type="radio"
                       name="cv_id"
                       value={cv.cv_id}
                       defaultChecked={cv.is_default}
-                      className="h-4 w-4 text-cyan-600"
+                      className="h-4 w-4 text-blue-600"
                     />
                     <div className="flex items-center gap-3 flex-1">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100 text-sm font-semibold text-cyan-700">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-sm font-semibold text-blue-700">
                         {index + 1}
                       </div>
                       <div className="flex-1">
@@ -104,15 +104,15 @@ export default async function ApplyJobPage({
                     </div>
                     {cv.is_default && (
                       <Badge variant="primary" size="sm">
-                        ★ Mặc định
+                        Mặc định
                       </Badge>
                     )}
                   </label>
                 ))}
               </div>
 
-              <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">
-                <p className="font-medium">💡 Mẹo:</p>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-900">
+                <p className="font-medium">Mẹo:</p>
                 <p className="mt-1">
                   Chọn CV phù hợp nhất với vị trí để tăng cơ hội được xem xét.
                   Bạn có thể quay lại đây để ứng tuyển lại với CV khác.
@@ -128,10 +128,10 @@ export default async function ApplyJobPage({
       </Card>
 
       {/* Additional Info */}
-      <Card className="bg-gradient-to-r from-green-50 to-emerald-50">
+      <Card className="bg-gray-50 border border-gray-200">
         <div className="p-4 space-y-3">
           <div className="flex items-start gap-3">
-            <div className="text-2xl">✓</div>
+            <div className="text-lg font-bold text-gray-600">→</div>
             <div>
               <p className="font-semibold text-slate-900">Bước Tiếp Theo</p>
               <ul className="mt-2 space-y-1 text-sm text-slate-700">

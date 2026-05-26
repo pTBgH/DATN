@@ -29,26 +29,26 @@ export default async function WorkspaceDashboardPage({
         <MetricCard
           label="Công Việc Hoạt Động"
           value={ws.active_jobs}
-          color="from-cyan-100 to-blue-100"
-          icon="📋"
+          color="from-blue-100 to-blue-50"
+          icon="1"
         />
         <MetricCard
           label="Lượt Xem"
           value={ws.views.toLocaleString("vi-VN")}
-          color="from-green-100 to-emerald-100"
-          icon="👁️"
+          color="from-green-100 to-green-50"
+          icon="2"
         />
         <MetricCard
           label="Ứng Tuyển"
           value={ws.applications.toLocaleString("vi-VN")}
-          color="from-purple-100 to-pink-100"
-          icon="📬"
+          color="from-orange-100 to-orange-50"
+          icon="3"
         />
         <MetricCard
           label="Tỷ Lệ Ứng Tuyển"
           value={`${ws.apply_rate}%`}
-          color="from-amber-100 to-orange-100"
-          icon="📈"
+          color="from-purple-100 to-purple-50"
+          icon="4"
         />
       </div>
 
@@ -67,8 +67,8 @@ export default async function WorkspaceDashboardPage({
         </div>
 
         {jobs.data.length === 0 ? (
-          <Card className="py-12 text-center bg-slate-50">
-            <div className="text-5xl mb-3">📋</div>
+          <Card className="py-12 text-center bg-gray-50 border border-gray-200">
+            <div className="text-4xl text-gray-400 mb-3">[ C ]</div>
             <p className="font-semibold text-slate-900">Chưa có tin tuyển dụng nào</p>
             <p className="mt-1 text-sm text-slate-600">
               Hãy tạo tin tuyển dụng đầu tiên
@@ -84,7 +84,7 @@ export default async function WorkspaceDashboardPage({
             {jobs.data.slice(0, 5).map((j) => (
               <li key={j.job_id}>
                 <Link href={`/recruiter/${ws.id}/jobs/${j.job_id}`}>
-                  <Card hover>
+                  <Card hover className="border border-gray-200">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-baseline gap-3">
@@ -95,7 +95,7 @@ export default async function WorkspaceDashboardPage({
                             variant={j.status === 'Open' ? 'primary' : 'default'}
                             size="sm"
                           >
-                            {getStatusIcon(j.status)} {j.status}
+                            {j.status}
                           </Badge>
                         </div>
 
@@ -107,13 +107,13 @@ export default async function WorkspaceDashboardPage({
 
                         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
                           <span>Deadline: {new Date(j.deadline).toLocaleDateString("vi-VN")}</span>
-                          <span>👁️ {j.view_count} xem</span>
-                          <span>📬 {j.apply_count} ứng tuyển</span>
+                          <span>{j.view_count} xem</span>
+                          <span>{j.apply_count} ứng tuyển</span>
                         </div>
                       </div>
 
                       <Button variant="outline" size="md">
-                        Quản Lý →
+                        Quản Lý
                       </Button>
                     </div>
                   </Card>
@@ -144,9 +144,9 @@ export default async function WorkspaceDashboardPage({
       </div>
 
       {/* Quick Tips */}
-      <Card className="bg-gradient-to-r from-blue-50 to-cyan-50">
+      <Card className="bg-gray-50 border border-gray-200">
         <div className="flex items-start gap-3 p-4">
-          <div className="text-2xl">💡</div>
+          <div className="text-lg font-bold text-gray-600">i</div>
           <div>
             <p className="font-semibold text-slate-900">Gợi Ý Nhanh</p>
             <ul className="mt-2 space-y-1 text-sm text-slate-700">

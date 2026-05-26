@@ -20,9 +20,9 @@ export default async function MyApplicationsPage() {
       </div>
 
       {data.length === 0 ? (
-        <Card className="text-center py-12 bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="text-center py-12 bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-5xl">📝</div>
+            <div className="text-4xl text-gray-400">[ 📝 ]</div>
             <div>
               <p className="text-lg font-semibold text-slate-900">Chưa có đơn ứng tuyển nào</p>
               <p className="mt-1 text-slate-600">
@@ -31,16 +31,16 @@ export default async function MyApplicationsPage() {
             </div>
             <Link href="/jobs">
               <Button variant="primary" size="md">
-                Tìm việc ngay →
+                Tìm việc ngay
               </Button>
             </Link>
           </div>
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 p-4">
+          <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm font-medium text-slate-700">
-              Tổng <span className="text-cyan-600 font-semibold">{data.length}</span> đơn ứng tuyển
+              Tổng <span className="text-blue-600 font-semibold">{data.length}</span> đơn ứng tuyển
             </p>
           </div>
 

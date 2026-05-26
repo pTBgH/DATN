@@ -29,16 +29,16 @@ export default async function JobsListPage({
           name="q"
           defaultValue={q}
           placeholder="Tìm vị trí, công ty, kỹ năng…"
-          className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+          className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-base placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
         />
         <Button variant="primary" type="submit">
           Tìm kiếm
         </Button>
       </form>
 
-      <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 p-4">
+      <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
         <p className="text-sm font-medium text-slate-700">
-          Tổng <span className="text-cyan-600 font-semibold">{result.meta?.total ?? result.data.length}</span> kết quả tìm kiếm
+          Tổng <span className="text-blue-600 font-semibold">{result.meta?.total ?? result.data.length}</span> kết quả tìm kiếm
         </p>
         {result.data.length === 0 && (
           <p className="text-sm text-slate-600">

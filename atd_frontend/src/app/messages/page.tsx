@@ -19,15 +19,15 @@ export default async function MessagesPage() {
         </div>
         {conversations.length > 0 && (
           <Badge variant="info" size="md">
-            💬 {conversations.length} cuộc trò chuyện
+            {conversations.length} cuộc trò chuyện
           </Badge>
         )}
       </div>
 
       {conversations.length === 0 ? (
-        <Card className="py-12 text-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-5xl">💬</div>
+            <div className="text-4xl text-gray-400">[ 💬 ]</div>
             <div>
               <p className="font-semibold text-slate-900">Chưa có tin nhắn nào</p>
               <p className="mt-1 text-sm text-slate-600">
@@ -50,10 +50,10 @@ export default async function MessagesPage() {
 
             return (
               <li key={c.ConversationID}>
-                <Card hover>
+                <Card hover className="border border-gray-200">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-100 to-blue-100 text-lg font-semibold text-cyan-700">
-                      {c.Type === "direct" ? "1:1" : "👥"}
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 text-sm font-semibold text-blue-700">
+                      {c.Type === "direct" ? "1:1" : "G"}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -62,7 +62,7 @@ export default async function MessagesPage() {
                           Workspace <span className="font-mono text-sm text-slate-500">#{c.WorkspaceID}</span>
                         </h3>
                         {isRecent && (
-                          <Badge variant="primary" size="sm">🔔 Mới</Badge>
+                          <Badge variant="primary" size="sm">Mới</Badge>
                         )}
                       </div>
 
@@ -78,7 +78,7 @@ export default async function MessagesPage() {
                     </div>
 
                     <Button variant="outline" size="md">
-                      Mở →
+                      Mở
                     </Button>
                   </div>
                 </Card>
@@ -88,9 +88,9 @@ export default async function MessagesPage() {
         </ul>
       )}
 
-      <Card className="bg-gradient-to-r from-blue-50 to-cyan-50">
+      <Card className="bg-gray-50 border border-gray-200">
         <div className="flex items-start gap-3 p-4">
-          <div className="text-2xl">💡</div>
+          <div className="text-lg font-bold text-gray-600">i</div>
           <div>
             <p className="font-semibold text-slate-900">Mẹo Liên Lạc</p>
             <ul className="mt-2 space-y-1 text-sm text-slate-700">

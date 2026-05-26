@@ -67,7 +67,12 @@ data:
             - logs_path:
                 logs_path: "/var/log/containers/"
         
-        # Chỉ lấy log của namespace job7189-ns
+        # Whitelist: drop everything except these namespaces.
+        # security-cdm is whitelisted so the threat-intel-refresh
+        # CronJob output (FireHOL CIDR / URLhaus FQDN feed counts +
+        # ConfigMap / CiliumCIDRGroup / coredns-sinkhole patch results)
+        # is shipped to ES for audit lineage.  See
+        # doc/zta-gap-decision.md § 0.4.
         - drop_event:
             when:
               not:
@@ -80,10 +85,22 @@ data:
                       kubernetes.namespace: "security"
                   - equals:
                       kubernetes.namespace: "data"
+                  - equals:
+                      kubernetes.namespace: "security-cdm"
 
     output.elasticsearch:
       hosts: ['elasticsearch:9200']
+      # Default index for all whitelisted log streams.  The `indices`
+      # block below overrides this on a per-document basis using
+      # conditions evaluated against the document's Kubernetes
+      # metadata (added by the add_kubernetes_metadata processor).
+      # First matching rule wins; if none match, the default `index`
+      # above is used.
       index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+      indices:
+        - index: "threat-intel-feed-%{+yyyy.MM.dd}"
+          when.equals:
+            kubernetes.labels.app: "threat-intel-refresh"
 
     setup.kibana:
       host: "kibana:5601"

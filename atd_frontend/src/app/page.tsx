@@ -22,7 +22,7 @@ export default async function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <Link href="/jobs">
-              <Button variant="primary" size="lg" className="bg-white text-blue-600 hover:bg-gray-50 font-semibold">
+              <Button variant="secondary" size="lg" className="bg-white border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold">
                 Tìm Việc Ngay
               </Button>
             </Link>

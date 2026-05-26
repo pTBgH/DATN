@@ -1,0 +1,66 @@
+# =============================================================================
+# ConfigMap: coredns-sinkhole
+#
+# Data resource consumed by CoreDNS via the `hosts` plugin to enforce
+# the URLhaus FQDN blocklist at DNS query time (Decision 3 pivot in
+# doc/zta-gap-decision.md).
+#
+# Why DNS sinkhole and not Cilium FQDN deny?
+# ------------------------------------------------------------------------
+# Cilium 1.19's CNP/CCNP schema does NOT expose `egressDeny.toFQDNs` —
+# only the allow direction (`egress.toFQDNs`) is implemented. The
+# upstream rationale is that FQDN→IP resolution races with cache
+# invalidation and shared-CDN IPs make FQDN deny unsafe at the L3/L4
+# datapath. The established workaround is to enforce at DNS resolution
+# time: CoreDNS's `hosts` plugin returns A 0.0.0.0 (and NXDOMAIN AAAA)
+# for any FQDN listed in its file, regardless of which namespace or
+# pod issues the query. Effective cluster-wide enforcement without
+# touching Cilium.
+#
+# Ownership model (mirrors CiliumCIDRGroup `threat-intel-firehol`)
+# ------------------------------------------------------------------------
+# This manifest is a *skeleton only*; `data.hosts.txt` is intentionally
+# empty. The CronJob `threat-intel-refresh`'s apply-configmap container
+# patches `data.hosts.txt` hourly with URLhaus FQDNs rendered as
+# `0.0.0.0 <fqdn>` lines, and is the *only* writer of this field.
+#
+# A manual `kubectl apply -f 06-coredns-sinkhole.yaml` would replace
+# the live multi-hundred-entry hosts.txt with this empty skeleton —
+# kubectl apply uses replace-semantics on a scalar string value, and
+# the YAML's empty string always overwrites the live one. The deploy
+# script `scripts/zta-deploy-threat-intel.sh` therefore skips this
+# manifest when the ConfigMap already exists (idempotency guard).
+#
+# Operators: to repopulate the sinkhole manually, trigger the CronJob:
+#   kubectl -n security-cdm create job \
+#     --from=cronjob/threat-intel-refresh ti-manual-$(date +%s)
+# — do NOT `kubectl apply -f 06-coredns-sinkhole.yaml` expecting it to
+# repopulate.
+#
+# Mount path
+# ------------------------------------------------------------------------
+# The CoreDNS Deployment in kube-system mounts this ConfigMap at
+# `/etc/coredns/sinkhole/` (a SECOND volume on top of the existing
+# `config-volume` that serves the Corefile). The Corefile references
+# the sinkhole file via:
+#     hosts /etc/coredns/sinkhole/hosts.txt { fallthrough; reload 30s }
+# `fallthrough` ensures FQDNs not in the file fall through to the
+# `kubernetes` and `forward` plugins normally. `reload 30s` makes the
+# `hosts` plugin re-read the file every 30s, so CronJob ConfigMap
+# updates take effect without a CoreDNS pod restart.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-sinkhole
+  namespace: kube-system
+  labels:
+    app: threat-intel
+    cilium.zta/tier: T1
+    cilium.zta/source: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/role: security
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+data:
+  hosts.txt: ""

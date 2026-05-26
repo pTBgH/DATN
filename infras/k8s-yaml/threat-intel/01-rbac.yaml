@@ -79,3 +79,44 @@ subjects:
 - kind: ServiceAccount
   name: threat-intel-updater
   namespace: security-cdm
+---
+# Namespaced Role in kube-system: patch ONLY the coredns-sinkhole
+# ConfigMap. The CronJob populates this CM hourly with URLhaus host
+# entries (`0.0.0.0 <fqdn>` per line) so the CoreDNS `hosts` plugin
+# can sinkhole DNS queries for known-bad FQDNs cluster-wide
+# (Decision 3 pivot — Cilium 1.19 has no egressDeny.toFQDNs).
+#
+# The resourceNames pin keeps the CronJob's blast radius tight — it
+# can mutate this exact ConfigMap and nothing else in kube-system.
+# Notably the `coredns` Corefile CM is NOT in scope; that file is
+# owned by the operator and patched once at deploy time only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: threat-intel-coredns-sinkhole-patcher
+  namespace: kube-system
+  labels:
+    app: threat-intel
+    cilium.zta/role: security
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["coredns-sinkhole"]
+  verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: threat-intel-coredns-sinkhole-patcher
+  namespace: kube-system
+  labels:
+    app: threat-intel
+    cilium.zta/role: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: threat-intel-coredns-sinkhole-patcher
+subjects:
+- kind: ServiceAccount
+  name: threat-intel-updater
+  namespace: security-cdm

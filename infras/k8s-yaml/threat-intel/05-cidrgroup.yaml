@@ -1,0 +1,40 @@
+# =============================================================================
+# CiliumCIDRGroup: threat-intel-firehol
+#
+# Holds the FireHOL Level1 CIDR list as data, decoupled from the CCNP
+# (policy intent). The threat-intel CronJob patches spec.externalCIDRs
+# hourly from the freshly-fetched feed in ConfigMap threat-intel-blocklist.
+#
+# CCNP cnp-threat-intel-egress-deny references this group via
+# spec.egressDeny[].toCIDRSet[].cidrGroupRef.
+#
+# Design rationale (Option B from Decision 0.2 follow-up):
+#   - Smaller RBAC blast radius — the CronJob SA only needs `patch` on
+#     this single CIDRGroup (resourceNames: [threat-intel-firehol]),
+#     not on the CCNP CRD as a whole.
+#   - Cleaner separation: policy intent (CCNP) stays static; CIDR data
+#     (this group) is updated by automation.
+#   - Modern Cilium pattern (CIDR groups GA from 1.14; cluster runs 1.19.4).
+#
+# Reference: doc/zta-gap-decision.md (Decision 3, updated)
+# =============================================================================
+apiVersion: cilium.io/v2alpha1
+kind: CiliumCIDRGroup
+metadata:
+  name: threat-intel-firehol
+  labels:
+    app: threat-intel
+    cilium.zta/tier: T1
+    cilium.zta/source: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/role: security
+    cilium.zta/owner: security-team
+    cilium.zta/sensitivity: confidential
+spec:
+  # Placeholder seed — overwritten by the CronJob's apply-configmap
+  # container once the first feed fetch succeeds. Two RFC5737
+  # documentation CIDRs keep the group valid and the CCNP useful for
+  # smoke-testing the deny path even before the first feed run.
+  externalCIDRs:
+  - "198.51.100.0/24"
+  - "203.0.113.0/24"

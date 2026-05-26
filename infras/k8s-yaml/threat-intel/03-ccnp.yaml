@@ -1,13 +1,11 @@
 # =============================================================================
 # CiliumClusterwideNetworkPolicy: threat-intel egress deny
 #
-# Blocks egress to known-bad CIDRs from FireHOL Level1 blocklist.
-# Applied cluster-wide to all pods.
-#
-# Note: Cilium CCNP toCIDR/toFQDNs does not support dynamic ConfigMap
-# references directly. This policy uses a static sample that the
-# threat-intel CronJob will update by patching this CCNP via kubectl.
-# For production, consider using Cilium's FQDN policy with toFQDNs.
+# Blocks egress to known-bad CIDRs cluster-wide. The CIDR list itself
+# lives in CiliumCIDRGroup `threat-intel-firehol` (manifest 05) and is
+# patched hourly by the threat-intel CronJob from the FireHOL Level1
+# blocklist. This policy holds the static intent ("deny anything in the
+# named group"); the group holds the dynamic data.
 #
 # Reference: doc/zta-gap-decision.md (Decision 3)
 # =============================================================================
@@ -16,7 +14,7 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: cnp-threat-intel-egress-deny
 spec:
-  description: "Deny egress to known-bad IPs (FireHOL Level1) — updated hourly by CronJob"
+  description: "Deny egress to known-bad IPs (FireHOL Level1, via CIDR group) — updated hourly by CronJob"
   endpointSelector: {}
   # CRITICAL: enableDefaultDeny.egress=false is required here.
   #
@@ -34,19 +32,21 @@ spec:
   # entire cluster.
   #
   # Setting enableDefaultDeny.egress=false makes this policy purely
-  # additive: it only contributes explicit deny rules for the listed CIDRs
-  # without altering each endpoint's default-allow / default-deny posture
-  # (that posture continues to be governed by per-namespace CNPs, e.g.
-  # default-deny-<ns> + allow-*). Microsegmentation is preserved, and the
-  # deny rules still apply because deny takes precedence over allow.
+  # additive: it only contributes explicit deny rules for the CIDRs in
+  # the referenced group without altering each endpoint's default-allow /
+  # default-deny posture (that posture continues to be governed by
+  # per-namespace CNPs, e.g. default-deny-<ns> + allow-*).
+  # Microsegmentation is preserved, and the deny rules still apply
+  # because deny takes precedence over allow.
   #
   # Ref: https://docs.cilium.io/en/stable/security/policy/intro/#default-deny
   enableDefaultDeny:
     egress: false
     ingress: false
   egressDeny:
-  - toCIDR:
-    # Placeholder — replaced by CronJob with actual FireHOL CIDRs.
-    # Keep at least one entry so the policy is valid.
-    - "198.51.100.0/24"
-    - "203.0.113.0/24"
+  # Reference the CIDR group instead of an inline list. The CronJob
+  # patches CiliumCIDRGroup/threat-intel-firehol's spec.externalCIDRs;
+  # this policy automatically picks up the change without needing
+  # cluster-scoped RBAC on the CCNP itself.
+  - toCIDRSet:
+    - cidrGroupRef: "threat-intel-firehol"

@@ -116,8 +116,20 @@ spec:
               if [ "$firehol_bytes" -lt 100 ]; then
                 echo "[threat-intel] FireHOL raw head(200B): $(head -c 200 /feeds/firehol.raw | od -An -c | tr -s ' ' | head -3)"
               fi
+              # NOTE: head MUST NOT be the last stage of a pipe under
+              # `set -o pipefail`. head closes its input early, sort then
+              # gets SIGPIPE and exits 141, the whole pipeline reports
+              # non-zero, and the `|| : > /feeds/firehol.txt` fallback
+              # truncates the (already-written) firehol.txt file. The
+              # race is timing-dependent on busybox sort, so on some
+              # runs the file kept 2000 lines and on others it was
+              # truncated to 0 — empirically reproduced 0/2000 from
+              # consecutive runs against an identical input file.
+              # Fix: write sort output to a tmpfile and take head from
+              # that file (no pipe → no SIGPIPE).
               grep -E '^[0-9]+\.' /feeds/firehol.raw 2>/dev/null \
-                | sort -u | head -2000 > /feeds/firehol.txt || : > /feeds/firehol.txt
+                | sort -u > /feeds/firehol.sorted || : > /feeds/firehol.sorted
+              head -2000 /feeds/firehol.sorted > /feeds/firehol.txt
               firehol_count=$(wc -l < /feeds/firehol.txt | tr -d ' ')
               echo "[threat-intel] FireHOL: ${firehol_count} CIDRs (fetch_ok=${firehol_ok})"
 
@@ -133,9 +145,14 @@ spec:
               fi
               urlhaus_bytes=$(wc -c < /feeds/urlhaus.raw | tr -d ' ')
               echo "[threat-intel] URLhaus raw: ${urlhaus_bytes} bytes"
+              # Same SIGPIPE+pipefail trap as the FireHOL pipeline above —
+              # apply the same write-then-head fix here so the URLhaus
+              # extractor stays robust if the feed ever grows past the
+              # head cap.
               grep -E '^127\.0\.0\.1' /feeds/urlhaus.raw 2>/dev/null \
-                | awk '{print $2}' | grep -v '^#' | sort -u | head -1000 \
-                > /feeds/urlhaus.txt || : > /feeds/urlhaus.txt
+                | awk '{print $2}' | grep -v '^#' | sort -u \
+                > /feeds/urlhaus.sorted || : > /feeds/urlhaus.sorted
+              head -1000 /feeds/urlhaus.sorted > /feeds/urlhaus.txt
               urlhaus_count=$(wc -l < /feeds/urlhaus.txt | tr -d ' ')
               echo "[threat-intel] URLhaus: ${urlhaus_count} FQDNs (fetch_ok=${urlhaus_ok})"
 
@@ -201,6 +218,37 @@ spec:
               } > /tmp/threat-intel-cm.yaml
 
               kubectl apply -f /tmp/threat-intel-cm.yaml
+
+              # ---------------------------------------------------------------
+              # Wire ConfigMap data into CCNP by patching CiliumCIDRGroup
+              # threat-intel-firehol (referenced by CCNP
+              # cnp-threat-intel-egress-deny via toCIDRSet.cidrGroupRef).
+              #
+              # We patch the CIDRGroup, NOT the CCNP itself — the CronJob's
+              # SA has `patch` on this single CIDRGroup only (via
+              # resourceNames in the ClusterRole), so even a compromised
+              # CronJob can't tamper with the policy intent.
+              #
+              # Skip the patch when FIREHOL_COUNT=0 so a transient feed
+              # failure does not wipe the active blocklist. The hourly
+              # CronJob will refresh on the next successful run.
+              # ---------------------------------------------------------------
+              if [ "$FIREHOL_COUNT" -gt 0 ]; then
+                echo "[threat-intel] Patching CiliumCIDRGroup threat-intel-firehol with $FIREHOL_COUNT CIDRs..."
+                jq -Rs 'split("\n") | map(select(length > 0)) | {spec: {externalCIDRs: .}}' \
+                  /feeds/firehol.txt > /tmp/cidrgroup-patch.json
+                kubectl patch ciliumcidrgroup threat-intel-firehol \
+                  --type=merge --patch-file=/tmp/cidrgroup-patch.json
+                # Use -o json + jq instead of -o jsonpath because kubectl's
+                # jsonpath renders arrays in Go-format (space-separated),
+                # which jq cannot parse directly.
+                applied=$(kubectl get ciliumcidrgroup threat-intel-firehol -o json \
+                  | jq '.spec.externalCIDRs | length')
+                echo "[threat-intel] CiliumCIDRGroup now holds $applied CIDRs"
+              else
+                echo "[threat-intel] FIREHOL_COUNT=0 — skipping CIDRGroup patch to preserve existing blocklist"
+              fi
+
               echo "[threat-intel] Done. CIDR=$FIREHOL_COUNT FQDN=$URLHAUS_COUNT updated=$TIMESTAMP"
             volumeMounts:
             - name: feeds

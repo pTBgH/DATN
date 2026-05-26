@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { jobApi } from "@/lib/api";
 import { ApiClientError } from "@/lib/api/client";
+import { Card, CardContent, CardHeader } from "@/components/Card";
+import { Badge } from "@/components/Badge";
+import { Button } from "@/components/Button";
+import { Expandable } from "@/components/Expandable";
 
 export const dynamic = "force-dynamic";
 
@@ -19,60 +23,101 @@ export default async function JobDetailPage({
   }
 
   return (
-    <article className="space-y-6">
-      <header className="flex items-start gap-4">
-        <div className="flex-1">
-          <Link
-            href="/jobs"
-            className="text-xs text-slate-500 hover:underline"
-          >
-            ← Tất cả việc làm
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold">{job.title}</h1>
-          <div className="text-sm text-slate-500">
-            {job.company_name} · {job.status}
-          </div>
+    <article className="space-y-6 max-w-4xl">
+      <div>
+        <Link
+          href="/jobs"
+          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+        >
+          ← Quay lại danh sách
+        </Link>
+      </div>
+
+      <header className="space-y-4">
+        <div>
+          <h1 className="text-4xl font-bold text-slate-900">{job.title}</h1>
+          <p className="mt-2 text-lg text-slate-600">{job.company_name}</p>
         </div>
-        <div className="ml-auto text-right text-sm">
-          <div className="font-semibold">
-            {fmtSalary(job.salary_min)}–{fmtSalary(job.salary_max)} VND
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="primary">{getStatusLabel(job.status)}</Badge>
+          <Badge variant="info">{job.apply_count} ứng tuyển</Badge>
+          <Badge variant="default">{job.view_count} lượt xem</Badge>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
+          <div>
+            <p className="text-sm text-slate-600">Mức lương</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {fmtSalary(job.salary_min)}–{fmtSalary(job.salary_max)} VND
+            </p>
           </div>
-          <div className="text-xs text-slate-500">Deadline: {job.deadline}</div>
-          <Link
-            href={`/jobs/${params.id}/apply`}
-            className="mt-3 inline-block rounded bg-brand px-4 py-2 text-white hover:bg-brand-dark"
-          >
-            Ứng tuyển ngay
+          <div>
+            <p className="text-sm text-slate-600">Hạn cuối ứng tuyển</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {new Date(job.deadline).toLocaleDateString("vi-VN")}
+            </p>
+          </div>
+          <Link href={`/jobs/${params.id}/apply`}>
+            <Button variant="primary" size="lg">
+              Ứng tuyển ngay →
+            </Button>
           </Link>
         </div>
       </header>
 
-      <Section title="Mô tả công việc" body={job.description} />
-      <Section title="Yêu cầu" body={job.requirements} />
-      <Section title="Quyền lợi" body={job.benefits} />
-
-      <div className="rounded border bg-white p-4 text-sm">
-        <div>
-          Lượt xem: <strong>{job.view_count}</strong>
-        </div>
-        <div>
-          Lượt ứng tuyển: <strong>{job.apply_count}</strong>
-        </div>
+      <div className="space-y-4">
+        <Section title="Mô tả công việc" body={job.description} />
+        <Section title="Yêu cầu" body={job.requirements} />
+        <Section title="Quyền lợi" body={job.benefits} />
       </div>
+
+      <Card className="bg-gray-50 border border-gray-200">
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div>
+            <p className="text-sm text-slate-600">Tổng lượt xem</p>
+            <p className="text-3xl font-bold text-slate-900">{job.view_count}</p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-600">Tổng ứng tuyển</p>
+            <p className="text-3xl font-bold text-slate-900">{job.apply_count}</p>
+          </div>
+        </div>
+      </Card>
     </article>
   );
 }
 
 function Section({ title, body }: { title: string; body: string | null }) {
   if (!body) return null;
+  
+  const isLongContent = body.length > 500;
+  
   return (
-    <section>
-      <h2 className="mb-2 text-lg font-semibold">{title}</h2>
-      <div className="whitespace-pre-line rounded border bg-white p-4 text-sm leading-6 text-slate-700">
-        {body}
-      </div>
-    </section>
+    <Card>
+      <CardHeader title={title} />
+      <CardContent className="whitespace-pre-line leading-7 text-slate-700">
+        {isLongContent ? (
+          <Expandable summary="Xem chi tiết">
+            {body}
+          </Expandable>
+        ) : (
+          body
+        )}
+      </CardContent>
+    </Card>
   );
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    "Open": "Đang tuyển",
+    "Closed": "Đã đóng",
+    "Draft": "Nháp",
+    "Pending": "Chờ duyệt",
+    "Paused": "Tạm dừng",
+  };
+  return labels[status] || status;
 }
 
 function fmtSalary(v: number | null) {

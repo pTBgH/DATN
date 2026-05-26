@@ -1,5 +1,14 @@
 # =============================================================================
-# RBAC for threat-intel CronJob — needs to update ConfigMap in security-cdm.
+# RBAC for threat-intel CronJob.
+#
+# Two scopes:
+#   1. Namespaced Role: write ConfigMap threat-intel-blocklist (data
+#      cache + annotations) in security-cdm.
+#   2. ClusterRole (resourceNames pinned to threat-intel-firehol):
+#      patch CiliumCIDRGroup so the CCNP cnp-threat-intel-egress-deny
+#      picks up fresh CIDRs. The resourceNames pin enforces least
+#      privilege — the SA can only mutate this exact CIDR group, not
+#      other cluster-wide Cilium resources.
 # =============================================================================
 apiVersion: v1
 kind: ServiceAccount
@@ -33,6 +42,39 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: threat-intel-cm-writer
+subjects:
+- kind: ServiceAccount
+  name: threat-intel-updater
+  namespace: security-cdm
+---
+# Cluster-scoped patch on exactly one CiliumCIDRGroup. The `get` verb is
+# needed for the post-patch sanity check; `patch` performs the actual
+# update. `list`/`watch` are deliberately omitted — the CronJob never
+# enumerates CIDR groups.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: threat-intel-cidrgroup-patcher
+  labels:
+    app: threat-intel
+    cilium.zta/role: security
+rules:
+- apiGroups: ["cilium.io"]
+  resources: ["ciliumcidrgroups"]
+  resourceNames: ["threat-intel-firehol"]
+  verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: threat-intel-cidrgroup-patcher
+  labels:
+    app: threat-intel
+    cilium.zta/role: security
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: threat-intel-cidrgroup-patcher
 subjects:
 - kind: ServiceAccount
   name: threat-intel-updater

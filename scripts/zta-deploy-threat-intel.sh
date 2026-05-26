@@ -3,10 +3,12 @@
 # zta-deploy-threat-intel.sh — deploy Threat Intelligence feed integration
 #
 # Deploys:
-#   1. RBAC (ServiceAccount + Role + RoleBinding) in security-cdm
+#   1. RBAC (ServiceAccount + Role + RoleBinding + ClusterRole + binding)
 #   2. CronJob threat-intel-refresh (hourly FireHOL + URLhaus fetch)
 #   3. CCNP cnp-threat-intel-egress-deny (block known-bad CIDRs)
 #   4. CNP egress for CronJob to reach external feeds + kube-apiserver
+#   5. CiliumCIDRGroup threat-intel-firehol (FireHOL CIDR data, patched
+#      hourly by the CronJob — must exist BEFORE the CCNP that refs it)
 #
 # Features:
 #   - Auto-rollback on failure (trap-based) — does NOT affect other modules
@@ -98,6 +100,9 @@ uninstall() {
   blue "Uninstalling Threat Intelligence..."
   kubectl delete -f "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" --ignore-not-found
   kubectl delete -f "$MANIFEST_DIR/03-ccnp.yaml" --ignore-not-found
+  # CIDRGroup must be deleted AFTER the CCNP that references it to
+  # avoid a brief window where the policy points at a non-existent group.
+  kubectl delete -f "$MANIFEST_DIR/05-cidrgroup.yaml" --ignore-not-found
   kubectl delete -f "$MANIFEST_DIR/02-cronjob.yaml" --ignore-not-found
   kubectl delete -f "$MANIFEST_DIR/01-rbac.yaml" --ignore-not-found
   kubectl delete cm -n security-cdm threat-intel-blocklist --ignore-not-found
@@ -140,11 +145,16 @@ blue "================================================================"
 # ---------------------------------------------------------------------------
 # Deploy with rollback on failure
 # ---------------------------------------------------------------------------
-apply_manifest "$MANIFEST_DIR/00-namespace.yaml"   "[1/4] Namespace..."
-apply_manifest "$MANIFEST_DIR/01-rbac.yaml"         "[2/4] RBAC..."
-apply_manifest "$MANIFEST_DIR/02-cronjob.yaml"      "[3/4] CronJob threat-intel-refresh..."
-apply_manifest "$MANIFEST_DIR/03-ccnp.yaml"         "[4/4] CCNP cnp-threat-intel-egress-deny..."
-apply_manifest "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" "      CNP allow-threat-intel-egress..."
+apply_manifest "$MANIFEST_DIR/00-namespace.yaml"   "[1/6] Namespace..."
+apply_manifest "$MANIFEST_DIR/01-rbac.yaml"         "[2/6] RBAC (Role + ClusterRole patch on CIDR group)..."
+apply_manifest "$MANIFEST_DIR/02-cronjob.yaml"      "[3/6] CronJob threat-intel-refresh..."
+# CiliumCIDRGroup MUST be applied before the CCNP that references it.
+# Cilium tolerates a dangling cidrGroupRef (treats the group as empty),
+# but applying in this order keeps the policy effective from the moment
+# it is admitted to the cluster.
+apply_manifest "$MANIFEST_DIR/05-cidrgroup.yaml"    "[4/6] CiliumCIDRGroup threat-intel-firehol (seed)..."
+apply_manifest "$MANIFEST_DIR/03-ccnp.yaml"         "[5/6] CCNP cnp-threat-intel-egress-deny..."
+apply_manifest "$MANIFEST_DIR/04-cnp-cronjob-egress.yaml" "[6/6] CNP allow-threat-intel-egress..."
 
 # ---------------------------------------------------------------------------
 # Cilium L7 DNS proxy warm-up

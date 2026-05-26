@@ -249,6 +249,40 @@ spec:
                 echo "[threat-intel] FIREHOL_COUNT=0 — skipping CIDRGroup patch to preserve existing blocklist"
               fi
 
+              # ---------------------------------------------------------------
+              # Wire URLhaus FQDN list into CoreDNS sinkhole
+              # (kube-system/coredns-sinkhole ConfigMap).
+              #
+              # CoreDNS's `hosts` plugin reads /etc/coredns/sinkhole/hosts.txt
+              # every 30s (reload directive) and serves A 0.0.0.0 / NXDOMAIN
+              # AAAA for any FQDN listed there — cluster-wide DNS sinkhole.
+              # Cilium 1.19 does NOT support egressDeny.toFQDNs in its CNP
+              # schema, so CoreDNS-side enforcement is the established
+              # workaround. See doc/zta-gap-decision.md (Decision 3 pivot).
+              #
+              # We patch the coredns-sinkhole CM, NOT the `coredns` Corefile
+              # CM — the CronJob's SA has `patch` on this single ConfigMap
+              # only (Role + RoleBinding in kube-system pinned via
+              # resourceNames). A compromised CronJob cannot tamper with
+              # the Corefile, which is owned by the deploy script at
+              # deploy time only.
+              #
+              # Skip the patch when URLHAUS_COUNT=0 so a transient feed
+              # failure does not blank the active sinkhole.
+              # ---------------------------------------------------------------
+              if [ "$URLHAUS_COUNT" -gt 0 ]; then
+                echo "[threat-intel] Rendering CoreDNS sinkhole hosts.txt with $URLHAUS_COUNT FQDNs..."
+                awk '{print "0.0.0.0 " $0}' /feeds/urlhaus.txt > /tmp/sinkhole-hosts.txt
+                jq -Rs '{data: {"hosts.txt": .}}' /tmp/sinkhole-hosts.txt > /tmp/sinkhole-patch.json
+                kubectl -n kube-system patch cm coredns-sinkhole \
+                  --type=merge --patch-file=/tmp/sinkhole-patch.json
+                applied=$(kubectl -n kube-system get cm coredns-sinkhole -o json \
+                  | jq -r '.data["hosts.txt"] | split("\n") | map(select(length > 0)) | length')
+                echo "[threat-intel] CoreDNS sinkhole hosts.txt now holds $applied entries"
+              else
+                echo "[threat-intel] URLHAUS_COUNT=0 — skipping CoreDNS sinkhole patch to preserve existing list"
+              fi
+
               echo "[threat-intel] Done. CIDR=$FIREHOL_COUNT FQDN=$URLHAUS_COUNT updated=$TIMESTAMP"
             volumeMounts:
             - name: feeds

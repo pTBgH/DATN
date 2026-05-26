@@ -40,6 +40,9 @@ export function TopNav() {
               <NavLink href="/messages" active={path?.startsWith("/messages")}>
                 Tin nhắn
               </NavLink>
+              <NavLink href="/profile" active={path?.startsWith("/profile")}>
+                Hồ sơ
+              </NavLink>
             </>
           ) : null}
         </nav>

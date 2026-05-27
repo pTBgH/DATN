@@ -122,15 +122,15 @@ Dựa trên mô hình logic này, thiết kế vật lý được cụ thể hó
   l4/.style={blk, fill=red!10, draw=red!50},
   l5/.style={blk, fill=violet!10, draw=violet!60}
 ]
-\node[l1] (l1) at (0, 10) {\textbf{Lớp 1 — Định danh đa thực thể:}\\[6pt] Keycloak (User Identity) | SPIRE/SPIFFE (Workload SVID) | Vault K8s Auth.};
-\node[l2] (l2) at (0, 7.5) {\textbf{Lớp 2 — CDM \& Threat Intel:}\\[6pt] Trivy Operator (VulnerabilityReport) | Gatekeeper Constraint | Threat-intel CronJob.};
-\node[l3] (l3) at (0, 5) {\textbf{Lớp 3 — Thực thi đa tầng:}\\[6pt] Kong (PEP N-S) | Cilium eBPF (PEP E-W) | Sigstore (Admission) | Tetragon (Runtime).};
-\node[l4] (l4) at (0, 2.5) {\textbf{Lớp 4 — Bí mật động:}\\[6pt] Vault Dual-mode | Vault Agent Injector (tiêm sidecar render tmpfs/.env).};
-\node[l5] (l5) at (0, 0) {\textbf{Lớp 5 — Quan sát \& phân tích:}\\[6pt] EFK Stack | Prometheus \& Grafana | Hubble UI | Vòng lặp PDP.};
+\node[l1] (l1) at (0, 10) {\textbf{Thành phần 1 — Định danh đa thực thể:}\\[6pt] Keycloak (User Identity) | SPIRE/SPIFFE (Workload SVID) | Vault K8s Auth.};
+\node[l2] (l2) at (0, 7.5) {\textbf{Thành phần 2 — CDM \& Threat Intel:}\\[6pt] Trivy Operator (VulnerabilityReport) | Gatekeeper Constraint | Threat-intel CronJob.};
+\node[l3] (l3) at (0, 5) {\textbf{Thành phần 3 — Thực thi đa tầng:}\\[6pt] Kong (PEP N-S) | Cilium eBPF (PEP E-W) | Sigstore (Admission) | Tetragon (Runtime).};
+\node[l4] (l4) at (0, 2.5) {\textbf{Thành phần 4 — Bí mật động:}\\[6pt] Vault Dual-mode | Vault Agent Injector (tiêm sidecar render tmpfs/.env).};
+\node[l5] (l5) at (0, 0) {\textbf{Thành phần 5 — Quan sát \& phân tích:}\\[6pt] EFK Stack | Prometheus \& Grafana | Hubble UI | Vòng lặp PDP.};
 
 \draw[->, >=Latex, dashed, gray!80, line width=0.8pt] (l5.east) -- ++(1.5,0) |- node[pos=0.25, right, font=\scriptsize\sffamily, align=left, xshift=2pt] {Vòng phản hồi\\(Giảm điểm tin cậy)} (l1.east);
 \end{tikzpicture}
-\caption{Kiến trúc 5 lớp của khung ZTA cho hệ thống job7189.}
+\caption{Kiến trúc 5 thành phần của khung ZTA cho hệ thống job7189.}
 \label{fig:5layer_design}
 \end{figure}
 

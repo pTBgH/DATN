@@ -50,3 +50,27 @@ spec:
   # cluster-scoped RBAC on the CCNP itself.
   - toCIDRSet:
     - cidrGroupRef: "threat-intel-firehol"
+      # Exclude CGNAT (100.64.0.0/10, RFC 6598).
+      #
+      # FireHOL Level 1 lists this prefix because it is sometimes
+      # abused for malicious traffic on the open internet. However,
+      # on this cluster the prefix is **legitimately in use**:
+      # Tailscale assigns node + MagicDNS addresses out of CGNAT
+      # (e.g. srv01=100.114.68.15, srv02=100.108.231.127,
+      # srv03=100.112.57.2, and the MagicDNS resolver itself at
+      # 100.100.100.100). The host /etc/resolv.conf on the
+      # tailscale-managed nodes points at 100.100.100.100, and that
+      # file is what kubelet snapshots into the CoreDNS pod, so the
+      # forward plugin tries to reach 100.100.100.100:53 for every
+      # external lookup.
+      #
+      # Without this exception the cluster-wide egressDeny silently
+      # drops all CoreDNS upstream traffic, breaking external DNS
+      # resolution for every workload (observed symptoms: policy-
+      # controller-webhook CrashLoopBackOff on TUF bootstrap;
+      # threat-intel CronJob `curl: Could not resolve host
+      # raw.githubusercontent.com`; pod-side `nslookup google.com
+      # 100.100.100.100` 3s i/o timeout while 1.1.1.1 and 8.8.8.8
+      # remain reachable).
+      except:
+      - "100.64.0.0/10"

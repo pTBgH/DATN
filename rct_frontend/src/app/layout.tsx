@@ -17,9 +17,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body className="min-h-screen font-sans antialiased flex flex-col">
+      <body className="min-h-screen font-sans antialiased flex flex-col overflow-hidden">
         <TopNav />
-        <main className="mx-auto max-w-7xl px-4 py-8 flex-1">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 py-8 flex-1 overflow-hidden w-full">{children}</main>
         <Footer />
       </body>
     </html>

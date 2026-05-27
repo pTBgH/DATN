@@ -11,7 +11,7 @@ export default async function WorkspaceLayout({
 }) {
   const ws = await workspaceApi.getWorkspace(params.wsId);
   return (
-    <div className="flex h-screen flex-col gap-3 bg-slate-50 p-3">
+    <div className="flex h-full flex-col gap-3 bg-slate-50 p-3">
       <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
         <div className="flex items-center gap-3">
           <Link href="/recruiter" className="text-xs text-slate-500 hover:underline">

@@ -39,7 +39,7 @@ export default async function WorkspaceLayout({
         <Tab href={`/recruiter/${params.wsId}/pipelines`}>Pipeline</Tab>
       </nav>
 
-      <div className="flex-1 overflow-hidden">{children}</div>
+      <div className="flex-1 overflow-auto">{children}</div>
     </div>
   );
 }

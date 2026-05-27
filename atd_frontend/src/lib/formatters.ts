@@ -156,7 +156,7 @@ export function daysSinceApplication(applicationDate: string | Date): number {
  * @returns Boolean indicating if truncation is needed
  */
 export function isTruncated(text: string, maxLength: number): boolean {
-  return text && text.length > maxLength;
+  return !!(text && text.length > maxLength);
 }
 
 /**

@@ -4,6 +4,7 @@
 - RAM: ~12GB total
 - Swap: 4GB (`/swap.img`)
 - Swappiness: 60 (default) → **nen giam xuong 10**
+- Tailscale mesh \u2192 nodeIP la `100.64.0.0/10` CGNAT range
 
 ## Memory Budget Tong Hop
 
@@ -61,6 +62,24 @@
 | phpMyAdmin | 1 | 64Mi | 128Mi | ✅ |
 | ~~Kafbat~~ | ~~1~~ | ~~64Mi~~ | ~~128Mi~~ | (removed — see infras/k8s-yaml/03-kafka.yaml Phần 2) |
 | **Subtotal** | | **64Mi** | **128Mi** | |
+
+### ZTA Add-ons (cap nhat 2026-05-27)
+ 
+| Component | Pods | Request | Limit | Trang thai |
+|-----------|------|---------|-------|-----------|
+| SPIRE server | 1 (STS) | 64Mi | 128Mi | \u2705 deployed |
+| SPIRE agent | 4 (DS) | 32Mi\u00d74=128Mi | 64Mi\u00d74=256Mi | \u2705 deployed |
+| Gatekeeper | 1+2 | 96Mi\u00d73=288Mi | 256Mi\u00d73=768Mi | \u2705 deployed |
+| Tetragon | 4 (DS) | 64Mi\u00d74=256Mi | 128Mi\u00d74=512Mi | \u2705 deployed |
+| Cosign policy-controller | 1 | 64Mi | 128Mi | \u2705 deployed |
+| PDP Controller | 1 | 128Mi | 256Mi | \u2705 deployed (PDP_CVE_INPUT=false) |
+| Threat-intel CronJob | (peak 1 pod) | 64Mi peak | 128Mi peak | \u2705 deployed (1h cadence) |
+| ~~Trivy Operator~~ | ~~1~~ | ~~150Mi~~ | ~~300Mi~~ | \u274c **DEFERRED 2026-05-27** (RAM) |
+| ~~Trivy node-collector~~ | ~~4 (DS)~~ | ~~50Mi\u00d74=200Mi~~ | ~~100Mi\u00d74=400Mi~~ | \u274c DEFERRED |
+| ~~Hubble \u2192 ES sink filebeat~~ | ~~4 (DS)~~ | ~~96Mi\u00d74=384Mi~~ | ~~192Mi\u00d74=768Mi~~ | \u26a0\ufe0f design-only, KHONG deploy |
+| **Subtotal (deployed)** | | **~928Mi** | **~2.0Gi** | |
+| **Subtotal (potential when re-enable)** | | **+550Mi** | **+1.5Gi** | n\u1ebfu deploy Trivy + Hubble sink |
+ 
 
 ### TONG
 

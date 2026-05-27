@@ -11,23 +11,27 @@ export default async function BoardPage({
 }) {
   const board = await hiringApi.getBoard(params.jobId);
   return (
-    <div className="space-y-4">
-      <header className="flex items-baseline justify-between">
-        <div>
+    <div className="flex h-full flex-col gap-3">
+      <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-2.5">
+        <div className="flex items-center gap-3">
           <Link
             href={`/recruiter/${params.wsId}/jobs/${params.jobId}`}
             className="text-xs text-slate-500 hover:underline"
           >
-            ← Quay lại tin tuyển dụng
+            ← Quay lại
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold">Hiring board</h1>
-          <div className="text-xs text-slate-500">
-            Pipeline <code>{board.pipeline_id}</code>
+          <div>
+            <h1 className="text-sm font-semibold">Hiring board</h1>
+            <div className="text-xs text-slate-400">
+              Pipeline <code className="text-xs">{board.pipeline_id}</code>
+            </div>
           </div>
         </div>
       </header>
 
-      <KanbanBoard board={board} wsId={params.wsId} />
+      <div className="flex-1 overflow-hidden rounded-lg border bg-white p-3">
+        <KanbanBoard board={board} wsId={params.wsId} />
+      </div>
     </div>
   );
 }

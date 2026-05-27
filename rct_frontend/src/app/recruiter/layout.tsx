@@ -6,8 +6,8 @@ export default function RecruiterLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
-      <aside className="rounded-lg border bg-white p-3 text-sm">
+    <div className="flex h-full gap-3">
+      <aside className="rounded-lg border bg-white p-3 text-sm flex-shrink-0 overflow-y-auto">
         <div className="px-2 py-1 text-xs uppercase tracking-wide text-slate-500">
           Recruiter
         </div>
@@ -17,7 +17,7 @@ export default function RecruiterLayout({
           <SideLink href="/recruiter/messages">Hộp thư</SideLink>
         </nav>
       </aside>
-      <section>{children}</section>
+      <section className="flex-1 overflow-auto">{children}</section>
     </div>
   );
 }

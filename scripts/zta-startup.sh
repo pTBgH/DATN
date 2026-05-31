@@ -213,4 +213,16 @@ kubectl get pod -n "$DATA_NS"  --no-headers 2>/dev/null | awk '$2 !~ /^[0-9]+\/[
 kubectl get pod -n "$VAULT_NS" --no-headers 2>/dev/null | awk '$2 !~ /^[0-9]+\/[0-9]+$/ || $3 != "Running" {print "    "$0}'
 kubectl get pod -n "$SEC_NS"   --no-headers 2>/dev/null | awk '$2 !~ /^[0-9]+\/[0-9]+$/ || $3 != "Running" {print "    "$0}'
 
+# ------ 9. Cập nhật Cloudflare Pages (FE) theo Kong quick-tunnel URL mới -----
+# Quick-tunnel đổi URL mỗi lần cloudflared-kong restart → FE (NEXT_PUBLIC_* nướng lúc
+# build) phải build lại trỏ về URL mới. Script updater nằm cạnh file này; secrets
+# (token + deploy hooks) đọc từ $CF_DIR, KHÔNG commit vào repo.
+log "9/8 Cập nhật Cloudflare Pages env → Kong tunnel URL hiện tại + rebuild FE"
+PAGES_UPDATER="${PAGES_UPDATER:-$(dirname "$0")/update-pages-tunnel.sh}"
+if [ -x "$PAGES_UPDATER" ]; then
+  "$PAGES_UPDATER" || warn "Cập nhật Pages env fail — xem log, chạy lại thủ công nếu cần"
+else
+  warn "Không tìm thấy/không executable: $PAGES_UPDATER — bỏ qua cập nhật Pages env"
+fi
+
 ok "HỆ THỐNG ĐÃ SẴN SÀNG! Dùng 'kubectl get pods -A -w' để theo dõi."

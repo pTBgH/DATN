@@ -1,0 +1,49 @@
+==============================================================
+  SCENARIO 02: api-abuse
+  20260527_234714
+==============================================================
+$ kubectl -n job7189-apps run jwt-probe-20260527_234714   --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --   curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n'     -H 'Authorization: Bearer not-a-real-jwt'     http://kong-gateway.gateway.svc.cluster.local/api/recruiters/profile
+The Pod "jwt-probe-20260527_234714" is invalid: 
+* metadata.name: Invalid value: "jwt-probe-20260527_234714": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "jwt-probe-20260527_234714": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ echo 'JOB_POD=job-service-65f9f7cfcb-ssnj6'
+JOB_POD=job-service-65f9f7cfcb-ssnj6
+[exit=0]
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-ssnj6 -c app --     curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE     http://workspace-service.job7189-apps.svc.cluster.local/api/v1/internal/workspaces/42
+curl: (28) Connection timed out after 8001 milliseconds
+HTTP 000
+command terminated with exit code 28
+[exit=28]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --type l7 --namespace job7189-apps   --output compact 2>/dev/null | head -30
+May 27 16:46:00.906: job7189-apps/hiring-service-86b448cb56-hxhsx:43955 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA)
+May 27 16:46:00.906: job7189-apps/hiring-service-86b448cb56-hxhsx:43955 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. A)
+May 27 16:46:00.915: job7189-apps/hiring-service-86b448cb56-hxhsx:43955 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. A))
+May 27 16:46:00.915: job7189-apps/hiring-service-86b448cb56-hxhsx:43955 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA))
+May 27 16:46:00.915: job7189-apps/hiring-service-86b448cb56-hxhsx:38070 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.svc.cluster.local. AAAA)
+May 27 16:46:00.916: job7189-apps/hiring-service-86b448cb56-hxhsx:38070 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.svc.cluster.local. A)
+May 27 16:46:00.923: job7189-apps/hiring-service-86b448cb56-hxhsx:38070 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.svc.cluster.local. A))
+May 27 16:46:00.924: job7189-apps/hiring-service-86b448cb56-hxhsx:38070 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.svc.cluster.local. AAAA))
+May 27 16:46:00.925: job7189-apps/hiring-service-86b448cb56-hxhsx:43904 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.cluster.local. AAAA)
+May 27 16:46:00.925: job7189-apps/hiring-service-86b448cb56-hxhsx:43904 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.cluster.local. A)
+May 27 16:46:00.933: job7189-apps/hiring-service-86b448cb56-hxhsx:43904 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.cluster.local. A))
+May 27 16:46:00.933: job7189-apps/hiring-service-86b448cb56-hxhsx:43904 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.cluster.local. AAAA))
+May 27 16:46:00.933: job7189-apps/hiring-service-86b448cb56-hxhsx:40858 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.localdomain. AAAA)
+May 27 16:46:00.933: job7189-apps/hiring-service-86b448cb56-hxhsx:40858 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.localdomain. A)
+May 27 16:46:00.941: job7189-apps/hiring-service-86b448cb56-hxhsx:40858 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.localdomain. A))
+May 27 16:46:00.941: job7189-apps/hiring-service-86b448cb56-hxhsx:40858 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.localdomain. AAAA))
+May 27 16:46:00.941: job7189-apps/hiring-service-86b448cb56-hxhsx:48001 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.taildc1739.ts.net. AAAA)
+May 27 16:46:00.941: job7189-apps/hiring-service-86b448cb56-hxhsx:48001 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.taildc1739.ts.net. A)
+May 27 16:46:00.949: job7189-apps/hiring-service-86b448cb56-hxhsx:48001 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.taildc1739.ts.net. A))
+May 27 16:46:00.950: job7189-apps/hiring-service-86b448cb56-hxhsx:48001 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.taildc1739.ts.net. AAAA))
+May 27 16:46:00.950: job7189-apps/hiring-service-86b448cb56-hxhsx:43082 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local. A)
+May 27 16:46:00.950: job7189-apps/hiring-service-86b448cb56-hxhsx:43082 (ID:23446) -> kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local. AAAA)
+May 27 16:46:00.958: job7189-apps/hiring-service-86b448cb56-hxhsx:43082 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer  TTL: 4294967295 (Proxy mysql.data.svc.cluster.local. AAAA))
+May 27 16:46:00.958: job7189-apps/hiring-service-86b448cb56-hxhsx:43082 (ID:23446) <- kube-system/coredns-6cf5f79cf9-gjbwd:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer "10.106.91.48" TTL: 1 (Proxy mysql.data.svc.cluster.local. A))
+May 27 16:46:01.276: job7189-apps/hiring-service-86b448cb56-hxhsx:57026 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA)
+May 27 16:46:01.277: job7189-apps/hiring-service-86b448cb56-hxhsx:57026 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. A)
+May 27 16:46:01.288: job7189-apps/hiring-service-86b448cb56-hxhsx:57026 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA))
+May 27 16:46:01.288: job7189-apps/hiring-service-86b448cb56-hxhsx:57026 (ID:23446) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy mysql.data.svc.cluster.local.job7189-apps.svc.cluster.local. A))
+May 27 16:46:01.290: job7189-apps/hiring-service-86b448cb56-hxhsx:37062 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.svc.cluster.local. AAAA)
+May 27 16:46:01.292: job7189-apps/hiring-service-86b448cb56-hxhsx:37062 (ID:23446) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query mysql.data.svc.cluster.local.svc.cluster.local. A)
+[exit=0]

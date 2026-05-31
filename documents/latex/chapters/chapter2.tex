@@ -179,60 +179,87 @@ Dựa trên phân tích mô hình đe dọa (Mục 2.2) và các thách thức k
 Kiến trúc này dịch chuyển trọng tâm từ bảo vệ vành đai sang bảo vệ \textit{thực thể và dữ liệu}. Thay vì giả định an toàn nội bộ, mọi luồng giao tiếp phải tuân thủ nghiêm ngặt quy trình khép kín: \textit{Định danh $\rightarrow$ Đánh giá trạng thái bảo mật $\rightarrow$ Xác thực $\rightarrow$ Cấp quyền $\rightarrow$ Giám sát}.
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{images/proposed_architecture_flow.png}
-    \caption{Sơ đồ luồng dữ liệu xử lý yêu cầu truy cập qua 5 thành phần Zero Trust đề xuất.}
-    \label{fig:proposed_architecture}
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize\sffamily,
+  blk/.style={draw, rounded corners=2pt, minimum height=12mm, text width=11.5cm, align=left, inner sep=5pt, line width=0.6pt},
+  l1/.style={blk, fill=blue!8, draw=blue!50},
+  l2/.style={blk, fill=orange!12, draw=orange!60},
+  l3/.style={blk, fill=green!10, draw=green!50},
+  l4/.style={blk, fill=red!10, draw=red!50},
+  l5/.style={blk, fill=violet!10, draw=violet!60}
+  ]
+\node[l1] (l1) at (0, 10) {
+  \textbf{Thành phần 1 — Định danh đa thực thể:}\\[3pt]
+  Xác thực người dùng 
+  | Định danh workload 
+  | Gốc tin cậy hạ tầng};
+
+\node[l2] (l2) at (0, 7.5) {
+  \textbf{Thành phần 2 — Đánh giá tư thế \& Tình báo đe dọa:}\\[3pt]
+  Kiểm toán lỗ hổng Image 
+  | Kiểm soát cổng nạp 
+  | Cập nhật tri thức mối đe dọa};
+
+\node[l3] (l3) at (0, 5) {
+  \textbf{Thành phần 3 — Thực thi chính sách đa tầng:}\\[3pt]
+  Kiểm soát biên (North-South) 
+  | Phân đoạn vi mô
+  | Xác thực cổng nạp 
+  | Giám sát Runtime};
+
+\node[l4] (l4) at (0, 2.5) {
+  \textbf{Thành phần 4 — Quản lý bí mật động:}\\[3pt]
+  Cấp phát thông tin xác thực động (JIT)};
+
+\node[l5] (l5) at (0, 0) {
+  \textbf{Thành phần 5 — Quan sát \& Phân tích thích ứng:}\\[3pt]
+  Thu thập log tập trung 
+  | Giám sát chỉ số an ninh 
+  | Trực quan hóa bản đồ mạng 
+  | Vòng lặp đánh giá lại điểm tin cậy (PDP)};
+
+\draw[->, >=Latex, dashed, gray!80, line width=0.8pt] (l5.east) -- ++(1.2,0) |- node[pos=0.25, right, font=\scriptsize\sffamily, align=left, xshift=2pt] {Vòng phản hồi\\(Cập nhật điểm tin cậy\\và điều chỉnh chính sách)} (l1.east);
+\end{tikzpicture}
+\caption{Khung kiến trúc logic Zero Trust 5 thành phần đề xuất}
+\label{fig:logical_5layer_design}
 \end{figure}
 
 
 Dưới đây là chi tiết chức năng và vai trò của từng thành phần trong mô hình:
 
-\section{Đề xuất Khung kiến trúc Zero Trust 5 thành phần}
-
-Dựa trên phân tích mô hình đe dọa (Mục 2.2) và các thách thức kỹ thuật (Mục 2.3), đồ án đề xuất một \textbf{Khung kiến trúc Zero Trust 5 thành phần} dành riêng cho môi trường vi dịch vụ trên Kubernetes. 
-
-Kiến trúc này dịch chuyển trọng tâm từ bảo vệ vành đai sang bảo vệ \textit{thực thể và dữ liệu}. Thay vì giả định an toàn nội bộ, mọi luồng giao tiếp phải tuân thủ nghiêm ngặt quy trình khép kín: \textit{Định danh $\rightarrow$ Đánh giá trạng thái bảo mật $\rightarrow$ Xác thực $\rightarrow$ Cấp quyền $\rightarrow$ Giám sát}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\textwidth]{images/proposed_architecture_flow.png}
-    \caption{Sơ đồ luồng dữ liệu xử lý yêu cầu truy cập qua 5 thành phần Zero Trust đề xuất.}
-    \label{fig:proposed_architecture}
-\end{figure}
-
 \subsection{Thành phần 1: Định danh đa thực thể}
 Thành phần Định danh đóng vai trò là "gốc tin cậy" cho toàn bộ hệ thống. Mô hình này áp dụng cơ chế \textbf{định danh kép} để loại bỏ hoàn toàn sự tin cậy dựa trên địa chỉ IP:
 \begin{itemize}
     \item \textbf{Định danh người dùng:} Sử dụng giao thức OIDC (OpenID Connect). Thông tin người dùng được đóng gói trong JWT, mang theo các quyền hạn để phục vụ quá trình ủy quyền ở các thành phần sau.
-    \item \textbf{Định danh workload:} Mọi Microservice khi khởi tạo đều được cấp một danh tính mật mã học duy nhất (X.509 SVID) thông qua chuẩn SPIFFE. Các chứng chỉ này có thời gian sống rất ngắn, giúp workload xác thực mTLS với độ đảm bảo mật mã học cao.
+    \item \textbf{Định danh workload:} Mọi vi dịch vụ khi khởi tạo đều được cấp một danh tính mật mã học duy nhất (X.509 SVID) thông qua chuẩn SPIFFE. Các chứng chỉ này có thời gian sống rất ngắn, giúp workload xác thực mTLS với độ đảm bảo mật mã học cao.
 \end{itemize}
 
 \subsection{Thành phần 2: Đánh giá tư thế bảo mật và Tình báo đe dọa}
-Chỉ có định danh hợp lệ là chưa đủ, hệ thống cần đánh giá \textit{mức độ an toàn} của tác nhân đang gửi request. Thành phần 2 thực hiện thu thập và cung cấp ngữ cảnh bảo mật cho Policy Engine:
+Chỉ có định danh hợp lệ là chưa đủ, hệ thống cần đánh giá \textit{mức độ an toàn} của tác nhân đang gửi yêu cầu. Thành phần 2 thực hiện thu thập và cung cấp ngữ cảnh bảo mật cho Policy Engine:
 \begin{itemize}
     \item \textbf{Tư thế của Workload:} Liên tục quét mã nguồn và Image của container để tìm kiếm các CVE (lỗ hổng bảo mật) hoặc các cấu hình sai lệch.
-    \item \textbf{Tình báo đe doạ:} Tự động đồng bộ các danh sách IP/Domain từ các máy chủ rà quét hoặc phát tán mã độc trên Internet, giúp hệ thống phòng vệ chủ động ngay cả khi chưa có yêu cầu kết nối.
+    \item \textbf{Tình báo đe dọa:} Tự động đồng bộ các danh sách IP/Domain từ các máy chủ rà quét hoặc phát tán mã độc trên Internet, giúp hệ thống phòng vệ chủ động ngay cả khi chưa có yêu cầu kết nối.
 \end{itemize}
 
-\subsection{Thành phần 3: Thực thi đa tầng (Multi-layer Enforcement)}
+\subsection{Thành phần 3: Thực thi đa tầng}
 Để giải quyết bài toán "điểm chết đơn lẻ", hệ thống áp dụng chiến lược phòng thủ chiều sâu với 4 PEP độc lập:
 \begin{itemize}
-    \item \textbf{PEP Biên (Edge):} Đứng tại cửa ngõ hệ thống, kiểm tra chữ ký và hiệu lực của JWT. Từ chối ngay lập tức các request không có JWT hợp lệ.
-    \item \textbf{PEP Mạng (Network):} Đứng tại mức Kernel của Kubernetes, thực thi phân đoạn vi mô (Microsegmentation) L3/L4/L7. Nó đảm bảo các vi dịch vụ chỉ được phép giao tiếp với đúng những đối tượng đã được khai báo tường minh.
-    \item \textbf{PEP Admission:} Đứng tại API Server, chặn việc khởi tạo pod nếu Image không có chữ ký số hợp lệ (chống tấn công chuỗi cung ứng).
+    \item \textbf{PEP Biên:} Đứng tại cửa ngõ hệ thống, kiểm tra chữ ký và hiệu lực của JWT. Từ chối ngay lập tức các request không có JWT hợp lệ.
+    \item \textbf{PEP Mạng:} Hoạt động tại tầng nhân Linux của Node, thực thi chính sách phân đoạn vi mô tại các tầng L3/L4 và L7. Mỗi luồng giao tiếp giữa các vi dịch vụ chỉ được cho phép khi có khai báo tường minh trong chính sách mạng, kết hợp với xác thực định danh mật mã học của workload nguồn.
+    \item \textbf{PEP Admission:} Đứng tại API Server, chặn việc khởi tạo pod nếu Image không có chữ ký số hợp lệ.
     \item \textbf{PEP Runtime:} Giám sát các lời gọi hệ thống bên trong container. Bắt và ngắt ngay lập tức các tiến trình bất thường.
 \end{itemize}
 
 \subsection{Thành phần 4: Quản trị bí mật động}
-Thành phần này loại bỏ hoàn toàn phương pháp lưu trữ mật khẩu tĩnh truyền thống. Sử dụng Policy Administrator để cấp phát thông tin đăng nhập Cơ sở dữ liệu theo cơ chế \textbf{JIT}. 
+Thành phần này loại bỏ hoàn toàn phương pháp lưu trữ mật khẩu tĩnh truyền thống. Sử dụng Policy Administrator để cấp phát thông tin đăng nhập CSDL theo cơ chế \textbf{JIT}. 
 Khi một vi dịch vụ cần truy cập CSDL, nó sẽ được cấp một user ngẫu nhiên với TTL ngắn (ví dụ: 1 giờ). Khi hết hạn, mật khẩu tự động bị thu hồi. Các bí mật này chỉ lưu trên tmpfs (bộ nhớ ảo), không ghi xuống ổ cứng vật lý.
 
-\subsection{Thành phần 5: Quan sát và Vòng lặp thích ứng (Observability \& Adaptive Loop)}
+\subsection{Thành phần 5: Quan sát và Vòng lặp thích ứng}
 Giám sát trong Zero Trust không phải là quá trình lưu log thụ động để hậu kiểm, mà là \textbf{đầu vào trực tiếp} để hệ thống ra quyết định theo thời gian thực \citep{Rose2020}.
 \begin{itemize}
     \item \textbf{Quan sát tập trung:} Thu thập toàn bộ log truy cập, lưu lượng mạng và các sự kiện bảo mật từ 4 thành phần trên.
-    \item \textbf{Vòng lặp thích ứng (Adaptive Loop):} Khi phát hiện một Container có hành vi bất thường (gọi API lạ, xuất hiện CVE mới), hệ thống lập tức đánh tụt điểm tin cậy của Container đó. Sự thay đổi điểm số này kích hoạt Thành phần 3 (PEP Mạng) tự động cắt đứt quyền truy cập, cách ly mối đe dọa mà không cần con người can thiệp.
+    \item \textbf{Vòng lặp thích ứng:} Khi phát hiện một Container có hành vi bất thường (gọi API lạ, xuất hiện CVE mới), hệ thống lập tức đánh tụt điểm tin cậy của Container đó. Sự thay đổi điểm số này kích hoạt Thành phần 3 (PEP Mạng) tự động cắt đứt quyền truy cập, cách ly mối đe dọa mà không cần con người can thiệp.
 \end{itemize}
 
 \begin{leftbar}

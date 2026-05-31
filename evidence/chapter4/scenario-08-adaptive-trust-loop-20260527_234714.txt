@@ -1,0 +1,36 @@
+==============================================================
+  SCENARIO 08: adaptive-trust-loop
+  20260527_234714
+==============================================================
+$ kubectl -n security get deploy zta-pdp -o wide 2>/dev/null
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES             SELECTOR
+zta-pdp   1/1     1            1           13d   controller   python:3.11-slim   app=zta-pdp
+[exit=0]
+$ kubectl -n security logs deploy/zta-pdp --tail=20 2>/dev/null
+{"ts":"2026-05-27T16:16:18Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:17:55Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:19:28Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:21:07Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:22:42Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:24:19Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:26:18Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:27:57Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:29:33Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:31:13Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:32:49Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:34:25Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:36:02Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:37:41Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:39:17Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:40:52Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:42:30Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:44:09Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:45:43Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:47:22Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+[exit=0]
+$ kubectl -n job7189-apps get cnp cnp-block-low-trust-to-vault -o yaml 2>/dev/null | head -25
+[exit=0]
+$ kubectl -n job7189-apps get pod -l app=identity-service   -o jsonpath='{range .items[*]}{.metadata.name}{"  bucket="}{.metadata.labels.zta\.job7189/score-bucket}{"  score="}{.metadata.annotations.zta\.job7189/trust-score}{"\n"}{end}'
+identity-service-769b979c65-nzt5f  bucket=high  score=100
+[exit=0]
+[skip] PDP simulate (set CONFIRM_PDP_SIM=1 nếu PDP đã live)

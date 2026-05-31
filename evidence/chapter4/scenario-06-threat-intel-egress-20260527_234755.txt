@@ -1,0 +1,88 @@
+==============================================================
+  SCENARIO 06: threat-intel-egress
+  20260527_234755
+==============================================================
+$ kubectl get ccnp cnp-threat-intel-egress-deny -o yaml 2>/dev/null | head -40
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumClusterwideNetworkPolicy","metadata":{"annotations":{},"name":"cnp-threat-intel-egress-deny"},"spec":{"description":"Deny egress to known-bad IPs (FireHOL Level1, via CIDR group) — updated hourly by CronJob","egressDeny":[{"toCIDRSet":[{"cidrGroupRef":"threat-intel-firehol","except":["100.64.0.0/10"]}]}],"enableDefaultDeny":{"egress":false,"ingress":false},"endpointSelector":{}}}
+  creationTimestamp: "2026-05-27T09:31:24Z"
+  generation: 2
+  name: cnp-threat-intel-egress-deny
+  resourceVersion: "1117858"
+  uid: f287f7a6-4f00-4802-9ed8-a7fd161b0615
+spec:
+  description: Deny egress to known-bad IPs (FireHOL Level1, via CIDR group) — updated
+    hourly by CronJob
+  egressDeny:
+  - toCIDRSet:
+    - cidrGroupRef: threat-intel-firehol
+      except:
+      - 100.64.0.0/10
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+status:
+  conditions:
+  - lastTransitionTime: "2026-05-27T09:31:24Z"
+    message: Policy validation succeeded
+    status: "True"
+    type: Valid
+[exit=0]
+$ kubectl get ciliumcidrgroup threat-intel-firehol -o yaml 2>/dev/null | head -15
+apiVersion: cilium.io/v2
+kind: CiliumCIDRGroup
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumCIDRGroup","metadata":{"annotations":{},"labels":{"app":"threat-intel","cilium.zta/destination":"external-feeds","cilium.zta/owner":"security-team","cilium.zta/role":"security","cilium.zta/sensitivity":"confidential","cilium.zta/source":"threat-intel","cilium.zta/tier":"T1"},"name":"threat-intel-firehol"},"spec":{"externalCIDRs":[]}}
+  creationTimestamp: "2026-05-26T15:45:34Z"
+  generation: 3
+  labels:
+    app: threat-intel
+    cilium.zta/destination: external-feeds
+    cilium.zta/owner: security-team
+    cilium.zta/role: security
+    cilium.zta/sensitivity: confidential
+    cilium.zta/source: threat-intel
+[exit=0]
+$ kubectl -n kube-system get cm coredns-sinkhole -o jsonpath='{.metadata.annotations}' 2>/dev/null; echo
+{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"data\":{\"hosts.txt\":\"\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"threat-intel\",\"cilium.zta/destination\":\"external-feeds\",\"cilium.zta/owner\":\"security-team\",\"cilium.zta/role\":\"security\",\"cilium.zta/sensitivity\":\"confidential\",\"cilium.zta/source\":\"threat-intel\",\"cilium.zta/tier\":\"T1\"},\"name\":\"coredns-sinkhole\",\"namespace\":\"kube-system\"}}\n"}
+[exit=0]
+$ echo 'SAMPLE_CIDR=0.0.0.0/8 → SAMPLE_IP=0.0.0.0'
+SAMPLE_CIDR=0.0.0.0/8 → SAMPLE_IP=0.0.0.0
+[exit=0]
+$ kubectl -n job7189-apps run egress-probe-20260527_234755     --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --     curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' http://0.0.0.0/
+The Pod "egress-probe-20260527_234755" is invalid: 
+* metadata.name: Invalid value: "egress-probe-20260527_234755": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "egress-probe-20260527_234755": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ echo 'SINK_FQDN=<none>'
+SINK_FQDN=<none>
+[exit=0]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --verdict DROPPED --from-namespace job7189-apps   --output compact 2>/dev/null | head -20
+May 27 16:46:33.852: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:33.852: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:34.173: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:34.173: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:34.876: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:34.876: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:35.196: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:35.196: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:35.900: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:35.900: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:36.220: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:36.220: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:36.925: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:36.925: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:38.267: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:38.267: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:38.971: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:38.971: job7189-apps/hiring-service-86b448cb56-hxhsx:45100 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 27 16:46:42.300: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 27 16:46:42.300: job7189-apps/hiring-service-86b448cb56-hxhsx:47270 (ID:23446) <> data/mysql-f5fb77767-nr2sb:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+[exit=0]

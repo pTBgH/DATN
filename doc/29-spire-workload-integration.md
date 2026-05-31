@@ -77,7 +77,7 @@ spire-controller-manager watches this rule, sees demo pod, register entry với 
 ```yaml
 spec:
   serviceAccountName: spire-demo-workload
-  automountServiceAccountToken: false   # KHÔNG xài SA token — only SVID
+  automountServiceAccountToken: false   # không dùng SA token — chỉ SVID
   containers:
   - name: spiffe-helper
     image: ghcr.io/spiffe/spiffe-helper:0.8.0

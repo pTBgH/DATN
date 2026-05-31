@@ -29,3 +29,10 @@ allow if {
 allow if {
 	endswith(input.path, "/api/health")
 }
+
+# KEYCLOAK_REALMS_ALLOW — bề mặt OIDC công khai của Keycloak (token/auth/certs/
+# .well-known/userinfo/logout…) phải mở ở tầng Kong/OPA để FE lấy được token.
+# Keycloak tự enforce auth cho từng endpoint của nó.
+allow if {
+	startswith(input.path, "/realms/")
+}

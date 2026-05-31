@@ -1,0 +1,60 @@
+==============================================================
+  SCENARIO 08: adaptive-trust-loop
+  20260527_234755
+==============================================================
+$ kubectl -n security get deploy zta-pdp -o wide 2>/dev/null
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES             SELECTOR
+zta-pdp   1/1     1            1           13d   controller   python:3.11-slim   app=zta-pdp
+[exit=0]
+$ kubectl -n security logs deploy/zta-pdp --tail=20 2>/dev/null
+{"ts":"2026-05-27T16:16:18Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:17:55Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:19:28Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:21:07Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:22:42Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:24:19Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:26:18Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:27:57Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:29:33Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:31:13Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:32:49Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:34:25Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:36:02Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:37:41Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:39:17Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:40:52Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:42:30Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:44:09Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:45:43Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-05-27T16:47:22Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+[exit=0]
+$ kubectl -n job7189-apps get cnp cnp-block-low-trust-to-vault -o yaml 2>/dev/null | head -25
+[exit=0]
+$ kubectl -n job7189-apps get pod -l app=identity-service   -o jsonpath='{range .items[*]}{.metadata.name}{"  bucket="}{.metadata.labels.zta\.job7189/score-bucket}{"  score="}{.metadata.annotations.zta\.job7189/trust-score}{"\n"}{end}'
+identity-service-769b979c65-nzt5f  bucket=high  score=100
+[exit=0]
+$ kubectl -n job7189-apps annotate pod identity-service-769b979c65-nzt5f     zta.job7189/simulated-cve-critical=true --overwrite
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[2].image
+Warning: 100.74.189.43:5000/job7189/identity-service@sha256:b9082337545b056fbbe4162d7cfe4bb28edcea1e2e8017c853a415eadd290855 signature key validation failed for authority zta-cosign-key for 100.74.189.43:5000/job7189/identity-service@sha256:b9082337545b056fbbe4162d7cfe4bb28edcea1e2e8017c853a415eadd290855: Get "https://100.74.189.43:5000/v2/": http: server gave HTTP response to HTTPS client
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[3].image, spec.initContainers[0].image
+Warning: index.docker.io/hashicorp/vault:1.21.2@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0 signature key validation failed for authority zta-cosign-key for index.docker.io/hashicorp/vault@sha256:eb0ba6836e8d4699b7a1e8ca70d8433f7b87dcd067e6d82dff237d3ed2600ea0: no signatures found
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[1].image
+Warning: index.docker.io/library/alpine:3.18@sha256:de0eb0b3f2a47ba1eb89389859a9bd88b28e82f5826b6969ad604979713c2d4f signature key validation failed for authority zta-cosign-key for index.docker.io/library/alpine@sha256:de0eb0b3f2a47ba1eb89389859a9bd88b28e82f5826b6969ad604979713c2d4f: no signatures found
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[0].image, spec.initContainers[1].image, spec.initContainers[2].image, spec.initContainers[3].image
+Warning: index.docker.io/library/busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 signature key validation failed for authority zta-cosign-key for index.docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662: no signatures found
+pod/identity-service-769b979c65-nzt5f annotated
+[exit=0]
+$ echo 'sleep 70s chờ PDP reconcile...'
+sleep 70s chờ PDP reconcile...
+[exit=0]
+$ sleep 70
+[exit=0]
+$ kubectl -n job7189-apps get pod identity-service-769b979c65-nzt5f     -o jsonpath='{.metadata.name}  bucket={.metadata.labels.zta\.job7189/score-bucket}  score={.metadata.annotations.zta\.job7189/trust-score}'; echo
+identity-service-769b979c65-nzt5f  bucket=high  score=100
+[exit=0]
+$ kubectl -n job7189-apps exec identity-service-769b979c65-nzt5f -c app --     curl -sS -m 6 -o /dev/null -w 'HTTP %{http_code}\n' http://vault.vault:8200/v1/sys/health
+HTTP 400
+[exit=0]
+$ kubectl -n job7189-apps annotate pod identity-service-769b979c65-nzt5f     zta.job7189/simulated-cve-critical- 2>/dev/null
+pod/identity-service-769b979c65-nzt5f annotated
+[exit=0]

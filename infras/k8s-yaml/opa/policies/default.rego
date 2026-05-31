@@ -88,3 +88,15 @@ public_paths := {
 	"/api/metadata/common",
 	"/api/public/metadata/common",
 }
+
+# ---------------------------------------------------------------------------
+# Added: recruiters + admin sub-policies (gap fix — 403 trên /api/recruiters/*
+# và /api/admin/users do trước đây không có rego tương ứng).
+# ---------------------------------------------------------------------------
+allow if {
+	data.zta.authz.recruiters.allow
+}
+
+allow if {
+	data.zta.authz.admin.allow
+}

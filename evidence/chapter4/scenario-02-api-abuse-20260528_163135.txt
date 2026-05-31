@@ -1,0 +1,49 @@
+==============================================================
+  SCENARIO 02: api-abuse
+  20260528_163135
+==============================================================
+$ kubectl -n job7189-apps run jwt-probe-20260528_163135   --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --   curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n'     -H 'Authorization: Bearer not-a-real-jwt'     http://kong-gateway.gateway.svc.cluster.local/api/recruiters/profile
+The Pod "jwt-probe-20260528_163135" is invalid: 
+* metadata.name: Invalid value: "jwt-probe-20260528_163135": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "jwt-probe-20260528_163135": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ echo 'JOB_POD=job-service-65f9f7cfcb-f6zkl'
+JOB_POD=job-service-65f9f7cfcb-f6zkl
+[exit=0]
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-f6zkl -c app --     curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE     http://workspace-service.job7189-apps.svc.cluster.local/api/v1/internal/workspaces/42
+curl: (28) Connection timed out after 8001 milliseconds
+HTTP 000
+command terminated with exit code 28
+[exit=28]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --type l7 --namespace job7189-apps   --output compact 2>/dev/null | head -30
+May 28 09:30:13.817: job7189-apps/job-service-65f9f7cfcb-f6zkl:49053 (ID:5287) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. AAAA)
+May 28 09:30:13.819: job7189-apps/job-service-65f9f7cfcb-f6zkl:49053 (ID:5287) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. A)
+May 28 09:30:13.850: job7189-apps/job-service-65f9f7cfcb-f6zkl:49053 (ID:5287) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer  TTL: 4294967295 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. AAAA))
+May 28 09:30:13.873: job7189-apps/job-service-65f9f7cfcb-f6zkl:49053 (ID:5287) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer "10.244.4.23" TTL: 30 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. A))
+May 28 09:30:14.828: job7189-apps/job-service-65f9f7cfcb-f6zkl:45021 (ID:5287) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. AAAA)
+May 28 09:30:14.829: job7189-apps/job-service-65f9f7cfcb-f6zkl:45021 (ID:5287) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. A)
+May 28 09:30:14.864: job7189-apps/job-service-65f9f7cfcb-f6zkl:45021 (ID:5287) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer  TTL: 4294967295 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. AAAA))
+May 28 09:30:14.888: job7189-apps/job-service-65f9f7cfcb-f6zkl:45021 (ID:5287) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer "10.244.4.23" TTL: 29 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. A))
+May 28 09:30:15.741: job7189-apps/job-service-65f9f7cfcb-f6zkl:57718 (ID:5287) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. AAAA)
+May 28 09:30:15.742: job7189-apps/job-service-65f9f7cfcb-f6zkl:57718 (ID:5287) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query kafka-0.kafka-svc.data.svc.cluster.local. A)
+May 28 09:30:15.773: job7189-apps/job-service-65f9f7cfcb-f6zkl:57718 (ID:5287) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer "10.244.4.23" TTL: 30 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. A))
+May 28 09:30:15.795: job7189-apps/job-service-65f9f7cfcb-f6zkl:57718 (ID:5287) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer  TTL: 4294967295 (Proxy kafka-0.kafka-svc.data.svc.cluster.local. AAAA))
+May 28 09:30:39.786: job7189-apps/workspace-service-86d677f544-fv924:42615 (ID:25861) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA)
+May 28 09:30:39.787: job7189-apps/workspace-service-86d677f544-fv924:35688 (ID:25861) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.job7189-apps.svc.cluster.local. A)
+May 28 09:30:39.821: job7189-apps/workspace-service-86d677f544-fv924:35688 (ID:25861) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.job7189-apps.svc.cluster.local. A))
+May 28 09:30:39.844: job7189-apps/workspace-service-86d677f544-fv924:42615 (ID:25861) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.job7189-apps.svc.cluster.local. AAAA))
+May 28 09:30:39.845: job7189-apps/workspace-service-86d677f544-fv924:47661 (ID:25861) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.svc.cluster.local. A)
+May 28 09:30:39.845: job7189-apps/workspace-service-86d677f544-fv924:38957 (ID:25861) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.svc.cluster.local. AAAA)
+May 28 09:30:39.873: job7189-apps/workspace-service-86d677f544-fv924:47661 (ID:25861) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.svc.cluster.local. A))
+May 28 09:30:39.896: job7189-apps/workspace-service-86d677f544-fv924:38957 (ID:25861) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.svc.cluster.local. AAAA))
+May 28 09:30:39.897: job7189-apps/workspace-service-86d677f544-fv924:38602 (ID:25861) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.cluster.local. AAAA)
+May 28 09:30:39.897: job7189-apps/workspace-service-86d677f544-fv924:41015 (ID:25861) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.cluster.local. A)
+May 28 09:30:39.927: job7189-apps/workspace-service-86d677f544-fv924:38602 (ID:25861) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.cluster.local. AAAA))
+May 28 09:30:39.949: job7189-apps/workspace-service-86d677f544-fv924:41015 (ID:25861) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.cluster.local. A))
+May 28 09:30:39.952: job7189-apps/workspace-service-86d677f544-fv924:41909 (ID:25861) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.localdomain. AAAA)
+May 28 09:30:39.952: job7189-apps/workspace-service-86d677f544-fv924:49688 (ID:25861) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.localdomain. A)
+May 28 09:30:40.012: job7189-apps/workspace-service-86d677f544-fv924:41909 (ID:25861) <- kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.localdomain. AAAA))
+May 28 09:30:40.036: job7189-apps/workspace-service-86d677f544-fv924:49688 (ID:25861) <- kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-response proxy FORWARDED (DNS Answer RCode: Non-Existent Domain TTL: 4294967295 (Proxy vault.vault.svc.cluster.local.localdomain. A))
+May 28 09:30:40.037: job7189-apps/workspace-service-86d677f544-fv924:54690 (ID:25861) -> kube-system/coredns-6cf5f79cf9-6vlll:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.taildc1739.ts.net. A)
+May 28 09:30:40.037: job7189-apps/workspace-service-86d677f544-fv924:54190 (ID:25861) -> kube-system/coredns-6cf5f79cf9-kqg9q:53 (ID:54275) dns-request proxy FORWARDED (DNS Query vault.vault.svc.cluster.local.taildc1739.ts.net. AAAA)
+[exit=0]

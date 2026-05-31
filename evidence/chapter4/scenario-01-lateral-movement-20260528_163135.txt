@@ -1,0 +1,95 @@
+==============================================================
+  SCENARIO 01: lateral-movement
+  20260528_163135
+==============================================================
+$ kubectl -n job7189-apps get cnp default-deny-all -o yaml | head -40
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"default-deny-all","namespace":"job7189-apps"},"spec":{"egress":[{"toEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}],"endpointSelector":{"matchLabels":{}},"ingress":[{"fromEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}]}}
+  creationTimestamp: "2026-05-13T16:21:57Z"
+  generation: 2
+  name: default-deny-all
+  namespace: job7189-apps
+  resourceVersion: "760165"
+  uid: 18a3c856-08ac-4664-8997-11b3f29f9183
+spec:
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  endpointSelector:
+    matchLabels: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+status:
+  conditions:
+  - lastTransitionTime: "2026-05-22T15:15:04Z"
+    message: Policy validation succeeded
+    status: "True"
+    type: Valid
+[exit=0]
+$ kubectl -n job7189-apps get cnp -o name
+ciliumnetworkpolicy.cilium.io/allow-apps-egress-kafka
+ciliumnetworkpolicy.cilium.io/allow-apps-intra-ns-services
+ciliumnetworkpolicy.cilium.io/allow-dns-egress
+ciliumnetworkpolicy.cilium.io/allow-egress-vault-db
+ciliumnetworkpolicy.cilium.io/allow-egress-vault-svc
+ciliumnetworkpolicy.cilium.io/allow-internal-identity
+ciliumnetworkpolicy.cilium.io/allow-internal-job-to-workspace
+ciliumnetworkpolicy.cilium.io/allow-internal-redis
+ciliumnetworkpolicy.cilium.io/allow-job7189-dns-egress
+ciliumnetworkpolicy.cilium.io/allow-kong-ingress
+ciliumnetworkpolicy.cilium.io/default-deny-all
+[exit=0]
+$ kubectl -n job7189-apps run lateral-attacker-20260528_163135   --image=busybox:1.37.0 --restart=Never --rm -i --quiet   --labels='zta.test/role=attacker' --command --   sh -c 'for d in mysql.data:3306 mysql.data:6379 kafka.data:9092 vault.vault:8200; do     echo "--- probe $d"; nc -zvw5 ${d%:*} ${d#*:} 2>&1; done'
+The Pod "lateral-attacker-20260528_163135" is invalid: 
+* metadata.name: Invalid value: "lateral-attacker-20260528_163135": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "lateral-attacker-20260528_163135": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --verdict DROPPED   --from-namespace job7189-apps --output compact 2>/dev/null | head -40
+May 28 09:29:51.850: job7189-apps/hiring-service-86b448cb56-84wbb:38530 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:29:51.850: job7189-apps/hiring-service-86b448cb56-84wbb:38530 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:29:51.872: job7189-apps/hiring-service-86b448cb56-84wbb:38516 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:29:51.872: job7189-apps/hiring-service-86b448cb56-84wbb:38516 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:01.384: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:01.384: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:02.411: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:02.411: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:02.731: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:02.731: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:03.471: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:03.471: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:03.754: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:03.754: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:04.455: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:04.456: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:04.774: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:04.774: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:05.479: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:05.479: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:05.803: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:05.803: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:06.516: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:06.516: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:06.825: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:06.825: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:07.985: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:07.985: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:08.529: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:08.529: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:09.934: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:09.934: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:12.582: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:12.582: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:14.119: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:14.119: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:20.780: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:20.780: job7189-apps/hiring-service-86b448cb56-84wbb:53728 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+May 28 09:30:22.321: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+May 28 09:30:22.321: job7189-apps/hiring-service-86b448cb56-84wbb:53730 (ID:23446) <> data/mysql-f5fb77767-jrwgp:3306 (ID:10323) Policy denied DROPPED (TCP Flags: SYN)
+[exit=0]

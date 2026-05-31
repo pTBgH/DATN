@@ -1,0 +1,32 @@
+==============================================================
+  SCENARIO 07: cosign-admission
+  20260527_234714
+==============================================================
+$ kubectl get clusterimagepolicy
+NAME                        AGE
+zta-job7189-apps-signed     13d
+zta-keyless-trust-job7189   13d
+zta-system-passthrough      13d
+[exit=0]
+$ kubectl -n cosign-system get pod
+NAME                                         READY   STATUS    RESTARTS       AGE
+policy-controller-webhook-56965fc69f-4g4r4   1/1     Running   1 (3h7m ago)   7h14m
+[exit=0]
+[manifest] /tmp/unsigned-attacker-7ek8MA.yaml
+$ cat /tmp/unsigned-attacker-7ek8MA.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-attacker-20260527_234714
+  namespace: job7189-apps
+  labels: { zta.test/role: unsigned }
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: ghcr.io/job7189/identity-service:malicious-tag
+    command: ["sh","-c","sleep 30"]
+[exit=0]
+$ kubectl apply -f /tmp/unsigned-attacker-7ek8MA.yaml 2>&1;         kubectl -n job7189-apps delete pod unsigned-attacker-20260527_234714 --ignore-not-found 2>/dev/null
+The Pod "unsigned-attacker-20260527_234714" is invalid: metadata.name: Invalid value: "unsigned-attacker-20260527_234714": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+[exit=0]

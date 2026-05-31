@@ -1,0 +1,83 @@
+==============================================================
+  SCENARIO 03: runtime-anomaly
+  20260527_234714
+==============================================================
+$ echo 'ID_POD=identity-service-769b979c65-nzt5f'
+ID_POD=identity-service-769b979c65-nzt5f
+[exit=0]
+$ kubectl -n job7189-apps get tracingpolicynamespaced -o yaml | head -60
+apiVersion: v1
+items:
+- apiVersion: cilium.io/v1alpha1
+  kind: TracingPolicyNamespaced
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v1alpha1","kind":"TracingPolicyNamespaced","metadata":{"annotations":{},"name":"block-suspicious-exec","namespace":"job7189-apps"},"spec":{"kprobes":[{"args":[{"index":0,"type":"string"}],"call":"sys_execve","selectors":[{"matchActions":[{"action":"Post"}],"matchArgs":[{"index":0,"operator":"Equal","values":["/bin/sh","/bin/bash","/usr/bin/curl","/usr/bin/wget","/usr/bin/nc","/usr/bin/ncat","/usr/bin/nmap"]}]}],"syscall":true}]}}
+    creationTimestamp: "2026-05-24T13:25:03Z"
+    generation: 1
+    name: block-suspicious-exec
+    namespace: job7189-apps
+    resourceVersion: "887454"
+    uid: 29c1aabe-08b7-4ec8-a7e8-e4d8fcc4d87d
+  spec:
+    kprobes:
+    - args:
+      - index: 0
+        maxData: false
+        resolve: ""
+        returnCopy: false
+        type: string
+      call: sys_execve
+      return: false
+      selectors:
+      - matchActions:
+        - action: Post
+        matchArgs:
+        - index: 0
+          operator: Equal
+          values:
+          - /bin/sh
+          - /bin/bash
+          - /usr/bin/curl
+          - /usr/bin/wget
+          - /usr/bin/nc
+          - /usr/bin/ncat
+          - /usr/bin/nmap
+      syscall: true
+- apiVersion: cilium.io/v1alpha1
+  kind: TracingPolicyNamespaced
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v1alpha1","kind":"TracingPolicyNamespaced","metadata":{"annotations":{},"name":"monitor-sensitive-files","namespace":"job7189-apps"},"spec":{"kprobes":[{"args":[{"index":1,"type":"string"}],"call":"sys_openat","selectors":[{"matchActions":[{"action":"Post"}],"matchArgs":[{"index":1,"operator":"Prefix","values":["/etc/shadow","/etc/passwd","/proc/self/environ","/var/run/secrets/kubernetes.io"]}]}],"syscall":true}]}}
+    creationTimestamp: "2026-05-24T13:25:03Z"
+    generation: 1
+    name: monitor-sensitive-files
+    namespace: job7189-apps
+    resourceVersion: "887455"
+    uid: d3326ade-4d64-4e0f-b333-cf94c3e61823
+  spec:
+    kprobes:
+    - args:
+      - index: 1
+        maxData: false
+        resolve: ""
+        returnCopy: false
+        type: string
+      call: sys_openat
+[exit=0]
+$ kubectl -n job7189-apps exec identity-service-769b979c65-nzt5f -c app --     /bin/sh -c 'id; uname -a; cat /etc/passwd | head -3'
+uid=0(root) gid=0(root) groups=0(root)
+Linux identity-service-769b979c65-nzt5f 6.12.86+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.86-1 (2026-05-08) x86_64 GNU/Linux
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+[exit=0]
+$ echo 'TETRAGON_POD=tetragon-8gcfs'
+TETRAGON_POD=tetragon-8gcfs
+[exit=0]
+$ kubectl -n kube-system logs tetragon-8gcfs -c export-stdout --tail=200     2>/dev/null | grep -F 'block-suspicious-exec' | tail -5
+{"process_kprobe":{"process":{"exec_id":"NzE4OXNydjA1OjEwMzgyMDMwNjA5MDEzOjU3MjE5", "pid":57219, "uid":0, "cwd":"/var/www", "binary":"/usr/local/bin/php", "arguments":"/var/www/artisan schedule:work", "flags":"execve", "start_time":"2026-05-27T16:47:00.041189418Z", "auid":4294967295, "pod":{"namespace":"job7189-apps", "name":"hiring-service-86b448cb56-hxhsx", "uid":"52db5e9d-0192-4a17-ae17-cc4db6f5351f", "container":{"id":"containerd://fe0a0e6eec20f132b1d65b4f559acd71baf6cdcde96abfee3bf8c55d993bd563", "name":"app", "image":{"id":"100.74.189.43:5000/job7189/hiring-service@sha256:84eae3977a7528eb8fd234ce14bc54f593d47cc0b346389518066bb687644517", "name":"sha256:aae4ab7341448285f87c2f92f6385a99654914280b6bff678c0ec343b0e862a1"}, "start_time":"2026-05-27T14:04:13Z", "pid":15863, "security_context":{}}, "pod_labels":{"app":"hiring-service", "pod-template-hash":"86b448cb56", "zta.job7189/data-classification":"internal", "zta.job7189/env":"prod", "zta.job7189/exposure":"internal", "zta.job7189/role":"api", "zta.job7189/team":"backend", "zta.job7189/tier":"T2"}, "workload":"hiring-service", "workload_kind":"Deployment"}, "docker":"fe0a0e6eec20f132b1d65b4f559acd7", "parent_exec_id":"NzE4OXNydjA1OjYzNDk5NzMxODYyODo2OTg3", "refcnt":1, "tid":57219, "in_init_tree":false}, "parent":{"exec_id":"NzE4OXNydjA1OjYzNDk5NzMxODYyODo2OTg3", "pid":6987, "uid":0, "cwd":"/var/www", "binary":"/usr/local/bin/php", "arguments":"/var/www/artisan schedule:work", "flags":"execve clone", "start_time":"2026-05-27T14:04:33.007894865Z", "auid":4294967295, "pod":{"namespace":"job7189-apps", "name":"hiring-service-86b448cb56-hxhsx", "uid":"52db5e9d-0192-4a17-ae17-cc4db6f5351f", "container":{"id":"containerd://fe0a0e6eec20f132b1d65b4f559acd71baf6cdcde96abfee3bf8c55d993bd563", "name":"app", "image":{"id":"100.74.189.43:5000/job7189/hiring-service@sha256:84eae3977a7528eb8fd234ce14bc54f593d47cc0b346389518066bb687644517", "name":"sha256:aae4ab7341448285f87c2f92f6385a99654914280b6bff678c0ec343b0e862a1"}, "start_time":"2026-05-27T14:04:13Z", "pid":116, "security_context":{}}, "pod_labels":{"app":"hiring-service", "pod-template-hash":"86b448cb56", "zta.job7189/data-classification":"internal", "zta.job7189/env":"prod", "zta.job7189/exposure":"internal", "zta.job7189/role":"api", "zta.job7189/team":"backend", "zta.job7189/tier":"T2"}, "workload":"hiring-service", "workload_kind":"Deployment"}, "docker":"fe0a0e6eec20f132b1d65b4f559acd7", "parent_exec_id":"NzE4OXNydjA1OjYzMTMyNDQyMDg3Njo2OTc0", "tid":6987, "in_init_tree":false}, "function_name":"__x64_sys_execve", "args":[{"string_arg":"/bin/sh"}], "action":"KPROBE_ACTION_POST", "policy_name":"block-suspicious-exec", "return_action":"KPROBE_ACTION_POST"}, "node_name":"7189srv05", "time":"2026-05-27T16:47:00.042015322Z", "node_labels":{"beta.kubernetes.io/arch":"amd64", "beta.kubernetes.io/os":"linux", "kubernetes.io/arch":"amd64", "kubernetes.io/hostname":"7189srv05", "kubernetes.io/os":"linux"}}
+{"process_kprobe":{"process":{"exec_id":"NzE4OXNydjA1OjEwMzgyNjU5NTc5Mjg5OjU3MjIz", "pid":57223, "uid":0, "cwd":"/var/www", "binary":"/usr/local/bin/php", "arguments":"artisan schedule:run", "flags":"execve", "start_time":"2026-05-27T16:47:00.670154027Z", "auid":4294967295, "pod":{"namespace":"job7189-apps", "name":"hiring-service-86b448cb56-hxhsx", "uid":"52db5e9d-0192-4a17-ae17-cc4db6f5351f", "container":{"id":"containerd://fe0a0e6eec20f132b1d65b4f559acd71baf6cdcde96abfee3bf8c55d993bd563", "name":"app", "image":{"id":"100.74.189.43:5000/job7189/hiring-service@sha256:84eae3977a7528eb8fd234ce14bc54f593d47cc0b346389518066bb687644517", "name":"sha256:aae4ab7341448285f87c2f92f6385a99654914280b6bff678c0ec343b0e862a1"}, "start_time":"2026-05-27T14:04:13Z", "pid":15867, "security_context":{}}, "pod_labels":{"app":"hiring-service", "pod-template-hash":"86b448cb56", "zta.job7189/data-classification":"internal", "zta.job7189/env":"prod", "zta.job7189/exposure":"internal", "zta.job7189/role":"api", "zta.job7189/score-bucket":"high", "zta.job7189/team":"backend", "zta.job7189/tier":"T2"}, "workload":"hiring-service", "workload_kind":"Deployment"}, "docker":"fe0a0e6eec20f132b1d65b4f559acd7", "parent_exec_id":"NzE4OXNydjA1OjEwMzgyMDM5NzMzODc2OjU3MjIw", "refcnt":1, "tid":57223, "in_init_tree":false}, "parent":{"exec_id":"NzE4OXNydjA1OjEwMzgyMDM5NzMzODc2OjU3MjIw", "pid":57220, "uid":0, "cwd":"/var/www", "binary":"/usr/local/bin/php", "arguments":"artisan schedule:run", "flags":"execve clone", "start_time":"2026-05-27T16:47:00.050312771Z", "auid":4294967295, "pod":{"namespace":"job7189-apps", "name":"hiring-service-86b448cb56-hxhsx", "uid":"52db5e9d-0192-4a17-ae17-cc4db6f5351f", "container":{"id":"containerd://fe0a0e6eec20f132b1d65b4f559acd71baf6cdcde96abfee3bf8c55d993bd563", "name":"app", "image":{"id":"100.74.189.43:5000/job7189/hiring-service@sha256:84eae3977a7528eb8fd234ce14bc54f593d47cc0b346389518066bb687644517", "name":"sha256:aae4ab7341448285f87c2f92f6385a99654914280b6bff678c0ec343b0e862a1"}, "start_time":"2026-05-27T14:04:13Z", "pid":15864, "security_context":{}}, "pod_labels":{"app":"hiring-service", "pod-template-hash":"86b448cb56", "zta.job7189/data-classification":"internal", "zta.job7189/env":"prod", "zta.job7189/exposure":"internal", "zta.job7189/role":"api", "zta.job7189/score-bucket":"high", "zta.job7189/team":"backend", "zta.job7189/tier":"T2"}, "workload":"hiring-service", "workload_kind":"Deployment"}, "docker":"fe0a0e6eec20f132b1d65b4f559acd7", "parent_exec_id":"NzE4OXNydjA1OjEwMzgyMDMyNDQ3MzY4OjU3MjE5", "tid":57220, "in_init_tree":false}, "function_name":"__x64_sys_execve", "args":[{"string_arg":"/bin/sh"}], "action":"KPROBE_ACTION_POST", "policy_name":"block-suspicious-exec", "return_action":"KPROBE_ACTION_POST"}, "node_name":"7189srv05", "time":"2026-05-27T16:47:00.670399141Z", "node_labels":{"beta.kubernetes.io/arch":"amd64", "beta.kubernetes.io/os":"linux", "kubernetes.io/arch":"amd64", "kubernetes.io/hostname":"7189srv05", "kubernetes.io/os":"linux"}}
+[exit=0]

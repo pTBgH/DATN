@@ -34,6 +34,16 @@ allow if {
 }
 
 # ---------------------------------------------------------------------------
+# Candidate's own application history (candidate-service GET /api/my-applications)
+# — any signed-in user; back-end (role:candidate + ownership) enforces scope.
+# ---------------------------------------------------------------------------
+allow if {
+	input.method == "GET"
+	input.path == "/api/my-applications"
+	count(data.zta.authz.user_roles) > 0
+}
+
+# ---------------------------------------------------------------------------
 # Resume pool — sourcer / recruiter / coordinator / hiring_manager / rec_ops /
 # admin can view; only those roles can upload/delete (no candidates here).
 # ---------------------------------------------------------------------------

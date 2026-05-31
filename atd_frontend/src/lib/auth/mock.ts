@@ -10,8 +10,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const STORAGE_KEY = "job7189.atd.session";
-const TOKEN_KEY = "job7189.token";
+export const STORAGE_KEY = "job7189.atd.session";
+export const TOKEN_KEY = "job7189.token";
 
 export interface MockAuthState {
   email: string | null;

@@ -6,26 +6,26 @@ import { Button } from "@/components/Button";
 export default function HomePage() {
   return (
     <div className="space-y-20">
-      {/* Hero Section — Premium serif typography */}
-      <section className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark px-6 py-20 sm:px-12 sm:py-28 text-white overflow-hidden relative">
-        <div className="max-w-3xl relative z-10">
-          <div className="inline-block mb-6 px-4 py-2 rounded-full bg-white/10 text-sm font-medium backdrop-blur-sm border border-white/20">
+      {/* Hero Section — Minimalist with solid color */}
+      <section className="rounded-[20px] bg-brand px-6 py-20 sm:px-12 sm:py-28 text-white overflow-hidden">
+        <div className="max-w-3xl">
+          <div className="inline-block mb-6 px-3.5 py-1.5 rounded-[12px] bg-white/10 text-sm font-medium backdrop-blur-sm border border-white/15">
             Job7189 Recruiter Platform
           </div>
           <h1 className="text-6xl sm:text-7xl font-serif font-bold leading-tight text-balance">
             Hệ Thống Quản Lý Tuyển Dụng Toàn Diện
           </h1>
-          <p className="mt-8 text-lg sm:text-xl leading-relaxed text-brand-light font-light">
+          <p className="mt-8 text-lg sm:text-xl leading-relaxed text-white/85 font-light">
             Quản lý công việc, đội ngũ, phỏng vấn và hồ sơ ứng viên từ một nơi duy nhất. Tối ưu hóa quy trình tuyển dụng của công ty bạn.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/recruiter">
-              <Button variant="secondary" size="lg" className="font-medium">
+              <Button variant="secondary" size="lg">
                 Vào Trang Nhà Tuyển Dụng
               </Button>
             </Link>
             <Link href="/admin">
-              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/15 font-medium">
+              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
                 Vào Trang Quản Trị
               </Button>
             </Link>
@@ -33,11 +33,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Role Selection — Premium cards */}
+      {/* Role Selection — Minimalist cards */}
       <section className="space-y-8">
         <div>
-          <h2 className="text-4xl font-serif font-bold text-foreground">Chọn Vai Trò Của Bạn</h2>
-          <p className="mt-3 text-foreground-muted font-light">Truy cập các tính năng phù hợp với vai trò của bạn</p>
+          <h2 className="text-4xl font-serif font-bold text-slate-900">Chọn Vai Trò Của Bạn</h2>
+          <p className="mt-3 text-slate-500 font-light">Truy cập các tính năng phù hợp với vai trò của bạn</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -70,10 +70,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section — Premium styling */}
-      <section className="py-6">
-        <h2 className="text-4xl font-serif font-bold text-foreground mb-2">Nền Tảng Đáng Tin Cậy</h2>
-        <p className="text-foreground-muted font-light mb-12">Được tin tưởng bởi các công ty hàng đầu</p>
+      {/* Stats Section — Minimalist */}
+      <section>
+        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-2">Nền Tảng Đáng Tin Cậy</h2>
+        <p className="text-slate-500 font-light mb-12">Được tin tưởng bởi các công ty hàng đầu</p>
         <div className="grid gap-6 md:grid-cols-4">
           <StatCard label="CÔNG TY" value="500+" />
           <StatCard label="CÔ HỘI" value="5K+" />
@@ -82,10 +82,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features Section — Premium design */}
+      {/* Features Section — Minimalist */}
       <section>
-        <h2 className="text-4xl font-serif font-bold text-foreground mb-2">Tính Năng Chính</h2>
-        <p className="text-foreground-muted font-light mb-12">Tất cả công cụ bạn cần để quản lý tuyển dụng hiệu quả</p>
+        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-2">Tính Năng Chính</h2>
+        <p className="text-slate-500 font-light mb-12">Tất cả công cụ bạn cần để quản lý tuyển dụng hiệu quả</p>
         <div className="grid gap-6 md:grid-cols-3">
           <FeatureCard
             emoji="📊"

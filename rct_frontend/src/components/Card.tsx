@@ -1,6 +1,6 @@
 /**
- * Card Component — Premium subtle design
- * Minimal borders, meaningful shadows, clean spacing
+ * Card Component — Minimalist Design
+ * Soft shadows, 12px border-radius, optimal whitespace
  */
 
 interface CardProps {
@@ -14,11 +14,11 @@ export function Card({
   className = '',
   hover = false,
 }: CardProps) {
-  const hoverClass = hover ? 'hover:shadow-md transition-shadow duration-200' : '';
+  const hoverClass = hover ? 'hover:shadow-md hover:scale-[1.01] transition-all duration-300 ease-in-out' : '';
 
   return (
     <div
-      className={`rounded-lg bg-white shadow-card p-6 ${hoverClass} ${className}`}
+      className={`rounded-[12px] bg-white shadow-sm border border-slate-100 p-6 ${hoverClass} ${className}`}
     >
       {children}
     </div>
@@ -27,7 +27,7 @@ export function Card({
 
 /**
  * Card Header Component
- * Used for card titles and descriptions
+ * Title, description with optimal spacing
  */
 interface CardHeaderProps {
   title: string;
@@ -41,21 +41,21 @@ export function CardHeader({
   children,
 }: CardHeaderProps) {
   return (
-    <div className="mb-4 flex items-center justify-between">
+    <div className="mb-6 flex items-start justify-between gap-4">
       <div className="flex-1">
         <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
         {description && (
-          <p className="mt-1 text-sm text-slate-600">{description}</p>
+          <p className="mt-2 text-sm text-slate-500">{description}</p>
         )}
       </div>
-      {children && <div>{children}</div>}
+      {children && <div className="flex-shrink-0">{children}</div>}
     </div>
   );
 }
 
 /**
  * Card Content Component
- * Used for card body content
+ * Body content with proper text color
  */
 interface CardContentProps {
   children: React.ReactNode;
@@ -66,12 +66,12 @@ export function CardContent({
   children,
   className = '',
 }: CardContentProps) {
-  return <div className={`text-slate-700 ${className}`}>{children}</div>;
+  return <div className={`text-slate-600 ${className}`}>{children}</div>;
 }
 
 /**
  * Card Footer Component
- * Used for card footer actions
+ * Footer actions with proper spacing
  */
 interface CardFooterProps {
   children: React.ReactNode;
@@ -84,7 +84,7 @@ export function CardFooter({
 }: CardFooterProps) {
   return (
     <div
-      className={`mt-4 flex items-center gap-2 border-t border-slate-200 pt-4 ${className}`}
+      className={`mt-6 flex items-center gap-3 border-t border-slate-100 pt-6 ${className}`}
     >
       {children}
     </div>

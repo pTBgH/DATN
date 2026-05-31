@@ -1,0 +1,50 @@
+# =============================================================================
+# allow-internal-identity-sync (job7189-apps)
+# -----------------------------------------------------------------------------
+# IdentifyUserContext middleware ở candidate/workspace/job/hiring/communication/
+# storage-service gọi identity-service để map Keycloak sub -> internal user:
+#   POST /api/internal/auth/sync-user        (lazy-sync, lần đầu mỗi user)
+#   GET  /api/internal/users/{id}            (tra cứu chi tiết user)
+#
+# identity-service:80 đang bị L7-restrict bởi `allow-internal-identity`
+# (chỉ mở cho hiring-service GET /api/v1/internal/profile/.*). Khi 1 port đã có
+# rule L7, mọi ingress khác tới port đó bị drop dù có L4 allow rộng
+# (allow-apps-intra-ns-services). Hệ quả: app -> identity nội bộ trả 000 ->
+# middleware trả 403 "User identity not found".
+#
+# Policy này BỔ SUNG (additive, union với rule L7 sẵn có) đúng 2 path nội bộ
+# cho các service backend cần sync — vẫn giữ chặt theo ZTA (không mở cả port).
+# =============================================================================
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-identity-sync"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: identity-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: candidate-service
+    - matchLabels:
+        app: workspace-service
+    - matchLabels:
+        app: job-service
+    - matchLabels:
+        app: hiring-service
+    - matchLabels:
+        app: communication-service
+    - matchLabels:
+        app: storage-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "POST"
+          path: "/api/internal/auth/sync-user"
+        - method: "GET"
+          path: "/api/internal/users/.*"

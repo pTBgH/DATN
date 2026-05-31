@@ -3,12 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --foreground: #0f172a;
-  --background: #f8fafc;
+  /* Premium color system for recruiter platform (slate/indigo) */
+  --primary: #312e81;
+  --primary-dark: #1e1b4b;
+  --primary-light: #e0e7ff;
+  
+  --secondary: #06b6d4;
+  --secondary-dark: #0891b2;
+  
+  --surface: #ffffff;
+  --surface-alt: #fafafa;
+  
+  --muted: #6b7280;
+  --muted-light: #e5e7eb;
+  
+  --foreground: #1f2937;
+  --foreground-muted: #6b7280;
+  --background: #fafafa;
+  
+  /* Accent for interactive states */
+  --accent: #4f46e5;
+}
+
+html {
+  background-color: var(--background);
 }
 
 html,
 body {
   color: var(--foreground);
   background: var(--background);
+}
+
+/* Premium typography system */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Refined text styles */
+p {
+  line-height: 1.6;
+  color: var(--foreground-muted);
+}
+
+/* Premium link styling */
+a {
+  transition: color 0.2s ease;
+}
+
+/* Smooth transitions */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
 }

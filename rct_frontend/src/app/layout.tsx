@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
+import { Merriweather, Inter } from "next/font/google";
 import "./globals.css";
 import { config } from "@/lib/config";
 import { TopNav } from "@/components/TopNav";
+
+const merriweather = Merriweather({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-serif",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 // Required by Cloudflare Pages (@cloudflare/next-on-pages): every dynamic
 // segment must run on the edge runtime. Setting it on the root layout makes
@@ -15,8 +27,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
-      <body className="h-screen font-sans antialiased flex flex-col">
+    <html lang="vi" className="bg-background">
+      <body className={`${inter.variable} ${merriweather.variable} h-screen font-sans antialiased flex flex-col`}>
         <TopNav />
         <main className="mx-auto max-w-7xl px-4 py-8 flex-1 overflow-auto w-full">{children}</main>
       </body>

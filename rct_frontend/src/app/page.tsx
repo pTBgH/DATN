@@ -5,28 +5,27 @@ import { Button } from "@/components/Button";
 
 export default function HomePage() {
   return (
-    <div className="space-y-12">
-      {/* Hero Section */}
-      <section className="rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-16 sm:px-12 sm:py-24 text-white shadow-md">
-        <div className="max-w-2xl">
-          <Badge variant="primary" className="mb-4 bg-white/20">
+    <div className="space-y-20">
+      {/* Hero Section — Minimalist with solid color */}
+      <section className="rounded-[20px] bg-brand px-6 py-20 sm:px-12 sm:py-28 text-white overflow-hidden">
+        <div className="max-w-3xl">
+          <div className="inline-block mb-6 px-3.5 py-1.5 rounded-[12px] bg-white/10 text-sm font-medium backdrop-blur-sm border border-white/15">
             Job7189 Recruiter Platform
-          </Badge>
-          <h1 className="text-5xl sm:text-6xl font-bold leading-tight">
+          </div>
+          <h1 className="text-6xl sm:text-7xl font-serif font-bold leading-tight text-balance">
             Hệ Thống Quản Lý Tuyển Dụng Toàn Diện
           </h1>
-          <p className="mt-4 text-lg text-blue-50">
-            Quản lý công việc, đội ngũ, phỏng vấn và hồ sơ ứng viên từ một nơi duy nhất. 
-            Tối ưu hóa quy trình tuyển dụng của công ty bạn.
+          <p className="mt-8 text-lg sm:text-xl leading-relaxed text-white/85 font-light">
+            Quản lý công việc, đội ngũ, phỏng vấn và hồ sơ ứng viên từ một nơi duy nhất. Tối ưu hóa quy trình tuyển dụng của công ty bạn.
           </p>
-          <div className="mt-8 flex flex-wrap gap-4">
+          <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/recruiter">
-              <Button variant="primary" size="lg" className="bg-white text-blue-600 hover:bg-gray-50 font-semibold">
+              <Button variant="secondary" size="lg">
                 Vào Trang Nhà Tuyển Dụng
               </Button>
             </Link>
             <Link href="/admin">
-              <Button variant="outline" size="lg" className="border-white text-white hover:bg-blue-500/30 font-semibold">
+              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
                 Vào Trang Quản Trị
               </Button>
             </Link>
@@ -34,16 +33,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Role Selection */}
-      <section className="space-y-4">
+      {/* Role Selection — Minimalist cards */}
+      <section className="space-y-8">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900">Chọn Vai Trò Của Bạn</h2>
-          <p className="mt-1 text-slate-600">Truy cập các tính năng phù hợp với vai trò của bạn</p>
+          <h2 className="text-4xl font-serif font-bold text-slate-900">Chọn Vai Trò Của Bạn</h2>
+          <p className="mt-3 text-slate-500 font-light">Truy cập các tính năng phù hợp với vai trò của bạn</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
           <RoleCard
-            icon="N"
+            emoji="👔"
             title="Nhà Tuyển Dụng"
             description="Quản lý workspace, tạo tin tuyển dụng, theo dõi ứng viên, lên lịch phỏng vấn và đánh giá."
             href="/recruiter"
@@ -54,10 +53,9 @@ export default function HomePage() {
               "Lịch phỏng vấn",
               "Tin nhắn với ứng viên"
             ]}
-            color="from-blue-600 to-blue-700"
           />
           <RoleCard
-            icon="Q"
+            emoji="⚙️"
             title="Quản Trị Hệ Thống"
             description="Duyệt & phê duyệt tin tuyển dụng, quản lý ngành nghề, người dùng, công ty và toàn bộ hệ thống."
             href="/admin"
@@ -68,71 +66,72 @@ export default function HomePage() {
               "Quản lý công ty",
               "Báo cáo & analytics"
             ]}
-            color="from-orange-600 to-orange-700"
           />
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="rounded-2xl bg-gray-50 border border-gray-200 p-8 sm:p-12">
-        <h2 className="text-3xl font-bold text-slate-900">Nền Tảng Đáng Tin Cậy</h2>
-        <div className="mt-8 grid gap-6 md:grid-cols-4">
-          <StatCard label="Công Ty" value="500+" />
-          <StatCard label="Công Việc" value="5K+" />
-          <StatCard label="Ứng Viên" value="50K+" />
-          <StatCard label="Thành Công" value="10K+" />
+      {/* Stats Section — Minimalist */}
+      <section>
+        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-2">Nền Tảng Đáng Tin Cậy</h2>
+        <p className="text-slate-500 font-light mb-12">Được tin tưởng bởi các công ty hàng đầu</p>
+        <div className="grid gap-6 md:grid-cols-4">
+          <StatCard label="CÔNG TY" value="500+" />
+          <StatCard label="CÔ HỘI" value="5K+" />
+          <StatCard label="ỨNG VIÊN" value="50K+" />
+          <StatCard label="THÀNH CÔNG" value="10K+" />
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features Section — Minimalist */}
       <section>
-        <h2 className="text-3xl font-bold text-slate-900 mb-8">Tính Năng Chính</h2>
+        <h2 className="text-4xl font-serif font-bold text-slate-900 mb-2">Tính Năng Chính</h2>
+        <p className="text-slate-500 font-light mb-12">Tất cả công cụ bạn cần để quản lý tuyển dụng hiệu quả</p>
         <div className="grid gap-6 md:grid-cols-3">
           <FeatureCard
-            icon="D"
+            emoji="📊"
             title="Dashboard Thông Minh"
             description="Theo dõi các chỉ số quan trọng: lượt xem, ứng tuyển, tỷ lệ chuyển đổi theo thời gian thực."
           />
           <FeatureCard
-            icon="C"
+            emoji="📋"
             title="Quản Lý Công Việc"
             description="Tạo, chỉnh sửa, công bố và theo dõi trạng thái của tất cả tin tuyển dụng từ một nơi."
           />
           <FeatureCard
-            icon="U"
+            emoji="👥"
             title="Quản Lý Ứng Viên"
             description="Tổ chức ứng viên vào pipeline, thực hiện phỏng vấn, lưu điểm và nhận xét chi tiết."
           />
           <FeatureCard
-            icon="T"
+            emoji="💬"
             title="Liên Lạc Trực Tiếp"
             description="Gửi tin nhắn với ứng viên, nhà tuyển dụng trực tiếp qua nền tảng mà không cần email."
           />
           <FeatureCard
-            icon="Đ"
+            emoji="⭐"
             title="Đánh Giá & Scorecard"
             description="Ghi lại ý kiến phỏng vấn, so sánh ứng viên và đưa ra quyết định tuyển dụng tốt hơn."
           />
           <FeatureCard
-            icon="B"
+            emoji="📈"
             title="Báo Cáo & Phân Tích"
             description="Xem chi tiết về hiệu suất tuyển dụng, tỷ lệ chuyển đổi, thời gian tuyển dụng trung bình."
           />
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="rounded-2xl bg-slate-900 px-6 py-12 sm:px-12 sm:py-16 text-center text-white shadow-md">
-        <h2 className="text-3xl font-bold">Bắt Đầu Quản Lý Tuyển Dụng Ngay</h2>
-        <p className="mt-2 text-gray-300">Tối ưu hóa quy trình tuyển dụng và tìm được ứng viên tuyệt vời.</p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
+      {/* CTA Section — Premium dark */}
+      <section className="rounded-3xl bg-foreground px-6 py-20 sm:px-12 sm:py-28 text-center text-white">
+        <h2 className="text-5xl sm:text-6xl font-serif font-bold text-balance">Bắt Đầu Quản Lý Tuyển Dụng Ngay</h2>
+        <p className="mt-6 text-lg font-light text-slate-300">Tối ưu hóa quy trình tuyển dụng và tìm được ứng viên tuyệt vời.</p>
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Link href="/recruiter">
-            <Button variant="primary" size="lg" className="bg-blue-600 hover:bg-blue-700 font-semibold">
+            <Button variant="primary" size="lg">
               Vào Trang Nhà Tuyển Dụng
             </Button>
           </Link>
           <Link href="/admin">
-            <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10 font-semibold">
+            <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
               Vào Trang Quản Trị
             </Button>
           </Link>
@@ -143,35 +142,31 @@ export default function HomePage() {
 }
 
 function RoleCard({
-  icon,
+  emoji,
   title,
   description,
   href,
   features,
-  color,
 }: {
-  icon: string;
+  emoji: string;
   title: string;
   description: string;
   href: string;
   features: string[];
-  color: string;
 }) {
   return (
     <Link href={href}>
-      <Card hover className="border border-gray-200">
+      <Card hover>
         <div className="space-y-4">
-          <div className={`inline-flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br ${color} text-white font-semibold text-sm`}>
-            {icon}
-          </div>
+          <div className="text-3xl">{emoji}</div>
           <div>
             <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-            <p className="mt-2 text-sm text-slate-600">{description}</p>
+            <p className="mt-2 text-sm text-slate-600 leading-relaxed">{description}</p>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2 pt-2">
             {features.map((feature, i) => (
               <li key={i} className="flex items-center gap-2 text-sm text-slate-700">
-                <span className="text-blue-600">•</span> {feature}
+                <span className="text-brand">✓</span> {feature}
               </li>
             ))}
           </ul>
@@ -188,27 +183,27 @@ function RoleCard({
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="text-center py-6 bg-white border border-gray-200">
-      <p className="text-3xl font-bold text-blue-600">{value}</p>
-      <p className="mt-2 text-sm text-slate-600">{label}</p>
-    </Card>
+    <div className="rounded-2xl bg-white shadow-card p-10 text-center group hover:shadow-lg transition-shadow">
+      <p className="text-5xl font-serif font-bold text-brand">{value}</p>
+      <p className="mt-3 text-xs font-medium text-muted-dark tracking-widest">{label}</p>
+    </div>
   );
 }
 
 function FeatureCard({
-  icon,
+  emoji,
   title,
   description,
 }: {
-  icon: string;
+  emoji: string;
   title: string;
   description: string;
 }) {
   return (
-    <Card className="bg-white border border-gray-200">
-      <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-100 text-blue-600 font-semibold text-sm mb-3">{icon}</div>
-      <h3 className="font-semibold text-slate-900">{title}</h3>
-      <p className="mt-2 text-sm text-slate-600">{description}</p>
-    </Card>
+    <div className="rounded-2xl bg-white shadow-card p-8 group hover:shadow-lg transition-shadow">
+      <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">{emoji}</div>
+      <h3 className="font-serif font-bold text-foreground text-xl">{title}</h3>
+      <p className="mt-3 text-foreground-muted font-light leading-relaxed">{description}</p>
+    </div>
   );
 }

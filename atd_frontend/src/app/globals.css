@@ -3,12 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --foreground: #0f172a;
-  --background: #f8fafc;
+  /* Premium color system for candidate platform (teal/emerald) */
+  --primary: #0d9488;
+  --primary-dark: #0f766e;
+  --primary-light: #d1faf5;
+  
+  --secondary: #047857;
+  --secondary-dark: #065f46;
+  
+  --surface: #ffffff;
+  --surface-alt: #fafafa;
+  
+  --muted: #6b7280;
+  --muted-light: #e5e7eb;
+  
+  --foreground: #1f2937;
+  --foreground-muted: #6b7280;
+  --background: #fafafa;
+  
+  /* Accent for interactive states */
+  --accent: #14b8a6;
+}
+
+html {
+  background-color: var(--background);
 }
 
 html,
 body {
   color: var(--foreground);
   background: var(--background);
+}
+
+/* Premium typography system */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Refined text styles */
+p {
+  line-height: 1.6;
+  color: var(--foreground-muted);
+}
+
+/* Premium link styling */
+a {
+  transition: color 0.2s ease;
+}
+
+/* Smooth transitions */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
 }

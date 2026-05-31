@@ -18,7 +18,7 @@ export default async function MessagesPage() {
           <p className="mt-1 text-slate-600">Liên lạc trực tiếp với nhà tuyển dụng</p>
         </div>
         {conversations.length > 0 && (
-          <Badge variant="info" size="md">
+          <Badge variant="primary" size="md">
             {conversations.length} cuộc trò chuyện
           </Badge>
         )}

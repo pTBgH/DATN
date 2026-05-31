@@ -91,7 +91,7 @@ export default async function WorkspaceJobsPage({
                       </p>
 
                       <div className="flex flex-wrap gap-2 pt-2">
-                        <Badge variant="info" size="sm">
+                        <Badge variant="muted" size="sm">
                           {j.view_count} xem
                         </Badge>
                         <Badge variant="primary" size="sm">

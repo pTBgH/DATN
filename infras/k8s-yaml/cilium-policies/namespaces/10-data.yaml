@@ -179,6 +179,8 @@ spec:
         protocol: TCP
       - port: "9000"   # Laravel Octane
         protocol: TCP
+      - port: "8000"   # Laravel HTTP server (Service targetPort/containerPort)
+        protocol: TCP
       - port: "80"     # HTTP
         protocol: TCP
       - port: "8080"   # HTTP alt
@@ -192,6 +194,8 @@ spec:
       - port: "6379"
         protocol: TCP
       - port: "9000"
+        protocol: TCP
+      - port: "8000"   # Laravel HTTP server (Service targetPort/containerPort)
         protocol: TCP
       - port: "80"
         protocol: TCP

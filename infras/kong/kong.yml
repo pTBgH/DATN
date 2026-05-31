@@ -302,6 +302,15 @@ plugins:
           local cjson   = require("cjson.safe")
           local http    = require("resty.http")
 
+          -- CORS preflight: browsers send OPTIONS without an Authorization
+          -- header, so the OPA gate below would deny it (403) and the request
+          -- would never reach the global `cors` plugin. This pre-function runs
+          -- before `cors`, so we short-circuit here and `return` (not exit) to
+          -- let the `cors` plugin answer the preflight with the proper headers.
+          if kong.request.get_method() == "OPTIONS" then
+            return
+          end
+
           -- Where to ask OPA. Resolves via cluster DNS — OPA Service is
           -- `security/opa` on port 8181, deployed by scripts/zta-deploy-opa.sh.
           --

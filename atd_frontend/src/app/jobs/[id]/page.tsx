@@ -41,8 +41,8 @@ export default async function JobDetailPage({
 
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="primary">{getStatusLabel(job.status)}</Badge>
-          <Badge variant="info">{job.apply_count} ứng tuyển</Badge>
-          <Badge variant="default">{job.view_count} lượt xem</Badge>
+          <Badge variant="primary">{job.apply_count} ứng tuyển</Badge>
+          <Badge variant="muted">{job.view_count} lượt xem</Badge>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">

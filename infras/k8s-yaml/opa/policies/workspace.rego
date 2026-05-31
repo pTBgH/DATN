@@ -27,6 +27,13 @@ allow if {
 	count(data.zta.authz.user_roles) > 0
 }
 
+# workspace-service GET /api/my-workspaces — any signed-in caller lists own.
+allow if {
+	input.method == "GET"
+	input.path == "/api/my-workspaces"
+	count(data.zta.authz.user_roles) > 0
+}
+
 allow if {
 	input.method == "GET"
 	startswith(input.path, "/api/workspaces/")

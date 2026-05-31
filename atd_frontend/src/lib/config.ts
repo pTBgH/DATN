@@ -17,7 +17,7 @@ export const config = {
       process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? "https://auth.job7189.com",
     realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? "job7189",
     clientId:
-      process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? "web-frontend",
+      process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? "candidate-app-dev",
   },
 } as const;
 

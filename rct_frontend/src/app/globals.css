@@ -3,8 +3,30 @@
 @tailwind utilities;
 
 :root {
+  /* Semantic tokens for recruiter platform */
+  --primary: #1d39c4;
+  --primary-dark: #10239e;
+  --primary-light: #d6e4ff;
+  
+  --secondary: #06b6d4;
+  --secondary-dark: #0891b2;
+  
+  --surface: #ffffff;
+  --surface-alt: #f8fafc;
+  
+  --muted: #64748b;
+  --muted-light: #cbd5e1;
+  
   --foreground: #0f172a;
+  --foreground-muted: #475569;
   --background: #f8fafc;
+  
+  /* Accent for interactive states */
+  --accent: #3b82f6;
+}
+
+html {
+  background-color: var(--background);
 }
 
 html,

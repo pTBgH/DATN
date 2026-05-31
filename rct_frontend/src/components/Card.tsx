@@ -1,27 +1,24 @@
 /**
- * Card Component
- * Flexible container for displaying content with consistent styling
+ * Card Component — Premium subtle design
+ * Minimal borders, meaningful shadows, clean spacing
  */
 
 interface CardProps {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
-  noBorder?: boolean;
 }
 
 export function Card({
   children,
   className = '',
   hover = false,
-  noBorder = false,
 }: CardProps) {
-  const borderClass = noBorder ? '' : 'border border-slate-200';
-  const hoverClass = hover ? 'hover:shadow-md hover:border-slate-300 transition-all duration-200' : '';
+  const hoverClass = hover ? 'hover:shadow-md transition-shadow duration-200' : '';
 
   return (
     <div
-      className={`rounded-lg bg-white p-5 ${borderClass} ${hoverClass} ${className}`}
+      className={`rounded-lg bg-white shadow-card p-6 ${hoverClass} ${className}`}
     >
       {children}
     </div>

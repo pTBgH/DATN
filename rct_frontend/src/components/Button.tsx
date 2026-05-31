@@ -1,10 +1,10 @@
 /**
- * Button Component
- * Versatile button with multiple variants and sizes
+ * Button Component — Indigo/Blue brand system
+ * Clean variants: primary, secondary, outline
  */
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   children: React.ReactNode;
@@ -20,11 +20,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variantClasses = {
-    primary: 'bg-cyan-600 text-white hover:bg-cyan-700 disabled:bg-cyan-400',
+    primary: 'bg-brand text-white hover:bg-brand-dark disabled:bg-brand/60',
     secondary: 'bg-slate-200 text-slate-900 hover:bg-slate-300 disabled:bg-slate-100',
-    outline: 'border-2 border-cyan-600 text-cyan-600 hover:bg-cyan-50 disabled:border-cyan-300 disabled:text-cyan-300',
-    ghost: 'text-cyan-600 hover:bg-cyan-50 disabled:text-cyan-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400',
+    outline: 'border-2 border-brand text-brand hover:bg-brand-light disabled:border-brand/40 disabled:text-brand/40',
   };
 
   const sizeClasses = {

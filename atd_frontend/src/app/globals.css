@@ -3,8 +3,30 @@
 @tailwind utilities;
 
 :root {
+  /* Semantic tokens for candidate platform */
+  --primary: #13c2c2;
+  --primary-dark: #08979c;
+  --primary-light: #b5f5ec;
+  
+  --secondary: #10b981;
+  --secondary-dark: #059669;
+  
+  --surface: #ffffff;
+  --surface-alt: #f8fafc;
+  
+  --muted: #64748b;
+  --muted-light: #cbd5e1;
+  
   --foreground: #0f172a;
+  --foreground-muted: #475569;
   --background: #f8fafc;
+  
+  /* Accent for interactive states */
+  --accent: #06b6d4;
+}
+
+html {
+  background-color: var(--background);
 }
 
 html,

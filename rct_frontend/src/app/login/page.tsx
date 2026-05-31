@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMockAuth, type MockRole } from "@/lib/auth/mock";
+import { useMockAuth } from "@/lib/auth/mock";
+import { passwordGrant } from "@/lib/auth/keycloak";
 
 export default function LoginPage() {
   return (
@@ -15,9 +16,11 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const { role, signIn } = useMockAuth();
-  const [pickedRole, setPickedRole] = useState<MockRole>("recruiter");
-  const [email, setEmail] = useState("anna@acme.io");
+  const { role } = useMockAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const callbackUrl = params.get("callbackUrl");
 
@@ -27,85 +30,68 @@ function LoginForm() {
     }
   }, [role, router, callbackUrl]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    signIn(pickedRole, email);
-    router.replace(
-      callbackUrl ?? (pickedRole === "admin" ? "/admin" : "/recruiter"),
-    );
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await passwordGrant(username.trim(), password);
+      router.replace(
+        callbackUrl ?? (res.role === "admin" ? "/admin" : "/recruiter"),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="mx-auto max-w-md rounded-xl border bg-white p-8 shadow">
       <h1 className="text-xl font-semibold">Đăng nhập</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Mock mode — chọn role để vào console. Khi nối backend thật, form này sẽ
-        được thay bằng OIDC redirect tới Keycloak realm <code>job7189</code>.
+        Đăng nhập bằng tài khoản Keycloak realm <code>job7189</code>. Vai trò
+        (nhà tuyển dụng / quản trị) được xác định theo quyền trong token.
       </p>
 
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Vai trò</span>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <RolePick
-              checked={pickedRole === "recruiter"}
-              onPick={() => setPickedRole("recruiter")}
-              label="Nhà tuyển dụng"
-              hint="recruiter"
-            />
-            <RolePick
-              checked={pickedRole === "admin"}
-              onPick={() => setPickedRole("admin")}
-              label="Quản trị viên"
-              hint="super.admin"
-            />
-          </div>
-        </label>
-
-        <label className="block text-sm">
-          <span className="font-medium text-slate-700">Email</span>
+          <span className="font-medium text-slate-700">Tên đăng nhập</span>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
             className="mt-1 w-full rounded border px-3 py-2"
             required
           />
         </label>
 
+        <label className="block text-sm">
+          <span className="font-medium text-slate-700">Mật khẩu</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            className="mt-1 w-full rounded border px-3 py-2"
+            required
+          />
+        </label>
+
+        {error && (
+          <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+          </p>
+        )}
+
         <button
           type="submit"
-          className="w-full rounded bg-brand px-4 py-2 text-white hover:bg-brand-dark"
+          disabled={loading}
+          className="w-full rounded bg-brand px-4 py-2 text-white hover:bg-brand-dark disabled:opacity-60"
         >
-          Vào hệ thống (mock)
+          {loading ? "Đang đăng nhập…" : "Vào hệ thống"}
         </button>
       </form>
     </div>
-  );
-}
-
-function RolePick({
-  checked,
-  onPick,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onPick: () => void;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      className={
-        "rounded border px-3 py-3 text-left transition " +
-        (checked ? "border-brand bg-brand-50" : "hover:bg-slate-50")
-      }
-    >
-      <div className="font-medium text-slate-800">{label}</div>
-      <div className="text-xs text-slate-500">{hint}</div>
-    </button>
   );
 }

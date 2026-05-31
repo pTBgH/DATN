@@ -10,24 +10,24 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const jobs = await jobApi.listPublicJobs({});
   return (
-    <div className="space-y-16">
-      {/* Hero Section — Solid teal, clean hierarchy */}
-      <section className="rounded-2xl bg-brand px-6 py-16 sm:px-12 sm:py-24 text-white">
-        <div className="max-w-3xl">
-          <h1 className="text-5xl sm:text-6xl font-bold leading-tight text-balance">
+    <div className="space-y-20">
+      {/* Hero Section — Premium typography with serif headline */}
+      <section className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark px-6 py-20 sm:px-12 sm:py-28 text-white overflow-hidden relative">
+        <div className="max-w-3xl relative z-10">
+          <h1 className="text-6xl sm:text-7xl font-serif font-bold leading-tight text-balance">
             Tìm Cơ Hội Nghề Nghiệp Lý Tưởng
           </h1>
-          <p className="mt-6 text-lg leading-relaxed text-brand-light">
+          <p className="mt-8 text-lg sm:text-xl leading-relaxed text-brand-light font-light">
             Khám phá hàng nghìn cơ hội việc làm từ các công ty hàng đầu. Nâng cao kỹ năng, phát triển sự nghiệp của bạn cùng Job7189.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/jobs">
-              <Button variant="secondary" size="lg">
+              <Button variant="secondary" size="lg" className="font-medium">
                 Tìm Việc Ngay
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
+              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/15 font-medium">
                 Đăng Nhập / Đăng Ký
               </Button>
             </Link>
@@ -35,28 +35,28 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section — Unified teal numeric styling */}
-      <section className="grid grid-cols-3 gap-4 sm:gap-6">
-        <Card className="text-center py-8">
-          <div className="text-4xl font-bold text-brand">{jobs.data.length}</div>
-          <p className="mt-2 text-sm text-slate-600 font-medium">Công Việc</p>
-        </Card>
-        <Card className="text-center py-8">
-          <div className="text-4xl font-bold text-brand">500+</div>
-          <p className="mt-2 text-sm text-slate-600 font-medium">Công Ty</p>
-        </Card>
-        <Card className="text-center py-8">
-          <div className="text-4xl font-bold text-success">10K+</div>
-          <p className="mt-2 text-sm text-slate-600 font-medium">Thành Công</p>
-        </Card>
+      {/* Stats Section — Premium card styling */}
+      <section className="grid grid-cols-3 gap-6 sm:gap-8">
+        <div className="rounded-2xl bg-white shadow-card p-10 text-center">
+          <div className="text-5xl font-serif font-bold text-brand">{jobs.data.length}</div>
+          <p className="mt-3 text-sm font-medium text-muted-dark tracking-wide">CÔ HỘI VIỆC LÀM</p>
+        </div>
+        <div className="rounded-2xl bg-white shadow-card p-10 text-center">
+          <div className="text-5xl font-serif font-bold text-brand">500+</div>
+          <p className="mt-3 text-sm font-medium text-muted-dark tracking-wide">CÔNG TY HÀNG ĐẦU</p>
+        </div>
+        <div className="rounded-2xl bg-white shadow-card p-10 text-center">
+          <div className="text-5xl font-serif font-bold text-success">10K+</div>
+          <p className="mt-3 text-sm font-medium text-muted-dark tracking-wide">THÀNH CÔNG</p>
+        </div>
       </section>
 
       {/* Featured Jobs Section */}
       <section>
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-12 flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">Việc Làm Nổi Bật</h2>
-            <p className="mt-2 text-slate-600 text-sm">Những vị trí tuyển dụng phổ biến nhất hôm nay</p>
+            <h2 className="text-4xl font-serif font-bold text-foreground">Việc Làm Nổi Bật</h2>
+            <p className="mt-3 text-foreground-muted font-light">Những vị trí tuyển dụng hấp dẫn nhất hôm nay</p>
           </div>
           <Link href="/jobs">
             <Button variant="outline" size="md">
@@ -115,33 +115,34 @@ export default async function HomePage() {
         )}
       </section>
 
-      {/* Benefits Section — Clean, unified design */}
-      <section className="rounded-2xl bg-slate-50 p-8 sm:p-12">
-        <h2 className="text-3xl font-bold text-slate-900">Tại Sao Chọn Job7189?</h2>
-        <div className="mt-8 grid gap-8 md:grid-cols-3">
+      {/* Benefits Section — Premium design */}
+      <section className="py-6">
+        <h2 className="text-4xl font-serif font-bold text-foreground mb-2">Tại Sao Chọn Job7189?</h2>
+        <p className="text-foreground-muted font-light mb-12">Nền tảng được thiết kế để giúp bạn thành công</p>
+        <div className="grid gap-10 md:grid-cols-3">
           <FeatureItem
-            icon="🎯"
+            emoji="🎯"
             title="Tìm Kiếm Thông Minh"
             description="Lọc theo vị trí, kỹ năng, mức lương để tìm công việc phù hợp nhất với mục tiêu của bạn."
           />
           <FeatureItem
-            icon="📊"
+            emoji="📊"
             title="Theo Dõi Hồ Sơ"
             description="Quản lý tất cả đơn ứng tuyển và theo dõi tiến độ xử lý từng ứng tuyển."
           />
           <FeatureItem
-            icon="💬"
+            emoji="💬"
             title="Liên Lạc Trực Tiếp"
             description="Chat với nhà tuyển dụng để hỏi đáp và thương lượng điều kiện ngay trên nền tảng."
           />
         </div>
       </section>
 
-      {/* CTA Section — Solid slate, white text */}
-      <section className="rounded-2xl bg-slate-900 px-6 py-12 sm:px-12 sm:py-16 text-center text-white">
-        <h2 className="text-3xl font-bold">Sẵn Sàng Bắt Đầu?</h2>
-        <p className="mt-3 text-slate-300">Tạo hồ sơ và ứng tuyển vào công việc mơ ước của bạn hôm nay.</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
+      {/* CTA Section — Premium dark background */}
+      <section className="rounded-3xl bg-foreground px-6 py-20 sm:px-12 sm:py-28 text-center text-white">
+        <h2 className="text-5xl sm:text-6xl font-serif font-bold text-balance">Sẵn Sàng Bắt Đầu?</h2>
+        <p className="mt-6 text-lg font-light text-slate-300">Tạo hồ sơ và ứng tuyển vào công việc mơ ước của bạn hôm nay.</p>
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Link href="/jobs">
             <Button variant="primary" size="lg">
               Khám Phá Công Việc
@@ -159,19 +160,19 @@ export default async function HomePage() {
 }
 
 function FeatureItem({
-  icon,
+  emoji,
   title,
   description,
 }: {
-  icon: string;
+  emoji: string;
   title: string;
   description: string;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="text-3xl">{icon}</div>
-      <h3 className="font-semibold text-slate-900 text-lg">{title}</h3>
-      <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
+    <div className="space-y-4 group">
+      <div className="text-5xl group-hover:scale-110 transition-transform duration-300">{emoji}</div>
+      <h3 className="font-serif font-bold text-foreground text-xl">{title}</h3>
+      <p className="text-foreground-muted font-light leading-relaxed">{description}</p>
     </div>
   );
 }

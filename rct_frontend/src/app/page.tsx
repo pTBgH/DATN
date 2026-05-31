@@ -5,27 +5,27 @@ import { Button } from "@/components/Button";
 
 export default function HomePage() {
   return (
-    <div className="space-y-16">
-      {/* Hero Section — Solid indigo, clean hierarchy */}
-      <section className="rounded-2xl bg-brand px-6 py-16 sm:px-12 sm:py-24 text-white">
-        <div className="max-w-3xl">
-          <div className="inline-block mb-4 px-3 py-1 rounded-full bg-white/15 text-sm font-medium">
+    <div className="space-y-20">
+      {/* Hero Section — Premium serif typography */}
+      <section className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark px-6 py-20 sm:px-12 sm:py-28 text-white overflow-hidden relative">
+        <div className="max-w-3xl relative z-10">
+          <div className="inline-block mb-6 px-4 py-2 rounded-full bg-white/10 text-sm font-medium backdrop-blur-sm border border-white/20">
             Job7189 Recruiter Platform
           </div>
-          <h1 className="text-5xl sm:text-6xl font-bold leading-tight text-balance">
+          <h1 className="text-6xl sm:text-7xl font-serif font-bold leading-tight text-balance">
             Hệ Thống Quản Lý Tuyển Dụng Toàn Diện
           </h1>
-          <p className="mt-6 text-lg leading-relaxed text-brand-light">
+          <p className="mt-8 text-lg sm:text-xl leading-relaxed text-brand-light font-light">
             Quản lý công việc, đội ngũ, phỏng vấn và hồ sơ ứng viên từ một nơi duy nhất. Tối ưu hóa quy trình tuyển dụng của công ty bạn.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-10 flex flex-wrap gap-4">
             <Link href="/recruiter">
-              <Button variant="secondary" size="lg">
+              <Button variant="secondary" size="lg" className="font-medium">
                 Vào Trang Nhà Tuyển Dụng
               </Button>
             </Link>
             <Link href="/admin">
-              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
+              <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/15 font-medium">
                 Vào Trang Quản Trị
               </Button>
             </Link>
@@ -33,11 +33,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Role Selection — Unified design */}
-      <section className="space-y-6">
+      {/* Role Selection — Premium cards */}
+      <section className="space-y-8">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900">Chọn Vai Trò Của Bạn</h2>
-          <p className="mt-2 text-slate-600">Truy cập các tính năng phù hợp với vai trò của bạn</p>
+          <h2 className="text-4xl font-serif font-bold text-foreground">Chọn Vai Trò Của Bạn</h2>
+          <p className="mt-3 text-foreground-muted font-light">Truy cập các tính năng phù hợp với vai trò của bạn</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -70,20 +70,22 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section — Unified indigo styling */}
-      <section className="rounded-2xl bg-slate-50 p-8 sm:p-12">
-        <h2 className="text-3xl font-bold text-slate-900">Nền Tảng Đáng Tin Cậy</h2>
-        <div className="mt-8 grid gap-6 md:grid-cols-4">
-          <StatCard label="Công Ty" value="500+" />
-          <StatCard label="Công Việc" value="5K+" />
-          <StatCard label="Ứng Viên" value="50K+" />
-          <StatCard label="Thành Công" value="10K+" />
+      {/* Stats Section — Premium styling */}
+      <section className="py-6">
+        <h2 className="text-4xl font-serif font-bold text-foreground mb-2">Nền Tảng Đáng Tin Cậy</h2>
+        <p className="text-foreground-muted font-light mb-12">Được tin tưởng bởi các công ty hàng đầu</p>
+        <div className="grid gap-6 md:grid-cols-4">
+          <StatCard label="CÔNG TY" value="500+" />
+          <StatCard label="CÔ HỘI" value="5K+" />
+          <StatCard label="ỨNG VIÊN" value="50K+" />
+          <StatCard label="THÀNH CÔNG" value="10K+" />
         </div>
       </section>
 
-      {/* Features Section — Clean unified design */}
+      {/* Features Section — Premium design */}
       <section>
-        <h2 className="text-3xl font-bold text-slate-900 mb-8">Tính Năng Chính</h2>
+        <h2 className="text-4xl font-serif font-bold text-foreground mb-2">Tính Năng Chính</h2>
+        <p className="text-foreground-muted font-light mb-12">Tất cả công cụ bạn cần để quản lý tuyển dụng hiệu quả</p>
         <div className="grid gap-6 md:grid-cols-3">
           <FeatureCard
             emoji="📊"
@@ -118,11 +120,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Section — Solid slate */}
-      <section className="rounded-2xl bg-slate-900 px-6 py-12 sm:px-12 sm:py-16 text-center text-white">
-        <h2 className="text-3xl font-bold">Bắt Đầu Quản Lý Tuyển Dụng Ngay</h2>
-        <p className="mt-3 text-slate-300">Tối ưu hóa quy trình tuyển dụng và tìm được ứng viên tuyệt vời.</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
+      {/* CTA Section — Premium dark */}
+      <section className="rounded-3xl bg-foreground px-6 py-20 sm:px-12 sm:py-28 text-center text-white">
+        <h2 className="text-5xl sm:text-6xl font-serif font-bold text-balance">Bắt Đầu Quản Lý Tuyển Dụng Ngay</h2>
+        <p className="mt-6 text-lg font-light text-slate-300">Tối ưu hóa quy trình tuyển dụng và tìm được ứng viên tuyệt vời.</p>
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
           <Link href="/recruiter">
             <Button variant="primary" size="lg">
               Vào Trang Nhà Tuyển Dụng
@@ -181,10 +183,10 @@ function RoleCard({
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="text-center py-8">
-      <p className="text-3xl font-bold text-brand">{value}</p>
-      <p className="mt-2 text-sm text-slate-600 font-medium">{label}</p>
-    </Card>
+    <div className="rounded-2xl bg-white shadow-card p-10 text-center group hover:shadow-lg transition-shadow">
+      <p className="text-5xl font-serif font-bold text-brand">{value}</p>
+      <p className="mt-3 text-xs font-medium text-muted-dark tracking-widest">{label}</p>
+    </div>
   );
 }
 
@@ -198,10 +200,10 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <Card>
-      <div className="text-3xl mb-4">{emoji}</div>
-      <h3 className="font-semibold text-slate-900 text-lg">{title}</h3>
-      <p className="mt-2 text-sm text-slate-600 leading-relaxed">{description}</p>
-    </Card>
+    <div className="rounded-2xl bg-white shadow-card p-8 group hover:shadow-lg transition-shadow">
+      <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">{emoji}</div>
+      <h3 className="font-serif font-bold text-foreground text-xl">{title}</h3>
+      <p className="mt-3 text-foreground-muted font-light leading-relaxed">{description}</p>
+    </div>
   );
 }

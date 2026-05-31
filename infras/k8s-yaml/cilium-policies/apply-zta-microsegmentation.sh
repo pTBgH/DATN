@@ -11,6 +11,8 @@ kubectl apply -f "$SCRIPT_DIR/01-allow-egress-dns.yaml"
 kubectl apply -f "$SCRIPT_DIR/02-allow-egress-data.yaml"
 kubectl apply -f "$SCRIPT_DIR/03-allow-ingress-kong.yaml"
 kubectl apply -f "$SCRIPT_DIR/04-allow-internal-api-strict.yaml"
+# Ingress phía data: cho phép app gọi MySQL (cặp với egress ở 02-allow-egress-data.yaml)
+kubectl apply -f "$SCRIPT_DIR/10-allow-ingress-mysql-from-apps.yaml"
 
 echo ""
 echo "✅ Microsegmentation cho namespace 'job7189-apps' đã được bật!"

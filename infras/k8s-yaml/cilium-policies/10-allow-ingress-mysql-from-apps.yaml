@@ -1,0 +1,17 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-mysql-from-apps"
+  namespace: "data"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "3306"
+        protocol: TCP

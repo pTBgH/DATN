@@ -154,6 +154,7 @@ services:
     url: http://workspace-service.job7189-apps.svc.cluster.local:80
     routes:
       - { name: workspace-core, paths: ["/api/workspaces"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: workspace-my-workspaces, paths: ["/api/my-workspaces"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: workspace-invitations, paths: ["/api/invitations"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: workspace-options, paths: ["/api/options/company-types"], strip_path: false }
 
@@ -221,6 +222,7 @@ services:
     url: http://candidate-service.job7189-apps.svc.cluster.local:80
     routes:
       - { name: candidate-resumes, paths: ["/api/resumes"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: candidate-my-applications, paths: ["/api/my-applications"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: candidate-interactions, paths: ["/api/interactions"], strip_path: false, plugins: [{ name: jwt }] }
 
   # ======================

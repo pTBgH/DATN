@@ -13,8 +13,8 @@ import { useCallback, useEffect, useState } from "react";
 
 export type MockRole = "recruiter" | "admin";
 
-const STORAGE_KEY = "job7189.rct.role";
-const TOKEN_KEY = "job7189.token";
+export const STORAGE_KEY = "job7189.rct.role";
+export const TOKEN_KEY = "job7189.token";
 
 export interface MockAuthState {
   role: MockRole | null;

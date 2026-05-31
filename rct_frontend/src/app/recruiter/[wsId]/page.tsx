@@ -92,7 +92,7 @@ export default async function WorkspaceDashboardPage({
                             {j.title}
                           </h3>
                           <Badge 
-                            variant={j.status === 'Open' ? 'primary' : 'default'}
+                            variant={j.status === 'Open' ? 'primary' : 'muted'}
                             size="sm"
                           >
                             {j.status}

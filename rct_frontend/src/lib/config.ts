@@ -17,8 +17,9 @@ function ensureProtocol(url: string, defaultProtocol = "https://") {
 export const config = {
   useMock:
     (process.env.NEXT_PUBLIC_USE_MOCK ?? "true").toLowerCase() === "true",
-  apiBaseUrl:
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.job7189.com",
+  apiBaseUrl: ensureProtocol(
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.job7189.com"
+  ),
   apiHostOverride: process.env.NEXT_PUBLIC_API_HOST_OVERRIDE ?? "",
   keycloak: {
     baseUrl: ensureProtocol(

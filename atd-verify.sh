@@ -160,8 +160,8 @@ else
                           → azp trong token không khớp KEYCLOAK_CANDIDATE_CLIENT_ID
                              trong identity-service. Kiểm tra deployment env.
    · /api/candidates/profile = 403 OPA denied
-                          → candidates.rego đang chặn role 'member'. Kiểm tra
-                             configmap opa-policies ns security.
+                          → token thiếu `sub` claim. OPA giờ chỉ chặn khi token
+                             vô hiệu; mọi role check khác đã rời về Laravel.
 EOF
 fi
 

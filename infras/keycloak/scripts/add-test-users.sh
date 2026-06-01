@@ -1,33 +1,42 @@
 #!/usr/bin/env bash
 # =============================================================================
-# add-app-roles.sh — Phase 5.B.2.a (Keycloak business roles for OPA user-authz)
+# add-test-users.sh — Keycloak test users for realm `job7189`
 #
-# Adds 8 string realm-roles + 3 test users to realm `job7189` running inside
-# the Keycloak pod `security/keycloak-*`. Idempotent: rerunning the script
-# is safe — kcadm errors on "role/user already exists" are caught and ignored.
-#
-# Roles (flat, no composites):
-#   admin            super user, full CRUD on every resource
-#   rec_ops          recruiter ops, manages workspaces + categories
-#   recruiter        creates jobs, sees own pipelines
-#   sourcer          sees candidate pool, no edit
-#   coordinator      schedules interviews, no scorecard
-#   hiring_manager   sees scorecards, approves offers
-#   interviewer      writes scorecards for assigned interviews
-#   member           catch-all logged-in user (read-only public + own profile)
+# Creates 3 test users (idempotent) in realm `job7189` running inside the
+# Keycloak pod `security/keycloak-*`. User identity is established by which
+# Keycloak *client* they log in through (azp claim), so this script no longer
+# assigns realm-roles. ATS business roles (recruiter / rec_ops / sourcer /
+# coordinator / hiring_manager / interviewer / member) now live entirely in
+# Laravel + the `workspace_members` bitmask table — see
+# `doc/36-opa-user-authz.md` for the rationale.
 #
 # Test users (password = "dev1234", thesis-demo only — DO NOT use in prod):
-#   admin1     → roles: [admin]
-#   recruiter1 → roles: [recruiter]
-#   member1    → roles: [member]
+#   admin1     → use the recruiter Keycloak client; Laravel marks them as a
+#                 platform admin by their membership of the workspace whose
+#                 ID is set in `SUPER_ADMIN_WORKSPACE_ID` (env var consumed by
+#                 each Laravel service's `super.admin` middleware).
+#   recruiter1 → use the recruiter Keycloak client; their per-workspace
+#                 permissions live in `workspace_members` (job/candidate/
+#                 pipeline/workspace bitmasks). Seed those via Laravel.
+#   member1    → use either client; Laravel treats them as a recruiter or
+#                 candidate based on the client they log in through (azp).
 #
 # Usage:
-#   bash infras/keycloak/scripts/add-app-roles.sh                 # default
-#   KEYCLOAK_ADMIN_PASSWORD=xxx bash ....                         # override
-#   bash infras/keycloak/scripts/add-app-roles.sh --remove        # tear down
+#   bash infras/keycloak/scripts/add-test-users.sh               # create users
+#   KEYCLOAK_ADMIN_PASSWORD=xxx bash ....                        # override pw
+#   bash infras/keycloak/scripts/add-test-users.sh --remove      # delete users
+#   bash infras/keycloak/scripts/add-test-users.sh --cleanup-legacy-roles
+#                                                                # delete the
+#                                                                # 8 legacy
+#                                                                # business
+#                                                                # roles from
+#                                                                # the realm
+#                                                                # (no-op if
+#                                                                # they don't
+#                                                                # exist)
 #
 # Doc:
-#   doc/36-opa-user-authz.md §3.1
+#   doc/36-opa-user-authz.md
 # =============================================================================
 set -euo pipefail
 
@@ -37,7 +46,19 @@ KC_POD_LABEL="${KC_POD_LABEL:-app=keycloak}"
 KC_BASE_URL="${KC_BASE_URL:-http://localhost:8080}"
 TEST_USER_PASSWORD="${TEST_USER_PASSWORD:-dev1234}"
 
-ROLES=(
+# Test users — no role-mapping; identity comes from `azp` (Keycloak client).
+USERS=(
+  "admin1"
+  "recruiter1"
+  "member1"
+)
+
+# Legacy realm-roles from the old role-based OPA design. The current OPA
+# policy ignores `realm_access.roles` entirely (see infras/k8s-yaml/opa/
+# policies/default.rego), so these roles are dead weight — `--cleanup-legacy-
+# roles` deletes them from the realm. Listed here so the script is the single
+# place that knows what the legacy names were.
+LEGACY_ROLES=(
   admin
   rec_ops
   recruiter
@@ -48,23 +69,17 @@ ROLES=(
   member
 )
 
-# user:role[,role...]   (comma-separated when a user has multiple roles)
-USERS=(
-  "admin1:admin"
-  "recruiter1:recruiter"
-  "member1:member"
-)
-
 red()    { printf '\033[31m%s\033[0m\n' "$*"; }
 green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 blue()   { printf '\033[34m%s\033[0m\n' "$*"; }
 
-REMOVE=0
+MODE="install"
 case "${1:-}" in
-  --remove) REMOVE=1 ;;
+  --remove)                 MODE="remove" ;;
+  --cleanup-legacy-roles)   MODE="cleanup-legacy-roles" ;;
   -h|--help)
-    sed -n '2,30p' "$0" | sed 's/^# \?//'
+    sed -n '2,42p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   "") : ;;
@@ -129,13 +144,12 @@ get_user_id() {
 }
 
 # ==========================================================================
-# REMOVAL PATH
+# REMOVAL PATH — delete the 3 test users.
 # ==========================================================================
-if [ "$REMOVE" -eq 1 ]; then
-  yellow "Removing test users + business roles from realm '$REALM'..."
+if [ "$MODE" = "remove" ]; then
+  yellow "Removing test users from realm '$REALM'..."
   login_kcadm
-  for entry in "${USERS[@]}"; do
-    username="${entry%%:*}"
+  for username in "${USERS[@]}"; do
     if user_exists "$username"; then
       uid=$(get_user_id "$username")
       [ -n "$uid" ] && kcadm delete "users/$uid" -r "$REALM" \
@@ -143,50 +157,44 @@ if [ "$REMOVE" -eq 1 ]; then
         || yellow "  user $username delete failed (ignored)"
     fi
   done
-  for role in "${ROLES[@]}"; do
-    if role_exists "$role"; then
-      kcadm delete "roles/$role" -r "$REALM" \
-        && green "  removed role $role" \
-        || yellow "  role $role delete failed (ignored)"
-    fi
-  done
-  green "✓ test users and business roles removed"
+  green "done — test users removed"
   exit 0
 fi
 
 # ==========================================================================
-# INSTALL PATH
+# CLEANUP-LEGACY-ROLES PATH — delete the 8 obsolete business realm-roles.
+# ==========================================================================
+if [ "$MODE" = "cleanup-legacy-roles" ]; then
+  yellow "Removing legacy business roles from realm '$REALM'..."
+  yellow "(OPA + Laravel no longer read realm_access.roles for these names.)"
+  login_kcadm
+  for role in "${LEGACY_ROLES[@]}"; do
+    if role_exists "$role"; then
+      kcadm delete "roles/$role" -r "$REALM" \
+        && green "  removed role $role" \
+        || yellow "  role $role delete failed (ignored)"
+    else
+      yellow "  role $role already absent — skipping"
+    fi
+  done
+  green "done — legacy business roles cleaned up"
+  exit 0
+fi
+
+# ==========================================================================
+# INSTALL PATH — create / refresh the 3 test users (no role mapping).
 # ==========================================================================
 blue "=========================================================="
-blue " Adding $((${#ROLES[@]})) business roles + ${#USERS[@]} test users"
+blue " Creating ${#USERS[@]} test users"
 blue " Realm:    $REALM"
 blue " Pod:      $NAMESPACE/$KC_POD"
 blue " Password: \"$TEST_USER_PASSWORD\" (thesis-demo only)"
+blue " Note:     identity comes from the Keycloak client (azp),"
+blue "           not from realm-roles — see doc/36-opa-user-authz.md"
 blue "=========================================================="
 login_kcadm
 
-# --------------------------------------------------------------------------
-# 1. Create realm roles.
-# --------------------------------------------------------------------------
-blue "[1/3] Creating realm roles..."
-for role in "${ROLES[@]}"; do
-  if role_exists "$role"; then
-    yellow "  role $role already exists — skipping"
-  else
-    kcadm create roles -r "$REALM" \
-      -s "name=$role" \
-      -s "description=Phase 5.B.2 business role: $role" \
-      >/dev/null
-    green "  created role $role"
-  fi
-done
-
-# --------------------------------------------------------------------------
-# 2. Create test users + set password.
-# --------------------------------------------------------------------------
-blue "[2/3] Creating test users..."
-for entry in "${USERS[@]}"; do
-  username="${entry%%:*}"
+for username in "${USERS[@]}"; do
   if user_exists "$username"; then
     yellow "  user $username already exists — skipping create"
   else
@@ -200,8 +208,7 @@ for entry in "${USERS[@]}"; do
       >/dev/null
     green "  created user $username"
   fi
-  # Always (re)set the password — useful when re-running on existing user
-  # (kcadm set-password is idempotent — overwrites).
+  # Always (re)set the password — useful when re-running on existing user.
   kcadm set-password -r "$REALM" \
     --username "$username" \
     --new-password "$TEST_USER_PASSWORD" \
@@ -209,37 +216,20 @@ for entry in "${USERS[@]}"; do
   green "    set password for $username"
 done
 
-# --------------------------------------------------------------------------
-# 3. Map roles to users.
-# --------------------------------------------------------------------------
-blue "[3/3] Assigning roles to users..."
-for entry in "${USERS[@]}"; do
-  username="${entry%%:*}"
-  roles_csv="${entry#*:}"
-  IFS=',' read -ra wanted_roles <<<"$roles_csv"
-  for role in "${wanted_roles[@]}"; do
-    role=$(echo "$role" | tr -d ' ')
-    # 'kcadm add-roles' is idempotent — re-adding an already-mapped role
-    # is a no-op (returns 0). We don't need to query first.
-    kcadm add-roles -r "$REALM" \
-      --uusername "$username" \
-      --rolename "$role" \
-      >/dev/null
-    green "  $username -> $role"
-  done
-done
-
 blue "=========================================================="
-green " ✓ done"
+green " done"
 blue "=========================================================="
 echo
-echo "Test login:"
+echo "Test login (use the recruiter or candidate client id depending on"
+echo "which app you want to log in to; Laravel decides recruiter vs"
+echo "candidate from the JWT's azp claim):"
 echo "  TOKEN=\$(curl -s -X POST \\"
-echo "    -d 'client_id=candidate-app-dev' \\"
+echo "    -d 'client_id=recruiter-app-dev' \\"
 echo "    -d 'username=admin1' -d 'password=$TEST_USER_PASSWORD' \\"
 echo "    -d 'grant_type=password' \\"
 echo "    http://<keycloak>/realms/$REALM/protocol/openid-connect/token \\"
 echo "    | jq -r .access_token)"
-echo "  echo \$TOKEN | cut -d. -f2 | base64 -d | jq .realm_access.roles"
 echo
-echo "Expected output: [\"admin\", \"default-roles-$REALM\"]"
+echo "To grant admin1 platform-admin powers, add them as an active member of"
+echo "the workspace whose ID is set in SUPER_ADMIN_WORKSPACE_ID (consumed by"
+echo "each Laravel service's 'super.admin' middleware)."

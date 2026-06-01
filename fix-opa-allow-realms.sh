@@ -52,6 +52,7 @@ for u in recruiter1 admin1 member1; do
   echo "  /api/admin/users        : $(hb /api/admin/users "$t")"
 done
 echo
-echo ">> Mong đợi: token_len>0; recruiter1 /recruiters/profile = 401 (qua OPA, kẹt azp),"
-echo "   admin1 /admin/users = 404/401, member1 /recruiters/profile = 403 (chặn đúng role)."
+echo ">> Mong đợi (sau refactor — OPA chỉ check public vs authenticated):"
+echo "   token_len>0; mọi user pass OPA (200/4xx do Laravel quyết),"
+echo "   member1 /recruiters/profile = 4xx do Laravel/Kong (không còn do OPA chặn role)."
 echo ">> Nếu còn 403 toàn bộ + token_len=0 => /realms vẫn bị chặn, gửi mình output mục CHECK."

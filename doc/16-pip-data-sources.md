@@ -53,7 +53,7 @@ dang chay trong cluster, co pod/service rieng, expose API hoac du lieu cho PE su
 |------------|---------|-------|-----------|
 | `sub` (Subject ID) | `user123` | JWT payload | `infras/kong/kong.yml` |
 | `iss` (Issuer) | `http://auth.job7189.local/realms/job7189` | JWT header | `infras/keycloak/realms/realm-job7189.json` |
-| `realm_access.roles` | `["recruiter","manager"]` | JWT payload | Keycloak realm config |
+| `azp` (Authorized Party) | `recruiter-app-dev` hoac `candidate-app-dev` | JWT payload | Keycloak client config (`realm-job7189.json`) — phan biet recruiter vs candidate o tang ha tang. Per-workspace business roles enforced o Laravel (`workspace_members` bitmask). |
 | `exp` (Expiration) | Unix timestamp | JWT payload | Keycloak token settings |
 | `email_verified` | `true/false` | JWT payload | Keycloak user attributes |
 

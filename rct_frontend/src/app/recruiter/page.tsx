@@ -1,13 +1,23 @@
+"use client";
+
 import Link from "next/link";
 import { workspaceApi } from "@/lib/api";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function RecruiterHomePage() {
+  const { data: workspaces, loading, error } = useAuthedFetch(
+    () => workspaceApi.getMyWorkspaces(),
+    [],
+  );
 
-export default async function RecruiterHomePage() {
-  const workspaces = await workspaceApi.getMyWorkspaces();
+  if (loading) return <PageLoading label="Đang tải workspace..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = workspaces ?? [];
 
   return (
     <div className="space-y-6">
@@ -21,7 +31,7 @@ export default async function RecruiterHomePage() {
         </Button>
       </div>
 
-      {workspaces.length === 0 ? (
+      {list.length === 0 ? (
         <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
             <div className="text-4xl text-gray-400">[ WS ]</div>
@@ -38,13 +48,13 @@ export default async function RecruiterHomePage() {
         <div className="space-y-4">
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm text-blue-900">
-              Bạn có <span className="font-semibold">{workspaces.length}</span> workspace.
+              Bạn có <span className="font-semibold">{list.length}</span> workspace.
               Chọn workspace để xem chi tiết tuyển dụng.
             </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {workspaces.map((w) => (
+            {list.map((w) => (
               <Link
                 key={w.id}
                 href={`/recruiter/${w.id}`}

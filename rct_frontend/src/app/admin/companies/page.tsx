@@ -1,19 +1,29 @@
+"use client";
+
 import { adminApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function AdminCompaniesPage() {
+  const { data: companies, loading, error } = useAuthedFetch(
+    () => adminApi.listAdminCompanies(),
+    [],
+  );
 
-export default async function AdminCompaniesPage() {
-  const companies = await adminApi.listAdminCompanies();
+  if (loading) return <PageLoading label="Đang tải công ty..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = companies ?? [];
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Công ty đăng ký</h1>
       <p className="text-sm text-slate-500">
-        Tổng {companies.length} công ty. Endpoint tham khảo:
+        Tổng {list.length} công ty. Endpoint tham khảo:
         `GET /api/companies/{"{id}"}` (job-service) + workspace-service §2.
       </p>
 
       <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {companies.map((c) => (
+        {list.map((c) => (
           <li
             key={c.company_id}
             className="rounded-lg border bg-white p-5"

@@ -1,9 +1,18 @@
+"use client";
+
 import { identityApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function RecruiterProfilePage() {
+  const { data: profile, loading, error } = useAuthedFetch(
+    () => identityApi.getRecruiterProfile(),
+    [],
+  );
 
-export default async function RecruiterProfilePage() {
-  const profile = await identityApi.getRecruiterProfile();
+  if (loading) return <PageLoading label="Đang tải hồ sơ..." />;
+  if (error) return <PageError message={error} />;
+  if (!profile) return null;
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Hồ sơ Recruiter</h1>

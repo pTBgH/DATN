@@ -1,9 +1,19 @@
+"use client";
+
 import { commApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function RecruiterMessagesPage() {
+  const { data: conversations, loading, error } = useAuthedFetch(
+    () => commApi.listConversations(),
+    [],
+  );
 
-export default async function RecruiterMessagesPage() {
-  const conversations = await commApi.listConversations();
+  if (loading) return <PageLoading label="Đang tải tin nhắn..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = conversations ?? [];
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Hộp thư</h1>
@@ -12,7 +22,7 @@ export default async function RecruiterMessagesPage() {
         → frontend hiện chỉ poll qua REST.
       </p>
       <ul className="divide-y rounded-lg border bg-white">
-        {conversations.map((c) => (
+        {list.map((c) => (
           <li key={c.ConversationID} className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand">
               {c.Type === "direct" ? "1:1" : "G"}

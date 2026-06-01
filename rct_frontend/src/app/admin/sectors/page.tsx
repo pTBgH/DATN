@@ -1,9 +1,19 @@
+"use client";
+
 import { adminApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function AdminSectorsPage() {
+  const { data: sectors, loading, error } = useAuthedFetch(
+    () => adminApi.listSectors(),
+    [],
+  );
 
-export default async function AdminSectorsPage() {
-  const sectors = await adminApi.listSectors();
+  if (loading) return <PageLoading label="Đang tải ngành nghề..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = sectors ?? [];
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between">
@@ -27,8 +37,8 @@ export default async function AdminSectorsPage() {
             <th className="px-4 py-2"></th>
           </tr>
         </thead>
-        <tbody className="divide-y">
-          {sectors.map((s) => (
+        <tbody className="divide-y text-sm">
+          {list.map((s) => (
             <tr key={s.id} className="hover:bg-slate-50">
               <td className="px-4 py-2 text-slate-500">{s.id}</td>
               <td className="px-4 py-2 font-medium">{s.name}</td>

@@ -1,16 +1,28 @@
+"use client";
+
 import Link from "next/link";
 import { adminApi } from "@/lib/api";
 import { Stat } from "@/components/Stat";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function AdminHomePage() {
+  const { data, loading, error } = useAuthedFetch(
+    () =>
+      Promise.all([
+        adminApi.listPendingJobs(),
+        adminApi.listSectors(),
+        adminApi.listAdminUsers(),
+        adminApi.listAdminCompanies(),
+      ]),
+    [],
+  );
 
-export default async function AdminHomePage() {
-  const [pending, sectors, users, companies] = await Promise.all([
-    adminApi.listPendingJobs(),
-    adminApi.listSectors(),
-    adminApi.listAdminUsers(),
-    adminApi.listAdminCompanies(),
-  ]);
+  if (loading) return <PageLoading label="Đang tải dữ liệu..." />;
+  if (error) return <PageError message={error} />;
+  if (!data) return null;
+
+  const [pending, sectors, users, companies] = data;
 
   return (
     <div className="space-y-6">

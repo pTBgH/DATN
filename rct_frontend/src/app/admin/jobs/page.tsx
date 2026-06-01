@@ -1,22 +1,32 @@
+"use client";
+
 import { adminApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function AdminJobsPage() {
+  const { data: pending, loading, error } = useAuthedFetch(
+    () => adminApi.listPendingJobs(),
+    [],
+  );
 
-export default async function AdminJobsPage() {
-  const pending = await adminApi.listPendingJobs();
+  if (loading) return <PageLoading label="Đang tải công việc..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = pending ?? [];
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Duyệt tin tuyển dụng</h1>
       <p className="text-sm text-slate-500">
-        {pending.length} tin đang chờ duyệt. Bấm “Duyệt” sẽ gọi{" "}
-        <code>PATCH /api/admin/jobs/&#123;id&#125;/approve</code>; “Từ chối” gọi{" "}
+        {list.length} tin đang chờ duyệt. Bấm {'"'}Duyệt{'"'} sẽ gọi{" "}
+        <code>PATCH /api/admin/jobs/&#123;id&#125;/approve</code>; {'"'}Từ chối{'"'} gọi{" "}
         <code>PATCH /api/admin/jobs/&#123;id&#125;/reject</code> (mock-only ở
         skeleton — xem <code>adminApi.approveJob</code> /{" "}
         <code>adminApi.rejectJob</code>).
       </p>
 
       <ul className="space-y-3">
-        {pending.map((j) => (
+        {list.map((j) => (
           <li
             key={j.job_id}
             className="rounded-lg border bg-white p-5"

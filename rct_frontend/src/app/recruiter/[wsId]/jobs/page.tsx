@@ -1,22 +1,66 @@
+"use client";
+
 import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { jobApi } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { getJobStatusBadgeClass } from "@/lib/formatters";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function WorkspaceJobsPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <WorkspaceJobsInner />
+    </Suspense>
+  );
+}
 
-export default async function WorkspaceJobsPage({
-  params,
-  searchParams,
-}: {
-  params: { wsId: string };
-  searchParams: { q?: string; status?: string };
-}) {
-  const result = await jobApi.listWorkspaceJobs(params.wsId, {
-    q: searchParams.q || undefined,
+function WorkspaceJobsInner() {
+  const params = useParams<{ wsId: string }>();
+  const searchParams = useSearchParams();
+  const q = searchParams.get("q") ?? "";
+  const { wsId } = params ?? {};
+
+  const [state, setState] = useState<{
+    data: any;
+    loading: boolean;
+    error: string | null;
+  }>({
+    data: null,
+    loading: true,
+    error: null,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    jobApi
+      .listWorkspaceJobs(wsId!, {
+        q: q || undefined,
+      })
+      .then((data) =>
+        !cancelled && setState({ data, loading: false, error: null })
+      )
+      .catch((e) =>
+        !cancelled &&
+        setState({
+          data: null,
+          loading: false,
+          error: e instanceof Error ? e.message : "Có lỗi",
+        })
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [wsId, q]);
+
+  if (state.loading) return <PageLoading label="Đang tải công việc..." />;
+  if (state.error) return <PageError message={state.error} />;
+
+  const result = state.data;
 
   return (
     <div className="space-y-6">
@@ -30,13 +74,13 @@ export default async function WorkspaceJobsPage({
       <form className="flex flex-wrap gap-3" method="GET">
         <input
           name="q"
-          defaultValue={searchParams.q ?? ""}
+          defaultValue={searchParams.get("q") ?? ""}
           placeholder="Tìm theo tiêu đề công việc…"
           className="flex-1 rounded-lg border border-slate-300 px-4 py-2 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
         />
         <select
           name="status"
-          defaultValue={searchParams.status ?? ""}
+          defaultValue={searchParams.get("status") ?? ""}
           className="rounded-lg border border-slate-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
         >
           <option value="">Tất cả trạng thái</option>
@@ -68,7 +112,7 @@ export default async function WorkspaceJobsPage({
         </Card>
       ) : (
         <ul className="space-y-3">
-          {result.data.map((j) => (
+          {result.data.map((j: any) => (
             <li key={j.job_id}>
               <Link href={`/recruiter/${params.wsId}/jobs/${j.job_id}`}>
                 <Card hover className="border border-gray-200">

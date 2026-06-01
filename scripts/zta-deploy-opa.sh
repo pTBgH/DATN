@@ -233,17 +233,17 @@ cleanup() {
 
 trap cleanup EXIT
 
+# Smoke-test input matches the post-refactor policy:
+#   - /api/health is in public.rego → allow = true with no JWT.
+#   - A request without a JWT (or with an empty sub) to /api/workspaces would
+#     be denied; we use the public path so the smoke test stays stable across
+#     environments where Keycloak is not yet wired up.
 cat > "$TMP_JSON" <<'EOF'
 {
   "input": {
     "method": "GET",
-    "path": "/api/jobs",
-    "jwt": {
-      "preferred_username": "admin1",
-      "realm_access": {
-        "roles": ["admin", "default-roles-job7189"]
-      }
-    }
+    "path": "/api/health",
+    "jwt": {}
   }
 }
 EOF

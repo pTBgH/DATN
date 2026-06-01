@@ -12,7 +12,7 @@ Danh gia theo Mo hinh Truong thanh Zero Trust cua CISA (ZTMM v2.0).
 | IdP tap trung | Keycloak OIDC (Dual-Realm) | ✅ |
 | Workload Identity | SA + Vault K8s Auth + **SPIFFE SVID** (Cilium mesh-auth) | ✅ |
 | MFA | Keycloak ho tro, chua bat buoc | ⚠️ |
-| Phan quyen thuoc tinh | JWT `realm_access.roles` → Kong/OPA | ✅ |
+| Phan quyen thuoc tinh | Kong JWT + OPA (public vs authenticated); business roles (per-workspace) duoc Laravel `workspace_members` bitmask enforce | ✅ |
 | Danh gia rui ro lien tuc | CAEP chua trien khai | ❌ |
 | PIP Identity tools | Keycloak (port 8080) + Cilium Agent (SPIFFE) + Vault (port 8200) | ✅ |
 

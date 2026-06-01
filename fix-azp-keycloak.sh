@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # fix-azp-keycloak.sh — Hướng 1: bật 2 client thành PUBLIC + Direct Access Grants
 # để FE (atd/rct) login bằng đúng client_id của nó -> azp khớp -> backend nhận token.
-# KHÔNG build lại image. Theo quy ước add-app-roles.sh (kcadm trong pod keycloak).
+# KHÔNG build lại image. Theo quy ước add-test-users.sh (kcadm trong pod keycloak).
 # Chạy trên baosrc. CHECK trước -> APPLY -> VERIFY.
 set -uo pipefail
 

@@ -283,6 +283,38 @@ plugins:
       per_consumer: true
 
   # --------------------------------------------------------------------
+  # Structured per-request access log to stdout for Filebeat ingestion.
+  #
+  # Why we need this on top of Kong's built-in NGINX access log:
+  #   * The NGINX combined format only carries source IP / method / path /
+  #     status / bytes / referer / user-agent / kong_request_id. It does
+  #     NOT carry the matched Route / Service / Consumer / plugin chain,
+  #     so a 401/403 line tells you `something rejected this request`
+  #     but not WHICH layer (jwt plugin? pre-function? upstream Laravel?).
+  #   * `file-log` writes Kong's full per-request log object as one JSON
+  #     document per line, including `route`, `service`, `consumer`,
+  #     `latencies.kong / proxy`, `request.headers`, `response.status`.
+  #     Filebeat scrapes that as `/var/log/containers/kong-gateway-*.log`
+  #     (gateway ns is whitelisted in 06-filebeat.yaml), so each request
+  #     is queryable in Kibana by route name / status / consumer.
+  #
+  # Why `/dev/stdout`:
+  #   * Container best practice (12-factor / NIST 800-207 §3.4.4): every
+  #     PEP decision should land in the cluster-wide log pipeline. The
+  #     kong:3.6 image already symlinks logs/access.log -> /dev/stdout,
+  #     so writing here joins the same stream Filebeat scrapes from
+  #     /var/log/containers/.
+  #
+  # No `reopen` / no `custom_fields_by_lua` — we keep this minimal so
+  # the schema stays stable for downstream consumers (Kibana dashboards,
+  # Prometheus log-derived alerts in `prometheus-rules.yaml`).
+  # --------------------------------------------------------------------
+  - name: file-log
+    config:
+      path: /dev/stdout
+      reopen: false
+
+  # --------------------------------------------------------------------
   # OPA user-authz gate — forwards method/path/JWT-claims to OPA.
   #
   # OPA's job (see infras/k8s-yaml/opa/policies/{default,public}.rego):
@@ -341,8 +373,18 @@ plugins:
           local FAIL_CLOSED = false
           local TIMEOUT_MS  = 1000   -- 1s upper bound on OPA round-trip
 
+          local req_method = kong.request.get_method()
+          local req_path   = ngx.var.uri or "/"
           local auth = kong.request.get_header("authorization") or ""
           local token = auth:match("^[Bb]earer%s+(.+)$") or ""
+
+          -- Trace every request entering the ZTA gate so Filebeat / Kibana
+          -- can see the full pre-function timeline (entry / decoded-claims
+          -- / OPA-decision) interleaved with the file-log JSON record
+          -- emitted by the global `file-log` plugin.
+          kong.log.info("ZTA gate enter method=", req_method,
+            " path=", req_path,
+            " has_token=", tostring(token ~= ""))
 
           -- Decode the JWT payload (base64-url segment 2) — Kong's jwt
           -- plugin already verified the signature on protected routes; we
@@ -363,6 +405,13 @@ plugins:
                 claims = cjson.decode(raw) or {}
               end
             end
+            -- Surface JWT iss / azp / sub at info level so the most common
+            -- 401 cause — Kong's jwt plugin rejecting because `iss` is not
+            -- in the consumer's jwt_secrets[].key list — is one grep away.
+            kong.log.info("ZTA jwt claims iss=", claims.iss or "",
+              " azp=", claims.azp or "",
+              " sub=", claims.sub or "",
+              " user=", claims.preferred_username or "")
           end
 
           -- Build OPA input.

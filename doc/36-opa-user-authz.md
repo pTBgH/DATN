@@ -324,6 +324,22 @@ hubble observe --namespace gateway --to-namespace security \
   `values.yaml`) so Filebeat (Phase 4) ships them straight to Elasticsearch
   for later auditing. The thesis chapter cites these as the evidence trail
   for "who tried to call what, was it allowed".
+- **Kong logs** complement the OPA decision log:
+  - `KONG_LOG_LEVEL=info` (set in `04-kong-dbless.yaml`) exposes the `jwt`
+    plugin's reject reason (`no credentials found for given 'iss'`,
+    `invalid signature`, `token expired`) which is at `info` level — at
+    the default `notice` level the rejection is silent.
+  - `KONG_PROXY_ACCESS_LOG=/dev/stdout` + `KONG_PROXY_ERROR_LOG=/dev/stderr`
+    pin the streams so Filebeat sees both via `/var/log/containers/`.
+  - Global `file-log` plugin (`kong.yml`, path=`/dev/stdout`) emits a JSON
+    record per request including matched route / service / consumer /
+    latencies / response status. The NGINX combined access log only has
+    method/path/status — this is what tells you *which* layer rejected
+    a request.
+  - `kong.log.info("ZTA gate enter …")` and `kong.log.info("ZTA jwt
+    claims iss=… azp=… sub=…")` lines in the pre-function provide an
+    in-request trace so a 401 caused by an `iss` mismatch is one `grep`
+    away in Kibana, without dropping Kong into `debug`.
 - **Policy revision** is monotonic — kube-mgmt logs `policy reloaded:
   opa-policies/public.rego` every time the ConfigMap changes. Roll back by
   reverting the file and `bash scripts/zta-deploy-opa.sh --policies-only`.

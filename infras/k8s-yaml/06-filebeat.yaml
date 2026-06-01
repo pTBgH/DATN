@@ -68,6 +68,24 @@ data:
                 logs_path: "/var/log/containers/"
         
         # Whitelist: drop everything except these namespaces.
+        #
+        # Sections:
+        #   (A) Application + gateway + IdP/PDP/PIP — the originally
+        #       whitelisted core ZTA path.
+        #   (B) Auxiliary PEP/PIP infrastructure — every ZTA control
+        #       plane that emits enforcement decisions (Vault audit
+        #       log, SPIRE SVID issuance, OPA Gatekeeper admission
+        #       denials, cosign image-signature rejections, cert-manager
+        #       cert issuance, ingress-nginx edge access).  Without
+        #       these in ES we lose the audit trail required by
+        #       NIST SP 800-207 §3.4.4 (centralized PDP/PEP log).
+        #   (C) `kube-system` selectively, ONLY for the eBPF data-plane
+        #       PEPs (Cilium agent + operator, Tetragon, Hubble).
+        #       The rest of kube-system (etcd / apiserver / controller-
+        #       manager / scheduler / coredns / metrics-server / local-
+        #       path-provisioner) is excluded to keep volume bounded —
+        #       those are Kubernetes platform logs, not ZTA decisions.
+        #
         # security-cdm is whitelisted so the threat-intel-refresh
         # CronJob output (FireHOL CIDR / URLhaus FQDN feed counts +
         # ConfigMap / CiliumCIDRGroup / coredns-sinkhole patch results)
@@ -77,6 +95,7 @@ data:
             when:
               not:
                 or:
+                  # (A) Core ZTA path — applications + gateway + IdP/PDP/PIP
                   - equals:
                       kubernetes.namespace: "job7189-apps"
                   - equals:
@@ -87,6 +106,53 @@ data:
                       kubernetes.namespace: "data"
                   - equals:
                       kubernetes.namespace: "security-cdm"
+                  # (B) Auxiliary PEP / PIP infrastructure
+                  #     vault          — Vault audit log + agent-injector
+                  #                      decisions (JIT DB cred issuance,
+                  #                      role bindings).
+                  #     spire          — SPIRE server + agent SVID issuance
+                  #                      (workload identity, ZTA pillar 1).
+                  #     gatekeeper-system
+                  #                    — OPA Gatekeeper admission deny
+                  #                      events (label drift, image policy).
+                  #     cosign-system  — Sigstore policy-controller image-
+                  #                      signature verification denials.
+                  #     cert-manager   — cert issuance + renewal events
+                  #                      (mTLS certs for internal services).
+                  #     ingress-nginx  — edge L7 access log (entry point
+                  #                      before Kong, useful for triaging
+                  #                      requests that never reach Kong).
+                  - equals:
+                      kubernetes.namespace: "vault"
+                  - equals:
+                      kubernetes.namespace: "spire"
+                  - equals:
+                      kubernetes.namespace: "gatekeeper-system"
+                  - equals:
+                      kubernetes.namespace: "cosign-system"
+                  - equals:
+                      kubernetes.namespace: "cert-manager"
+                  - equals:
+                      kubernetes.namespace: "ingress-nginx"
+                  # (C) kube-system — selective by pod-name prefix so we
+                  #     only ship the eBPF-driven ZTA data-plane PEPs
+                  #     (Cilium L3-7 drops, Tetragon process events,
+                  #     Hubble flow exporter) and skip the Kubernetes
+                  #     control-plane noise (etcd / apiserver / coredns
+                  #     / kube-scheduler / metrics-server etc.).
+                  #
+                  #     Pod-name prefix is used rather than label match
+                  #     because the upstream Tetragon Helm chart uses
+                  #     the key `app.kubernetes.io/name` which Filebeat
+                  #     7.x re-encodes (`.` → `_`) and the encoded key
+                  #     varies by `add_kubernetes_metadata.labels.dedot`
+                  #     setting.  Pod-name prefix is stable across
+                  #     Filebeat versions and chart upgrades.
+                  - and:
+                      - equals:
+                          kubernetes.namespace: "kube-system"
+                      - regexp:
+                          kubernetes.pod.name: "^(cilium|hubble|tetragon)"
 
     output.elasticsearch:
       hosts: ['elasticsearch:9200']

@@ -1,11 +1,20 @@
+"use client";
+
 import { identityApi } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function ProfilePage() {
+  const { data: profile, loading, error } = useAuthedFetch(
+    () => identityApi.getCandidateProfile(),
+    [],
+  );
 
-export default async function ProfilePage() {
-  const profile = await identityApi.getCandidateProfile();
+  if (loading) return <PageLoading label="Đang tải hồ sơ..." />;
+  if (error) return <PageError message={error} />;
+  if (!profile) return null;
   return (
     <div className="space-y-6 max-w-4xl">
       <div>

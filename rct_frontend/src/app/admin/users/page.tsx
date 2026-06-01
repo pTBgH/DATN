@@ -1,14 +1,24 @@
+"use client";
+
 import { adminApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function AdminUsersPage() {
+  const { data: users, loading, error } = useAuthedFetch(
+    () => adminApi.listAdminUsers(),
+    [],
+  );
 
-export default async function AdminUsersPage() {
-  const users = await adminApi.listAdminUsers();
+  if (loading) return <PageLoading label="Đang tải người dùng..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = users ?? [];
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Người dùng</h1>
       <p className="text-sm text-slate-500">
-        Tổng {users.length} người dùng (mock). Trong production sẽ kết hợp với
+        Tổng {list.length} người dùng (mock). Trong production sẽ kết hợp với
         Keycloak admin API qua identity-service.
       </p>
 
@@ -23,8 +33,8 @@ export default async function AdminUsersPage() {
             <th className="px-4 py-2">Đăng nhập gần nhất</th>
           </tr>
         </thead>
-        <tbody className="divide-y">
-          {users.map((u) => (
+        <tbody className="divide-y text-sm">
+          {list.map((u) => (
             <tr key={u.user_id} className="hover:bg-slate-50">
               <td className="px-4 py-2">
                 <code className="text-xs">{u.user_id}</code>

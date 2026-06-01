@@ -1,18 +1,30 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { hiringApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function ApplicationDetailPage() {
+  const params = useParams<{ wsId: string; applicationId: string }>();
+  const { wsId, applicationId } = params ?? {};
 
-export default async function ApplicationDetailPage({
-  params,
-}: {
-  params: { wsId: string; applicationId: string };
-}) {
-  const [app, interviews, scorecards] = await Promise.all([
-    hiringApi.getApplicationDetail(params.applicationId),
-    hiringApi.listInterviews(params.applicationId),
-    hiringApi.listScorecards(params.applicationId),
-  ]);
+  const { data, loading, error } = useAuthedFetch(
+    () =>
+      Promise.all([
+        hiringApi.getApplicationDetail(applicationId!),
+        hiringApi.listInterviews(applicationId!),
+        hiringApi.listScorecards(applicationId!),
+      ]),
+    [applicationId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải application..." />;
+  if (error) return <PageError message={error} />;
+  if (!data) return null;
+
+  const [app, interviews, scorecards] = data;
   return (
     <div className="space-y-6">
       <header>

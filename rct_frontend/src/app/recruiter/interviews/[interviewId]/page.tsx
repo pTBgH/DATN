@@ -1,14 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { hiringApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function InterviewDetailPage() {
+  const params = useParams<{ interviewId: string }>();
+  const { interviewId } = params ?? {};
 
-export default async function InterviewDetailPage({
-  params,
-}: {
-  params: { interviewId: string };
-}) {
-  const interview = await hiringApi.getInterview(params.interviewId);
+  const { data: interview, loading, error } = useAuthedFetch(
+    () => hiringApi.getInterview(interviewId!),
+    [interviewId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải phỏng vấn..." />;
+  if (error) return <PageError message={error} />;
+  if (!interview) return null;
   return (
     <div className="space-y-6">
       <header>

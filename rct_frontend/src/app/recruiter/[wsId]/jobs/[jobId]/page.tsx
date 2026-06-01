@@ -1,14 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { jobApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function RecruiterJobDetailPage() {
+  const params = useParams<{ wsId: string; jobId: string }>();
+  const { wsId, jobId } = params ?? {};
 
-export default async function RecruiterJobDetailPage({
-  params,
-}: {
-  params: { wsId: string; jobId: string };
-}) {
-  const job = await jobApi.getWorkspaceJob(params.wsId, params.jobId);
+  const { data: job, loading, error } = useAuthedFetch(
+    () => jobApi.getWorkspaceJob(wsId!, jobId!),
+    [wsId, jobId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải chi tiết công việc..." />;
+  if (error) return <PageError message={error} />;
+  if (!job) return null;
   return (
     <article className="space-y-6">
       <header className="flex items-start gap-4">

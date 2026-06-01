@@ -1,19 +1,62 @@
+"use client";
+
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { jobApi } from "@/lib/api";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { truncateText } from "@/lib/formatters";
 import { Button } from "@/components/Button";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function JobsListPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <JobsListInner />
+    </Suspense>
+  );
+}
 
-export default async function JobsListPage({
-  searchParams,
-}: {
-  searchParams: { q?: string };
-}) {
-  const q = searchParams?.q ?? "";
-  const result = await jobApi.listPublicJobs({ q: q || undefined });
+function JobsListInner() {
+  const params = useSearchParams();
+  const q = params.get("q") ?? "";
+
+  const [state, setState] = useState<{
+    data: any;
+    loading: boolean;
+    error: string | null;
+  }>({
+    data: null,
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    jobApi
+      .listPublicJobs({ q: q || undefined })
+      .then((data) =>
+        !cancelled && setState({ data, loading: false, error: null })
+      )
+      .catch((e) =>
+        !cancelled &&
+        setState({
+          data: null,
+          loading: false,
+          error: e instanceof Error ? e.message : "Có lỗi",
+        })
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [q]);
+
+  if (state.loading) return <PageLoading label="Đang tải việc làm..." />;
+  if (state.error) return <PageError message={state.error} />;
+
+  const result = state.data;
 
   return (
     <div className="space-y-6">
@@ -56,7 +99,7 @@ export default async function JobsListPage({
         </Card>
       ) : (
         <ul className="space-y-3">
-          {result.data.map((j) => (
+          {result.data.map((j: any) => (
             <li key={j.job_id}>
               <Link
                 href={`/jobs/${j.slug ?? j.job_id}`}

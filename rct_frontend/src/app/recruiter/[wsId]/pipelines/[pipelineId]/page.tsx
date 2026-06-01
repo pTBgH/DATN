@@ -1,18 +1,30 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { hiringApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function PipelineDetailPage() {
+  const params = useParams<{ wsId: string; pipelineId: string }>();
+  const { wsId, pipelineId } = params ?? {};
 
-export default async function PipelineDetailPage({
-  params,
-}: {
-  params: { wsId: string; pipelineId: string };
-}) {
-  const [pipeline, workflow, definitions] = await Promise.all([
-    hiringApi.getPipeline(params.wsId, params.pipelineId),
-    hiringApi.getPipelineWorkflow(params.wsId, params.pipelineId),
-    hiringApi.getWorkflowDefinitions(params.wsId),
-  ]);
+  const { data, loading, error } = useAuthedFetch(
+    () =>
+      Promise.all([
+        hiringApi.getPipeline(wsId!, pipelineId!),
+        hiringApi.getPipelineWorkflow(wsId!, pipelineId!),
+        hiringApi.getWorkflowDefinitions(wsId!),
+      ]),
+    [wsId, pipelineId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải pipeline..." />;
+  if (error) return <PageError message={error} />;
+  if (!data) return null;
+
+  const [pipeline, workflow, definitions] = data;
 
   const defByCode = new Map(
     definitions.map((d) => [d.definition_id, d] as const),

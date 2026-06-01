@@ -1,26 +1,67 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { jobApi } from "@/lib/api";
 import { ApiClientError } from "@/lib/api/client";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Expandable } from "@/components/Expandable";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function JobDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? "";
 
-export default async function JobDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  let job;
-  try {
-    job = await jobApi.getPublicJobDetail(params.id);
-  } catch (e) {
-    if (e instanceof ApiClientError && e.status === 404) notFound();
-    throw e;
-  }
+  const [state, setState] = useState<{
+    data: any;
+    loading: boolean;
+    error: string | null;
+    notFound: boolean;
+  }>({
+    data: null,
+    loading: true,
+    error: null,
+    notFound: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    jobApi
+      .getPublicJobDetail(id)
+      .then((data) =>
+        !cancelled && setState({ data, loading: false, error: null, notFound: false })
+      )
+      .catch((e) => {
+        if (cancelled) return;
+        if (e instanceof ApiClientError && e.status === 404) {
+          setState({
+            data: null,
+            loading: false,
+            error: null,
+            notFound: true,
+          });
+          return;
+        }
+        setState({
+          data: null,
+          loading: false,
+          error: e instanceof Error ? e.message : "Có lỗi",
+          notFound: false,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (state.loading) return <PageLoading label="Đang tải chi tiết công việc..." />;
+  if (state.error) return <PageError message={state.error} />;
+  if (state.notFound) return <div>Công việc không tìm thấy</div>;
+
+  const job = state.data;
 
   return (
     <article className="space-y-6 max-w-4xl">

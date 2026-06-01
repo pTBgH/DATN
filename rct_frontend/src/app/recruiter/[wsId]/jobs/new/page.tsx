@@ -1,10 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { jobApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function NewJobPage() {
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
 
-export default async function NewJobPage({ params }: { params: { wsId: string } }) {
-  const opts = await jobApi.getGeneralOptions();
+  const { data: opts, loading, error } = useAuthedFetch(
+    () => jobApi.getGeneralOptions(),
+    [],
+  );
+
+  if (loading) return <PageLoading label="Đang tải tùy chọn..." />;
+  if (error) return <PageError message={error} />;
+  if (!opts) return null;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>

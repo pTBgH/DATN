@@ -1,15 +1,24 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { hiringApi } from "@/lib/api";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function BoardPage() {
+  const params = useParams<{ wsId: string; jobId: string }>();
+  const { wsId, jobId } = params ?? {};
 
-export default async function BoardPage({
-  params,
-}: {
-  params: { wsId: string; jobId: string };
-}) {
-  const board = await hiringApi.getBoard(params.jobId);
+  const { data: board, loading, error } = useAuthedFetch(
+    () => hiringApi.getBoard(jobId!),
+    [jobId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải board..." />;
+  if (error) return <PageError message={error} />;
+  if (!board) return null;
   return (
     <div className="flex h-full flex-col gap-3">
       <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-2.5">

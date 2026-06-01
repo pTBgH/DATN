@@ -1,14 +1,24 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { hiringApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function PipelinesPage() {
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
 
-export default async function PipelinesPage({
-  params,
-}: {
-  params: { wsId: string };
-}) {
-  const pipelines = await hiringApi.listPipelines(params.wsId);
+  const { data: pipelines, loading, error } = useAuthedFetch(
+    () => hiringApi.listPipelines(wsId!),
+    [wsId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải pipeline..." />;
+  if (error) return <PageError message={error} />;
+
+  const list = pipelines ?? [];
   return (
     <div className="space-y-6">
       <header className="flex items-baseline justify-between">
@@ -18,7 +28,7 @@ export default async function PipelinesPage({
         </button>
       </header>
       <ul className="space-y-4">
-        {pipelines.map((pl) => (
+        {list.map((pl) => (
           <li key={pl.pipeline_id} className="rounded-lg border bg-white p-5">
             <div className="flex items-baseline justify-between">
               <div>

@@ -1,14 +1,23 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import { workspaceApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function MembersPage() {
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
 
-export default async function MembersPage({
-  params,
-}: {
-  params: { wsId: string };
-}) {
   // Reuse `getRecruiterProfile.workspaces` style from API_INVENTORY §2.3.
-  const ws = await workspaceApi.getWorkspace(params.wsId);
+  const { data: ws, loading, error } = useAuthedFetch(
+    () => workspaceApi.getWorkspace(wsId!),
+    [wsId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải thành viên..." />;
+  if (error) return <PageError message={error} />;
+  if (!ws) return null;
   return (
     <div className="space-y-6">
       <header className="flex items-baseline justify-between">

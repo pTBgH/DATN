@@ -1,15 +1,24 @@
+"use client";
+
 import Link from "next/link";
 import { jobApi } from "@/lib/api";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { truncateText } from "@/lib/formatters";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function SavedJobsPage() {
+  const { data: featured, loading, error } = useAuthedFetch(
+    () => jobApi.listPublicJobs({ limit: 4 }),
+    [],
+  );
 
-export default async function SavedJobsPage() {
-  const featured = await jobApi.listPublicJobs({ limit: 4 });
-  const saved = featured.data.slice(0, 2);
+  if (loading) return <PageLoading label="Đang tải..." />;
+  if (error) return <PageError message={error} />;
+
+  const saved = (featured?.data ?? []).slice(0, 2);
 
   return (
     <div className="space-y-6">

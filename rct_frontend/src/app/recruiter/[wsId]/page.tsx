@@ -1,21 +1,33 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { jobApi, workspaceApi } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { truncateText } from "@/lib/formatters";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function WorkspaceDashboardPage() {
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
 
-export default async function WorkspaceDashboardPage({
-  params,
-}: {
-  params: { wsId: string };
-}) {
-  const [ws, jobs] = await Promise.all([
-    workspaceApi.getWorkspace(params.wsId),
-    jobApi.listWorkspaceJobs(params.wsId),
-  ]);
+  const { data, loading, error } = useAuthedFetch(
+    () =>
+      Promise.all([
+        workspaceApi.getWorkspace(wsId!),
+        jobApi.listWorkspaceJobs(wsId!),
+      ]),
+    [wsId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải workspace..." />;
+  if (error) return <PageError message={error} />;
+  if (!data) return null;
+
+  const [ws, jobs] = data;
 
   return (
     <div className="space-y-6">

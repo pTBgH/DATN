@@ -1,16 +1,28 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import { workspaceApi } from "@/lib/api";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export const dynamic = "force-dynamic";
+export default function WorkspaceSettingsPage() {
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
 
-export default async function WorkspaceSettingsPage({
-  params,
-}: {
-  params: { wsId: string };
-}) {
-  const [ws, opts] = await Promise.all([
-    workspaceApi.getWorkspace(params.wsId),
-    workspaceApi.getCompanyOptions(),
-  ]);
+  const { data, loading, error } = useAuthedFetch(
+    () =>
+      Promise.all([
+        workspaceApi.getWorkspace(wsId!),
+        workspaceApi.getCompanyOptions(),
+      ]),
+    [wsId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải cài đặt..." />;
+  if (error) return <PageError message={error} />;
+  if (!data) return null;
+
+  const [ws, opts] = data;
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <h2 className="text-lg font-semibold">Cài đặt workspace</h2>

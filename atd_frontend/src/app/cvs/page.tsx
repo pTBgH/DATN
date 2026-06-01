@@ -1,23 +1,13 @@
-"use client";
-
 import Link from "next/link";
 import { candidateApi } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { useAuthedFetch } from "@/lib/auth/guard";
-import { PageLoading, PageError } from "@/components/PageState";
 
-export default function ResumeManagerPage() {
-  const { data: cvs, loading, error } = useAuthedFetch(
-    () => candidateApi.listResumes(),
-    [],
-  );
+export const dynamic = "force-dynamic";
 
-  if (loading) return <PageLoading label="Đang tải CV..." />;
-  if (error) return <PageError message={error} />;
-
-  const list = cvs ?? [];
+export default async function ResumeManagerPage() {
+  const cvs = await candidateApi.listResumes();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -30,7 +20,7 @@ export default function ResumeManagerPage() {
         </Button>
       </div>
 
-      {list.length === 0 ? (
+      {cvs.length === 0 ? (
         <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
             <div className="text-4xl text-gray-400">[ CV ]</div>
@@ -47,13 +37,13 @@ export default function ResumeManagerPage() {
         <div className="space-y-4">
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm text-blue-900">
-              Bạn có <span className="font-semibold">{list.length}</span> CV. 
-              <span className="font-semibold text-blue-700"> {list.filter(cv => cv.is_default).length}</span> được đặt là mặc định.
+              Bạn có <span className="font-semibold">{cvs.length}</span> CV. 
+              <span className="font-semibold text-blue-700"> {cvs.filter(cv => cv.is_default).length}</span> được đặt là mặc định.
             </p>
           </div>
 
           <ul className="space-y-3">
-            {list.map((cv, index) => (
+            {cvs.map((cv, index) => (
               <li key={cv.cv_id}>
                 <Card hover className="border border-gray-200">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

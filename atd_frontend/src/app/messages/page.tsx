@@ -1,24 +1,14 @@
-"use client";
-
 import Link from "next/link";
 import { commApi } from "@/lib/api";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { truncateText } from "@/lib/formatters";
-import { useAuthedFetch } from "@/lib/auth/guard";
-import { PageLoading, PageError } from "@/components/PageState";
 
-export default function MessagesPage() {
-  const { data: conversations, loading, error } = useAuthedFetch(
-    () => commApi.listConversations(),
-    [],
-  );
+export const dynamic = "force-dynamic";
 
-  if (loading) return <PageLoading label="Đang tải tin nhắn..." />;
-  if (error) return <PageError message={error} />;
-
-  const list = conversations ?? [];
+export default async function MessagesPage() {
+  const conversations = await commApi.listConversations();
 
   return (
     <div className="space-y-6">
@@ -27,14 +17,14 @@ export default function MessagesPage() {
           <h1 className="text-3xl font-bold text-slate-900">Tin Nhắn</h1>
           <p className="mt-1 text-slate-600">Liên lạc trực tiếp với nhà tuyển dụng</p>
         </div>
-        {list.length > 0 && (
+        {conversations.length > 0 && (
           <Badge variant="primary" size="md">
-            {list.length} cuộc trò chuyện
+            {conversations.length} cuộc trò chuyện
           </Badge>
         )}
       </div>
 
-      {list.length === 0 ? (
+      {conversations.length === 0 ? (
         <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
             <div className="text-4xl text-gray-400">[ 💬 ]</div>
@@ -52,7 +42,7 @@ export default function MessagesPage() {
         </Card>
       ) : (
         <ul className="space-y-3">
-          {list.map((c) => {
+          {conversations.map((c) => {
             const lastMessageTime = c.last_message
               ? new Date(c.last_message.CreatedAt || c.UpdatedAt)
               : new Date(c.UpdatedAt);

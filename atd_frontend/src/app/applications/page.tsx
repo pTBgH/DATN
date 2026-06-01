@@ -1,24 +1,14 @@
-"use client";
-
 import Link from "next/link";
 import { candidateApi } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { getStatusBadgeClass } from "@/lib/formatters";
-import { useAuthedFetch } from "@/lib/auth/guard";
-import { PageLoading, PageError } from "@/components/PageState";
 
-export default function MyApplicationsPage() {
-  const { data, loading, error } = useAuthedFetch(
-    () => candidateApi.getMyApplications(),
-    [],
-  );
+export const dynamic = "force-dynamic";
 
-  if (loading) return <PageLoading label="Đang tải đơn ứng tuyển..." />;
-  if (error) return <PageError message={error} />;
-
-  const applications = data?.data ?? [];
+export default async function MyApplicationsPage() {
+  const { data } = await candidateApi.getMyApplications();
 
   return (
     <div className="space-y-6">
@@ -29,7 +19,7 @@ export default function MyApplicationsPage() {
         </p>
       </div>
 
-      {applications.length === 0 ? (
+      {data.length === 0 ? (
         <Card className="text-center py-12 bg-gray-50 border border-gray-200">
           <div className="space-y-4">
             <div className="text-4xl text-gray-400">[ 📝 ]</div>
@@ -50,12 +40,12 @@ export default function MyApplicationsPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm font-medium text-slate-700">
-              Tổng <span className="text-blue-600 font-semibold">{applications.length}</span> đơn ứng tuyển
+              Tổng <span className="text-blue-600 font-semibold">{data.length}</span> đơn ứng tuyển
             </p>
           </div>
 
           <ul className="space-y-3">
-            {applications.map((a) => (
+            {data.map((a) => (
               <li key={a.application_id}>
                 <Link href={`/jobs/${a.job.slug ?? a.job.id}`}>
                   <Card hover>

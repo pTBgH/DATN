@@ -89,3 +89,13 @@ allow if {
 	data.zta.authz.has_any_role({"recruiter", "rec_ops", "coordinator",
 		"hiring_manager", "admin"})
 }
+
+# ---------------------------------------------------------------------------
+# Candidate interactions (saved-jobs, hidden-jobs) — any signed-in user;
+# back-end enforces ownership via jwt.sub.
+# ---------------------------------------------------------------------------
+allow if {
+	startswith(input.path, "/api/interactions")
+	count(data.zta.authz.user_roles) > 0
+}
+

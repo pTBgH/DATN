@@ -13,6 +13,6 @@ allow if {
 	startswith(input.path, "/api/recruiters/profile")
 	data.zta.authz.has_any_role({
 		"recruiter", "rec_ops", "coordinator",
-		"hiring_manager", "sourcer", "interviewer", "admin",
+		"hiring_manager", "sourcer", "interviewer", "admin", "member",
 	})
 }

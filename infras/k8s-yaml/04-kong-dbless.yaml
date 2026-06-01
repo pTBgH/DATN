@@ -61,7 +61,31 @@ spec:
           value: "0.0.0.0:8100"
         # Bật tính năng tự động reload khi file thay đổi
         - name: KONG_WATCH_CONFIG
-          value: "on" 
+          value: "on"
+        # Logging — bump to `info` so the jwt plugin emits the reason it
+        # rejected a token (`no credentials found for given 'iss'`,
+        # `invalid signature`, `token expired`, etc.) instead of the
+        # default `notice` which only logs the rejection but not why.
+        # Combined with the global `file-log` plugin (kong.yml) this gives
+        # Filebeat a JSON record per request + a free-form error line per
+        # plugin rejection, sufficient to triage 401/403 spikes without
+        # bouncing the pod into `debug`.
+        - name: KONG_LOG_LEVEL
+          value: "info"
+        # Force Kong's access / error / admin-access logs to the standard
+        # streams. The official `kong:3.6` image already symlinks the
+        # in-prefix log files to /dev/stdout and /dev/stderr, but pinning
+        # the env makes the intent explicit so any future rebase doesn't
+        # silently revert to writing inside the container FS where
+        # Filebeat can't see them.
+        - name: KONG_PROXY_ACCESS_LOG
+          value: "/dev/stdout"
+        - name: KONG_PROXY_ERROR_LOG
+          value: "/dev/stderr"
+        - name: KONG_ADMIN_ACCESS_LOG
+          value: "/dev/stdout"
+        - name: KONG_ADMIN_ERROR_LOG
+          value: "/dev/stderr"
         ports:
         - containerPort: 8000
         - containerPort: 8001

@@ -1,10 +1,11 @@
 # =============================================================================
-# default.rego — Phase 5.B.2 OPA user-authz entrypoint
+# default.rego — OPA user-authz entrypoint (simplified)
 #
 # Single decision point exposed to Kong:
 #   POST /v1/data/zta/authz/allow
 #
-# Request body shape (Kong pre-function Lua sends):
+# Request body shape (Kong pre-function Lua sends — unchanged from previous
+# revision, just less of it is used now):
 #   {
 #     "input": {
 #       "method": "GET" | "POST" | ...,
@@ -13,7 +14,7 @@
 #       "jwt": {
 #         "sub": "<keycloak-user-id>",
 #         "preferred_username": "recruiter1",
-#         "realm_access": { "roles": ["recruiter", "default-roles-job7189"] },
+#         "azp": "recruiter-app-dev",
 #         "exp": 1733...
 #       }
 #     }
@@ -21,65 +22,64 @@
 #
 # Response: { "result": true | false }
 #
-# Aggregation order (each sub-policy returns `allow` only when its path
-# pattern matches):
-#   1. default deny
-#   2. data.zta.authz.jobs.allow
-#   3. data.zta.authz.candidates.allow
-#   4. data.zta.authz.workspace.allow
-#   5. data.zta.authz.interviews.allow
-#   6. data.zta.authz.public.allow  (open routes — health, public/jobs)
+# Decision model (post-refactor — see PR description for context):
 #
-# Any one rule evaluating true grants access. No policy = deny.
+#   1. Default DENY.
+#   2. ALLOW if the path is public (see public.rego — health, public job
+#      listings, OIDC surfaces, /api/jobs/{slug}/apply, ...).
+#   3. ALLOW if the JWT carries a `sub` claim (i.e. it is a valid
+#      authenticated session — Kong's `jwt` plugin has already verified the
+#      signature against the Keycloak realm public key by the time we get
+#      here; we only need to confirm a subject is present).
+#
+# What this layer no longer does (intentionally):
+#   - Maps roles like `recruiter`, `rec_ops`, `coordinator`, `interviewer`, ...
+#     to specific endpoints. ATS business roles live in the application layer
+#     (Laravel + `workspace_members` bitmask perms). Keeping them in Keycloak
+#     realm-roles + Rego was a leaky abstraction: the JWT carries a single
+#     global role list, but the business model assigns roles per (user,
+#     workspace), so the global view could never be correct.
+#   - Gates `/api/admin/*`. Platform-admin identity is established by
+#     Laravel's `super.admin` middleware (membership of
+#     `SUPER_ADMIN_WORKSPACE_ID`), not by a realm-role claim.
+#
+# OPA still adds value over plain Kong JWT verification:
+#   - Centralized, version-controlled public-path whitelist (1 file, easy
+#     to grep — vs. spreading `plugins: [{ name: jwt }]` toggles across
+#     dozens of Kong routes).
+#   - Decision log (allow/deny per request) — shipped to Elasticsearch by
+#     the Filebeat sidecar; useful audit trail for the thesis.
+#   - Future-proof for richer policy (per-claim, per-IP, time-of-day, ABAC)
+#     without re-deploying Kong config.
 # =============================================================================
 package zta.authz
 
 import future.keywords.if
-import future.keywords.in
 
 default allow := false
 
 # ---------------------------------------------------------------------------
-# Public routes — no role check required (Kong still validates JWT signature
-# for authenticated routes; these are explicitly anonymous-ok).
+# Public routes — anonymous OK. (See public.rego.)
 # ---------------------------------------------------------------------------
 allow if {
 	data.zta.authz.public.allow
 }
 
 # ---------------------------------------------------------------------------
-# Resource-specific authorization rules — delegated to per-resource Rego files.
+# Authenticated routes — any valid session passes the gate. The application
+# layer (Laravel middleware + `workspace_members` bitmask) does the fine-
+# grained authorization (e.g. "can user X create a job in workspace Y?").
 # ---------------------------------------------------------------------------
 allow if {
-	data.zta.authz.jobs.allow
-}
-
-allow if {
-	data.zta.authz.candidates.allow
-}
-
-allow if {
-	data.zta.authz.workspace.allow
-}
-
-allow if {
-	data.zta.authz.interviews.allow
+	input.jwt.sub
+	input.jwt.sub != ""
 }
 
 # ---------------------------------------------------------------------------
-# Helper available to every sub-policy: which Keycloak realm-roles is this
-# user holding?
+# Public-paths data block — referenced by public.rego. Keeping it on the
+# top-level `zta.authz` package preserves the previous contract for callers
+# that read `data.zta.authz.public_paths` directly.
 # ---------------------------------------------------------------------------
-user_roles := input.jwt.realm_access.roles
-
-# True iff the caller carries at least one of the named roles.
-has_any_role(allowed) if {
-	some r in user_roles
-	r in allowed
-}
-
-# Convenience: identity-service /api/health and similar reachable from
-# Hubble health probes go through this aggregator.
 public_paths := {
 	"/api/health",
 	"/api/options/company-types",
@@ -87,16 +87,4 @@ public_paths := {
 	"/api/public/jobs",
 	"/api/metadata/common",
 	"/api/public/metadata/common",
-}
-
-# ---------------------------------------------------------------------------
-# Added: recruiters + admin sub-policies (gap fix — 403 trên /api/recruiters/*
-# và /api/admin/users do trước đây không có rego tương ứng).
-# ---------------------------------------------------------------------------
-allow if {
-	data.zta.authz.recruiters.allow
-}
-
-allow if {
-	data.zta.authz.admin.allow
 }

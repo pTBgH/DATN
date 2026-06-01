@@ -17,8 +17,9 @@
 | `job7189` | End-user (recruiter, candidate) | End-user | `infras/keycloak/realms/realm-job7189.json` (import qua API) |
 
 ### OIDC Flow
-1. Client goi `/realms/job7189/protocol/openid-connect/token`
-2. Keycloak tra JWT: `sub`, `iss`, `realm_access.roles`, `exp`
+1. Client goi `/realms/job7189/protocol/openid-connect/token` voi
+   `client_id=recruiter-app-dev` hoac `candidate-app-dev`
+2. Keycloak tra JWT: `sub`, `iss`, `exp`, `azp` (la `client_id` da dung de login)
 3. Client gui JWT trong `Authorization: Bearer <token>`
 4. Kong xac minh RS256 bang Public Key tu JWKS endpoint
 
@@ -29,9 +30,26 @@
   "iat": 1713235000,
   "iss": "https://auth.job7189.local/realms/job7189",
   "sub": "user123",
-  "realm_access": { "roles": ["recruiter", "manager"] }
+  "azp": "recruiter-app-dev",
+  "preferred_username": "recruiter1"
 }
 ```
+
+### Role model
+- **Keycloak realm `job7189` khong gan business realm-roles cho user.** Hai
+  client `recruiter-app-*` va `candidate-app-*` la dau hieu duy nhat phan
+  biet user nghiep vu o tang ha tang — `azp` cua JWT cho biet client da mint
+  token. Laravel doc `azp` de set `users.type = 'recruiter' | 'candidate'`.
+- **Platform admin** xac dinh boi membership active cua workspace co ID
+  trong env `SUPER_ADMIN_WORKSPACE_ID`. Khong co realm-role `admin`.
+  Middleware `super.admin` cua moi Laravel service hoi `is-super-admin` Gate
+  → query `workspace_members` cua admin workspace.
+- **Cac role nghiep vu khac** (rec_ops, sourcer, coordinator, hiring_manager,
+  interviewer, member) hoan toan o trong Laravel: bitmask
+  `workspace_members.{job,workspace,candidate,pipeline}_permissions` per
+  (user, workspace). Khong leak sang Keycloak hay OPA.
+- **Realm `7189_internal`** rieng cho SysOps dashboards, khong lien quan
+  user nghiep vu.
 
 ### Credential Bootstrap
 - Mat khau sinh random: `openssl rand -base64 16`

@@ -173,7 +173,7 @@ echo "    $(call "${TOK[webcand]}" /api/candidates/profile)"
 # ---------------------------------------------------------------------------
 # 5) OPA policies đã nạp?
 # ---------------------------------------------------------------------------
-hdr "5) OPA configmap rego keys (cần có recruiters.rego + admin.rego)"
+hdr "5) OPA configmap rego keys (expected: default.rego + public.rego)"
 kubectl -n "$SEC_NS" get configmap opa-policies -o jsonpath='{.data}' 2>/dev/null \
   | grep -oE '"[a-z]+\.rego"' | sort -u | sed 's/^/  /' || echo "  $(c_y '!! không đọc được configmap opa-policies')"
 

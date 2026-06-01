@@ -187,7 +187,7 @@ try: d=json.load(sys.stdin)
 except: print("  (không đọc được configmap)"); sys.exit(0)
 for k in sorted(d.get("data",{}).keys()): print("   -",k)' 2>/dev/null \
     || echo "  (configmap opa-policies không tồn tại?)"
-  echo "  >> THIẾU recruiters.rego / admin.rego => /api/recruiters/profile & /api/admin/users luôn 403."
+  echo "  >> Expected: default.rego + public.rego. OPA now allows any path with a valid JWT (sub != \"\"); per-(user, workspace) authz lives in Laravel."
 
   sub "Kong live config — route /api/candidates/profile có jwt plugin?"
   kubectl -n gateway get configmap kong-declarative-config -o jsonpath='{.data}' 2>/dev/null \

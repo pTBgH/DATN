@@ -283,13 +283,22 @@ plugins:
       per_consumer: true
 
   # --------------------------------------------------------------------
-  # Phase 5.B.2 — OPA user-authz gate (forwards role decisions to OPA).
+  # OPA user-authz gate — forwards method/path/JWT-claims to OPA.
+  #
+  # OPA's job (see infras/k8s-yaml/opa/policies/{default,public}.rego):
+  #   - Allow if the path is in the public whitelist.
+  #   - Allow if the JWT carries a non-empty `sub` claim.
+  #   - Deny otherwise.
+  # OPA does NOT inspect business roles (recruiter / rec_ops / coordinator /
+  # …); per-(user, workspace) authorization is the Laravel layer's job
+  # (workspace_members bitmask + super.admin Gate). The Lua below still
+  # decodes the JWT payload so the OPA decision-log captures the user, but
+  # nothing in OPA reads `realm_access.roles` any more.
   #
   # Kong runs the `jwt` plugin first (per-route) — it has already verified
   # the JWT signature against the Keycloak realm public key by the time the
   # pre-function `access` block executes. We re-decode the payload here only
-  # to forward the realm-access roles to OPA; we do NOT re-verify the
-  # signature.
+  # to populate the OPA input; we do NOT re-verify the signature.
   #
   # For routes WITHOUT a `jwt` plugin (public ones — /api/health, /api/public/*)
   # the Authorization header is usually absent, so the script falls through
@@ -417,6 +426,6 @@ plugins:
               message = "forbidden",
               reason  = "OPA denied user-authz",
               user    = claims.preferred_username or "anonymous",
-              roles   = (claims.realm_access or {}).roles or {},
+              azp     = claims.azp or "",
             })
           end

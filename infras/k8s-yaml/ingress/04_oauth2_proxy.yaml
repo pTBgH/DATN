@@ -8,20 +8,42 @@ data:
     # Provider
     provider = "keycloak-oidc"
 
-    # Keycloak OIDC endpoint — dùng external hostname auth.job7189.local
-    # Pod có hostAliases mapping auth.job7189.local → 10.111.186.54 (keycloak service IP)
-    # Browser redirect sẽ được gửi đến auth.job7189.local (Windows phải có trong hosts file)
-    oidc_issuer_url = "http://auth.job7189.local:8080/realms/7189_internal"
+    # ── Split-URL OIDC ───────────────────────────────────────────────────────
+    # Browser (Windows) đi qua Ingress port 80 → host auth.job7189.local
+    # Server-side (oauth2-proxy pod → Keycloak) đi thẳng qua K8s ClusterDNS
+    # → KHÔNG cần hostAliases hardcode ClusterIP
+    # → KHÔNG cần patch CoreDNS Corefile
+    # → KHÔNG cần insecure_oidc_allow_unverified_issuer (vẫn verify iss claim)
+    #
+    # `iss` claim trong JWT do Keycloak phát hành = realm Frontend URL
+    # ⇒ phải set Frontend URL = http://auth.job7189.local trong
+    #    Realm settings → General của realm 7189_internal (admin console)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # String dùng để match iss claim trong JWT (KHÔNG được resolve DNS từ pod)
+    oidc_issuer_url = "http://auth.job7189.local/realms/7189_internal"
+
+    # Bỏ qua OIDC auto-discovery — phải tự khai báo 4 endpoint bên dưới
+    skip_oidc_discovery = true
+
+    # Browser bị redirect đến đây để login → đi qua Ingress public hostname
+    login_url = "http://auth.job7189.local/realms/7189_internal/protocol/openid-connect/auth"
+
+    # Server-side code → token exchange — đi nội bộ cluster qua ClusterDNS,
+    # bền vững khi Keycloak pod/ClusterIP đổi (CoreDNS tự update endpoint)
+    redeem_url   = "http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/protocol/openid-connect/token"
+    profile_url  = "http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/protocol/openid-connect/userinfo"
+
+    # JWKS để verify chữ ký JWT — server-side, ClusterDNS
+    oidc_jwks_url = "http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/protocol/openid-connect/certs"
 
     # Client đã tạo trong Keycloak
     client_id = "oauth2-proxy"
     # client_secret đọc từ env var (inject từ Secret bên dưới)
 
-    # URL Keycloak redirect browser về sau khi login
-    # Phải khớp chính xác với Valid Redirect URIs đã điền trong Keycloak
     # redirect_url để trống → OAuth2 Proxy tự build từ X-Forwarded-Host header
     # nginx sẽ forward host header vào, OAuth2 Proxy dùng đó để build callback URL
-    # Hoạt động cho cả db.job7189.local và kafka.job7189.local
+    # Hoạt động cho cả db.job7189.local, kibana.job7189.local, ...
 
     # Cho phép tất cả email domain — vì đây là internal realm, không cần restrict
     email_domains = ["*"]
@@ -106,14 +128,8 @@ spec:
         zta.job7189/team: security
     spec:
       serviceAccountName: oauth2-proxy
-      # Inject DNS mapping cho pod — auth.job7189.local → keycloak service IP
-      # Cho phép pod + browser đều dùng cùng external hostname
-      hostAliases:
-      - ip: "10.111.186.54"
-        hostnames:
-        - "auth.job7189.local"
       # initContainer chờ Keycloak sẵn sàng trước khi oauth2-proxy start
-      # Dùng external hostname (auth.job7189.local) - sẽ resolve qua hostAliases
+      # Resolve qua K8s ClusterDNS (CoreDNS) — KHÔNG dùng hostAliases hardcode IP
       initContainers:
       - name: wait-for-keycloak
         image: busybox:1.36
@@ -124,7 +140,7 @@ spec:
           MAX_TRIES=60
           TRY=0
           echo "Waiting for Keycloak..."
-          until wget -qO- http://auth.job7189.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
+          until wget -qO- http://keycloak.security.svc.cluster.local:8080/realms/7189_internal/.well-known/openid-configuration > /dev/null 2>&1; do
             TRY=$((TRY+1))
             if [ "$TRY" -ge "$MAX_TRIES" ]; then
               echo "ERROR: Keycloak endpoint not reachable after $((MAX_TRIES*5))s" >&2

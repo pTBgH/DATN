@@ -1,3 +1,32 @@
+# ── Keycloak (auth.job7189.local) ─────────────────────────────────────────────
+# Internal-only Ingress cho Keycloak — phục vụ browser LAN/VLAN qua port 80.
+# KHÔNG có annotation auth-url vì Keycloak chính là OIDC provider (self-protect
+# bằng admin console password + realm-level public/private endpoints).
+# Lưu ý: 99-ingress.yaml còn 1 ingress 'auth.job7189.com' cho Cloudflare tunnel,
+# 2 hostname trỏ cùng service keycloak nhưng dùng đường khác nhau.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-auth-internal
+  namespace: security
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: auth.job7189.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+
+---
 # ── phpMyAdmin ────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress

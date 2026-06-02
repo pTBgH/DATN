@@ -671,20 +671,24 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "8iAntNwXzjJUSbw1m1tHpM3JigJUTeAE",
       "redirectUris": [
-        "http://db.job7189.local:8080/oauth2/callback",
-        "http://prometheus.job7189.local:8080/oauth2/callback",
-        "http://localhost:8080/oauth2/callback",
-        "http://grafana.job7189.local:8080/oauth2/callback",
-        "http://kafka.job7189.local:8080/oauth2/callback",
-        "http://hubble.job7189.local:8080/oauth2/callback"
+        "http://auth.job7189.local/*",
+        "http://db.job7189.local/oauth2/callback",
+        "http://kibana.job7189.local/oauth2/callback",
+        "http://prometheus.job7189.local/oauth2/callback",
+        "http://grafana.job7189.local/oauth2/callback",
+        "http://hubble.job7189.local/oauth2/callback",
+        "http://kafka.job7189.local/oauth2/callback",
+        "http://localhost:8080/oauth2/callback"
       ],
       "webOrigins": [
-        "http://kafka.job7189.local",
-        "http://kafka.job7189.local/",
-        "http://localhost:8080",
-        "http://grafana.job7189.local/",
+        "http://auth.job7189.local",
         "http://db.job7189.local",
-        "http://prometheus.job7189.local/"
+        "http://kibana.job7189.local",
+        "http://prometheus.job7189.local",
+        "http://grafana.job7189.local",
+        "http://hubble.job7189.local",
+        "http://kafka.job7189.local",
+        "http://localhost:8080"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -2169,7 +2173,7 @@
     "oauth2DeviceCodeLifespan": "600",
     "parRequestUriLifespan": "60",
     "clientSessionMaxLifespan": "0",
-    "frontendUrl": "",
+    "frontendUrl": "http://auth.job7189.local",
     "acr.loa.map": "{}"
   },
   "keycloakVersion": "22.0.5",

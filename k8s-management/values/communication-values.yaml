@@ -46,7 +46,7 @@ vault:
 
 
 
-# ZTA workload labels (PR #9 — doc/19-label-schema.md)
+# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

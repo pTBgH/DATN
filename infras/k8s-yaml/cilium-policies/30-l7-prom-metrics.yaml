@@ -1,6 +1,6 @@
 # =============================================================================
 # PR #10 — L7 enforcement: Prometheus scrape — chỉ GET /metrics
-# Reference: doc/20-5w1h-policy-matrix.md row #12
+# Reference: knowledge-base/20-5w1h-policy-matrix.md row #12
 #
 # Prometheus scrape /metrics trên mọi pod có port "metrics" hoặc :9100,:9090.
 # Restrict: chỉ GET /metrics — block bất kỳ POST/DELETE/PATCH attempt từ

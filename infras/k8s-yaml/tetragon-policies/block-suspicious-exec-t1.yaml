@@ -10,7 +10,7 @@
 # `kubectl exec` recovery sessions. Symptom: vault-0 entered a probe-fail
 # → kubelet restart loop within seconds of policy apply, then cascaded into
 # the whole namespace (kubectl exec returning exit 137) — see
-# doc/incident-vault-tetragon-redis-cascade.md.
+# knowledge-base/incident-vault-tetragon-redis-cascade.md.
 #
 # Strategy:
 #  - Keep audit visibility by switching to `action: Post`.

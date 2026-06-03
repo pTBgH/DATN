@@ -7,7 +7,7 @@
 # Pods labelled score-bucket=low have either missing ZTA labels or
 # critical/high CVEs detected by Trivy Operator.
 #
-# Reference: doc/zta-gap-decision.md (Decision 1)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 1)
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

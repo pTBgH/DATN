@@ -12,7 +12,7 @@
 #      hourly by the CronJob — must exist BEFORE the CCNP that refs it)
 #   6. CoreDNS sinkhole ConfigMap (URLhaus FQDN data, patched hourly)
 #      + one-time CoreDNS Deployment volume mount + Corefile `hosts`
-#      plugin patch. See doc/zta-gap-decision.md (Decision 3 pivot —
+#      plugin patch. See knowledge-base/zta-gap-decision.md (Decision 3 pivot —
 #      Cilium 1.19 has no egressDeny.toFQDNs, so DNS-side sinkholing is
 #      the established workaround for cluster-wide FQDN denial).
 #
@@ -28,7 +28,7 @@
 #   bash scripts/zta-deploy-threat-intel.sh --trigger  # trigger immediate fetch
 #   bash scripts/zta-deploy-threat-intel.sh --uninstall
 #
-# Reference: doc/zta-gap-decision.md (Decision 3)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 3)
 # =============================================================================
 set -euo pipefail
 

@@ -71,7 +71,7 @@
 - [ ] Mỗi section kết thúc bằng `\cite{}` thay vì "Nguồn trích dẫn:" bullet list
 - [ ] Tất cả figure đều có `\label{}` và được `\ref{}` trong văn bản
 - [ ] Không có placeholder text kiểu "[Hình ảnh minh họa: ...]" (trừ Chương 3 đã xử lý riêng)
-- [ ] Khi nhắc tới cụm thực nghiệm phải là **`kubeadm` 4 nút trên 4 máy ảo (3 Debian 13 + 1 Ubuntu 24.04 LTS)** (không phải "Kind 4 node" của baseline cũ); ngân sách RAM tổng **~15.5 GiB phân bố trên 4 VM** (không phải "12 GiB chung kernel"); mặt phẳng L3 đi qua **Tailscale WireGuard**, mặt phẳng pod đi qua **Cilium VXLAN**. Nút data-tier `7189srv05` (Ubuntu 24.04 LTS, libvirt **bridge**) thay thế `7189srv04` (Debian, libvirt NAT) -- chi tiết `doc/migration/transition-srv04-to-srv05.md`.
+- [ ] Khi nhắc tới cụm thực nghiệm phải là **`kubeadm` 4 nút trên 4 máy ảo (3 Debian 13 + 1 Ubuntu 24.04 LTS)** (không phải "Kind 4 node" của baseline cũ); ngân sách RAM tổng **~15.5 GiB phân bố trên 4 VM** (không phải "12 GiB chung kernel"); mặt phẳng L3 đi qua **Tailscale WireGuard**, mặt phẳng pod đi qua **Cilium VXLAN**. Nút data-tier `7189srv05` (Ubuntu 24.04 LTS, libvirt **bridge**) thay thế `7189srv04` (Debian, libvirt NAT) -- chi tiết `knowledge-base/migration/transition-srv04-to-srv05.md`.
 
 ---
 

@@ -195,7 +195,7 @@ def main(out_dir):
     sm += ["",
            "## Đề xuất bước tiếp",
            "1. Đọc `11-flows-by-src-ns.md` để hiểu luồng thực tế của từng ns.",
-           "2. Đối chiếu với `doc/20-5w1h-policy-matrix.md` — flow nào hợp pháp nhưng chưa có policy?",
+           "2. Đối chiếu với `knowledge-base/20-5w1h-policy-matrix.md` — flow nào hợp pháp nhưng chưa có policy?",
            "3. Sinh CNP default-deny + allowlist cho từng ns chưa có policy.",
            "4. Apply theo thứ tự: ns ít flow → ns nhiều flow (để giảm rủi ro)."]
     with open(os.path.join(out_dir, "12-summary.md"), "w") as f:

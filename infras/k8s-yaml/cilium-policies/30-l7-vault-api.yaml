@@ -1,6 +1,6 @@
 # =============================================================================
 # PR #10 — L4 enforcement: Vault API
-# Reference: doc/20-5w1h-policy-matrix.md row #5
+# Reference: knowledge-base/20-5w1h-policy-matrix.md row #5
 #
 # IMPORTANT — TLS COMPATIBILITY NOTE (2026-05-05):
 # Vault uses TLS (HTTPS) on port 8200. Cilium L7 HTTP rules on a TLS port cause

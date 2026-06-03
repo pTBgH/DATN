@@ -14,7 +14,7 @@
 # Detection only (Post). Audit signal goes to Tetragon stdout/JSON export →
 # Filebeat → ES. The corresponding Prometheus alert `ZTATetragonKernelModuleLoad`
 # fires on the `tetragon_events_total{type="PROCESS_KPROBE"}` rate counter; see
-# doc/14-tetragon-runtime.md §"Han che metric label" — chart 1.7.0 metric does
+# knowledge-base/14-tetragon-runtime.md §"Han che metric label" — chart 1.7.0 metric does
 # not expose `function` label so the alert proxies via namespace filter.
 # =============================================================================
 apiVersion: cilium.io/v1alpha1

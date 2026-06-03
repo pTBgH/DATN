@@ -2,7 +2,7 @@
 # =============================================================================
 # zta-deploy-trivy.sh — deploy Trivy Operator (CDM tier — PIP 4)
 #
-# Step: PR-I in doc/zta-gap-decision.md.
+# Step: PR-I in knowledge-base/zta-gap-decision.md.
 # Output CR: VulnerabilityReport (consumed by PDP in PR-J).
 #
 # Usage:
@@ -72,7 +72,7 @@ fi
 # missed, and the cluster cascaded into a leader-election storm:
 # cilium-operator / scheduler / controller-manager / spire-server-0 all
 # CrashLooped until the scan jobs finished and RAM was released. See
-# doc/32-deploy-script-troubleshooting.md §7-8.
+# knowledge-base/32-deploy-script-troubleshooting.md §7-8.
 #
 # 1500 MiB matches the standard host RAM gate used by spire / tetragon /
 # gatekeeper deploy scripts and is safe even when scanJobsConcurrentLimit
@@ -80,7 +80,7 @@ fi
 #
 # Override with TRIVY_REQUIRED_HOST_MI when you know what you're doing
 # (e.g. dedicated 32 GiB box where 800 MiB is plenty).
-blue "[0/4] Pre-flight: host RAM gate (1500 MiB default, see doc/32 §7.4)..."
+blue "[0/4] Pre-flight: host RAM gate (1500 MiB default, see knowledge-base/32 §7.4)..."
 if ! require_host_ram_mi "${TRIVY_REQUIRED_HOST_MI:-1500}" trivy; then
   red "      Skip step entirely via: ZTA_REBUILD_SKIP=28-trivy"
   red "      Or free RAM first via:    bash scripts/free-ram-for-tetragon.sh"

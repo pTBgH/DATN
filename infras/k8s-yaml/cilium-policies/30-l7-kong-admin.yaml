@@ -1,6 +1,6 @@
 # =============================================================================
 # PR #10 — L7 enforcement: Kong admin API (port 8001)
-# Reference: doc/20-5w1h-policy-matrix.md row #10
+# Reference: knowledge-base/20-5w1h-policy-matrix.md row #10
 #
 # Kong admin API (8001) đã giới hạn ở 14-gateway.yaml (chỉ host/remote-node).
 # Tăng cường: chỉ cho phép GET (read-only) trên /status, /metrics. Block mọi

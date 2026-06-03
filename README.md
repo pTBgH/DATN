@@ -11,14 +11,14 @@
 
 ## Knowledge base
 
-Tất cả tài liệu kỹ thuật đã được hợp nhất trong `doc/`. Bắt đầu từ:
+Tất cả tài liệu kỹ thuật đã được hợp nhất trong `knowledge-base/`. Bắt đầu từ:
 
-- [`doc/README.md`](doc/README.md) — index 32 chương + 3 incident reports
-- [`doc/00-project-overview.md`](doc/00-project-overview.md) — overview 7 services + namespaces
-- [`doc/08-deployment-pipeline.md`](doc/08-deployment-pipeline.md) — pipeline 30 steps
-- [`doc/architecture/`](doc/architecture/) — kiến trúc deep-dive + demo scenarios
-- [`doc/archive/`](doc/archive/) — tài liệu cũ giữ làm chứng cứ thesis
-- [`doc/incident-*.md`](doc/) — 3 incident reports (probe-webhook, CRD timeout, RAM)
+- [`knowledge-base/README.md`](knowledge-base/README.md) — index 42 chương + 3 incident reports
+- [`knowledge-base/00-project-overview.md`](knowledge-base/00-project-overview.md) — overview 7 services + namespaces
+- [`knowledge-base/08-deployment-pipeline.md`](knowledge-base/08-deployment-pipeline.md) — pipeline 30 steps
+- [`knowledge-base/architecture/`](knowledge-base/architecture/) — kiến trúc deep-dive + demo scenarios
+- [`knowledge-base/archive/`](knowledge-base/archive/) — tài liệu cũ giữ làm chứng cứ thesis
+- [`knowledge-base/incident-*.md`](knowledge-base/) — 3 incident reports (probe-webhook, CRD timeout, RAM)
 
 ## Cách chạy (lab VM)
 
@@ -37,12 +37,12 @@ bash scripts/zta-rebuild.sh --from=26-gatekeeper --skip-cluster --yes
 bash 09-verify-zta.sh
 ```
 
-Xem [`doc/23-rebuild-from-scratch.md`](doc/23-rebuild-from-scratch.md) cho chi
+Xem [`knowledge-base/23-rebuild-from-scratch.md`](knowledge-base/23-rebuild-from-scratch.md) cho chi
 tiết từng step và rollback strategy.
 
 ## Tinh gọn workspace (2026-05-05)
 
-Workspace vừa được dọn lớn — xem [`doc/cleanup-workspace-plan.md`](doc/cleanup-workspace-plan.md)
+Workspace vừa được dọn lớn — xem [`knowledge-base/cleanup-workspace-plan.md`](knowledge-base/cleanup-workspace-plan.md)
 cho 4 PR (PR-A → PR-D) và quyết định liên quan.
 
 **Frontend:** thư mục `frontend/` (root) là nơi đang phát triển tiếp; mọi
@@ -61,7 +61,7 @@ DATN/
 ├── frontend/                       # Next.js (active dev — không build trong pipeline)
 ├── DB/                             # MySQL seed SQL files
 ├── documents/                      # Thesis LaTeX nguồn
-├── doc/                            # Knowledge base (32 chương)
+├── knowledge-base/                            # Knowledge base (42 chương)
 ├── evidence/                       # Runtime evidence (gitignored mostly)
 └── postman/                        # Postman collections
 ```

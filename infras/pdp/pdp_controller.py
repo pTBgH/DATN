@@ -7,7 +7,7 @@ Step 2.3.6 — Adaptive Loop Closure (CISA ZTMM Identity Advanced → Optimal).
 Watches Pod label changes in 7 ZTA namespaces and:
   1. Verifies presence of 6 required ZTA labels (zta.job7189/{tier,role,
      team,data-classification,env,exposure}) — schema theo Phase 4 ZTA
-     hardening (xem doc/19-label-schema.md).
+     hardening (xem knowledge-base/19-label-schema.md).
   2. Reads VulnerabilityReport CRs from Trivy Operator to assess image
      CVE posture (criticalCount, highCount).
   3. Computes weighted trust score from 2 inputs:
@@ -23,9 +23,9 @@ Score-bucket thresholds:
   low    : score < 50
 
 Reference:
-  - doc/19-label-schema.md (label definitions)
-  - doc/25-pdp-controller.md (architecture)
-  - doc/zta-gap-decision.md (Decision 1 — 2-input Trust Score)
+  - knowledge-base/19-label-schema.md (label definitions)
+  - knowledge-base/25-pdp-controller.md (architecture)
+  - knowledge-base/zta-gap-decision.md (Decision 1 — 2-input Trust Score)
 
 Runtime: kopf 1.37+ on Python 3.11.
 """
@@ -65,7 +65,7 @@ REQUIRED_LABELS = [
 PROMETHEUS_PORT = int(os.environ.get("PROMETHEUS_PORT", "9100"))
 METRICS_RECONCILE_PERIOD = int(os.environ.get("RECONCILE_PERIOD", "60"))
 
-# Score formula weights (from doc/zta-gap-decision.md)
+# Score formula weights (from knowledge-base/zta-gap-decision.md)
 WEIGHT_LABEL = int(os.environ.get("PDP_WEIGHT_LABEL", "30"))
 WEIGHT_CRITICAL_CVE = int(os.environ.get("PDP_WEIGHT_CRITICAL", "50"))
 WEIGHT_HIGH_CVE = int(os.environ.get("PDP_WEIGHT_HIGH", "20"))

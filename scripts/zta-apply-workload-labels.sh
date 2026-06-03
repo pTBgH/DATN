@@ -2,7 +2,7 @@
 # scripts/zta-apply-workload-labels.sh
 #
 # ZTA Step 2.3.3 — Áp 6 ZTA label cho mọi workload theo bảng trong
-# doc/19-label-schema.md. Script idempotent: chạy nhiều lần không hại.
+# knowledge-base/19-label-schema.md. Script idempotent: chạy nhiều lần không hại.
 #
 # Mặc định DRY-RUN (chỉ in lệnh sẽ chạy). Truyền --apply để áp thật.
 #
@@ -15,7 +15,7 @@
 #   bash scripts/zta-apply-workload-labels.sh           # dry-run
 #   bash scripts/zta-apply-workload-labels.sh --apply   # apply
 #
-# Tham chiếu: doc/19-label-schema.md
+# Tham chiếu: knowledge-base/19-label-schema.md
 
 set -euo pipefail
 
@@ -214,7 +214,7 @@ for svc in hiring-service candidate-service job-service workspace-service commun
     cache T2 prod internal cluster-only backend
 done
 # Frontend (fe-candidate / fe-recruiter) đã được tách ra khỏi pipeline ZTA
-# từ 2026-05 (xem doc/cleanup-workspace-plan.md, PR-C). Thư mục `frontend/`
+# từ 2026-05 (xem knowledge-base/cleanup-workspace-plan.md, PR-C). Thư mục `frontend/`
 # ở root chỉ phục vụ dev cục bộ; không deploy vào cluster ZTA.
 
 echo

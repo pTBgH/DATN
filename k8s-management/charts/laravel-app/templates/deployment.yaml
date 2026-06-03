@@ -152,7 +152,6 @@ spec:
                       cp /vault/secrets/.env.db.lease /app-secrets/.env.db.lease || true
                       chmod 644 /app-secrets/.env.db.lease || true
                     fi
-                    cp /app-secrets/.env /var/www/.env 2>/dev/null || true
                   fi
                 fi
                 sleep 10
@@ -182,10 +181,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-internal-reload-token
                   key: token
-            - name: APP_PIDFILE
-              value: "/var/run/php-fpm.pid"
-            - name: VAULT_DIR
-              value: "/app-secrets"
             - name: APP_DIR
               value: "/app-secrets"
           volumeMounts:

@@ -8,7 +8,8 @@ while true; do
     if [ "$SUM" != "$LAST_SUM" ]; then
       LAST_SUM="$SUM"
       date -Iseconds >&2 || true
-      echo "[watch-env] .env changed; restarting php-fpm" >&2 || true
+      echo "[watch-env] .env changed; syncing to /var/www/.env and restarting php-fpm" >&2 || true
+      cp -f /app-secrets/.env /var/www/.env 2>/dev/null || true
       if command -v supervisorctl >/dev/null 2>&1; then
         supervisorctl restart php8-fpm || true
       else

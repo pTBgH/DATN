@@ -14,9 +14,9 @@
 #   - ingress-nginx-controller → kube-apiserver (list Ingress, Endpoints,
 #     Service, ConfigMap)
 #   - ingress-nginx-controller → upstream services (gateway/kong-gateway,
-#     security/keycloak, security/oauth2-proxy, management/phpmyadmin,
-#     monitoring/kibana, monitoring/grafana, monitoring/elasticsearch,
-#     job7189-apps/*) — per `infras/k8s-yaml/99-ingress.yaml`
+#     security/keycloak, security/oauth2-proxy, kube-system/hubble-ui,
+#     management/phpmyadmin, monitoring/kibana, monitoring/grafana,
+#     monitoring/elasticsearch, job7189-apps/*) — per `infras/k8s-yaml/99-ingress.yaml`
 #   - Prometheus scrape on :10254 (controller metrics)
 #
 # Apply order rationale: T2, medium-high risk. ingress-nginx is the
@@ -208,6 +208,17 @@ spec:
       - port: "8080"
         protocol: TCP
       - port: "4180"
+        protocol: TCP
+  # kube-system / Hubble UI
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: hubble-ui
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      - port: "8081"
         protocol: TCP
   # management/phpmyadmin
   - toEndpoints:

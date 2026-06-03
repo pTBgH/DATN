@@ -4,16 +4,16 @@
 # =============================================================================
 #
 # MỤC ĐÍCH
-#   Đối chiếu MỌI claim trong knowledge-base (doc/ — sẽ đổi tên thành
+#   Đối chiếu MỌI claim trong knowledge-base (knowledge-base/ — sẽ đổi tên thành
 #   knowledge-base/) với TRẠNG THÁI THỰC TẾ của cluster Kubernetes đang chạy.
 #   Mỗi điều khẳng định trong KB chỉ được coi là "đúng" nếu cluster trả ra
 #   đúng kết quả đó. Script in PASS / FAIL / WARN / SKIP cho từng claim và
 #   ghi toàn bộ ra 1 file log để lưu evidence.
 #
 #   Tài liệu nguồn (source-of-truth precedence):
-#     1. doc/40-zta-system-snapshot-20260527.md   (snapshot live mới nhất)
-#     2. doc/00-project-overview.md, 03/04/05/06/07/08/19
-#     3. doc/architecture/SYSTEM_PORT_MAPPING_ARCHITECTURE.md
+#     1. knowledge-base/40-zta-system-snapshot-20260527.md   (snapshot live mới nhất)
+#     2. knowledge-base/00-project-overview.md, 03/04/05/06/07/08/19
+#     3. knowledge-base/architecture/SYSTEM_PORT_MAPPING_ARCHITECTURE.md
 #   Khi 2 chương KB mâu thuẫn nhau, script vẫn check theo snapshot 40 và in
 #   ra mục "DRIFT WATCH" ở cuối để bạn tự quyết định sửa chương nào.
 #
@@ -156,8 +156,8 @@ res_exists() { # kind name ns
 }
 ns_exists() { k get ns "$1" -o name >/dev/null 2>&1; }
 
-# Đếm số dòng không rỗng.
-count_lines() { grep -cve '^[[:space:]]*$' 2>/dev/null || echo 0; }
+# Đếm số dòng không rỗng. LUÔN in ra đúng 1 số nguyên (tránh "0\n0").
+count_lines() { awk 'NF{c++} END{print c+0}'; }
 
 # Lấy số replica ready của 1 deployment/sts/ds.
 workload_ready() { # kind name ns
@@ -207,7 +207,7 @@ run_section() { # id title func
 # SECTION 0 — PREFLIGHT: kết nối cluster, version, node
 # =============================================================================
 sec_preflight() {
-  note "KB nguồn: doc/40-zta-system-snapshot (3+1 node K8s 1.30 kubeadm, Cilium 1.19.4)"
+  note "KB nguồn: knowledge-base/40-zta-system-snapshot (3+1 node K8s 1.30 kubeadm, Cilium 1.19.4)"
 
   if ! command -v "$KUBECTL" >/dev/null 2>&1; then
     fail "kubectl ('$KUBECTL') không có trên PATH" "cài kubectl hoặc set KUBECTL=..."
@@ -220,8 +220,8 @@ sec_preflight() {
     return 0
   fi
 
-  if k cluster-info >/dev/null 2>&1 || k get --raw='/readyz' >/dev/null 2>&1; then
-    CLUSTER_OK=1
+  # CLUSTER_OK đã được dò ở shell cha (xem MAIN) vì section chạy trong subshell.
+  if [ "$CLUSTER_OK" -eq 1 ]; then
     pass "Kết nối được API server"
   else
     fail "Không kết nối được API server" "kiểm tra kubeconfig/context; các section cluster sẽ bị SKIP"
@@ -251,27 +251,34 @@ sec_preflight() {
   if [ "${notready:-0}" -eq 0 ]; then pass "Tất cả node ở trạng thái Ready"
   else fail "Có ${notready} node KHÔNG Ready"; fi
 
-  # Tailscale CGNAT nodeIP 100.64.0.0/10
-  if k get nodes -o wide 2>/dev/null | grep -qE '100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.'; then
-    pass "NodeIP nằm trong dải CGNAT 100.64.0.0/10 (Tailscale mesh — đúng snapshot)"
+  # Tailscale CGNAT nodeIP 100.64.0.0/10 (snapshot: tất cả node Tailscale)
+  local ntot ncgnat
+  ntot="$(k get nodes --no-headers 2>/dev/null | count_lines)"
+  ncgnat="$(k get nodes -o wide --no-headers 2>/dev/null | awk '{print $6}' | grep -cE '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')"
+  if [ "${ncgnat:-0}" -ge 1 ]; then
+    pass "NodeIP CGNAT 100.64.0.0/10 (Tailscale): ${ncgnat}/${ntot} node"
+    if [ "${ncgnat:-0}" -lt "${ntot:-0}" ]; then
+      warn "Có $((ntot-ncgnat)) node KHÔNG trên CGNAT (vd srv05 dùng IP LAN 172.16.x)" "snapshot nói toàn bộ Tailscale — ghi chú/chuẩn hóa trong KB"
+    fi
   else
-    warn "Không thấy nodeIP CGNAT 100.64.0.0/10" "snapshot ghi Tailscale CGNAT"
+    warn "Không node nào có IP CGNAT 100.64.0.0/10" "snapshot ghi Tailscale CGNAT"
   fi
 }
 
 # =============================================================================
-# SECTION 1 — NAMESPACE INVENTORY (doc/00 + snapshot 40)
+# SECTION 1 — NAMESPACE INVENTORY (knowledge-base/00 + snapshot 40)
 # =============================================================================
 sec_namespaces() {
   need_cluster "Namespace inventory" || return 0
-  # ns -> mô tả (theo doc/00 + snapshot 40)
+  # ns -> mô tả (theo knowledge-base/00 + snapshot 40)
   local core_ns=(job7189-apps gateway security vault data monitoring management)
   local infra_ns=(ingress-nginx cert-manager kube-system local-path-storage)
-  local zta_ns=(spire gatekeeper-system cosign-system trivy-system security-cdm registry)
+  local zta_ns=(spire gatekeeper-system cosign-system trivy-system security-cdm)
+  local optional_ns=(registry)
 
   echo "  Core namespaces (bắt buộc):"
   for ns in "${core_ns[@]}"; do
-    if ns_exists "$ns"; then pass "namespace/$ns tồn tại"; else fail "namespace/$ns THIẾU" "doc/00 liệt kê là core tier"; fi
+    if ns_exists "$ns"; then pass "namespace/$ns tồn tại"; else fail "namespace/$ns THIẾU" "knowledge-base/00 liệt kê là core tier"; fi
   done
   echo "  Infra namespaces:"
   for ns in "${infra_ns[@]}"; do
@@ -282,14 +289,23 @@ sec_namespaces() {
     if ns_exists "$ns"; then pass "namespace/$ns tồn tại"
     else warn "namespace/$ns thiếu" "snapshot ghi (vài cái có thể 0/0 hoặc deferred)"; fi
   done
+  echo "  Optional / deferred namespaces:"
+  for ns in "${optional_ns[@]}"; do
+    if ns_exists "$ns"; then pass "namespace/$ns tồn tại"
+    else note "namespace/$ns không có (optional — không trong snapshot 40; có thể dùng registry ngoài)"; fi
+  done
+  # Orphan ns: có trên cluster nhưng không do manifest nào trong repo tạo.
+  if ns_exists pdp-system; then
+    warn "namespace/pdp-system TỔN TẠI nhưng không có manifest trong repo" "PDP thật ở ns=security — pdp-system có thể là ns mồ côi; kiểm tra: kubectl get all -n pdp-system"
+  fi
 
   # frontend ns: port-mapping doc claims fe-candidate/fe-recruiter trong ns 'frontend',
-  # nhưng doc/19 + cleanup-plan nói frontend ĐÃ tách khỏi cluster ZTA.
+  # nhưng knowledge-base/19 + cleanup-plan nói frontend ĐÃ tách khỏi cluster ZTA.
   if ns_exists frontend; then
-    warn "namespace/frontend TỒN TẠI" "doc/19 + cleanup-plan nói FE đã tách khỏi cluster — kiểm tra lại"
-    drift "Port-mapping doc liệt kê ns 'frontend' (fe-candidate/fe-recruiter:3000), nhưng doc/19 nói FE đã gỡ khỏi cluster ZTA. Cluster: ns 'frontend' tồn tại."
+    warn "namespace/frontend TỒN TẠI" "knowledge-base/19 + cleanup-plan nói FE đã tách khỏi cluster — kiểm tra lại"
+    drift "Port-mapping doc liệt kê ns 'frontend' (fe-candidate/fe-recruiter:3000), nhưng knowledge-base/19 nói FE đã gỡ khỏi cluster ZTA. Cluster: ns 'frontend' tồn tại."
   else
-    pass "namespace/frontend KHÔNG tồn tại (khớp doc/19: FE tách khỏi cluster ZTA)"
+    pass "namespace/frontend KHÔNG tồn tại (khớp knowledge-base/19: FE tách khỏi cluster ZTA)"
     drift "Port-mapping doc (SYSTEM_PORT_MAPPING_ARCHITECTURE.md mục 3) vẫn liệt kê Frontend Layer ns 'frontend' với fe-candidate/fe-recruiter — thực tế ns không tồn tại. Cần xoá/đánh dấu mục này trong port-mapping doc."
   fi
 
@@ -298,7 +314,7 @@ sec_namespaces() {
 }
 
 # =============================================================================
-# SECTION 2 — 7 BACKEND MICROSERVICES (doc/00, doc/03)
+# SECTION 2 — 7 BACKEND MICROSERVICES (knowledge-base/00, knowledge-base/03)
 # =============================================================================
 SERVICES=(identity-service workspace-service job-service hiring-service candidate-service communication-service storage-service)
 sec_backend_services() {
@@ -313,7 +329,7 @@ sec_backend_services() {
       if [ "${ready_n:-0}" -ge 1 ]; then pass "deployment/$svc ready=$rr"
       else fail "deployment/$svc KHÔNG có replica ready ($rr)"; fi
     else
-      fail "deployment/$svc THIẾU trong ns=$ns" "doc/00 liệt kê 7 service"
+      fail "deployment/$svc THIẾU trong ns=$ns" "knowledge-base/00 liệt kê 7 service"
     fi
   done
 
@@ -329,7 +345,7 @@ sec_backend_services() {
     fi
   done
 
-  # 4 containers / pod: app, vault-agent, env-loader, env-watcher (doc/00 Pod Structure)
+  # 4 containers / pod: app, vault-agent, env-loader, env-watcher (knowledge-base/00 Pod Structure)
   echo "  Pod structure: mỗi pod backend phải có 4 container (app, vault-agent, env-loader, env-watcher):"
   local expect_ctr=(app vault-agent env-loader env-watcher)
   for svc in "${SERVICES[@]}"; do
@@ -344,7 +360,7 @@ sec_backend_services() {
 }
 
 # =============================================================================
-# SECTION 3 — PER-SERVICE REDIS CACHE (doc/19, port-mapping)
+# SECTION 3 — PER-SERVICE REDIS CACHE (knowledge-base/19, port-mapping)
 # =============================================================================
 sec_redis() {
   need_cluster "Per-service Redis cache" || return 0
@@ -356,13 +372,13 @@ sec_redis() {
       local rr; rr="$(workload_ready deployment "$r" "$ns")"
       pass "deployment/$r tồn tại (ready=$rr)"
     else
-      warn "deployment/$r thiếu" "doc/19 nói mỗi service có Redis riêng"
+      warn "deployment/$r thiếu" "knowledge-base/19 nói mỗi service có Redis riêng"
     fi
   done
 }
 
 # =============================================================================
-# SECTION 4 — IDENTITY LAYER: Keycloak + Vault + SPIRE + PDP (doc/03, snapshot 40)
+# SECTION 4 — IDENTITY LAYER: Keycloak + Vault + SPIRE + PDP (knowledge-base/03, snapshot 40)
 # =============================================================================
 sec_identity() {
   need_cluster "Identity layer" || return 0
@@ -372,14 +388,14 @@ sec_identity() {
   if res_exists deployment keycloak security; then
     pass "deployment/keycloak (ns=security) tồn tại — ready=$(workload_ready deployment keycloak security)"
     local kp; kp="$(k get svc keycloak -n security -o jsonpath='{.spec.ports[*].port}' 2>/dev/null)"
-    echo " $kp " | grep -q ' 8080 ' && pass "keycloak service port 8080 (đúng doc/03)" || warn "keycloak port='$kp' (doc nói 8080)"
+    echo " $kp " | grep -q ' 8080 ' && pass "keycloak service port 8080 (đúng knowledge-base/03)" || warn "keycloak port='$kp' (doc nói 8080)"
     # Dual realm: 7189_internal + job7189 (cần exec/curl vào keycloak)
     if [ "$NO_EXEC" -eq 0 ]; then
       local kpod; kpod="$(k get pods -n security -l app=keycloak -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
       if [ -n "$kpod" ]; then
         for realm in 7189_internal job7189; do
           if kx "$kpod" -n security -- sh -c "curl -sf http://localhost:8080/realms/$realm/.well-known/openid-configuration >/dev/null 2>&1"; then
-            pass "Keycloak realm '$realm' phản hồi OIDC discovery (đúng dual-realm doc/03)"
+            pass "Keycloak realm '$realm' phản hồi OIDC discovery (đúng dual-realm knowledge-base/03)"
           else
             warn "Không xác minh được realm '$realm' qua localhost:8080" "thử endpoint khác / kiểm tra thủ công"
           fi
@@ -395,14 +411,14 @@ sec_identity() {
   if res_exists statefulset vault vault; then
     pass "statefulset/vault (ns=vault) tồn tại — ready=$(workload_ready statefulset vault vault)"
   else
-    fail "statefulset/vault THIẾU (ns=vault)" "doc/03 Dual-Vault: vault-prod StatefulSet"
+    fail "statefulset/vault THIẾU (ns=vault)" "knowledge-base/03 Dual-Vault: vault-prod StatefulSet"
   fi
   if res_exists deployment vault-dev vault; then pass "deployment/vault-dev (transit auto-unseal, 8300) tồn tại"
-  else warn "deployment/vault-dev thiếu" "doc/03: vault-dev transit engine auto-unseal"; fi
+  else warn "deployment/vault-dev thiếu" "knowledge-base/03: vault-dev transit engine auto-unseal"; fi
   # injector: tên có thể là vault-agent-injector hoặc vault-agent-agent-injector
   if res_exists deployment vault-agent-injector vault || res_exists deployment vault-agent-agent-injector vault; then
     pass "vault-agent-injector (MutatingWebhook) tồn tại"
-  else warn "vault-agent-injector thiếu" "doc/00: inject 4-container sidecar"; fi
+  else warn "vault-agent-injector thiếu" "knowledge-base/00: inject 4-container sidecar"; fi
   # MutatingWebhookConfiguration cho vault
   if k get mutatingwebhookconfiguration 2>/dev/null | grep -qi vault; then
     pass "MutatingWebhookConfiguration cho Vault tồn tại (inject sidecar)"
@@ -412,7 +428,7 @@ sec_identity() {
     local vstat; vstat="$(kx vault-0 -n vault -- sh -c 'VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=1 vault status -format=json 2>/dev/null')"
     if echo "$vstat" | grep -q '"sealed"'; then
       if echo "$vstat" | grep -q '"sealed": *false'; then pass "vault-prod UNSEALED (auto-unseal hoạt động)"
-      else fail "vault-prod đang SEALED" "doc/03 Known Limitation: vault-dev restart → mất transit key"; fi
+      else fail "vault-prod đang SEALED" "knowledge-base/03 Known Limitation: vault-dev restart → mất transit key"; fi
     else warn "Không đọc được vault status (token/exec)" "chạy thủ công: vault status"; fi
   else skip "Vault seal status" "--no-exec"; fi
 
@@ -446,20 +462,20 @@ sec_identity() {
 }
 
 # =============================================================================
-# SECTION 5 — SERVICEACCOUNT ↔ VAULT ROLE MAPPING (doc/03)
+# SECTION 5 — SERVICEACCOUNT ↔ VAULT ROLE MAPPING (knowledge-base/03)
 # =============================================================================
 sec_serviceaccounts() {
   need_cluster "ServiceAccount mapping" || return 0
   local ns=job7189-apps
-  note "doc/03: mỗi service có 1 SA cùng tên → map 1:1 Vault role"
+  note "knowledge-base/03: mỗi service có 1 SA cùng tên → map 1:1 Vault role"
   for svc in "${SERVICES[@]}"; do
     if res_exists serviceaccount "$svc" "$ns"; then pass "serviceaccount/$svc tồn tại"
-    else fail "serviceaccount/$svc THIẾU" "doc/03 SA mapping 1:1"; fi
+    else fail "serviceaccount/$svc THIẾU" "knowledge-base/03 SA mapping 1:1"; fi
   done
 }
 
 # =============================================================================
-# SECTION 6 — KONG GATEWAY + JWT MATRIX (doc/04, kong.yml)
+# SECTION 6 — KONG GATEWAY + JWT MATRIX (knowledge-base/04, kong.yml)
 # =============================================================================
 sec_kong() {
   need_cluster "Kong Gateway + JWT" || return 0
@@ -467,7 +483,7 @@ sec_kong() {
   if res_exists deployment kong-gateway gateway || k get deploy -n gateway -o name 2>/dev/null | grep -qi kong; then
     pass "Kong deployment tồn tại (ns=gateway)"
   else
-    fail "Kong deployment THIẾU (ns=gateway)" "doc/04 PEP biên"
+    fail "Kong deployment THIẾU (ns=gateway)" "knowledge-base/04 PEP biên"
   fi
 
   # NodePort 30000 (port-mapping)
@@ -479,7 +495,7 @@ sec_kong() {
   local kpod; kpod="$(k get pods -n gateway -o name 2>/dev/null | grep -i kong | head -1 | sed 's#pod/##')"
   if [ -n "$kpod" ] && [ "$NO_EXEC" -eq 0 ]; then
     local dbmode; dbmode="$(kx "$kpod" -n gateway -- sh -c 'echo "$KONG_DATABASE"' 2>/dev/null)"
-    [ "$dbmode" = "off" ] && pass "Kong KONG_DATABASE=off (DB-less — đúng doc/04)" || warn "KONG_DATABASE='$dbmode' (doc nói off/DB-less)"
+    [ "$dbmode" = "off" ] && pass "Kong KONG_DATABASE=off (DB-less — đúng knowledge-base/04)" || warn "KONG_DATABASE='$dbmode' (doc nói off/DB-less)"
     # JWT plugin enabled + RS256 + admin API readonly
     if kx "$kpod" -n gateway -- sh -c 'curl -sf http://localhost:8001/plugins 2>/dev/null' | grep -q '"name":"jwt"'; then
       pass "Kong có plugin jwt được enable (RS256)"
@@ -495,7 +511,7 @@ sec_kong() {
     note "kong.yml (repo) khai báo ~$(grep -cE '^\s*- name:' "$kongyml") name entries (service+route+plugin)"
     pass "Tìm thấy infras/kong/kong.yml (declarative config nguồn)"
   else
-    warn "Không thấy infras/kong/kong.yml" "doc/04 trỏ config file này"
+    warn "Không thấy infras/kong/kong.yml" "knowledge-base/04 trỏ config file này"
   fi
 
   # Kong Prometheus scrape (snapshot: 1 target)
@@ -505,7 +521,7 @@ sec_kong() {
 }
 
 # =============================================================================
-# SECTION 7 — CILIUM MICROSEGMENTATION (doc/04, snapshot 40)
+# SECTION 7 — CILIUM MICROSEGMENTATION (knowledge-base/04, snapshot 40)
 # =============================================================================
 sec_cilium() {
   need_cluster "Cilium microsegmentation" || return 0
@@ -523,7 +539,7 @@ sec_cilium() {
   local cnp_apps; cnp_apps="$(k get cnp -n job7189-apps --no-headers 2>/dev/null | count_lines)"
   if [ "${cnp_apps:-0}" -ge 11 ]; then pass "CNP trong job7189-apps = $cnp_apps (snapshot ≥11)"
   elif [ "${cnp_apps:-0}" -gt 0 ]; then warn "CNP trong job7189-apps = $cnp_apps" "snapshot ghi 11"
-  else fail "Không có CNP nào trong job7189-apps" "doc/04 microseg"; fi
+  else fail "Không có CNP nào trong job7189-apps" "knowledge-base/04 microseg"; fi
 
   # Default-deny coverage (snapshot: 4/7 ns đã có; data/monitoring/management PENDING)
   echo "  Default-deny coverage (snapshot: applied apps/gateway/security/vault; PENDING data/monitoring/management):"
@@ -557,11 +573,11 @@ sec_cilium() {
 }
 
 # =============================================================================
-# SECTION 8 — ENCRYPTION (doc/04 vs snapshot 40 — DRIFT đã biết)
+# SECTION 8 — ENCRYPTION (knowledge-base/04 vs snapshot 40 — DRIFT đã biết)
 # =============================================================================
 sec_encryption() {
   need_cluster "Encryption (mTLS/WireGuard)" || return 0
-  note "doc/04 nói mTLS + WireGuard ĐÃ BẬT (script 08). snapshot 40 nói mesh-auth DISABLED."
+  note "knowledge-base/04 nói mTLS + WireGuard ĐÃ BẬT (script 08). snapshot 40 nói mesh-auth DISABLED."
   local cfg; cfg="$(k -n kube-system get configmap cilium-config -o json 2>/dev/null)"
   if [ -z "$cfg" ]; then warn "Không đọc được cilium-config"; return 0; fi
   local mesh wg
@@ -570,16 +586,16 @@ sec_encryption() {
   note "mesh-auth-enabled='${mesh:-?}', enable-wireguard='${wg:-?}'"
   if [ "$mesh" = "false" ]; then
     pass "mesh-auth-enabled=false (khớp snapshot 40)"
-    drift "doc/04 mục ENCRYPTION ghi 'mTLS sidecarless ĐÃ BẬT'; thực tế mesh-auth-enabled=false (snapshot 40 đúng). Cần sửa doc/04."
+    drift "knowledge-base/04 mục ENCRYPTION ghi 'mTLS sidecarless ĐÃ BẬT'; thực tế mesh-auth-enabled=false (snapshot 40 đúng). Cần sửa knowledge-base/04."
   elif [ "$mesh" = "true" ]; then
-    pass "mesh-auth-enabled=true (khớp doc/04, KHÁC snapshot 40)"
+    pass "mesh-auth-enabled=true (khớp knowledge-base/04, KHÁC snapshot 40)"
     drift "snapshot 40 ghi mesh-auth DISABLED; thực tế =true. Cập nhật snapshot 40."
   else warn "Không xác định mesh-auth-enabled"; fi
   [ "$wg" = "true" ] && note "WireGuard enabled" || note "WireGuard disabled (snapshot: Tailscale L3 là baseline)"
 }
 
 # =============================================================================
-# SECTION 9 — DATA LAYER: MySQL + 7 DB + Kafka + MinIO (doc/00, doc/03, port-map)
+# SECTION 9 — DATA LAYER: MySQL + 7 DB + Kafka + MinIO (knowledge-base/00, knowledge-base/03, port-map)
 # =============================================================================
 DATABASES=(job7189_identity_db job7189_workspace_db job7189_job_db job7189_hiring_db job7189_candidate_db job7189_communication_db job7189_storage_db)
 sec_data() {
@@ -594,7 +610,7 @@ sec_data() {
     fail "MySQL THIẾU (ns=data)"
   fi
 
-  echo "  7 logical databases (doc/00):"
+  echo "  7 logical databases (knowledge-base/00):"
   if [ "$NO_EXEC" -eq 0 ]; then
     local mpod; mpod="$(k get pods -n data -l app=mysql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
     [ -z "$mpod" ] && mpod="$(k get pods -n data -o name 2>/dev/null | grep -i mysql | head -1 | sed 's#pod/##')"
@@ -620,26 +636,31 @@ sec_data() {
   echo "  Kafka (ns=data, port 9092/9093):"
   if res_exists statefulset kafka data || k get deploy -n data -o name 2>/dev/null | grep -qi kafka; then
     pass "Kafka workload tồn tại (ns=data)"
-  else warn "Kafka thiếu (ns=data)" "doc/00: data tier có Kafka"; fi
+  else warn "Kafka thiếu (ns=data)" "knowledge-base/00: data tier có Kafka"; fi
 
-  echo "  MinIO (ns=data — storage-service backend):"
-  if res_exists deployment minio data; then pass "deployment/minio tồn tại (ns=data)"
-  else warn "deployment/minio thiếu" "port-map: storage-service → MinIO"; fi
+  echo "  MinIO (storage-service backend — repo: STS ns job7189-infra; label-script: deploy ns data):"
+  local minio_found=""
+  for q in "deployment minio data" "statefulset minio data" "deployment minio job7189-infra" "statefulset minio job7189-infra"; do
+    # shellcheck disable=SC2086
+    set -- $q
+    if res_exists "$1" "$2" "$3"; then pass "MinIO: $1/$2 tồn tại (ns=$3)"; minio_found=1; break; fi
+  done
+  [ -z "$minio_found" ] && warn "Không thấy MinIO (deploy/sts 'minio') ở ns data hay job7189-infra" "snapshot 40 không nhắc MinIO — xác nhận: kubectl get sts,deploy -A | grep -i minio"
 }
 
 # =============================================================================
-# SECTION 10 — VAULT DYNAMIC CREDENTIALS / JIT (doc/03)
+# SECTION 10 — VAULT DYNAMIC CREDENTIALS / JIT (knowledge-base/03)
 # =============================================================================
 sec_vault_dynamic() {
   need_cluster "Vault dynamic credentials (JIT)" || return 0
   if [ "$NO_EXEC" -eq 1 ]; then skip "Vault leases + DB engine" "--no-exec"; return 0; fi
-  note "doc/03: TTL 1h, secrets trên tmpfs, 7 active leases (snapshot)"
+  note "knowledge-base/03: TTL 1h, secrets trên tmpfs, 7 active leases (snapshot)"
   # Secrets trên tmpfs (emptyDir Memory) — kiểm tra trên 1 backend pod
   local ns=job7189-apps
   local pod; pod="$(k get pods -n "$ns" -l app=identity-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
   if [ -n "$pod" ]; then
     if kx "$pod" -n "$ns" -c app -- sh -c 'mount 2>/dev/null | grep -E "/vault/secrets|/app-secrets" | grep -qi tmpfs'; then
-      pass "Secrets mount trên tmpfs (RAM-only — đúng doc/03)"
+      pass "Secrets mount trên tmpfs (RAM-only — đúng knowledge-base/03)"
     else warn "Không xác nhận được tmpfs mount cho secrets" "kiểm tra: mount | grep vault"; fi
     if kx "$pod" -n "$ns" -c app -- sh -c 'test -f /app-secrets/.env || test -f /vault/secrets/.env.db'; then
       pass "File .env (merge từ Vault) tồn tại trong pod"
@@ -657,29 +678,29 @@ sec_vault_dynamic() {
 }
 
 # =============================================================================
-# SECTION 11 — OBSERVABILITY: EFK + Prometheus + Grafana + Hubble (doc/05, snapshot)
+# SECTION 11 — OBSERVABILITY: EFK + Prometheus + Grafana + Hubble (knowledge-base/05, snapshot)
 # =============================================================================
 sec_observability() {
   need_cluster "Observability stack" || return 0
   local ns=monitoring
 
-  echo "  Elasticsearch (snapshot: 7.17.18 single-node; doc/05 ghi 8.x — DRIFT):"
+  echo "  Elasticsearch (snapshot: 7.17.18 single-node; knowledge-base/05 ghi 8.x — DRIFT):"
   if res_exists statefulset es "$ns" || k get deploy -n "$ns" -o name 2>/dev/null | grep -qiE 'elasticsearch|^deployment/es$'; then
     pass "Elasticsearch workload tồn tại (ns=monitoring)"
     local eimg; eimg="$(k get sts es -n "$ns" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)"
     note "ES image: ${eimg:-<unknown>}"
     if echo "$eimg" | grep -q '7\.17'; then
       pass "ES version 7.17.x (khớp snapshot 40)"
-      drift "doc/05 ghi 'Elasticsearch 8.x' nhưng thực tế 7.17.18 (snapshot 40 đúng). Sửa doc/05."
+      drift "knowledge-base/05 ghi 'Elasticsearch 8.x' nhưng thực tế 7.17.18 (snapshot 40 đúng). Sửa knowledge-base/05."
     elif echo "$eimg" | grep -q ':8\.'; then
-      pass "ES version 8.x (khớp doc/05, KHÁC snapshot 40)"
+      pass "ES version 8.x (khớp knowledge-base/05, KHÁC snapshot 40)"
       drift "snapshot 40 ghi ES 7.17.18; thực tế 8.x. Cập nhật snapshot 40."
     else note "Không parse được ES version"; fi
   else
     fail "Elasticsearch THIẾU (ns=monitoring)"
   fi
 
-  echo "  Filebeat DaemonSet (doc/05: 3 pod, chỉ 4 ns: job7189-apps/gateway/security/data):"
+  echo "  Filebeat DaemonSet (knowledge-base/05: 3 pod, chỉ 4 ns: job7189-apps/gateway/security/data):"
   if res_exists daemonset filebeat "$ns"; then
     local dr; dr="$(k get ds filebeat -n "$ns" -o jsonpath='{.status.numberReady}/{.status.desiredNumberScheduled}' 2>/dev/null)"
     pass "daemonset/filebeat ready=$dr"
@@ -692,11 +713,11 @@ sec_observability() {
   done
   if res_exists daemonset node-exporter "$ns"; then
     pass "daemonset/node-exporter ready=$(k get ds node-exporter -n "$ns" -o jsonpath='{.status.numberReady}/{.status.desiredNumberScheduled}' 2>/dev/null) (snapshot: 4)"
-  else warn "daemonset/node-exporter thiếu" "doc/07 deploy exporters"; fi
+  else warn "daemonset/node-exporter thiếu" "knowledge-base/07 deploy exporters"; fi
 
   echo "  Hubble (relay + UI, port 4245):"
   if k get pods -n kube-system 2>/dev/null | grep -qi hubble-relay; then pass "hubble-relay đang chạy (kube-system)"
-  else warn "Không thấy hubble-relay" "doc/05: Hubble Relay bật trong Cilium values"; fi
+  else warn "Không thấy hubble-relay" "knowledge-base/05: Hubble Relay bật trong Cilium values"; fi
 
   echo "  ES indices (snapshot: filebeat-7.17.18-*, threat-intel-feed-*):"
   if [ "$NO_EXEC" -eq 0 ]; then
@@ -717,17 +738,17 @@ sec_observability() {
   else
     # Prometheus có thể chạy non-operator (rules trong CM)
     if k get cm -n "$ns" 2>/dev/null | grep -qiE 'prometheus.*rule|alert'; then pass "Có ConfigMap chứa Prometheus rules"
-    else warn "Không thấy PrometheusRule CRD lẫn rules ConfigMap" "doc/08: 5 alert rules"; fi
+    else warn "Không thấy PrometheusRule CRD lẫn rules ConfigMap" "knowledge-base/08: 5 alert rules"; fi
   fi
 }
 
 # =============================================================================
-# SECTION 12 — WORKLOAD LABEL SCHEMA (doc/19) — 6 zta.job7189/* labels
+# SECTION 12 — WORKLOAD LABEL SCHEMA (knowledge-base/19) — 6 zta.job7189/* labels
 # =============================================================================
 sec_labels() {
-  need_cluster "Workload label schema (doc/19)" || return 0
+  need_cluster "Workload label schema (knowledge-base/19)" || return 0
   local keys=(role tier env data-classification exposure team)
-  # Bảng workload (kind name ns) theo doc/19 + scripts/zta-apply-workload-labels.sh
+  # Bảng workload (kind name ns) theo knowledge-base/19 + scripts/zta-apply-workload-labels.sh
   local rows=(
     "deployment mysql data"
     "statefulset kafka data"
@@ -780,14 +801,14 @@ sec_labels() {
     fi
   done
   hr
-  note "Tổng workload trong bảng doc/19: $total | đủ-6-label: $fully | thiếu: $missing_any | không tồn tại: $absent"
+  note "Tổng workload trong bảng knowledge-base/19: $total | đủ-6-label: $fully | thiếu: $missing_any | không tồn tại: $absent"
   if [ "$missing_any" -gt 0 ]; then
-    drift "Có $missing_any workload thiếu ZTA label (doc/19). Snapshot 40 ghi 'zta-labels-required 6 violations'. Khớp nếu =6."
+    drift "Có $missing_any workload thiếu ZTA label (knowledge-base/19). Snapshot 40 ghi 'zta-labels-required 6 violations'. Khớp nếu =6."
   fi
 }
 
 # =============================================================================
-# SECTION 13 — OPA GATEKEEPER (doc/24, snapshot 40)
+# SECTION 13 — OPA GATEKEEPER (knowledge-base/24, snapshot 40)
 # =============================================================================
 sec_gatekeeper() {
   need_cluster "OPA Gatekeeper" || return 0
@@ -800,23 +821,23 @@ sec_gatekeeper() {
   if k get crd constrainttemplates.templates.gatekeeper.sh >/dev/null 2>&1; then
     local ct; ct="$(k get constrainttemplate --no-headers 2>/dev/null | count_lines)"
     pass "ConstraintTemplate count=$ct (snapshot: ZTA 3/3 + image-trust 3/3)"
-    # constraints theo tên
-    for c in image-digest-required block-latest-tag; do
-      if k get constraint -A 2>/dev/null | grep -qi "$c" || k get "$(k api-resources --api-group=constraints.gatekeeper.sh -o name 2>/dev/null | head -1)" 2>/dev/null | grep -qi "$c"; then
-        pass "Constraint '$c' tồn tại (snapshot)"
-      else warn "Không thấy constraint '$c'"; fi
+    # Liệt kê TOÀN BỘ object group constraints.gatekeeper.sh (mỗi constraint là 1 kind riêng).
+    local ckinds allcons
+    ckinds="$(k api-resources --api-group=constraints.gatekeeper.sh -o name 2>/dev/null | paste -sd, -)"
+    allcons="$(k get "${ckinds:-constraints}" -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)"
+    [ -z "$allcons" ] && allcons="$(k get constraints -A --no-headers 2>/dev/null | awk '{print $2}')"
+    note "Constraints hiện có: $(echo "$allcons" | tr '\n' ' ')"
+    for c in image-digest-required block-latest-tag zta-labels-required; do
+      if echo "$allcons" | grep -qx "$c"; then pass "Constraint '$c' tồn tại"
+      else warn "Không thấy constraint '$c'" "có trong repo opa-gatekeeper/ nhưng chưa thấy áp trên cluster"; fi
     done
-    # zta-labels-required (snapshot: 6 violations)
-    if k get constraints -A 2>/dev/null | grep -qi 'zta-labels-required' || k get k8srequiredztalabels 2>/dev/null | grep -qi .; then
-      pass "Constraint zta-labels-required tồn tại (snapshot: 6 violations)"
-    else warn "Không thấy zta-labels-required"; fi
   else
     warn "CRD constrainttemplates không tồn tại"
   fi
 }
 
 # =============================================================================
-# SECTION 14 — IMAGE PROVENANCE: Cosign policy-controller (doc/26/28, snapshot)
+# SECTION 14 — IMAGE PROVENANCE: Cosign policy-controller (knowledge-base/26/28, snapshot)
 # =============================================================================
 sec_image_provenance() {
   need_cluster "Image provenance (Cosign)" || return 0
@@ -834,13 +855,15 @@ sec_image_provenance() {
     done
   else warn "CRD clusterimagepolicies không tồn tại"; fi
 
-  # Cosign public key secret (snapshot: security/zta-cosign-public-key, 178 bytes)
-  if res_exists secret zta-cosign-public-key security; then pass "secret/zta-cosign-public-key (ns=security) tồn tại"
-  else warn "Không thấy secret zta-cosign-public-key (ns=security)" "snapshot: real PEM 178 bytes"; fi
+  # Cosign public key (repo: ConfigMap security/zta-cosign-public-key — KHÔNG phải Secret;
+  # tạo bởi scripts/zta-cosign-keygen.sh).
+  if res_exists configmap zta-cosign-public-key security; then pass "configmap/zta-cosign-public-key (ns=security) tồn tại"
+  elif res_exists secret zta-cosign-public-key security; then pass "secret/zta-cosign-public-key (ns=security) tồn tại"
+  else warn "Không thấy configmap/secret zta-cosign-public-key (ns=security)" "snapshot: real PEM 178 bytes (zta-cosign-keygen.sh)"; fi
 }
 
 # =============================================================================
-# SECTION 15 — TETRAGON RUNTIME PEP (doc/14, snapshot 40)
+# SECTION 15 — TETRAGON RUNTIME PEP (knowledge-base/14, snapshot 40)
 # =============================================================================
 sec_tetragon() {
   need_cluster "Tetragon runtime PEP" || return 0
@@ -848,12 +871,18 @@ sec_tetragon() {
   if [ -n "$tds" ]; then
     note "$tds"
     pass "Tetragon DaemonSet tồn tại (snapshot: 3-4 node ready)"
-  else warn "Không thấy Tetragon DaemonSet" "doc/14 + snapshot: block-suspicious-exec deployed"; fi
+  else warn "Không thấy Tetragon DaemonSet" "knowledge-base/14 + snapshot: block-suspicious-exec deployed"; fi
 
   if k get crd tracingpolicies.cilium.io >/dev/null 2>&1; then
-    local tp; tp="$(k get tracingpolicy --no-headers 2>/dev/null | count_lines)"
-    [ "${tp:-0}" -ge 1 ] && pass "TracingPolicy count=$tp" || warn "Không thấy TracingPolicy"
-    k get tracingpolicy 2>/dev/null | grep -qi 'block-suspicious-exec' && pass "TracingPolicy block-suspicious-exec tồn tại (snapshot)" || warn "Không thấy block-suspicious-exec"
+    local tp tpn
+    tp="$(k get tracingpolicy --no-headers 2>/dev/null | count_lines)"
+    tpn="$(k get tracingpolicynamespaced -A --no-headers 2>/dev/null | count_lines)"
+    if [ "$(( ${tp:-0} + ${tpn:-0} ))" -ge 1 ]; then pass "TracingPolicy=${tp} + TracingPolicyNamespaced=${tpn}"
+    else warn "Không thấy TracingPolicy nào"; fi
+    # block-suspicious-exec là kind TracingPolicyNamespaced (không ra trong `get tracingpolicy`).
+    if { k get tracingpolicy -o name 2>/dev/null; k get tracingpolicynamespaced -A -o name 2>/dev/null; } | grep -qi 'block-suspicious-exec'; then
+      pass "block-suspicious-exec tồn tại (TracingPolicyNamespaced)"
+    else warn "Không thấy block-suspicious-exec"; fi
   else warn "CRD tracingpolicies.cilium.io không tồn tại"; fi
 }
 
@@ -934,21 +963,21 @@ sec_pdp_adaptive() {
 }
 
 # =============================================================================
-# SECTION 19 — RESOURCE BUDGET (doc/06) — informational
+# SECTION 19 — RESOURCE BUDGET (knowledge-base/06) — informational
 # =============================================================================
 sec_resources() {
   need_cluster "Resource budget" || return 0
-  note "doc/06 ghi: ~12GB total (Kind) — nhưng snapshot 40 nói đã sang multi-VM 32GB. DRIFT."
-  drift "doc/06 còn nói 'Kind control-plane' + '~12GB total'; snapshot 40 nói đã migrate sang multi-VM kubeadm 32GB. doc/06 cần cập nhật khỏi Kind."
+  note "knowledge-base/06 ghi: ~12GB total (Kind) — nhưng snapshot 40 nói đã sang multi-VM 32GB. DRIFT."
+  drift "knowledge-base/06 còn nói 'Kind control-plane' + '~12GB total'; snapshot 40 nói đã migrate sang multi-VM kubeadm 32GB. knowledge-base/06 cần cập nhật khỏi Kind."
   echo "  Node allocatable memory:"
   k get nodes -o custom-columns='NODE:.metadata.name,ALLOC_MEM:.status.allocatable.memory,CPU:.status.allocatable.cpu' --no-headers 2>/dev/null | sed 's/^/      /'
   # Tổng pod đang chạy
   local pods; pods="$(k get pods -A --no-headers 2>/dev/null | count_lines)"
   note "Tổng pod (mọi ns): ${pods:-?}"
-  # phpMyAdmin toggle (doc/07)
+  # phpMyAdmin toggle (knowledge-base/07)
   if res_exists deployment phpmyadmin management; then
     local rep; rep="$(k get deploy phpmyadmin -n management -o jsonpath='{.spec.replicas}' 2>/dev/null)"
-    note "phpmyadmin replicas=$rep (doc/07: có thể toggle off để tiết kiệm ~128Mi)"
+    note "phpmyadmin replicas=$rep (knowledge-base/07: có thể toggle off để tiết kiệm ~128Mi)"
   fi
 }
 
@@ -967,7 +996,7 @@ sec_ingress() {
   if k get ingress -A >/dev/null 2>&1; then
     local hosts; hosts="$(k get ingress -A -o jsonpath='{range .items[*]}{.spec.rules[*].host}{" "}{end}' 2>/dev/null)"
     note "ingress hosts: ${hosts:-none}"
-    echo "$hosts" | grep -q 'job7189' && pass "Ingress host chứa 'job7189' (doc/04 routing)" || warn "Không thấy ingress host job7189.*"
+    echo "$hosts" | grep -q 'job7189' && pass "Ingress host chứa 'job7189' (knowledge-base/04 routing)" || warn "Không thấy ingress host job7189.*"
   fi
 }
 
@@ -1008,17 +1037,17 @@ sec_static_refs() {
     else fail "KB trỏ tới file KHÔNG tồn tại: $f" "sửa KB hoặc khôi phục file"; fi
   done
 
-  # cilium-policies microseg files (doc/04 buoc 1-5)
-  echo "  Cilium policy files (doc/04):"
+  # cilium-policies microseg files (knowledge-base/04 buoc 1-5)
+  echo "  Cilium policy files (knowledge-base/04):"
   for f in 00-default-deny 01-allow-egress-dns 02-allow-egress-data 03-allow-ingress-kong 04-allow-internal-api-strict; do
     if ls "${REPO_ROOT}"/infras/k8s-yaml/cilium-policies/${f}*.yaml >/dev/null 2>&1; then pass "policy file ${f}*.yaml tồn tại"
-    else warn "Không thấy policy ${f}*.yaml" "doc/04 liệt kê 5 bước"; fi
+    else warn "Không thấy policy ${f}*.yaml" "knowledge-base/04 liệt kê 5 bước"; fi
   done
 
   # DB seed files (05-seed-databases doc)
   echo "  DB seed files (DB/*.sql):"
   local sqlc; sqlc="$(ls "${REPO_ROOT}"/DB/*.sql 2>/dev/null | count_lines)"
-  [ "${sqlc:-0}" -ge 1 ] && pass "Tìm thấy $sqlc file .sql trong DB/" || warn "Không thấy DB/*.sql" "doc/08: seed 7 DB từ DB/"
+  [ "${sqlc:-0}" -ge 1 ] && pass "Tìm thấy $sqlc file .sql trong DB/" || warn "Không thấy DB/*.sql" "knowledge-base/08: seed 7 DB từ DB/"
 }
 
 # =============================================================================
@@ -1028,7 +1057,7 @@ sec_kb_consistency() {
   local KB="${REPO_ROOT}/doc"
   [ -d "${REPO_ROOT}/knowledge-base" ] && KB="${REPO_ROOT}/knowledge-base"
   note "KB dir: $KB"
-  if [ ! -d "$KB" ]; then warn "Không thấy thư mục KB (doc/ hoặc knowledge-base/)"; return 0; fi
+  if [ ! -d "$KB" ]; then warn "Không thấy thư mục KB (knowledge-base/ hoặc knowledge-base/)"; return 0; fi
 
   # README KB nói '32 chương' — đếm file numbered
   local nch; nch="$(ls "$KB"/[0-9][0-9]-*.md 2>/dev/null | count_lines)"
@@ -1040,12 +1069,15 @@ sec_kb_consistency() {
   local inc; inc="$(ls "$KB"/incident-*.md 2>/dev/null | count_lines)"
   [ "${inc:-0}" -ge 3 ] && pass "Có $inc incident report (README ghi 3)" || warn "Chỉ có $inc incident report (README ghi 3)"
 
-  # Drift đã biết giữa các chương (in ra để user đối chiếu, không cần cluster)
-  drift "doc/05 (ES 8.x) vs snapshot 40 (ES 7.17.18) — version Elasticsearch lệch."
-  drift "doc/04 (mTLS/WireGuard ĐÃ BẬT) vs snapshot 40 (mesh-auth DISABLED) — encryption lệch."
-  drift "doc/06 (Kind, ~12GB) vs snapshot 40 (multi-VM kubeadm, 32GB) — hạ tầng lệch."
-  drift "doc/00 + doc/08 (Kind 1CP+3W) vs snapshot 40 (kubeadm srv01..05) — cluster type lệch."
-  drift "Port-mapping doc (ns 'frontend' fe-candidate/fe-recruiter) vs doc/19 (FE tách khỏi cluster) — frontend lệch."
+  # Drift doc-vs-doc đã biết. Cái nào ĐÃ được section live phát hiện (ES/encryption/
+  # frontend/Kind-resource) thì CHỈ in ở chế độ offline để tránh trùng lặp DRIFT WATCH.
+  drift "knowledge-base/00 + knowledge-base/08 (Kind 1CP+3W) vs snapshot 40 (kubeadm srv01..05) — cluster type lệch."
+  if [ "$CLUSTER_OK" -ne 1 ]; then
+    drift "knowledge-base/05 (ES 8.x) vs snapshot 40 (ES 7.17.18) — version Elasticsearch lệch."
+    drift "knowledge-base/04 (mTLS/WireGuard ĐÃ BẬT) vs snapshot 40 (mesh-auth DISABLED) — encryption lệch."
+    drift "knowledge-base/06 (Kind, ~12GB) vs snapshot 40 (multi-VM kubeadm, 32GB) — hạ tầng lệch."
+    drift "Port-mapping doc (ns 'frontend' fe-candidate/fe-recruiter) vs knowledge-base/19 (FE tách khỏi cluster) — frontend lệch."
+  fi
   pass "Đã liệt kê các drift doc-vs-doc đã biết (xem mục DRIFT WATCH cuối file)"
 }
 
@@ -1096,9 +1128,18 @@ echo "  kubectl      : $KUBECTL  (context: ${KCTX:-<current>})"
 echo "  Log file     : $LOG_FILE"
 echo "  Mode         : $([ "$STATIC_ONLY" -eq 1 ] && echo 'STATIC-ONLY' || echo 'FULL')$([ "$NO_EXEC" -eq 1 ] && echo ' + NO-EXEC')"
 [ -n "$ONLY_SECTIONS" ] && echo "  Only sections: $ONLY_SECTIONS"
-echo "  Nguồn KB     : doc/40-snapshot (live), doc/00/03/04/05/06/07/08/19, doc/architecture/*"
+echo "  Nguồn KB     : knowledge-base/40-snapshot (live), knowledge-base/00/03/04/05/06/07/08/19, knowledge-base/architecture/*"
 echo "  Lưu ý        : READ-ONLY. Mỗi section có fallback — lỗi 1 phần KHÔNG dừng script."
 hr2
+
+# Dò kết nối cluster Ở SHELL CHA — vì mỗi section chạy trong subshell `( )`,
+# biến set BÊN TRONG subshell sẽ không truyền ngược ra. Đặt CLUSTER_OK ở đây
+# để mọi section con (fork sau) đều thấy.
+if [ "$STATIC_ONLY" -ne 1 ] && command -v "$KUBECTL" >/dev/null 2>&1; then
+  if k cluster-info >/dev/null 2>&1 || k get --raw='/readyz' >/dev/null 2>&1; then
+    CLUSTER_OK=1
+  fi
+fi
 
 START_EPOCH=$(date +%s)
 for i in "${!SECTION_IDS[@]}"; do
@@ -1113,10 +1154,10 @@ END_EPOCH=$(date +%s)
 # -----------------------------------------------------------------------------
 # SUMMARY
 # -----------------------------------------------------------------------------
-NP="$(grep -c '^PASS' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NF="$(grep -c '^FAIL' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NW="$(grep -c '^WARN' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NS="$(grep -c '^SKIP' "$RESULT_LOG" 2>/dev/null || echo 0)"
+NP="$(grep -c '^PASS' "$RESULT_LOG" 2>/dev/null)"; NP=${NP:-0}
+NF="$(grep -c '^FAIL' "$RESULT_LOG" 2>/dev/null)"; NF=${NF:-0}
+NW="$(grep -c '^WARN' "$RESULT_LOG" 2>/dev/null)"; NW=${NW:-0}
+NS="$(grep -c '^SKIP' "$RESULT_LOG" 2>/dev/null)"; NS=${NS:-0}
 NTOTAL=$((NP+NF+NW+NS))
 
 echo ""

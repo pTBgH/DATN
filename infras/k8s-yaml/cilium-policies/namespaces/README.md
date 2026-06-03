@@ -1,6 +1,6 @@
 # Per-namespace Cilium policies — Step 2.3.2
 
-Ref: `doc/18-daas-classification.md`.
+Ref: `knowledge-base/18-daas-classification.md`.
 
 ## Layout
 
@@ -67,7 +67,7 @@ bash apply-zta-namespace-policies.sh --all --apply
 ```
 
 > ⚠️ **Phase 2C draft files (17-23) phải được verify với Hubble flow capture
-> (`zta-microseg-step1-flow-capture.sh`) trước khi apply trên live cluster.**
+> (`scripts/legacy/microseg-waves/zta-microseg-step1-flow-capture.sh`) trước khi apply trên live cluster.**
 > Mỗi YAML có khối comment "DRAFT — Phase 2C" ở top + danh sách traffic pattern
 > giả định. Bổ sung allow rule cho bất kỳ flow DROPPED hợp pháp nào trong
 > `~/zta-microseg/<TS>/09-dropped-flows.csv`.

@@ -80,7 +80,7 @@ SERVICE_NAME="${NAMES[$CHOICE]}"
 
 if [ -z "$CLIENT_SECRET" ]; then
     echo -e "${RED}❌ Client secret is empty for ${CLIENT_ID}.${NC}"
-    echo "   Run ./setup-auth.sh to synchronize current secrets from Keycloak,"
+    echo "   Run ./scripts/legacy/setup-auth.sh to synchronize current secrets from Keycloak,"
     echo "   or set KEYCLOAK_*_CLIENT_SECRET env vars before running this script."
     exit 1
 fi

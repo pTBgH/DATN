@@ -14,9 +14,9 @@
 #   --vm (default)  Refuse — no VM-wide teardown equivalent exists by
 #                   design (the 4-VM kubeadm cluster is decommissioned
 #                   one node at a time). Pointer printed:
-#                     doc/migration/scripts/decommission-srv04.sh
+#                     knowledge-base/migration/scripts/decommission-srv04.sh
 #                       — cordon/drain/delete a single worker node
-#                     doc/migration/scripts/99-rollback.sh
+#                     knowledge-base/migration/scripts/99-rollback.sh
 #                       — per-VM rollback (kubeadm reset + cilium uninstall)
 #   --kind          Legacy single-host workflow: actually runs the
 #                   teardown sequence below.
@@ -48,9 +48,9 @@ zta_mode_banner "zta-teardown.sh"
 
 # Refuse to run in VM mode — destructive (would `kind delete cluster`, blow
 # away host data paths, etc.). The 4-VM cluster is decommissioned per-node
-# via doc/migration/scripts/decommission-srv04.sh + 99-rollback.sh; there is
+# via knowledge-base/migration/scripts/decommission-srv04.sh + 99-rollback.sh; there is
 # no equivalent "nuke everything at once" workflow by design.
-zta_require_kind "zta-teardown.sh" "doc/migration/scripts/decommission-srv04.sh"
+zta_require_kind "zta-teardown.sh" "knowledge-base/migration/scripts/decommission-srv04.sh"
 
 SCRIPT_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"

@@ -189,7 +189,7 @@ Reference: Đồ án 1, Mục 2.3.1 (Hoàn thiện khả năng quan sát) / 3.4.
 
 1. Mở \`12-hubble-flow-summary.txt\` để có cái nhìn tổng quan luồng East-West thực tế.
 2. So với \`02-services.txt\` để biết flow nào là **mong muốn** vs **bất ngờ**.
-3. Phân loại các flow bất ngờ theo nguyên tắc DAAS — ghi vào \`doc/18-daas-classification.md\` (sẽ tạo ở PR #8).
+3. Phân loại các flow bất ngờ theo nguyên tắc DAAS — ghi vào \`knowledge-base/18-daas-classification.md\` (sẽ tạo ở PR #8).
 4. Nếu thấy flow lạ ngay từ baseline → ghi nhận và đưa vào kịch bản tấn công (Mục 3.3 thesis).
 
 ## Mapping sang PIP framework

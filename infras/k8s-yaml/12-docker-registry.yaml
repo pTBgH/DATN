@@ -53,7 +53,7 @@ spec:
     spec:
       serviceAccountName: docker-registry
       # Pin to data-tier node so registry PVC (local-path) lands on srv05
-      # alongside vault/mysql/kafka. See doc/migration/transition-srv04-to-srv05.md.
+      # alongside vault/mysql/kafka. See knowledge-base/migration/transition-srv04-to-srv05.md.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

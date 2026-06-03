@@ -21,7 +21,7 @@
 #   bash scripts/zta-deploy-observability-rules.sh
 #   bash scripts/zta-deploy-observability-rules.sh --uninstall
 #
-# Reference: doc/zta-gap-decision.md (Decision 2)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 2)
 # =============================================================================
 set -euo pipefail
 

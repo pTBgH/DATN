@@ -58,4 +58,4 @@ releases:
 
 # Frontend (fe_candidate / fe_recruiter) đã được tách ra khỏi pipeline ZTA.
 # Repo giữ thư mục `frontend/` ở root cho dev cục bộ; KHÔNG build/deploy
-# trong cluster ZTA. Xem doc/cleanup-workspace-plan.md (PR-C).
+# trong cluster ZTA. Xem knowledge-base/cleanup-workspace-plan.md (PR-C).

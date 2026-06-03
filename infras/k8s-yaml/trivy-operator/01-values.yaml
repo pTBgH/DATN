@@ -1,7 +1,7 @@
 # =============================================================================
 # Trivy Operator helm values — minimal CDM scanner for ZTA PoC.
 # Chart: aquasecurity/trivy-operator (helm repo: aquasecurity)
-# Decision: doc/zta-gap-decision.md, Quyết định 1.
+# Decision: knowledge-base/zta-gap-decision.md, Quyết định 1.
 #
 # RAM budget (lab 12 GiB):
 #   - operator         ~120 MiB limit (deploy)
@@ -54,7 +54,7 @@ operator:
   # available dropped below 200 MiB, kube-apiserver lease timed out (5s),
   # and cilium-operator / scheduler / controller-manager / spire-server-0
   # cascaded into CrashLoopBackOff until the scans finished. See
-  # doc/32-deploy-script-troubleshooting.md §7-8 and the operator pre-flight
+  # knowledge-base/32-deploy-script-troubleshooting.md §7-8 and the operator pre-flight
   # check in scripts/zta-deploy-trivy.sh for the full RCA.
   #
   # With limit=1 the operator scans serially: ~30 images × ~60s ≈ 30 min

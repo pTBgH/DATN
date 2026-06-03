@@ -1,7 +1,7 @@
 # Báo cáo rà soát: Knowledge Base ↔ Code ↔ LaTeX
 
 **Repo:** `bpt4/DATN`
-**Phạm vi:** `doc/` (KB) ↔ `scripts/zta-rebuild.sh` + `infras/` + `apps/` ↔ `documents/latex/*.tex`
+**Phạm vi:** `knowledge-base/` (KB) ↔ `scripts/zta-rebuild.sh` + `infras/` + `apps/` ↔ `documents/latex/*.tex`
 **Ngày:** 2026-05-06
 **Người soạn:** Devin (Cognition AI) — theo yêu cầu của Bao
 
@@ -11,7 +11,7 @@
 
 | Hạng mục | Kết quả |
 |---|---|
-| Knowledge base (32 chapter trong `doc/`) | Mô tả nhất quán với code thực tế. Không có chương nào "trống" hoặc mâu thuẫn với pipeline `zta-rebuild.sh`. |
+| Knowledge base (32 chapter trong `knowledge-base/`) | Mô tả nhất quán với code thực tế. Không có chương nào "trống" hoặc mâu thuẫn với pipeline `zta-rebuild.sh`. |
 | `scripts/zta-rebuild.sh` (812 dòng, 16 phase) | Khớp với KB chương 08 (deployment-pipeline) và các chương 14, 15, 24–32 (các module Phase 4). |
 | LaTeX (`documents/latex/`) | **Build OK** — `main.pdf` 113 trang, 4.43 MB. Đã sửa 4 lỗi compile cũ. |
 | Auto-move PDF | **Đã code** — `docker-compose.yml` mới: `cp -f build/main.pdf main.pdf` sau mỗi lần build. |

@@ -90,7 +90,7 @@ data:
         # CronJob output (FireHOL CIDR / URLhaus FQDN feed counts +
         # ConfigMap / CiliumCIDRGroup / coredns-sinkhole patch results)
         # is shipped to ES for audit lineage.  See
-        # doc/zta-gap-decision.md § 0.4.
+        # knowledge-base/zta-gap-decision.md § 0.4.
         - drop_event:
             when:
               not:

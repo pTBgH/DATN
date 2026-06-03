@@ -3,7 +3,7 @@
 #
 # enforcementAction: dryrun  →  AUDIT-ONLY for first rollout. Existing pods
 # without ZTA labels are reported in violations[] but NOT rejected at admission.
-# Switch to "deny" once doc/19 label coverage = 100% (Test 4d PASS for all ns).
+# Switch to "deny" once knowledge-base/19 label coverage = 100% (Test 4d PASS for all ns).
 apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: ZTARequiredLabels
 metadata:

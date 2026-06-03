@@ -208,7 +208,7 @@ spec:
         protocol: TCP
 ---
 # 7b) Kubelet → spire pods (liveness/readiness probes + metrics endpoints).
-#     Observed in baseline flow capture (`doc/35-microseg-flow-baseline.md`):
+#     Observed in baseline flow capture (`knowledge-base/35-microseg-flow-baseline.md`):
 #       - reserved:host → spire:9809  (spire-controller-manager healthz)
 #       - reserved:host → spire:8080  (spire-server healthz)
 #       - reserved:host → spire:8081  (spire-server workload API)

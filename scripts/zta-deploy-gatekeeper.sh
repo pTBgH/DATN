@@ -233,7 +233,7 @@ if [ "$CONSTRAINTS_ONLY" -ne 1 ]; then
   #   replicas=1 / audit.replicas=1
   #     The chart default is replicas=3 which over-allocates on a 4-node Kind.
   #   controllerManager/audit resources
-  #     Sized for the 12 GiB lab VM. See doc/incident-falco-tetragon-ram-overcommit.md.
+  #     Sized for the 12 GiB lab VM. See knowledge-base/incident-falco-tetragon-ram-overcommit.md.
   #   postInstall.labelNamespace.enabled=false / postUpgrade.labelNamespace.enabled=false
   #     The PSA-labelling Job runs `kubectl label ns gatekeeper-system pod-security.*`
   #     and isn't needed in this lab.

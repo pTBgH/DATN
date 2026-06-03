@@ -49,7 +49,7 @@ spec:
         zta.job7189/team: data
     spec:
       # Pin to data-tier node so Kafka StatefulSet's PVCs (local-path) land on srv05.
-      # See doc/migration/transition-srv04-to-srv05.md.
+      # See knowledge-base/migration/transition-srv04-to-srv05.md.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

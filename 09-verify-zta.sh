@@ -371,7 +371,7 @@ else
 fi
 
 # ========================
-# Test 4d: Workload labeling coverage (PR #9 — doc/19-label-schema.md)
+# Test 4d: Workload labeling coverage (PR #9 — knowledge-base/19-label-schema.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -408,7 +408,7 @@ for ns in $LABEL_NAMESPACES; do
 done
 
 # ========================
-# Test 4e: L7 enforcement coverage (PR #10 — doc/20-5w1h-policy-matrix.md)
+# Test 4e: L7 enforcement coverage (PR #10 — knowledge-base/20-5w1h-policy-matrix.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -511,7 +511,7 @@ EOF
 fi
 
 # ========================
-# Test 4f: Adaptive Security Loop (PR #12 — doc/24-adaptive-security-loop.md)
+# Test 4f: Adaptive Security Loop (PR #12 — knowledge-base/24-adaptive-security-loop.md)
 # Covers: OPA Gatekeeper constraints + Tetragon TracingPolicy coverage
 # ========================
 echo ""
@@ -572,7 +572,7 @@ else
 fi
 
 # ========================
-# Test 4g: PDP Controller (Adaptive Loop, PR #15 — doc/25-pdp-controller.md)
+# Test 4g: PDP Controller (Adaptive Loop, PR #15 — knowledge-base/25-pdp-controller.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -620,7 +620,7 @@ else
 fi
 
 # ========================
-# Test 4h: Image Provenance (PR #16 — doc/26-image-provenance.md)
+# Test 4h: Image Provenance (PR #16 — knowledge-base/26-image-provenance.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -650,7 +650,7 @@ if kubectl get k8simagedigestrequired image-digest-required >/dev/null 2>&1; the
   if [ "$DIGEST_VIOLATIONS" -eq 0 ]; then
     result PASS "image-digest-required: 0 violations (all images sha256-pinned)"
   else
-    # Audit-only constraint by design (xem doc/22-image-trust-supply-chain.md):
+    # Audit-only constraint by design (xem knowledge-base/22-image-trust-supply-chain.md):
     # cluster KHÔNG block; chỉ thu thập danh sách image chưa pin digest. Đếm violations
     # cao là expected vì registry baseline + 3rd-party images chưa được re-pin.
     result PASS "image-digest-required: $DIGEST_VIOLATIONS violations (audit mode — INFO, not enforcement)"
@@ -697,7 +697,7 @@ if [ -n "$SAMPLE_DEPLOY" ]; then
 fi
 
 # ========================
-# Test 4i: SPIRE Workload Attestation (PR #17 — doc/27-spire-workload-attestation.md)
+# Test 4i: SPIRE Workload Attestation (PR #17 — knowledge-base/27-spire-workload-attestation.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -767,7 +767,7 @@ if kubectl get ns "$SPIRE_NS" >/dev/null 2>&1; then
       | grep -oE '"[^"]+"' | tr -d '"' || echo "")
   fi
   if [ "$TD" = "zta.job7189" ]; then
-    result PASS "SPIRE trustDomain = 'zta.job7189' (matches doc/27)"
+    result PASS "SPIRE trustDomain = 'zta.job7189' (matches knowledge-base/27)"
   elif [ -n "$TD" ]; then
     result WARN "SPIRE trustDomain mismatch: '$TD' (expected zta.job7189)" \
       "Update infras/k8s-yaml/spire/values.yaml + helm upgrade"
@@ -780,7 +780,7 @@ else
 fi
 
 # ========================
-# Test 4j: sigstore policy-controller (PR #19 — doc/28-sigstore-policy-controller.md)
+# Test 4j: sigstore policy-controller (PR #19 — knowledge-base/28-sigstore-policy-controller.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -855,7 +855,7 @@ else
 fi
 
 # ========================
-# Test 4k: SPIRE Workload Integration (PR #20 — doc/29-spire-workload-integration.md)
+# Test 4k: SPIRE Workload Integration (PR #20 — knowledge-base/29-spire-workload-integration.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -940,7 +940,7 @@ else
 fi
 
 # ========================
-# Test 4l: Hubble flow → Elasticsearch sink (PR #21 — doc/30-hubble-flow-sink.md)
+# Test 4l: Hubble flow → Elasticsearch sink (PR #21 — knowledge-base/30-hubble-flow-sink.md)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1033,7 +1033,7 @@ fi
 
 # ========================
 # Test 4m: CDM (PIP 4) — Trivy Operator vulnerability scanning
-# Decision: doc/zta-gap-decision.md, Quyết định 1.
+# Decision: knowledge-base/zta-gap-decision.md, Quyết định 1.
 # What we check:
 #   - Trivy Operator pod Ready
 #   - VulnerabilityReport CRD is registered
@@ -1088,13 +1088,13 @@ if kubectl get ns security-cdm >/dev/null 2>&1; then
     result WARN "0 ConfigAuditReport CRs yet — Trivy still scanning"
   fi
 else
-  result WARN "Trivy Operator not deployed (CDM gap §2 in doc/33-zta-gap-analysis.md)" \
+  result WARN "Trivy Operator not deployed (CDM gap §2 in knowledge-base/33-zta-gap-analysis.md)" \
     "Run scripts/zta-deploy-trivy.sh"
 fi
 
 
 # ========================
-# Test 4n: Threat Intelligence feeds (PR-K — doc/zta-gap-decision.md, Decision 3)
+# Test 4n: Threat Intelligence feeds (PR-K — knowledge-base/zta-gap-decision.md, Decision 3)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1134,13 +1134,13 @@ if kubectl -n security-cdm get cronjob threat-intel-refresh >/dev/null 2>&1; the
       "kubectl apply -f infras/k8s-yaml/threat-intel/03-ccnp.yaml"
   fi
 else
-  result WARN "Threat Intelligence not deployed (gap §5 in doc/33-zta-gap-analysis.md)" \
+  result WARN "Threat Intelligence not deployed (gap §5 in knowledge-base/33-zta-gap-analysis.md)" \
     "Run scripts/zta-deploy-threat-intel.sh"
 fi
 
 
 # ========================
-# Test 4o: PDP Trust Score with score-bucket (PR-J — doc/zta-gap-decision.md, Decision 1)
+# Test 4o: PDP Trust Score with score-bucket (PR-J — knowledge-base/zta-gap-decision.md, Decision 1)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1201,7 +1201,7 @@ fi
 
 
 # ========================
-# Test 4p: ZTA Observability Rules (PR-L — doc/zta-gap-decision.md, Decision 2)
+# Test 4p: ZTA Observability Rules (PR-L — knowledge-base/zta-gap-decision.md, Decision 2)
 # ========================
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

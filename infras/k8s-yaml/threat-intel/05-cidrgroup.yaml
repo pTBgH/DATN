@@ -16,7 +16,7 @@
 #     (this group) is updated by automation.
 #   - Modern Cilium pattern (CIDR groups GA from 1.14; cluster runs 1.19.4).
 #
-# Reference: doc/zta-gap-decision.md (Decision 3, updated)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 3, updated)
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumCIDRGroup

@@ -3,7 +3,7 @@
 #
 # Data resource consumed by CoreDNS via the `hosts` plugin to enforce
 # the URLhaus FQDN blocklist at DNS query time (Decision 3 pivot in
-# doc/zta-gap-decision.md).
+# knowledge-base/zta-gap-decision.md).
 #
 # Why DNS sinkhole and not Cilium FQDN deny?
 # ------------------------------------------------------------------------

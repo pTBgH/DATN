@@ -61,7 +61,7 @@ N04,monitoring,,kong-gateway.gateway.svc.cluster.local,8100,TCP,DROP,14-gateway.
 # whitelisted on :8200 so workloads can pull dynamic DB credentials
 # directly from the Vault Database Secrets Engine. Tightening this to
 # a per-app allow list (only services that actually consume vault) is
-# tracked for Phase 2D — see doc/38-microseg-conformance-test.md §7.
+# tracked for Phase 2D — see knowledge-base/38-microseg-conformance-test.md §7.
 N05,job7189-apps,,vault.vault.svc.cluster.local,8200,TCP,ALLOW,11-vault.yaml/allow-vault-api-ingress,Apps -> Vault API (dynamic DB creds — intentional)
 # Management ns is NOT in the vault allow list — proper cross-tier deny.
 N06,management,,vault.vault.svc.cluster.local,8200,TCP,DROP,11-vault.yaml/default-deny-vault,Management pod -> Vault API (cross-tier)

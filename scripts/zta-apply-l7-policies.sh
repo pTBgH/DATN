@@ -9,7 +9,7 @@
 #   bash scripts/zta-apply-l7-policies.sh --apply
 #   bash scripts/zta-apply-l7-policies.sh --delete
 #
-# Reference: doc/20-5w1h-policy-matrix.md
+# Reference: knowledge-base/20-5w1h-policy-matrix.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,7 +36,7 @@ esac
 
 echo "============================================================"
 echo " ZTA Step 2.3.4 — L7 Policy Apply  (mode=$MODE)"
-echo " Reference: doc/20-5w1h-policy-matrix.md"
+echo " Reference: knowledge-base/20-5w1h-policy-matrix.md"
 echo "============================================================"
 
 run() {

@@ -5,7 +5,7 @@
 # Dual-mode:
 #   --vm (default)  4-node kubeadm cluster. Containerd on each real node was
 #                   pre-configured to allow HTTP pulls from the in-cluster
-#                   registry by `doc/migration/scripts/phases/host-prep.sh`,
+#                   registry by `knowledge-base/migration/scripts/phases/host-prep.sh`,
 #                   so the Kind-specific `docker exec` rewrite is skipped.
 #   --kind          Legacy single-host. `configure_kind_registry_access`
 #                   writes /etc/containerd/certs.d/<registry>/hosts.toml into
@@ -596,7 +596,7 @@ if is_kind_mode; then
   log_time "0e1. Configure Kind registry access"
 else
   echo "   VM mode — registry access is already configured on each real node by"
-  echo "   doc/migration/scripts/phases/host-prep.sh (/etc/containerd/certs.d/...)."
+  echo "   knowledge-base/migration/scripts/phases/host-prep.sh (/etc/containerd/certs.d/...)."
   echo "   Skipping kind-container containerd rewrite."
   log_time "0e1. Configure VM registry access (no-op)"
 fi

@@ -33,7 +33,7 @@ CHANGELOG.md
 CONTRIBUTING.md
 LICENSE
 docs/
-doc/
+knowledge-base/
 
 # Development & Testing
 tests/

@@ -125,7 +125,7 @@ spec:
         protocol: TCP
 ---
 # 4b) Kubelet → cert-manager pods (liveness/readiness probes).
-#     Observed in baseline flow capture (`doc/35-microseg-flow-baseline.md`):
+#     Observed in baseline flow capture (`knowledge-base/35-microseg-flow-baseline.md`):
 #       - reserved:host → cert-manager:6080  (cainjector healthz)
 #       - reserved:host → cert-manager:9403  (webhook metrics/healthz)
 #       - reserved:host → cert-manager:9402  (controller metrics/healthz)

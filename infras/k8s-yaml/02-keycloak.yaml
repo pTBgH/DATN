@@ -96,8 +96,20 @@ spec:
           value: "false"
         - name: KC_HOSTNAME_STRICT_HTTPS
           value: "false"
-        
-        # Thêm biến này để bật API kiểm tra sức khoẻ của Keycloak
+
+        # ── Hostname config cho split-URL OIDC (PR #19) ──────────────────────
+        # KC_HOSTNAME_URL thay thế KC_HOSTNAME — set full base URL bao gồm
+        # scheme + host (KHÔNG port) → issuer trong JWT = http://auth.job7189.local/...
+        # QUAN TRỌNG: KHÔNG set KC_HOSTNAME cùng lúc với KC_HOSTNAME_URL
+        #   (Keycloak 22.x sẽ refuse khởi động nếu có cả hai)
+        - name: KC_HOSTNAME_URL
+          value: "http://auth.job7189.local"
+        - name: KC_HOSTNAME_ADMIN_URL
+          value: "http://auth.job7189.local"
+        - name: KC_HOSTNAME_STRICT_BACKCHANNEL
+          value: "false"
+
+        # Bật API kiểm tra sức khoẻ của Keycloak
         - name: KC_HEALTH_ENABLED
           value: "true"
         

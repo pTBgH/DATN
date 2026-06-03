@@ -251,11 +251,17 @@ sec_preflight() {
   if [ "${notready:-0}" -eq 0 ]; then pass "Tất cả node ở trạng thái Ready"
   else fail "Có ${notready} node KHÔNG Ready"; fi
 
-  # Tailscale CGNAT nodeIP 100.64.0.0/10
-  if k get nodes -o wide 2>/dev/null | grep -qE '100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.'; then
-    pass "NodeIP nằm trong dải CGNAT 100.64.0.0/10 (Tailscale mesh — đúng snapshot)"
+  # Tailscale CGNAT nodeIP 100.64.0.0/10 (snapshot: tất cả node Tailscale)
+  local ntot ncgnat
+  ntot="$(k get nodes --no-headers 2>/dev/null | count_lines)"
+  ncgnat="$(k get nodes -o wide --no-headers 2>/dev/null | awk '{print $6}' | grep -cE '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')"
+  if [ "${ncgnat:-0}" -ge 1 ]; then
+    pass "NodeIP CGNAT 100.64.0.0/10 (Tailscale): ${ncgnat}/${ntot} node"
+    if [ "${ncgnat:-0}" -lt "${ntot:-0}" ]; then
+      warn "Có $((ntot-ncgnat)) node KHÔNG trên CGNAT (vd srv05 dùng IP LAN 172.16.x)" "snapshot nói toàn bộ Tailscale — ghi chú/chuẩn hóa trong KB"
+    fi
   else
-    warn "Không thấy nodeIP CGNAT 100.64.0.0/10" "snapshot ghi Tailscale CGNAT"
+    warn "Không node nào có IP CGNAT 100.64.0.0/10" "snapshot ghi Tailscale CGNAT"
   fi
 }
 
@@ -267,7 +273,8 @@ sec_namespaces() {
   # ns -> mô tả (theo doc/00 + snapshot 40)
   local core_ns=(job7189-apps gateway security vault data monitoring management)
   local infra_ns=(ingress-nginx cert-manager kube-system local-path-storage)
-  local zta_ns=(spire gatekeeper-system cosign-system trivy-system security-cdm registry)
+  local zta_ns=(spire gatekeeper-system cosign-system trivy-system security-cdm)
+  local optional_ns=(registry)
 
   echo "  Core namespaces (bắt buộc):"
   for ns in "${core_ns[@]}"; do
@@ -282,6 +289,15 @@ sec_namespaces() {
     if ns_exists "$ns"; then pass "namespace/$ns tồn tại"
     else warn "namespace/$ns thiếu" "snapshot ghi (vài cái có thể 0/0 hoặc deferred)"; fi
   done
+  echo "  Optional / deferred namespaces:"
+  for ns in "${optional_ns[@]}"; do
+    if ns_exists "$ns"; then pass "namespace/$ns tồn tại"
+    else note "namespace/$ns không có (optional — không trong snapshot 40; có thể dùng registry ngoài)"; fi
+  done
+  # Orphan ns: có trên cluster nhưng không do manifest nào trong repo tạo.
+  if ns_exists pdp-system; then
+    warn "namespace/pdp-system TỔN TẠI nhưng không có manifest trong repo" "PDP thật ở ns=security — pdp-system có thể là ns mồ côi; kiểm tra: kubectl get all -n pdp-system"
+  fi
 
   # frontend ns: port-mapping doc claims fe-candidate/fe-recruiter trong ns 'frontend',
   # nhưng doc/19 + cleanup-plan nói frontend ĐÃ tách khỏi cluster ZTA.
@@ -622,9 +638,14 @@ sec_data() {
     pass "Kafka workload tồn tại (ns=data)"
   else warn "Kafka thiếu (ns=data)" "doc/00: data tier có Kafka"; fi
 
-  echo "  MinIO (ns=data — storage-service backend):"
-  if res_exists deployment minio data; then pass "deployment/minio tồn tại (ns=data)"
-  else warn "deployment/minio thiếu" "port-map: storage-service → MinIO"; fi
+  echo "  MinIO (storage-service backend — repo: STS ns job7189-infra; label-script: deploy ns data):"
+  local minio_found=""
+  for q in "deployment minio data" "statefulset minio data" "deployment minio job7189-infra" "statefulset minio job7189-infra"; do
+    # shellcheck disable=SC2086
+    set -- $q
+    if res_exists "$1" "$2" "$3"; then pass "MinIO: $1/$2 tồn tại (ns=$3)"; minio_found=1; break; fi
+  done
+  [ -z "$minio_found" ] && warn "Không thấy MinIO (deploy/sts 'minio') ở ns data hay job7189-infra" "snapshot 40 không nhắc MinIO — xác nhận: kubectl get sts,deploy -A | grep -i minio"
 }
 
 # =============================================================================
@@ -800,16 +821,16 @@ sec_gatekeeper() {
   if k get crd constrainttemplates.templates.gatekeeper.sh >/dev/null 2>&1; then
     local ct; ct="$(k get constrainttemplate --no-headers 2>/dev/null | count_lines)"
     pass "ConstraintTemplate count=$ct (snapshot: ZTA 3/3 + image-trust 3/3)"
-    # constraints theo tên
-    for c in image-digest-required block-latest-tag; do
-      if k get constraint -A 2>/dev/null | grep -qi "$c" || k get "$(k api-resources --api-group=constraints.gatekeeper.sh -o name 2>/dev/null | head -1)" 2>/dev/null | grep -qi "$c"; then
-        pass "Constraint '$c' tồn tại (snapshot)"
-      else warn "Không thấy constraint '$c'"; fi
+    # Liệt kê TOÀN BỘ object group constraints.gatekeeper.sh (mỗi constraint là 1 kind riêng).
+    local ckinds allcons
+    ckinds="$(k api-resources --api-group=constraints.gatekeeper.sh -o name 2>/dev/null | paste -sd, -)"
+    allcons="$(k get "${ckinds:-constraints}" -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)"
+    [ -z "$allcons" ] && allcons="$(k get constraints -A --no-headers 2>/dev/null | awk '{print $2}')"
+    note "Constraints hiện có: $(echo "$allcons" | tr '\n' ' ')"
+    for c in image-digest-required block-latest-tag zta-labels-required; do
+      if echo "$allcons" | grep -qx "$c"; then pass "Constraint '$c' tồn tại"
+      else warn "Không thấy constraint '$c'" "có trong repo opa-gatekeeper/ nhưng chưa thấy áp trên cluster"; fi
     done
-    # zta-labels-required (snapshot: 6 violations)
-    if k get constraints -A 2>/dev/null | grep -qi 'zta-labels-required' || k get k8srequiredztalabels 2>/dev/null | grep -qi .; then
-      pass "Constraint zta-labels-required tồn tại (snapshot: 6 violations)"
-    else warn "Không thấy zta-labels-required"; fi
   else
     warn "CRD constrainttemplates không tồn tại"
   fi
@@ -834,9 +855,11 @@ sec_image_provenance() {
     done
   else warn "CRD clusterimagepolicies không tồn tại"; fi
 
-  # Cosign public key secret (snapshot: security/zta-cosign-public-key, 178 bytes)
-  if res_exists secret zta-cosign-public-key security; then pass "secret/zta-cosign-public-key (ns=security) tồn tại"
-  else warn "Không thấy secret zta-cosign-public-key (ns=security)" "snapshot: real PEM 178 bytes"; fi
+  # Cosign public key (repo: ConfigMap security/zta-cosign-public-key — KHÔNG phải Secret;
+  # tạo bởi scripts/zta-cosign-keygen.sh).
+  if res_exists configmap zta-cosign-public-key security; then pass "configmap/zta-cosign-public-key (ns=security) tồn tại"
+  elif res_exists secret zta-cosign-public-key security; then pass "secret/zta-cosign-public-key (ns=security) tồn tại"
+  else warn "Không thấy configmap/secret zta-cosign-public-key (ns=security)" "snapshot: real PEM 178 bytes (zta-cosign-keygen.sh)"; fi
 }
 
 # =============================================================================
@@ -851,9 +874,15 @@ sec_tetragon() {
   else warn "Không thấy Tetragon DaemonSet" "doc/14 + snapshot: block-suspicious-exec deployed"; fi
 
   if k get crd tracingpolicies.cilium.io >/dev/null 2>&1; then
-    local tp; tp="$(k get tracingpolicy --no-headers 2>/dev/null | count_lines)"
-    [ "${tp:-0}" -ge 1 ] && pass "TracingPolicy count=$tp" || warn "Không thấy TracingPolicy"
-    k get tracingpolicy 2>/dev/null | grep -qi 'block-suspicious-exec' && pass "TracingPolicy block-suspicious-exec tồn tại (snapshot)" || warn "Không thấy block-suspicious-exec"
+    local tp tpn
+    tp="$(k get tracingpolicy --no-headers 2>/dev/null | count_lines)"
+    tpn="$(k get tracingpolicynamespaced -A --no-headers 2>/dev/null | count_lines)"
+    if [ "$(( ${tp:-0} + ${tpn:-0} ))" -ge 1 ]; then pass "TracingPolicy=${tp} + TracingPolicyNamespaced=${tpn}"
+    else warn "Không thấy TracingPolicy nào"; fi
+    # block-suspicious-exec là kind TracingPolicyNamespaced (không ra trong `get tracingpolicy`).
+    if { k get tracingpolicy -o name 2>/dev/null; k get tracingpolicynamespaced -A -o name 2>/dev/null; } | grep -qi 'block-suspicious-exec'; then
+      pass "block-suspicious-exec tồn tại (TracingPolicyNamespaced)"
+    else warn "Không thấy block-suspicious-exec"; fi
   else warn "CRD tracingpolicies.cilium.io không tồn tại"; fi
 }
 
@@ -1040,12 +1069,15 @@ sec_kb_consistency() {
   local inc; inc="$(ls "$KB"/incident-*.md 2>/dev/null | count_lines)"
   [ "${inc:-0}" -ge 3 ] && pass "Có $inc incident report (README ghi 3)" || warn "Chỉ có $inc incident report (README ghi 3)"
 
-  # Drift đã biết giữa các chương (in ra để user đối chiếu, không cần cluster)
-  drift "doc/05 (ES 8.x) vs snapshot 40 (ES 7.17.18) — version Elasticsearch lệch."
-  drift "doc/04 (mTLS/WireGuard ĐÃ BẬT) vs snapshot 40 (mesh-auth DISABLED) — encryption lệch."
-  drift "doc/06 (Kind, ~12GB) vs snapshot 40 (multi-VM kubeadm, 32GB) — hạ tầng lệch."
+  # Drift doc-vs-doc đã biết. Cái nào ĐÃ được section live phát hiện (ES/encryption/
+  # frontend/Kind-resource) thì CHỈ in ở chế độ offline để tránh trùng lặp DRIFT WATCH.
   drift "doc/00 + doc/08 (Kind 1CP+3W) vs snapshot 40 (kubeadm srv01..05) — cluster type lệch."
-  drift "Port-mapping doc (ns 'frontend' fe-candidate/fe-recruiter) vs doc/19 (FE tách khỏi cluster) — frontend lệch."
+  if [ "$CLUSTER_OK" -ne 1 ]; then
+    drift "doc/05 (ES 8.x) vs snapshot 40 (ES 7.17.18) — version Elasticsearch lệch."
+    drift "doc/04 (mTLS/WireGuard ĐÃ BẬT) vs snapshot 40 (mesh-auth DISABLED) — encryption lệch."
+    drift "doc/06 (Kind, ~12GB) vs snapshot 40 (multi-VM kubeadm, 32GB) — hạ tầng lệch."
+    drift "Port-mapping doc (ns 'frontend' fe-candidate/fe-recruiter) vs doc/19 (FE tách khỏi cluster) — frontend lệch."
+  fi
   pass "Đã liệt kê các drift doc-vs-doc đã biết (xem mục DRIFT WATCH cuối file)"
 }
 

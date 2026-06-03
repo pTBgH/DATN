@@ -64,7 +64,7 @@ opa:
 #
 # In a production deployment the right answer is to keep authz on and pre-load
 # a `system.authz.allow` rule that whitelists Kong's ServiceAccount JWT. We
-# leave that as future work (doc/36 §7).
+# leave that as future work (knowledge-base/36 §7).
 # ---------------------------------------------------------------------------
 authz:
   enabled: false
@@ -92,7 +92,7 @@ podAnnotations:
   prometheus.io/port: "8181"
   prometheus.io/path: "/metrics"
 
-# 6 ZTA labels (Phase 4 hardening — same schema as PDP, doc/19-label-schema.md).
+# 6 ZTA labels (Phase 4 hardening — same schema as PDP, knowledge-base/19-label-schema.md).
 podLabels:
   zta.job7189/tier: T1
   zta.job7189/role: pdp

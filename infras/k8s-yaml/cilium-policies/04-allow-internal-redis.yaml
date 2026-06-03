@@ -1,7 +1,7 @@
 # =============================================================================
 # Allow intra-namespace Redis traffic in `job7189-apps`.
 #
-# WHY (2026-05-20 incident, doc/incident-vault-tetragon-redis-cascade.md):
+# WHY (2026-05-20 incident, knowledge-base/incident-vault-tetragon-redis-cascade.md):
 # Each Laravel microservice runs an in-namespace Redis pod (cache + queue).
 # After applying the default-deny baseline, Laravel queue workers started
 # failing with `Connection timed out` / `Connection refused` on Redis.
@@ -13,7 +13,7 @@
 #
 # Fix: select Redis destinations by `zta.job7189/role=cache`, which is present
 # on every Redis pod produced by the chart. The role label is also part of the
-# ZTA 5W1H labelling schema (see doc/20-5w1h-policy-matrix.md), so this aligns
+# ZTA 5W1H labelling schema (see knowledge-base/20-5w1h-policy-matrix.md), so this aligns
 # with the rest of the ZTA selectors.
 #
 # Scope:

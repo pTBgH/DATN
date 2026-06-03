@@ -1,5 +1,11 @@
 
 # =============================================================================
+# Archives / build artifacts / backups (cleanup PR — A.2)
+*.zip
+*.tar.gz
+*.bak.*
+*-result.txt
+# =============================================================================
 # Cilium policy dry-run dumps
 *.dryrun.yaml
 .DS_Store

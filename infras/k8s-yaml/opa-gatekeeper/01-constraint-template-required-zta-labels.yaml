@@ -19,7 +19,7 @@ metadata:
   annotations:
     description: >
       Require every Pod (and Pod-managing controller) in scoped namespaces
-      to carry the 6 zta.job7189/* labels defined in doc/19-label-schema.md.
+      to carry the 6 zta.job7189/* labels defined in knowledge-base/19-label-schema.md.
 spec:
   crd:
     spec:
@@ -50,7 +50,7 @@ spec:
         missing := required - provided
         count(missing) > 0
         msg := sprintf(
-          "ZTA labels missing on %v/%v: %v (see doc/19-label-schema.md)",
+          "ZTA labels missing on %v/%v: %v (see knowledge-base/19-label-schema.md)",
           [input.review.object.kind, input.review.object.metadata.name, missing])
       }
 

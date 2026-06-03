@@ -8,7 +8,7 @@
 # assigns realm-roles. ATS business roles (recruiter / rec_ops / sourcer /
 # coordinator / hiring_manager / interviewer / member) now live entirely in
 # Laravel + the `workspace_members` bitmask table — see
-# `doc/36-opa-user-authz.md` for the rationale.
+# `knowledge-base/36-opa-user-authz.md` for the rationale.
 #
 # Test users (password = "dev1234", thesis-demo only — DO NOT use in prod):
 #   admin1     → use the recruiter Keycloak client; Laravel marks them as a
@@ -36,7 +36,7 @@
 #                                                                # exist)
 #
 # Doc:
-#   doc/36-opa-user-authz.md
+#   knowledge-base/36-opa-user-authz.md
 # =============================================================================
 set -euo pipefail
 
@@ -190,7 +190,7 @@ blue " Realm:    $REALM"
 blue " Pod:      $NAMESPACE/$KC_POD"
 blue " Password: \"$TEST_USER_PASSWORD\" (thesis-demo only)"
 blue " Note:     identity comes from the Keycloak client (azp),"
-blue "           not from realm-roles — see doc/36-opa-user-authz.md"
+blue "           not from realm-roles — see knowledge-base/36-opa-user-authz.md"
 blue "=========================================================="
 login_kcadm
 

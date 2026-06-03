@@ -3,7 +3,7 @@
 #
 # Two modes:
 #   vm    (default) — 4-VM cluster bootstrapped via kubeadm + Tailscale.
-#                     See doc/migration/scripts/bootstrap.sh + phases/*.sh.
+#                     See knowledge-base/migration/scripts/bootstrap.sh + phases/*.sh.
 #   kind            — legacy single-host Kind cluster, useful for local dev
 #                     and CI smoke tests. Kept behind a flag/env var so the
 #                     old workflow still works.
@@ -96,7 +96,7 @@ zta_require_kind() {
     return 0
   fi
   local script_name="${1:-${BASH_SOURCE[1]##*/}}"
-  local vm_pointer="${2:-doc/migration/scripts/bootstrap.sh}"
+  local vm_pointer="${2:-knowledge-base/migration/scripts/bootstrap.sh}"
   echo "❌ ${script_name} is a KIND-ONLY script."
   echo
   echo "   Current mode: ZTA_CLUSTER_MODE=${ZTA_CLUSTER_MODE}."

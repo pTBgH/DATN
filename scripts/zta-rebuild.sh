@@ -45,10 +45,10 @@
 #   uptime                                  # 1-min load < 10 recommended
 #   free -m | head -2                       # available RAM > 1.5 GiB
 #   time kubectl get --raw=/readyz          # < 1 s for a healthy cluster
-# See doc/incident-gatekeeper-crd-timeout.md for the 504 CRD-install
-# failure mode, doc/incident-gatekeeper-probe-webhook-stuck.md for the
+# See knowledge-base/incident-gatekeeper-crd-timeout.md for the 504 CRD-install
+# failure mode, knowledge-base/incident-gatekeeper-probe-webhook-stuck.md for the
 # more recent probeWebhook hang that crashed the host VM, and
-# doc/incident-falco-tetragon-ram-overcommit.md for the RAM overcommit
+# knowledge-base/incident-falco-tetragon-ram-overcommit.md for the RAM overcommit
 # incident that motivated the current Tetragon/Gatekeeper resource sizing.
 #
 # Steps 26-27 rollback / retry workflow (module-level, cluster preserved):
@@ -135,8 +135,8 @@ declare -A STEP_TIMEOUTS=(
   # so the orchestrator doesn't kill a script that's genuinely
   # making progress.
   # See:
-  #   doc/incident-gatekeeper-crd-timeout.md           — original 504
-  #   doc/incident-gatekeeper-probe-webhook-stuck.md   — probeWebhook
+  #   knowledge-base/incident-gatekeeper-crd-timeout.md           — original 504
+  #   knowledge-base/incident-gatekeeper-probe-webhook-stuck.md   — probeWebhook
   #     hang AND follow-on CPU-throttle CRD failure (rebuild
   #     20260505_152348: load=66, controller-manager couldn't
   #     generate ztarequiredlabels CRD within 120s).
@@ -194,8 +194,8 @@ STEPS=(
   # caused host RAM overcommit on the 12 GiB lab box (cascading OOMKills:
   # tetragon, metrics-server, cilium-operator, policy-controller-webhook).
   # As of PR-D cleanup (2026-05) the deploy script + helm values are also
-  # deleted from the repo. See doc/incident-falco-tetragon-ram-overcommit.md
-  # + doc/31-falco-deprecated.md for full rationale.
+  # deleted from the repo. See knowledge-base/incident-falco-tetragon-ram-overcommit.md
+  # + knowledge-base/31-falco-deprecated.md for full rationale.
   "26-gatekeeper|Deploy OPA Gatekeeper + ZTA constraints|bash scripts/zta-deploy-gatekeeper.sh"
   "27-pdp|Deploy PDP Controller (adaptive loop)|bash scripts/zta-deploy-pdp.sh"
   "28-trivy|Deploy Trivy Operator (CDM / PIP 4)|bash scripts/zta-deploy-trivy.sh"
@@ -332,7 +332,7 @@ do_preflight() {
     fi
   fi
   if is_vm_mode; then
-    yellow "  VM mode: step 01-cluster auto-skipped (cluster bootstrap lives in doc/migration/scripts/)"
+    yellow "  VM mode: step 01-cluster auto-skipped (cluster bootstrap lives in knowledge-base/migration/scripts/)"
   fi
 }
 

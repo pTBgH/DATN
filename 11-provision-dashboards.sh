@@ -310,5 +310,5 @@ fi
 echo ""
 echo "   📋 Dashboard: Access Grafana → 'ZTA Security Overview'"
 echo "   📋 Alerts:    Check Prometheus → Status → Rules"
-echo "   📋 Full PIP docs: doc/16-pip-data-sources.md"
+echo "   📋 Full PIP docs: knowledge-base/16-pip-data-sources.md"
 echo ""

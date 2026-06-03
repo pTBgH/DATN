@@ -3,7 +3,7 @@
 # CronJob fetches external blocklists (FireHOL Level1 + URLhaus) hourly and
 # stores them in a ConfigMap consumed by CiliumClusterwideNetworkPolicy.
 #
-# Reference: doc/zta-gap-decision.md (Decision 3)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 3)
 # =============================================================================
 apiVersion: v1
 kind: Namespace

@@ -7,7 +7,7 @@
 # blocklist. This policy holds the static intent ("deny anything in the
 # named group"); the group holds the dynamic data.
 #
-# Reference: doc/zta-gap-decision.md (Decision 3)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 3)
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy

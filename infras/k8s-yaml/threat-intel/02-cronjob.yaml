@@ -8,7 +8,7 @@
 # The ConfigMap is consumed by CCNP cnp-threat-intel-egress-deny to block
 # egress to known-bad IPs and domains cluster-wide.
 #
-# Reference: doc/zta-gap-decision.md (Decision 3)
+# Reference: knowledge-base/zta-gap-decision.md (Decision 3)
 # =============================================================================
 apiVersion: batch/v1
 kind: CronJob
@@ -258,7 +258,7 @@ spec:
               # AAAA for any FQDN listed there — cluster-wide DNS sinkhole.
               # Cilium 1.19 does NOT support egressDeny.toFQDNs in its CNP
               # schema, so CoreDNS-side enforcement is the established
-              # workaround. See doc/zta-gap-decision.md (Decision 3 pivot).
+              # workaround. See knowledge-base/zta-gap-decision.md (Decision 3 pivot).
               #
               # We patch the coredns-sinkhole CM, NOT the `coredns` Corefile
               # CM — the CronJob's SA has `patch` on this single ConfigMap

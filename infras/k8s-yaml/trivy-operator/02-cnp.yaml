@@ -1,6 +1,6 @@
 # =============================================================================
 # Cilium policies for namespace `security-cdm` (Trivy Operator + Threat-Intel).
-# Decision: doc/zta-gap-decision.md.
+# Decision: knowledge-base/zta-gap-decision.md.
 #
 # 1) Default-deny: every pod in security-cdm is opt-out by default.
 # 2) DNS egress: required by every workload.

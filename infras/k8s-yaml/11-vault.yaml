@@ -52,7 +52,7 @@ spec:
     spec:
       serviceAccountName: vault-dev
       # Pin to data-tier node alongside vault-prod (transit auto-unseal pair).
-      # See doc/migration/transition-srv04-to-srv05.md.
+      # See knowledge-base/migration/transition-srv04-to-srv05.md.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -210,7 +210,7 @@ spec:
     spec:
       serviceAccountName: vault
       # Pin to data-tier node so vault-prod PVC (local-path) lands on srv05.
-      # See doc/migration/transition-srv04-to-srv05.md.
+      # See knowledge-base/migration/transition-srv04-to-srv05.md.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

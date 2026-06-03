@@ -315,7 +315,7 @@ blue "[5/6] Narrowing webhook scope on resource 'pods' to CREATE-only..."
 # vector on a running pod is ephemeralContainer insertion — but that is
 # defence-in-depth covered by Tetragon TracingPolicy (Step 2.3.4) and the
 # Gatekeeper image-trust ConstraintTemplates (PR #16). Trade-off accepted.
-# See doc/28-sigstore-policy-controller.md §7a for full rationale.
+# See knowledge-base/28-sigstore-policy-controller.md §7a for full rationale.
 WEBHOOK_NAME="policy.sigstore.dev"
 if kubectl get validatingwebhookconfiguration "$WEBHOOK_NAME" >/dev/null 2>&1; then
   # The chart deploys 3 rules under webhooks[0]:

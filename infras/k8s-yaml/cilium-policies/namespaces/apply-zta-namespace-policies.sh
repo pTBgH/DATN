@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # apply-zta-namespace-policies.sh — Step 2.3.2 microperimeter applier
-# Reference: doc/18-daas-classification.md
+# Reference: knowledge-base/18-daas-classification.md
 #
 # Mặc định: DRY-RUN. User phải explicit `--apply` mới apply thật.
 #

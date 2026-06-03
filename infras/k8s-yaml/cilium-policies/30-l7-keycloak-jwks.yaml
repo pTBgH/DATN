@@ -1,6 +1,6 @@
 # =============================================================================
 # PR #10 — L7 enforcement: Keycloak JWKS-only (Kong)
-# Reference: doc/20-5w1h-policy-matrix.md row #8
+# Reference: knowledge-base/20-5w1h-policy-matrix.md row #8
 #
 # Kong-gateway chỉ cần fetch JWKS (public key set) để verify JWT.
 # Block mọi luồng khác từ Kong → Keycloak (Kong không cần OIDC auth flow).

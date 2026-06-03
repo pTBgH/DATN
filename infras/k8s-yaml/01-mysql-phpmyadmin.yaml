@@ -70,7 +70,7 @@ spec:
     spec:
       serviceAccountName: mysql
       # Pin to data-tier node so MySQL PVC (local-path) lands on srv05.
-      # See doc/migration/transition-srv04-to-srv05.md.
+      # See knowledge-base/migration/transition-srv04-to-srv05.md.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

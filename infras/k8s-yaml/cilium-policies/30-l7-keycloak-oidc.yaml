@@ -1,6 +1,6 @@
 # =============================================================================
 # PR #10 — L7 enforcement: Keycloak OIDC
-# Reference: doc/20-5w1h-policy-matrix.md row #7-8
+# Reference: knowledge-base/20-5w1h-policy-matrix.md row #7-8
 #
 # Keycloak admin console (/admin) chỉ accessible từ host (operator); workload
 # chỉ cần realm endpoints (login, token, jwks, userinfo).

@@ -4,7 +4,7 @@
 # KIND-ONLY: this script creates a single-host Kind cluster and is kept
 # behind --kind / ZTA_CLUSTER_MODE=kind so the legacy local-dev workflow
 # still works. Default mode is VM (4-node kubeadm cluster) — in that mode
-# this script refuses to run and points to doc/migration/scripts/bootstrap.sh.
+# this script refuses to run and points to knowledge-base/migration/scripts/bootstrap.sh.
 # See scripts/utils/zta-cluster-mode.sh for the full mode contract.
 set -euo pipefail
 
@@ -21,7 +21,7 @@ eval "$(zta_apply_parsed_args_cmd)"
 zta_mode_banner "01-setup-cluster.sh"
 
 # Refuse to run in VM mode — destructive (would `kind delete cluster`).
-zta_require_kind "01-setup-cluster.sh" "doc/migration/scripts/bootstrap.sh"
+zta_require_kind "01-setup-cluster.sh" "knowledge-base/migration/scripts/bootstrap.sh"
 
 # ==================== TIMING FUNCTIONS ====================
 SCRIPT_START_TIME=$(date +%s)

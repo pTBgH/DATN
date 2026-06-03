@@ -156,8 +156,8 @@ res_exists() { # kind name ns
 }
 ns_exists() { k get ns "$1" -o name >/dev/null 2>&1; }
 
-# Đếm số dòng không rỗng.
-count_lines() { grep -cve '^[[:space:]]*$' 2>/dev/null || echo 0; }
+# Đếm số dòng không rỗng. LUÔN in ra đúng 1 số nguyên (tránh "0\n0").
+count_lines() { awk 'NF{c++} END{print c+0}'; }
 
 # Lấy số replica ready của 1 deployment/sts/ds.
 workload_ready() { # kind name ns
@@ -220,8 +220,8 @@ sec_preflight() {
     return 0
   fi
 
-  if k cluster-info >/dev/null 2>&1 || k get --raw='/readyz' >/dev/null 2>&1; then
-    CLUSTER_OK=1
+  # CLUSTER_OK đã được dò ở shell cha (xem MAIN) vì section chạy trong subshell.
+  if [ "$CLUSTER_OK" -eq 1 ]; then
     pass "Kết nối được API server"
   else
     fail "Không kết nối được API server" "kiểm tra kubeconfig/context; các section cluster sẽ bị SKIP"
@@ -1100,6 +1100,15 @@ echo "  Nguồn KB     : doc/40-snapshot (live), doc/00/03/04/05/06/07/08/19, do
 echo "  Lưu ý        : READ-ONLY. Mỗi section có fallback — lỗi 1 phần KHÔNG dừng script."
 hr2
 
+# Dò kết nối cluster Ở SHELL CHA — vì mỗi section chạy trong subshell `( )`,
+# biến set BÊN TRONG subshell sẽ không truyền ngược ra. Đặt CLUSTER_OK ở đây
+# để mọi section con (fork sau) đều thấy.
+if [ "$STATIC_ONLY" -ne 1 ] && command -v "$KUBECTL" >/dev/null 2>&1; then
+  if k cluster-info >/dev/null 2>&1 || k get --raw='/readyz' >/dev/null 2>&1; then
+    CLUSTER_OK=1
+  fi
+fi
+
 START_EPOCH=$(date +%s)
 for i in "${!SECTION_IDS[@]}"; do
   # --static: chỉ chạy section tĩnh 21,22 (+ preflight 0)
@@ -1113,10 +1122,10 @@ END_EPOCH=$(date +%s)
 # -----------------------------------------------------------------------------
 # SUMMARY
 # -----------------------------------------------------------------------------
-NP="$(grep -c '^PASS' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NF="$(grep -c '^FAIL' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NW="$(grep -c '^WARN' "$RESULT_LOG" 2>/dev/null || echo 0)"
-NS="$(grep -c '^SKIP' "$RESULT_LOG" 2>/dev/null || echo 0)"
+NP="$(grep -c '^PASS' "$RESULT_LOG" 2>/dev/null)"; NP=${NP:-0}
+NF="$(grep -c '^FAIL' "$RESULT_LOG" 2>/dev/null)"; NF=${NF:-0}
+NW="$(grep -c '^WARN' "$RESULT_LOG" 2>/dev/null)"; NW=${NW:-0}
+NS="$(grep -c '^SKIP' "$RESULT_LOG" 2>/dev/null)"; NS=${NS:-0}
 NTOTAL=$((NP+NF+NW+NS))
 
 echo ""

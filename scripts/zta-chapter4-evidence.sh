@@ -23,7 +23,7 @@ set -u
 set -o pipefail
  
 OUT="evidence/chapter4"
-TS="$(date +%Y%m%d_%H%M%S)"
+TS="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"
  
 # Wrapper: log header + tee output ra file riêng từng scenario.

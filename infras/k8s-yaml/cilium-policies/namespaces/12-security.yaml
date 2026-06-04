@@ -238,3 +238,45 @@ spec:
         protocol: TCP
       - port: "443"
         protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-keycloak-ingress-kong-tunnel
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+  # Allow Keycloak to receive traffic from Kong
+  - fromEndpoints:
+    - matchLabels:
+        app: kong-gateway
+        k8s:io.kubernetes.pod.namespace: gateway
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-keycloak-ingress-apps
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+  # Allow backend apps to reach Keycloak for JWKS verification
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+        zta.job7189/role: api
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP

@@ -49,8 +49,6 @@ spec:
         protocol: TCP
 ---
 # 3) Prometheus egress: scrape EVERY pod cluster-wide.
-#    Sử dụng cách Cilium quy ước: cho phép tới mọi endpoint TCP các port phổ biến.
-#    Gắn lại theo serviceAccount=prometheus để chỉ pod prometheus có quyền.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -59,48 +57,47 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      io.cilium.k8s.policy.serviceaccount: prometheus
+      app: prometheus
   egress:
-  # K8s API server (cho service-discovery role:node/pod)
-  - toEntities:
-    - kube-apiserver
-    toPorts:
-    - ports:
-      - port: "443"
-        protocol: TCP
-      - port: "6443"
-        protocol: TCP
-  # Scrape mọi endpoint trong cluster — port phổ biến của exporter
   - toEndpoints:
-    - {}
-    toPorts:
-    - ports:
-      - port: "8080"   # node-exporter, kube-state-metrics, identity etc
-        protocol: TCP
-      - port: "8081"
-        protocol: TCP
-      - port: "9100"   # node-exporter
-        protocol: TCP
-      - port: "9090"   # prometheus
-        protocol: TCP
-      - port: "9092"   # kafka
-        protocol: TCP
-      - port: "9093"
-        protocol: TCP
-      - port: "9200"   # elasticsearch
-        protocol: TCP
-      - port: "5556"   # kafka-jmx-exporter
-        protocol: TCP
-      - port: "9104"   # mysql-exporter
-        protocol: TCP
-      - port: "9121"   # redis-exporter
-        protocol: TCP
-      - port: "9404"   # jvm-exporter
-        protocol: TCP
-      - port: "10250"  # kubelet
-        protocol: TCP
-      - port: "10255"
-        protocol: TCP
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gateway
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: security
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: spire
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cert-manager
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: gatekeeper-system
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cosign-system
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+  - toEntities:
+    - host
+    - remote-node
 ---
 # 4) Prometheus ingress (Grafana scrapes prometheus, oauth2-proxy serves UI)
 apiVersion: cilium.io/v2
@@ -111,7 +108,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      io.cilium.k8s.policy.serviceaccount: prometheus
+      app: prometheus
   ingress:
   - fromEndpoints:
     - matchLabels:
@@ -141,13 +138,13 @@ spec:
   - fromEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: monitoring
-        k8s-app: filebeat
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
         app: kibana
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: monitoring
         app: grafana
+  - fromEntities:
+    - host
+    - remote-node
     toPorts:
     - ports:
       - port: "9200"
@@ -272,11 +269,6 @@ spec:
         protocol: TCP
 ---
 # 9) kube-state-metrics egress: scrape K8s API để expose metric (pods, deploys, ...)
-#    KSM list/watch resources qua kube-apiserver.
-#    Lưu ý: với Kind cluster (control-plane chạy trong container 172.18.0.2),
-#    Cilium KHÔNG gắn identity 'kube-apiserver' cho IP này vì apiserver chạy ở
-#    network namespace của Kind node — phải dùng entities 'host' + 'remote-node'
-#    + CIDR fallback. Kết hợp cả 3 để cover mọi trường hợp.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -285,7 +277,7 @@ metadata:
 spec:
   endpointSelector:
     matchLabels:
-      app: kube-state-metrics
+      app.kubernetes.io/name: kube-state-metrics
   egress:
   - toEntities:
     - kube-apiserver

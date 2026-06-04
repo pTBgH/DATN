@@ -71,7 +71,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
-        ],
+        ],/* 
 
         'slack' => [
             'driver' => 'slack',
@@ -80,7 +80,7 @@ return [
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
             'level' => env('LOG_LEVEL', 'critical'),
             'replace_placeholders' => true,
-        ],
+        ], */
 
         'papertrail' => [
             'driver' => 'monolog',

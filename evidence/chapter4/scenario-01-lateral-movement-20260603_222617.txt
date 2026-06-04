@@ -1,0 +1,55 @@
+==============================================================
+  SCENARIO 01: lateral-movement
+  20260603_222617
+==============================================================
+$ kubectl -n job7189-apps get cnp default-deny-all -o yaml | head -40
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"default-deny-all","namespace":"job7189-apps"},"spec":{"egress":[{"toEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system"}}]}],"endpointSelector":{},"ingress":[{"fromEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system"}}]}]}}
+  creationTimestamp: "2026-05-28T09:49:07Z"
+  generation: 1
+  name: default-deny-all
+  namespace: job7189-apps
+  resourceVersion: "1198981"
+  uid: 009f3e9d-ea4a-4eed-b587-a0f6cfb841e7
+spec:
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+status:
+  conditions:
+  - lastTransitionTime: "2026-05-28T09:49:08Z"
+    message: Policy validation succeeded
+    status: "True"
+    type: Valid
+[exit=0]
+$ kubectl -n job7189-apps get cnp -o name
+ciliumnetworkpolicy.cilium.io/allow-apps-egress-kafka
+ciliumnetworkpolicy.cilium.io/allow-apps-intra-ns-services
+ciliumnetworkpolicy.cilium.io/allow-dns-egress
+ciliumnetworkpolicy.cilium.io/allow-egress-vault-db
+ciliumnetworkpolicy.cilium.io/allow-egress-vault-svc
+ciliumnetworkpolicy.cilium.io/allow-internal-identity
+ciliumnetworkpolicy.cilium.io/allow-internal-job-to-workspace
+ciliumnetworkpolicy.cilium.io/allow-internal-redis
+ciliumnetworkpolicy.cilium.io/allow-job7189-dns-egress
+ciliumnetworkpolicy.cilium.io/allow-kong-ingress
+ciliumnetworkpolicy.cilium.io/default-deny-all
+[exit=0]
+$ kubectl -n job7189-apps run lateral-attacker-20260603_222617   --image=busybox:1.37.0 --restart=Never --rm -i --quiet   --labels='zta.test/role=attacker' --command --   sh -c 'for d in mysql.data:3306 mysql.data:6379 kafka.data:9092 vault.vault:8200; do     echo "--- probe $d"; nc -zvw5 ${d%:*} ${d#*:} 2>&1; done'
+The Pod "lateral-attacker-20260603_222617" is invalid: 
+* metadata.name: Invalid value: "lateral-attacker-20260603_222617": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "lateral-attacker-20260603_222617": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --verdict DROPPED   --from-namespace job7189-apps --output compact 2>/dev/null | head -40
+Jun  3 15:26:49.730 EVENTS LOST: OBSERVER_EVENTS_QUEUE CPU(0) 356 (first: Jun  3 15:26:48.361, last: Jun  3 15:26:48.459)
+[exit=124]

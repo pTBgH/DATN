@@ -1,0 +1,32 @@
+==============================================================
+  SCENARIO 07: cosign-admission
+  20260603-223945
+==============================================================
+$ kubectl get clusterimagepolicy
+NAME                        AGE
+zta-job7189-apps-signed     20d
+zta-keyless-trust-job7189   20d
+zta-system-passthrough      20d
+[exit=0]
+$ kubectl -n cosign-system get pod
+NAME                                         READY   STATUS    RESTARTS       AGE
+policy-controller-webhook-6c487dcfdc-ptqcd   1/1     Running   7 (110m ago)   32h
+[exit=0]
+[manifest] /tmp/unsigned-attacker-6rhIit.yaml
+$ cat /tmp/unsigned-attacker-6rhIit.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-attacker-20260603-223945
+  namespace: job7189-apps
+  labels: { zta.test/role: unsigned }
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: ghcr.io/job7189/identity-service:malicious-tag
+    command: ["sh","-c","sleep 30"]
+[exit=0]
+$ kubectl apply -f /tmp/unsigned-attacker-6rhIit.yaml 2>&1;         kubectl -n job7189-apps delete pod unsigned-attacker-20260603-223945 --ignore-not-found 2>/dev/null
+Error from server (BadRequest): error when creating "/tmp/unsigned-attacker-6rhIit.yaml": admission webhook "policy.sigstore.dev" denied the request: validation failed: invalid value: ghcr.io/job7189/identity-service:malicious-tag must be an image digest: spec.containers[0].image
+[exit=0]

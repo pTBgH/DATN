@@ -1,0 +1,29 @@
+==============================================================
+  SCENARIO 05: opa-context-aware
+  20260603-222854
+==============================================================
+$ kubectl -n job7189-apps run kc-token-20260603-222854     --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --     sh -c 'curl -sS -m 15 -X POST       http://keycloak.security.svc.cluster.local:8080/realms/job7189/protocol/openid-connect/token       -d grant_type=password -d client_id=thesis-e2e       -d username=member1 -d password=dev1234       | head -c 400; echo'
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[0].image
+Warning: index.docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b signature key validation failed for authority zta-cosign-key for index.docker.io/curlimages/curl@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b: no matching signatures: invalid signature when validating ASN.1 encoded signature
+Warning:  invalid signature when validating ASN.1 encoded signature
+curl: (6) Could not resolve host: keycloak.security.svc.cluster.local
+
+[exit=0]
+ 
+[note] Script trên chỉ in 400 byte đầu của response token endpoint.
+Để demo end-to-end (POST /api/jobs → 403), thực hiện thủ công 2 lệnh sau,
+copy access_token vào biến và chạy lệnh thứ 2:
+ 
+  MEM_JWT="<dán access_token>"
+  kubectl -n job7189-apps run mem-attack \
+    --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command -- \
+    curl -sS -m 10 -w '\nHTTP %{http_code}\n' -X POST \
+      http://kong-gateway.gateway.svc.cluster.local/api/jobs \
+      -H "Authorization: Bearer $MEM_JWT" \
+      -H 'Content-Type: application/json' \
+      -d '{"title":"deny-this"}'
+$ echo 'OPA_POD=opa-79d477b6cc-btp2r'
+OPA_POD=opa-79d477b6cc-btp2r
+[exit=0]
+$ kubectl -n security logs opa-79d477b6cc-btp2r --tail=200 2>/dev/null     | grep -E 'allow|decision_id|/v1/data/zta/authz' | tail -8
+[exit=0]

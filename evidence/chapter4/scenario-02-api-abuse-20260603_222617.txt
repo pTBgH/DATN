@@ -1,0 +1,20 @@
+==============================================================
+  SCENARIO 02: api-abuse
+  20260603_222617
+==============================================================
+$ kubectl -n job7189-apps run jwt-probe-20260603_222617   --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --   curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n'     -H 'Authorization: Bearer not-a-real-jwt'     http://kong-gateway.gateway.svc.cluster.local/api/recruiters/profile
+The Pod "jwt-probe-20260603_222617" is invalid: 
+* metadata.name: Invalid value: "jwt-probe-20260603_222617": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+* spec.containers[0].name: Invalid value: "jwt-probe-20260603_222617": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')
+[exit=1]
+$ echo 'JOB_POD=job-service-5d88f67f9d-dwvns'
+JOB_POD=job-service-5d88f67f9d-dwvns
+[exit=0]
+$ kubectl -n job7189-apps exec job-service-5d88f67f9d-dwvns -c app --     curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE     http://workspace-service.job7189-apps.svc.cluster.local/api/v1/internal/workspaces/42
+curl: (28) Resolving timed out after 8001 milliseconds
+HTTP 000
+command terminated with exit code 28
+[exit=28]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --type l7 --namespace job7189-apps   --output compact 2>/dev/null | head -30
+Jun  3 15:26:49.730 EVENTS LOST: OBSERVER_EVENTS_QUEUE CPU(0) 356 (first: Jun  3 15:26:48.361, last: Jun  3 15:26:48.459)
+[exit=0]

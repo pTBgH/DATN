@@ -16,7 +16,7 @@ notify_app() {
   if [ -n "$RELOAD_TOKEN" ]; then
     i=0
     while [ "$i" -lt "$MAX_NOTIFY_RETRIES" ]; do
-      if curl -s -f -m 3 -X POST -H "X-Internal-Token: $RELOAD_TOKEN" "$RELOAD_URL"; then
+      if wget -q -O /dev/null --post-data="" --header="X-Internal-Token: $RELOAD_TOKEN" -T 3 "$RELOAD_URL"; then
         echo "$(date -Is) notify: HTTP reload success"
         return 0
       fi

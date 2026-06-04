@@ -1,0 +1,12 @@
+NAME                              AGE    VALID
+allow-apps-egress-kafka           12d    True
+allow-apps-intra-ns-services      12d    True
+allow-dns-egress                  20d    True
+allow-egress-vault-db             20d    True
+allow-egress-vault-svc            14d    True
+allow-internal-identity           20d    True
+allow-internal-job-to-workspace   20d    True
+allow-internal-redis              14d    True
+allow-job7189-dns-egress          14d    True
+allow-kong-ingress                20d    True
+default-deny-all                  6d5h   True

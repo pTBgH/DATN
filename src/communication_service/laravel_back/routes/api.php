@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Internal\EmailInternalController;
+use App\Http\Middleware\IdentifyUserContext;
+use App\Http\Controllers\ChatController;
 
 // Route nội bộ cho các service khác gọi
 Route::prefix('internal')->group(function () {

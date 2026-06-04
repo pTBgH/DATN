@@ -1,0 +1,28 @@
+==============================================================
+  SCENARIO 07: cosign-admission
+  20260603_222617
+==============================================================
+$ kubectl get clusterimagepolicy
+Error from server: conversion webhook for policy.sigstore.dev/v1alpha1, Kind=ClusterImagePolicy failed: Post "https://webhook.cosign-system.svc:443/resource-conversion?timeout=30s": dial tcp 10.106.25.187:443: connect: no route to host
+[exit=1]
+$ kubectl -n cosign-system get pod
+NAME                                         READY   STATUS    RESTARTS      AGE
+policy-controller-webhook-6c487dcfdc-ptqcd   1/1     Running   7 (97m ago)   32h
+[exit=0]
+[manifest] /tmp/unsigned-attacker-laxblU.yaml
+$ cat /tmp/unsigned-attacker-laxblU.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-attacker-20260603_222617
+  namespace: job7189-apps
+  labels: { zta.test/role: unsigned }
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: ghcr.io/job7189/identity-service:malicious-tag
+    command: ["sh","-c","sleep 30"]
+[exit=0]
+$ kubectl apply -f /tmp/unsigned-attacker-laxblU.yaml 2>&1;         kubectl -n job7189-apps delete pod unsigned-attacker-20260603_222617 --ignore-not-found 2>/dev/null
+[exit=2]

@@ -1,0 +1,22 @@
+==============================================================
+  SCENARIO 02: api-abuse
+  20260603-223945
+==============================================================
+$ kubectl -n job7189-apps run jwt-probe-20260603-223945   --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet --command --   curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n'     -H 'Authorization: Bearer not-a-real-jwt'     http://kong-gateway.gateway.svc.cluster.local/api/recruiters/profile
+Warning: failed policy: zta-job7189-apps-signed: spec.containers[0].image
+Warning: index.docker.io/curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b signature key validation failed for authority zta-cosign-key for index.docker.io/curlimages/curl@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b: no matching signatures: invalid signature when validating ASN.1 encoded signature
+Warning:  invalid signature when validating ASN.1 encoded signature
+HTTP 000
+curl: (6) Could not resolve host: kong-gateway.gateway.svc.cluster.local
+pod job7189-apps/jwt-probe-20260603-223945 terminated (Error)
+[exit=6]
+$ echo 'JOB_POD=job-service-5d88f67f9d-dwvns'
+JOB_POD=job-service-5d88f67f9d-dwvns
+[exit=0]
+$ kubectl -n job7189-apps exec job-service-5d88f67f9d-dwvns -c app --     curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' -X DELETE     http://workspace-service.job7189-apps.svc.cluster.local/api/v1/internal/workspaces/42
+curl: (28) Resolving timed out after 8001 milliseconds
+HTTP 000
+command terminated with exit code 28
+[exit=28]
+$ kubectl -n kube-system exec cilium-55727 -c cilium-agent --   hubble observe --since 2m --type l7 --namespace job7189-apps   --output compact 2>/dev/null | head -30
+[exit=0]

@@ -196,3 +196,70 @@ spec:
         protocol: TCP
       - port: "8001"
         protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-proxy-ingress-tunnel
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  ingress:
+  # Allow traffic from host network (kubectl port-forward / cloudflared)
+  - fromEntities:
+    - host
+    - remote-node
+    - world
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "8443"
+        protocol: TCP
+      - port: "8001"
+        protocol: TCP
+      - port: "8444"
+        protocol: TCP
+  # Allow traffic from ingress-nginx (if needed)
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "8443"
+        protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kong-egress-keycloak-tunnel
+  namespace: gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kong-gateway
+  egress:
+  # Allow Kong to reach Keycloak in security namespace
+  - toEndpoints:
+    - matchLabels:
+        app: keycloak
+        k8s:io.kubernetes.pod.namespace: security
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  # Allow Kong to resolve DNS
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: ANY

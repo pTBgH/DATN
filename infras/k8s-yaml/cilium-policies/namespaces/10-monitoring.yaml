@@ -1,0 +1,22 @@
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kibana-ingress
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app: kibana
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
+    - matchLabels:
+        app: oauth2-proxy
+        k8s:io.kubernetes.pod.namespace: security
+    toPorts:
+    - ports:
+      - port: "5601"
+        protocol: TCP

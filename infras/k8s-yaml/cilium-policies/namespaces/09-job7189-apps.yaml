@@ -1,0 +1,54 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-apps
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "9000"
+        protocol: TCP
+      - port: "6379"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-external-smtp
+  namespace: job7189-apps
+spec:
+  endpointSelector: {}
+  egress:
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "587"
+        protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apps-egress-keycloak
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      zta.job7189/role: api
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: keycloak
+        k8s:io.kubernetes.pod.namespace: security
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP

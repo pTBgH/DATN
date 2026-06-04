@@ -1,0 +1,11 @@
+==============================================================
+  SCENARIO 05: opa-context-aware
+  20260603-223945
+==============================================================
+[skip] Không có KEYCLOAK_MEMBER_PASS — bỏ qua scenario 5.
+       Re-run với: KEYCLOAK_MEMBER_PASS='...' bash scripts/zta-chapter4-evidence.sh
+$ echo 'OPA_POD=opa-79d477b6cc-btp2r'
+OPA_POD=opa-79d477b6cc-btp2r
+[exit=0]
+$ kubectl -n security logs opa-79d477b6cc-btp2r --tail=200 2>/dev/null     | grep -E 'allow|decision_id|/v1/data/zta/authz' | tail -8
+[exit=0]

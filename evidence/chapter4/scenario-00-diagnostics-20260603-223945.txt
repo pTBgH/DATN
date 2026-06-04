@@ -1,0 +1,217 @@
+==============================================================
+  SCENARIO 00: diagnostics
+  20260603-223945
+==============================================================
+$ kubectl version --short || kubectl version
+error: unknown flag: --short
+See 'kubectl version --help' for usage.
+Client Version: v1.30.0
+Kustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3
+Server Version: v1.30.0
+[exit=0]
+$ kubectl get nodes -o wide
+NAME        STATUS   ROLES           AGE   VERSION    INTERNAL-IP       EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
+7189srv01   Ready    control-plane   22d   v1.30.0    100.114.68.15     <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv02   Ready    <none>          22d   v1.30.0    100.108.231.127   <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv03   Ready    <none>          22d   v1.30.0    100.112.57.2      <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv05   Ready    <none>          21d   v1.30.14   172.16.82.128     <none>        Ubuntu 24.04.4 LTS             6.8.0-124-generic     containerd://2.2.3
+[exit=0]
+$ kubectl get ns
+NAME                 STATUS   AGE
+cert-manager         Active   22d
+cilium-secrets       Active   22d
+cosign-system        Active   20d
+data                 Active   21d
+default              Active   22d
+gatekeeper-system    Active   20d
+gateway              Active   21d
+ingress-nginx        Active   22d
+job7189-apps         Active   21d
+kube-node-lease      Active   22d
+kube-public          Active   22d
+kube-system          Active   22d
+local-path-storage   Active   22d
+management           Active   21d
+monitoring           Active   21d
+pdp-system           Active   20d
+security             Active   21d
+security-cdm         Active   9d
+spire                Active   20d
+trivy-system         Active   20d
+vault                Active   21d
+[exit=0]
+$ kubectl get cnp -A
+NAMESPACE            NAME                                        AGE     VALID
+cert-manager         allow-cert-manager-egress-apiserver         11d     True
+cert-manager         allow-cert-manager-probe-ingress            11d     True
+cert-manager         allow-cert-manager-webhook-ingress          11d     True
+cert-manager         allow-dns-egress-cert-manager               11d     True
+cert-manager         allow-prometheus-scrape-cert-manager        11d     True
+cert-manager         default-deny-cert-manager                   11d     True
+cosign-system        allow-cosign-egress-apiserver               11d     True
+cosign-system        allow-cosign-egress-registry                11d     True
+cosign-system        allow-cosign-egress-sigstore-public         11d     True
+cosign-system        allow-cosign-webhook-ingress                11d     True
+cosign-system        allow-dns-egress-cosign-system              11d     True
+cosign-system        allow-prometheus-scrape-cosign-system       11d     True
+cosign-system        default-deny-cosign-system                  11d     True
+data                 allow-dns-egress-data                       12d     True
+data                 allow-kafka-from-apps                       12d     True
+data                 allow-mysql-from-apps                       3d12h   True
+data                 allow-mysql-from-keycloak                   12d     True
+data                 allow-mysql-from-phpmyadmin                 12d     True
+data                 allow-mysql-from-vault                      12d     True
+data                 allow-prometheus-scrape-data                12d     True
+gatekeeper-system    allow-dns-egress-gatekeeper-system          11d     True
+gatekeeper-system    allow-gatekeeper-egress-apiserver           11d     True
+gatekeeper-system    allow-gatekeeper-probe-ingress              11d     True
+gatekeeper-system    allow-gatekeeper-webhook-ingress            11d     True
+gatekeeper-system    allow-prometheus-scrape-gatekeeper-system   11d     True
+gatekeeper-system    default-deny-gatekeeper-system              11d     True
+gateway              allow-dns-egress-gateway                    17d     True
+gateway              allow-kong-egress-apps                      17d     True
+gateway              allow-kong-egress-keycloak                  17d     True
+gateway              allow-kong-egress-management                17d     True
+gateway              allow-kong-egress-opa                       17d     True
+gateway              allow-kong-proxy-ingress                    17d     True
+gateway              allow-prometheus-scrape-gateway             17d     True
+gateway              default-deny-gateway                        17d     True
+gateway              l7-kong-admin-readonly                      20d     True
+ingress-nginx        allow-dns-egress-ingress-nginx              11d     True
+ingress-nginx        allow-ingress-nginx-egress-apiserver        11d     True
+ingress-nginx        allow-ingress-nginx-egress-upstreams        11d     True
+ingress-nginx        allow-ingress-nginx-health-metrics          11d     True
+ingress-nginx        allow-ingress-nginx-public                  11d     True
+ingress-nginx        allow-ingress-nginx-webhook                 11d     True
+ingress-nginx        default-deny-ingress-nginx                  11d     True
+job7189-apps         allow-apps-egress-kafka                     12d     True
+job7189-apps         allow-apps-intra-ns-services                12d     True
+job7189-apps         allow-dns-egress                            20d     True
+job7189-apps         allow-egress-vault-db                       20d     True
+job7189-apps         allow-egress-vault-svc                      14d     True
+job7189-apps         allow-internal-identity                     20d     True
+job7189-apps         allow-internal-job-to-workspace             20d     True
+job7189-apps         allow-internal-redis                        14d     True
+job7189-apps         allow-job7189-dns-egress                    14d     True
+job7189-apps         allow-kong-ingress                          20d     True
+job7189-apps         default-deny-all                            6d5h    True
+local-path-storage   allow-dns-egress-local-path-storage         12d     True
+local-path-storage   allow-local-path-egress-apiserver           12d     True
+local-path-storage   default-deny-local-path-storage             12d     True
+monitoring           l7-prom-scrape-kube-state-metrics           20d     True
+monitoring           l7-prom-scrape-node-exporter                20d     True
+security-cdm         allow-threat-intel-egress                   7d23h   True
+security             allow-dns-egress-security                   17d     True
+security             allow-keycloak-egress-mysql                 17d     True
+security             allow-keycloak-ingress                      17d     True
+security             allow-kong-ingress-opa                      17d     True
+security             allow-oauth2-proxy-egress                   17d     True
+security             allow-oauth2-proxy-ingress                  17d     True
+security             allow-opa-egress-apiserver                  17d     True
+security             allow-pdp-controller-egress                 20d     True
+security             allow-prometheus-scrape-security            17d     True
+security             default-deny-security                       17d     True
+security             l7-keycloak-jwks-from-kong                  20d     True
+security             l7-keycloak-oidc-allowlist                  20d     True
+spire                allow-dns-egress-spire                      11d     True
+spire                allow-prometheus-scrape-spire               11d     True
+spire                allow-spire-agent-egress-apiserver          11d     True
+spire                allow-spire-agent-egress-server             11d     True
+spire                allow-spire-controller-egress-apiserver     11d     True
+spire                allow-spire-probe-ingress                   11d     True
+spire                allow-spire-server-ingress                  11d     True
+spire                allow-spire-webhook-ingress                 11d     True
+spire                default-deny-spire                          11d     True
+trivy-system         allow-dns-egress-trivy-system               12d     True
+trivy-system         allow-prometheus-scrape-trivy-system        12d     True
+trivy-system         allow-trivy-operator-egress-apiserver       12d     True
+trivy-system         allow-trivy-scan-egress                     12d     True
+trivy-system         default-deny-trivy-system                   12d     True
+vault                allow-dns-egress-vault                      10d     True
+vault                allow-prometheus-scrape-vault               10d     True
+vault                allow-vault-api-ingress                     10d     True
+vault                allow-vault-cluster-peer                    10d     True
+vault                allow-vault-egress-apiserver                10d     True
+vault                allow-vault-egress-mysql                    10d     True
+vault                allow-vault-egress-vaultdev                 10d     True
+vault                allow-vault-injector-egress-apiserver       10d     True
+vault                allow-vaultdev-ingress                      10d     True
+vault                default-deny-vault                          10d     True
+[exit=0]
+$ kubectl get ccnp
+NAME                           VALID
+cnp-threat-intel-egress-deny   True
+[exit=0]
+$ kubectl get ciliumcidrgroup
+NAME                   AGE
+threat-intel-firehol   7d23h
+[exit=0]
+$ kubectl get tracingpolicy,tracingpolicynamespaced -A
+NAME                                                 AGE
+tracingpolicy.cilium.io/monitor-kernel-module-load   10d
+
+NAMESPACE      NAME                                                        AGE
+data           tracingpolicynamespaced.cilium.io/block-suspicious-exec     10d
+job7189-apps   tracingpolicynamespaced.cilium.io/block-suspicious-exec     10d
+job7189-apps   tracingpolicynamespaced.cilium.io/monitor-sensitive-files   10d
+security       tracingpolicynamespaced.cilium.io/block-suspicious-exec     10d
+vault          tracingpolicynamespaced.cilium.io/block-suspicious-exec     10d
+[exit=0]
+$ kubectl get clusterimagepolicy
+NAME                        AGE
+zta-job7189-apps-signed     20d
+zta-keyless-trust-job7189   20d
+zta-system-passthrough      20d
+[exit=0]
+$ kubectl get clusterspiffeid 2>/dev/null
+NAME                                  AGE
+spire-spire-default                   20d
+spire-spire-oidc-discovery-provider   20d
+spire-spire-spike-bootstrap           20d
+spire-spire-spike-keeper              20d
+spire-spire-spike-nexus               20d
+spire-spire-spike-pilot               20d
+spire-spire-test-keys                 20d
+zta-default-workload-identity         20d
+zta-tier1-extended-ttl                20d
+zta-tier3-short-ttl                   20d
+[exit=0]
+$ kubectl -n job7189-apps get pod -o wide
+NAME                                           READY   STATUS    RESTARTS   AGE     IP             NODE        NOMINATED NODE   READINESS GATES
+candidate-service-757f4d5bf6-sn5kf             4/4     Running   0          101m    10.244.1.80    7189srv02   <none>           <none>
+candidate-service-redis-66894cc865-pn5nz       1/1     Running   0          101m    10.244.4.57    7189srv05   <none>           <none>
+communication-service-577476f5c5-7r2fp         4/4     Running   0          101m    10.244.1.155   7189srv02   <none>           <none>
+communication-service-redis-56b455d444-kbnb7   1/1     Running   0          101m    10.244.4.105   7189srv05   <none>           <none>
+hiring-service-9f76fcd5-t98x5                  4/4     Running   0          100m    10.244.2.243   7189srv03   <none>           <none>
+hiring-service-redis-79d7899cc6-955z2          1/1     Running   0          101m    10.244.4.216   7189srv05   <none>           <none>
+identity-service-67887999d5-pmlsg              4/4     Running   0          102m    10.244.1.2     7189srv02   <none>           <none>
+identity-service-redis-795c8dfb48-wsc68        1/1     Running   0          102m    10.244.1.127   7189srv02   <none>           <none>
+job-service-5d88f67f9d-dwvns                   4/4     Running   0          102m    10.244.1.151   7189srv02   <none>           <none>
+job-service-redis-5f776497c8-zwvbq             1/1     Running   0          102m    10.244.1.111   7189srv02   <none>           <none>
+jwt-probe-20260603-222854                      0/1     Error     0          9m47s   10.244.4.83    7189srv05   <none>           <none>
+lateral-attacker-20260603-222854               0/1     Error     0          10m     10.244.4.196   7189srv05   <none>           <none>
+storage-service-6c86f88998-x58r8               4/4     Running   0          100m    10.244.2.24    7189srv03   <none>           <none>
+storage-service-redis-7545b79f4d-jw4v9         1/1     Running   0          101m    10.244.4.99    7189srv05   <none>           <none>
+workspace-service-d97f54fc5-f2lm8              4/4     Running   0          100m    10.244.1.108   7189srv02   <none>           <none>
+workspace-service-redis-7db5df86b5-5d2mg       1/1     Running   0          101m    10.244.2.222   7189srv03   <none>           <none>
+[exit=0]
+$ kubectl -n security get pod -o wide
+NAME                            READY   STATUS    RESTARTS        AGE    IP             NODE        NOMINATED NODE   READINESS GATES
+curl-check                      0/1     Error     0               36h    <none>         7189srv02   <none>           <none>
+keycloak-5df84dbdd8-n9pc7       0/1     Running   1 (9m55s ago)   105m   10.244.2.66    7189srv03   <none>           <none>
+oauth2-proxy-598b7df9b5-tv7qc   1/1     Running   2 (112m ago)    35h    10.244.2.23    7189srv03   <none>           <none>
+opa-79d477b6cc-btp2r            2/2     Running   6 (112m ago)    2d5h   10.244.2.21    7189srv03   <none>           <none>
+zta-pdp-5bc48b78bd-42trj        1/1     Running   20 (112m ago)   2d5h   10.244.1.173   7189srv02   <none>           <none>
+[exit=0]
+$ kubectl -n vault get pod -o wide
+NAME                                          READY   STATUS    RESTARTS       AGE    IP             NODE        NOMINATED NODE   READINESS GATES
+vault-0                                       1/1     Running   0              105m   10.244.4.111   7189srv05   <none>           <none>
+vault-agent-agent-injector-7c58879f5c-kr2zm   1/1     Running   2 (111m ago)   32h    10.244.4.109   7189srv05   <none>           <none>
+vault-dev-7d4444cc49-gc687                    1/1     Running   2 (111m ago)   32h    10.244.4.176   7189srv05   <none>           <none>
+[exit=0]
+$ kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.mesh-auth-enabled}'; echo
+false
+[exit=0]
+$ kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.enable-wireguard}'; echo
+
+[exit=0]

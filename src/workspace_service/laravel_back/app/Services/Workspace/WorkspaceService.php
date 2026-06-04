@@ -149,19 +149,25 @@ class WorkspaceService
 
     public function getWorkspacesFor(Authenticatable $recruiter): Collection
     {
-        $workspaces = $recruiter->workspaces()->get();
+        $recruiterId = $recruiter->internal_id ?? $recruiter->getAuthIdentifier();
+        
+        $workspaces = Workspace::join('workspace_members', 'workspaces.WorkspaceID', '=', 'workspace_members.WorkspaceID')
+            ->where('workspace_members.RecruiterID', $recruiterId)
+            ->select('workspaces.*', 'workspace_members.workspace_permissions', 'workspace_members.job_permissions', 'workspace_members.candidate_permissions', 'workspace_members.pipeline_permissions', 'workspace_members.status_id')
+            ->get();
 
         if ($workspaces->isEmpty()) return $workspaces;
 
         $workspaces->each(function (Workspace $workspace) {
-            $pivot = $workspace->pivot;
             $workspace->permissions = [
-                'workspace' => (int) $pivot->workspace_permissions,
-                'job'       => (int) $pivot->job_permissions,
-                'candidate' => (int) $pivot->candidate_permissions,
-                'pipeline'  => (int) $pivot->pipeline_permissions,
+                'workspace' => (int) $workspace->workspace_permissions,
+                'job'       => (int) $workspace->job_permissions,
+                'candidate' => (int) $workspace->candidate_permissions,
+                'pipeline'  => (int) $workspace->pipeline_permissions,
             ];
-            $workspace->member_status = (int) $pivot->status_id;
+            $workspace->member_status = (int) $workspace->status_id;
+            
+            unset($workspace->workspace_permissions, $workspace->job_permissions, $workspace->candidate_permissions, $workspace->pipeline_permissions, $workspace->status_id);
         });
 
         return $workspaces;

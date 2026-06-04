@@ -50,6 +50,23 @@ export async function passwordGrant(
   username: string,
   password: string,
 ): Promise<LoginResult> {
+  // Mock mode: bypass Keycloak and use localStorage
+  if (config.useMock) {
+    // Mock user roles: admin for "admin", recruiter for anything else
+    const roles = username === "admin" ? ["admin"] : ["recruiter"];
+    const role: MockRole = roles.includes("admin") ? "admin" : "recruiter";
+    const email = `${username}@job7189.local`;
+
+    // Store token and auth state
+    window.localStorage.setItem(TOKEN_KEY, `mock-${role}-${Date.now()}`);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, email }));
+
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    return { role, email, roles };
+  }
+
   const base = config.keycloak.baseUrl.replace(/\/$/, "");
   const url = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/token`;
 

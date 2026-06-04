@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClientError } from "@/lib/api/client";
 import { TOKEN_KEY } from "@/lib/auth/mock";
@@ -9,6 +9,7 @@ export interface FetchState<T> {
   data: T | null;
   loading: boolean;
   error: string | null;
+  refetch?: () => Promise<void>;
 }
 
 /**
@@ -20,17 +21,16 @@ export interface FetchState<T> {
 export function useAuthedFetch<T>(
   fetcher: () => Promise<T>,
   deps: React.DependencyList,
-): FetchState<T> {
+): FetchState<T> & { refetch: () => Promise<void> } {
   const router = useRouter();
+  const cancelledRef = useRef(false);
   const [state, setState] = useState<FetchState<T>>({
     data: null,
     loading: true,
     error: null,
   });
 
-  useEffect(() => {
-    let cancelled = false;
-
+  const performFetch = async (): Promise<void> => {
     const token =
       typeof window !== "undefined"
         ? window.localStorage.getItem(TOKEN_KEY)
@@ -44,30 +44,36 @@ export function useAuthedFetch<T>(
 
     setState((s) => ({ ...s, loading: true, error: null }));
 
-    fetcher()
-      .then((data) => {
-        if (!cancelled) setState({ data, loading: false, error: null });
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        if (e instanceof ApiClientError && e.status === 401) {
-          const cb =
-            typeof window !== "undefined" ? window.location.pathname : "/";
-          router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
-          return;
-        }
-        setState({
-          data: null,
-          loading: false,
-          error: e instanceof Error ? e.message : "Có lỗi xảy ra",
-        });
+    try {
+      const data = await fetcher();
+      if (!cancelledRef.current) setState({ data, loading: false, error: null });
+    } catch (e: unknown) {
+      if (cancelledRef.current) return;
+      if (e instanceof ApiClientError && e.status === 401) {
+        const cb =
+          typeof window !== "undefined" ? window.location.pathname : "/";
+        router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
+        return;
+      }
+      setState({
+        data: null,
+        loading: false,
+        error: e instanceof Error ? e.message : "Có lỗi xảy ra",
       });
+    }
+  };
 
+  useEffect(() => {
+    cancelledRef.current = false;
+    performFetch();
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return state;
+  return {
+    ...state,
+    refetch: performFetch,
+  };
 }

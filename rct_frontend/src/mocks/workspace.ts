@@ -37,7 +37,7 @@ export const mockWorkspaceMinimal: WorkspaceMinimal[] = [
   },
 ];
 
-export const mockMyWorkspaces: WorkspaceResource[] = [
+export let mockMyWorkspaces: WorkspaceResource[] = [
   {
     id: "ws_01HZA1QXYZ8KFNT9R0G2D4WJP3",
     name: "Acme Corp",
@@ -67,6 +67,14 @@ export const mockMyWorkspaces: WorkspaceResource[] = [
     usage: 1,
   },
 ];
+
+/**
+ * Add a new workspace to the mock data
+ * Utility function for mock mode when creating workspaces
+ */
+export function addMockWorkspace(workspace: WorkspaceResource): void {
+  mockMyWorkspaces = [...mockMyWorkspaces, workspace];
+}
 
 export const mockCompanyOptions: CompanyOptionsResponse = {
   sizes: [

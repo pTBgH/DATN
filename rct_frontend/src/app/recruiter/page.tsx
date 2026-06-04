@@ -1,15 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { workspaceApi } from "@/lib/api";
 import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { CreateWorkspaceModal } from "@/components/CreateWorkspaceModal";
 import { useAuthedFetch } from "@/lib/auth/guard";
 import { PageLoading, PageError } from "@/components/PageState";
+import type { WorkspaceResource } from "@/types/workspace";
 
 export default function RecruiterHomePage() {
-  const { data: workspaces, loading, error } = useAuthedFetch(
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const { data: workspaces, loading, error, refetch } = useAuthedFetch(
     () => workspaceApi.getMyWorkspaces(),
     [],
   );
@@ -19,6 +24,12 @@ export default function RecruiterHomePage() {
 
   const list = workspaces ?? [];
 
+  const handleCreateSuccess = async (newWorkspace: WorkspaceResource) => {
+    await refetch();
+  };
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -26,7 +37,7 @@ export default function RecruiterHomePage() {
           <h1 className="text-3xl font-bold text-slate-900">Workspace Của Tôi</h1>
           <p className="mt-1 text-slate-600">Quản lý các workspace tuyển dụng của công ty</p>
         </div>
-        <Button variant="primary" size="lg">
+        <Button variant="primary" size="lg" onClick={() => setIsModalOpen(true)}>
           + Tạo Workspace
         </Button>
       </div>
@@ -112,6 +123,12 @@ export default function RecruiterHomePage() {
           </div>
         </div>
       </Card>
+
+      <CreateWorkspaceModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }

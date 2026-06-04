@@ -71,29 +71,39 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     body = JSON.stringify(opts.body);
   }
 
-  const res = await fetch(buildUrl(path, opts.query), {
-    ...opts,
-    headers,
-    body,
-  });
+  try {
+    const res = await fetch(buildUrl(path, opts.query), {
+      ...opts,
+      headers,
+      body,
+    });
 
-  if (res.status === 204) {
-    return undefined as T;
+    if (res.status === 204) {
+      return undefined as T;
+    }
+
+    const text = await res.text();
+    const parsed = text ? safeJson(text) : null;
+
+    if (!res.ok) {
+      const err: ApiError =
+        typeof parsed === "object" && parsed !== null
+          ? (parsed as ApiError)
+          : { message: `HTTP ${res.status}` };
+      err.status = res.status;
+      throw new ApiClientError(err);
+    }
+
+    return parsed as T;
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      throw error;
+    }
+    throw new ApiClientError({
+      message: error instanceof Error ? error.message : "Lỗi kết nối API",
+      status: 0,
+    });
   }
-
-  const text = await res.text();
-  const parsed = text ? safeJson(text) : null;
-
-  if (!res.ok) {
-    const err: ApiError =
-      typeof parsed === "object" && parsed !== null
-        ? (parsed as ApiError)
-        : { message: `HTTP ${res.status}` };
-    err.status = res.status;
-    throw new ApiClientError(err);
-  }
-
-  return parsed as T;
 }
 
 function safeJson(text: string): unknown {

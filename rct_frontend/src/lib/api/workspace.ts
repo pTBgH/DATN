@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import { mockCompanyOptions, mockMyWorkspaces } from "@/mocks/workspace";
+import { mockCompanyOptions, mockMyWorkspaces, addMockWorkspace } from "@/mocks/workspace";
 import type {
   CompanyOptionsResponse,
   CreateWorkspaceInput,
@@ -19,12 +19,27 @@ export async function createWorkspace(
   input: CreateWorkspaceInput,
 ): Promise<WorkspaceResource> {
   if (config.useMock) {
-    return Promise.resolve({
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const newWorkspace: WorkspaceResource = {
       ...mockMyWorkspaces[0],
       id: `ws_mock_${Date.now()}`,
       name: input.name,
       email: input.email,
-    });
+      location: input.location || null,
+      active_jobs: 0,
+      views: 0,
+      applications: 0,
+      apply_rate: 0,
+      plan: "Free",
+      usage: 0,
+    };
+    
+    // Add to mock data so getMyWorkspaces returns the new workspace
+    addMockWorkspace(newWorkspace);
+    
+    return Promise.resolve(newWorkspace);
   }
   return apiFetch<WorkspaceResource>("/api/workspaces", {
     method: "POST",

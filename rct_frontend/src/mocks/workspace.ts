@@ -37,7 +37,9 @@ export const mockWorkspaceMinimal: WorkspaceMinimal[] = [
   },
 ];
 
-export const mockMyWorkspaces: WorkspaceResource[] = [
+const MOCK_WORKSPACES_KEY = "job7189_mock_workspaces";
+
+const DEFAULT_WORKSPACES: WorkspaceResource[] = [
   {
     id: "ws_01HZA1QXYZ8KFNT9R0G2D4WJP3",
     name: "Acme Corp",
@@ -67,6 +69,44 @@ export const mockMyWorkspaces: WorkspaceResource[] = [
     usage: 1,
   },
 ];
+
+/**
+ * Get workspaces from sessionStorage or return defaults
+ */
+function getStoredWorkspaces(): WorkspaceResource[] {
+  try {
+    if (typeof window === "undefined") return DEFAULT_WORKSPACES;
+    const stored = window.sessionStorage.getItem(MOCK_WORKSPACES_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (e) {
+    // Silent fail, use defaults
+  }
+  return DEFAULT_WORKSPACES;
+}
+
+/**
+ * Save workspaces to sessionStorage
+ */
+function saveWorkspaces(workspaces: WorkspaceResource[]): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(MOCK_WORKSPACES_KEY, JSON.stringify(workspaces));
+    }
+  } catch (e) {
+    // Silent fail, storage not available
+  }
+}
+
+export let mockMyWorkspaces: WorkspaceResource[] = getStoredWorkspaces();
+
+/**
+ * Add a new workspace to the mock data
+ * Utility function for mock mode when creating workspaces
+ */
+export function addMockWorkspace(workspace: WorkspaceResource): void {
+  mockMyWorkspaces = [...mockMyWorkspaces, workspace];
+  saveWorkspaces(mockMyWorkspaces);
+}
 
 export const mockCompanyOptions: CompanyOptionsResponse = {
   sizes: [

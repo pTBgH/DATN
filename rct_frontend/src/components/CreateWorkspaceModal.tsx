@@ -56,9 +56,9 @@ export function CreateWorkspaceModal({
       setFormData({ name: "", email: "", location: "", size: undefined, industry: undefined });
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Lỗi tạo workspace. Vui lòng thử lại."
-      );
+      const errorMsg = err instanceof Error ? err.message : "Lỗi tạo workspace. Vui lòng thử lại.";
+      console.error("[v0] Error creating workspace:", err);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -74,9 +74,6 @@ export function CreateWorkspaceModal({
     }));
   };
 
-  if (!isOpen) return null;
-
-  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <Card className="w-full max-w-md bg-white">
@@ -86,8 +83,16 @@ export function CreateWorkspaceModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-4">
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 border border-red-200">
-              {error}
+            <div className="rounded-lg bg-red-50 p-4 border border-red-200">
+              <div className="flex gap-2">
+                <div className="text-red-600 text-lg leading-none mt-0.5">⚠</div>
+                <div>
+                  <p className="text-sm font-medium text-red-900">{error}</p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Vui lòng kiểm tra lại thông tin. Nếu lỗi vẫn tiếp tục, hãy liên hệ với bộ phận hỗ trợ.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

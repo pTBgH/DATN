@@ -7,16 +7,18 @@ import { Card } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { CreateWorkspaceModal } from "@/components/CreateWorkspaceModal";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuthedFetch } from "@/lib/auth/guard";
 import { PageLoading, PageError } from "@/components/PageState";
 import type { WorkspaceResource } from "@/types/workspace";
 
 export default function RecruiterHomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const { data: workspaces, loading, error, refetch } = useAuthedFetch(
     () => workspaceApi.getMyWorkspaces(),
-    [],
+    [refreshTrigger],
   );
 
   if (loading) return <PageLoading label="Đang tải workspace..." />;
@@ -25,7 +27,8 @@ export default function RecruiterHomePage() {
   const list = workspaces ?? [];
 
   const handleCreateSuccess = async (newWorkspace: WorkspaceResource) => {
-    await refetch();
+    // Trigger refetch by incrementing refresh trigger
+    setRefreshTrigger(prev => prev + 1);
   };
 
 
@@ -124,11 +127,13 @@ export default function RecruiterHomePage() {
         </div>
       </Card>
 
-      <CreateWorkspaceModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={handleCreateSuccess}
-      />
+      <ErrorBoundary>
+        <CreateWorkspaceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

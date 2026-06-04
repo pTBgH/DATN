@@ -31,6 +31,9 @@ export function useAuthedFetch<T>(
   });
 
   const performFetch = async (): Promise<void> => {
+    // Reset cancelled flag when starting a new fetch
+    cancelledRef.current = false;
+
     const token =
       typeof window !== "undefined"
         ? window.localStorage.getItem(TOKEN_KEY)

@@ -21,7 +21,7 @@ class WorkspaceInvitationController extends Controller
         $invitations = WorkspaceInvitation::where('email', $userEmail)
             ->where('expires_at', '>', now())
             ->with([
-                'workspace.companyProfile', 
+                'workspace', 
                 'inviter:RecruiterID,UserName,FirstName,LastName'
             ])
             ->latest('created_at')
@@ -34,8 +34,8 @@ class WorkspaceInvitationController extends Controller
                 'expires_at'    => $invite->expires_at,
                 'workspace'     => [
                     'workspace_id'   => $invite->workspace->WorkspaceID,
-                    'name' => $invite->workspace->companyProfile->CompanyName ?? 'N/A',
-                    'logo' => $invite->workspace->companyProfile->PicturePath ?? null,
+                    'name' => $invite->workspace->Name ?? 'N/A',
+                    'logo' => $invite->workspace->Logo ?? null,
                 ],
                 'inviter' => [
                     'inviter_id'   => $invite->inviter->RecruiterID,

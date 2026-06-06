@@ -18,17 +18,18 @@ class AuthServiceProvider extends ServiceProvider
 
         $permissionService = app(PermissionService::class);
 
-        // --- 1. SUPER ADMIN GATE (Kiểm tra quyền truy cập Admin Panel) ---
-        Gate::define('is-super-admin', function (Recruiter $user) {
+        Gate::define('is-super-admin', function ($user) {
             $adminId = config('services.admin_workspace.id');
             
             if (!$adminId) return false;
 
             // Kiểm tra user có nằm trong Workspace Admin và đang Active không
-            // Chúng ta dùng cache hoặc query tối ưu ở đây thông qua relation
-            return $user->workspaces()
-                        ->where('workspaces.WorkspaceID', $adminId)
-                        ->wherePivot('status_id', 1)
+            // Dùng DB facade vì $user có thể là GenericUser từ MicroserviceAuth
+            $userId = $user->id ?? $user->getAuthIdentifier();
+            return \Illuminate\Support\Facades\DB::table('workspace_members')
+                        ->where('WorkspaceID', $adminId)
+                        ->where('RecruiterID', $userId)
+                        ->where('status_id', 1)
                         ->exists();
         });
 

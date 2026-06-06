@@ -45,8 +45,8 @@ class RecruiterResource extends JsonResource
 
                 return [
                     'workspace_id' => $workspace->WorkspaceID,
-                    'name'         => $workspace->companyProfile?->CompanyName ?? $workspace->Name,
-                    'logo'         => $workspace->companyProfile?->PicturePath,
+                    'name'         => $workspace->Name,
+                    'logo'         => $workspace->Logo,
                     
                     'role_keys'    => $roleData['role_keys'],
                     'role_label'   => $roleData['role_label'],

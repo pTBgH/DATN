@@ -23,13 +23,22 @@ class ConsumeIdentityEvents extends Command
         while (true) {
             $message = $consumer->consume(5000);
             
-            // Log mọi message nhận được (kể cả lỗi)
-            Log::debug("Kafka message received", [
-                'err' => $message->err,
-                'topic' => $message->topic_name ?? null,
-                'partition' => $message->partition ?? null,
-                'offset' => $message->offset ?? null
-            ]);
+            // Log polling noise ra channel riêng để không spam main log
+            if ($message->err === RD_KAFKA_RESP_ERR__TIMED_OUT || $message->err === RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+                Log::channel('kafka')->debug("Kafka message received", [
+                    'err' => $message->err,
+                    'topic' => $message->topic_name ?? null,
+                    'partition' => $message->partition ?? null,
+                    'offset' => $message->offset ?? null
+                ]);
+            } else {
+                Log::debug("Kafka message received", [
+                    'err' => $message->err,
+                    'topic' => $message->topic_name ?? null,
+                    'partition' => $message->partition ?? null,
+                    'offset' => $message->offset ?? null
+                ]);
+            }
             
             if ($message->err === RD_KAFKA_RESP_ERR_NO_ERROR) {
                 try {
@@ -56,9 +65,9 @@ class ConsumeIdentityEvents extends Command
                     ]);
                 }
             } elseif ($message->err === RD_KAFKA_RESP_ERR__PARTITION_EOF) {
-                Log::debug("Reached end of partition");
+                Log::channel('kafka')->debug("Reached end of partition");
             } elseif ($message->err === RD_KAFKA_RESP_ERR__TIMED_OUT) {
-                Log::debug("Consumer timeout (no new messages)");
+                Log::channel('kafka')->debug("Consumer timeout (no new messages)");
             } else {
                 Log::error("Kafka error: " . $message->errstr());
             }

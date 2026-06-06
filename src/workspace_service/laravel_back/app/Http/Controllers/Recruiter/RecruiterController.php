@@ -21,7 +21,7 @@ class RecruiterController extends Controller
 
     public function store(Request $request)
     {
-        $recruiter = $request->user();
+        $recruiter = Recruiter::find(Auth::id());
         if (!$recruiter) {
             return response()->json(['message' => 'Authentication failed.'], 401);
         }
@@ -38,7 +38,7 @@ class RecruiterController extends Controller
 
     public function update(Request $request)
     {
-        $recruiter = Auth::user();
+        $recruiter = Recruiter::find(Auth::id());
 
         // Validate với các key snake_case
         $validatedData = $request->validate([
@@ -58,21 +58,21 @@ class RecruiterController extends Controller
 
     public function getMyProfile()
     {
-        $recruiter = Auth::user();
+        $recruiter = Recruiter::find(Auth::id());
         // ->load('workspaces');
 
         if (!$recruiter) {
             return response()->json(['message' => 'Recruiter profile not found for this user.'], 404);
         }
 
-        $recruiter->load(['workspaces.companyProfile']); 
+        $recruiter->load(['workspaces']); 
 
         return new RecruiterResource($recruiter);
     }
 
     public function requestApproval()
     {
-        $recruiter = Auth::user();
+        $recruiter = Recruiter::find(Auth::id());
         $updatedRecruiter = $this->recruiterService->requestApproval($recruiter);
 
         if (!$updatedRecruiter) {
@@ -84,7 +84,7 @@ class RecruiterController extends Controller
 
     public function updateInterestedSectors(Request $request)
     {
-        $recruiter = Auth::user();
+        $recruiter = Recruiter::find(Auth::id());
         
         $validated = $request->validate([
             'sectors' => 'required|array',

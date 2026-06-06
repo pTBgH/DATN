@@ -155,6 +155,14 @@ return [
             'level' => 'info',
         ],
 
+        'kafka' => [
+            'driver' => 'custom',
+            'via' => \App\Logging\CreateJsonLogger::class,
+            'path' => storage_path('logs/kafka.log'),
+            'level' => 'debug',
+            'days' => 7,
+        ],
+
         'default' => [
             'driver' => 'custom', // <-- PHẢI LÀ 'custom' để gọi via
             'via' => \App\Logging\CreateJsonLogger::class,

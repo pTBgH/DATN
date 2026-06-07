@@ -3,9 +3,13 @@ set -eu
 
 # Watch vault-agent dynamic credentials file (renewed every ~10-15 minutes)
 WATCH_FILE=/vault/secrets/.env.db
-LAST_SUM=""
-LAST_RESTART_TIME=0
+LAST_SUM_FILE=/tmp/watch-env.last-sum
+LAST_RESTART_TIME_FILE=/tmp/watch-env.last-restart-time
 MIN_RESTART_INTERVAL=300  # Minimum 5 minutes between restarts (credentials rotated every 10-15 min)
+
+# Load persistent state from files (survives process restarts)
+LAST_SUM=$(cat "$LAST_SUM_FILE" 2>/dev/null || echo "")
+LAST_RESTART_TIME=$(cat "$LAST_RESTART_TIME_FILE" 2>/dev/null || echo "0")
 
 while true; do
   if [ -f "$WATCH_FILE" ]; then
@@ -13,6 +17,8 @@ while true; do
     CURRENT_TIME=$(date +%s)
     
     if [ "$SUM" != "$LAST_SUM" ] && [ $((CURRENT_TIME - LAST_RESTART_TIME)) -gt $MIN_RESTART_INTERVAL ]; then
+      echo "$SUM" > "$LAST_SUM_FILE"
+      echo "$CURRENT_TIME" > "$LAST_RESTART_TIME_FILE"
       LAST_SUM="$SUM"
       LAST_RESTART_TIME=$CURRENT_TIME
       date -Iseconds >&2 || true
@@ -35,10 +41,10 @@ while true; do
         fi
       fi
       
-      # Restart PHP-FPM or Laravel workers
+      # Restart PHP-FPM and Laravel workers (but NOT watch-env to preserve state)
       if command -v supervisorctl >/dev/null 2>&1; then
         echo "[watch-env] Restarting laravel-service processes" >&2 || true
-        supervisorctl restart laravel-service:* || true
+        supervisorctl restart nginx php8-fpm laravel-schedule laravel-queue:* 2>/dev/null || true
       else
         if [ -f /run/php/php-fpm.pid ]; then
           echo "[watch-env] Signaling PHP-FPM" >&2 || true

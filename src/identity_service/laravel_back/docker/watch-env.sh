@@ -4,12 +4,17 @@ set -eu
 # Watch vault-agent dynamic credentials file (renewed every ~10-15 minutes)
 WATCH_FILE=/vault/secrets/.env.db
 LAST_SUM=""
+LAST_RESTART_TIME=0
+MIN_RESTART_INTERVAL=300  # Minimum 5 minutes between restarts (credentials rotated every 10-15 min)
 
 while true; do
   if [ -f "$WATCH_FILE" ]; then
     SUM=$(md5sum "$WATCH_FILE" 2>/dev/null | cut -d' ' -f1 || echo "")
-    if [ "$SUM" != "$LAST_SUM" ]; then
+    CURRENT_TIME=$(date +%s)
+    
+    if [ "$SUM" != "$LAST_SUM" ] && [ $((CURRENT_TIME - LAST_RESTART_TIME)) -gt $MIN_RESTART_INTERVAL ]; then
       LAST_SUM="$SUM"
+      LAST_RESTART_TIME=$CURRENT_TIME
       date -Iseconds >&2 || true
       
       # Copy vault-agent rendered .env to app directory

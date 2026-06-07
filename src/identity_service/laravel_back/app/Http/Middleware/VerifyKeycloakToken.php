@@ -27,36 +27,55 @@ class VerifyKeycloakToken
             $realm = 'job7189';
             $jwksUrl = $baseUrl . "/realms/" . $realm . "/protocol/openid-connect/certs";
             
-            Log::info("JWT verification starting", [
+            Log::info("[VerifyKeycloak-01] JWT verification starting", [
                 'jwks_url' => $jwksUrl,
-                'token_len' => strlen($token)
+                'token_len' => strlen($token),
+                'token_first_100' => substr($token, 0, 100)
             ]);
             
             $jwks = null;
             try {
+                Log::info("[VerifyKeycloak-02] Attempting cache lookup");
                 $jwks = Cache::remember('jwks_identity', 3600, function () use ($jwksUrl) {
-                    Log::info("Fetching JWKS from: " . $jwksUrl);
+                    Log::info("[VerifyKeycloak-03] Cache miss, fetching JWKS from: " . $jwksUrl);
                     try {
                         $response = Http::withOptions(['verify' => false])->get($jwksUrl);
-                        Log::info("JWKS fetch response status: " . $response->status());
+                        Log::info("[VerifyKeycloak-04] JWKS fetch response status: " . $response->status());
                         return $response->json();
                     } catch (\Exception $e) {
-                        Log::error("JWKS fetch failed: " . $e->getMessage(), ['class' => get_class($e)]);
+                        Log::error("[VerifyKeycloak-ERR-A] JWKS fetch failed", [
+                            'message' => $e->getMessage(),
+                            'class' => get_class($e),
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine()
+                        ]);
                         throw $e;
                     }
                 });
             } catch (\Exception $cacheError) {
-                Log::warning("Cache failed, fetching JWKS directly: " . $cacheError->getMessage());
+                Log::warning("[VerifyKeycloak-05] Cache failed, fetching JWKS directly: " . $cacheError->getMessage());
                 // Fall back to direct fetch if cache fails
-                $response = Http::withOptions(['verify' => false])->get($jwksUrl);
-                $jwks = $response->json();
+                try {
+                    $response = Http::withOptions(['verify' => false])->get($jwksUrl);
+                    $jwks = $response->json();
+                    Log::info("[VerifyKeycloak-06] Direct JWKS fetch succeeded");
+                } catch (\Exception $directError) {
+                    Log::error("[VerifyKeycloak-ERR-B] Direct JWKS fetch also failed", [
+                        'message' => $directError->getMessage(),
+                        'class' => get_class($directError)
+                    ]);
+                    throw $directError;
+                }
             }
 
-            Log::info("JWKS retrieved, attempting decode");
+            Log::info("[VerifyKeycloak-07] JWKS retrieved, keys count: " . count($jwks['keys'] ?? []));
+            Log::info("[VerifyKeycloak-08] Attempting JWT::decode");
             $decoded = JWT::decode($token, JWK::parseKeySet($jwks));
             
+            Log::info("[VerifyKeycloak-09] JWT decoded successfully");
             $sub = $decoded->sub; // Keycloak ID
             $azp = $decoded->azp ?? ''; // Client ID
+            Log::info("[VerifyKeycloak-10] Extracted claims", ['sub' => $sub, 'azp' => $azp]);
 
             // Lấy thông tin chung từ Token
             $email = $decoded->email ?? null;
@@ -115,11 +134,12 @@ class VerifyKeycloakToken
             return $next($request);
 
         } catch (\Exception $e) {
-            Log::error("Identity Auth Failed: " . $e->getMessage(), [
+            Log::error("[VerifyKeycloak-ERROR] Auth Failed", [
                 'exception_class' => get_class($e),
+                'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
+                'trace_snippet' => array_slice(explode("\n", $e->getTraceAsString()), 0, 5),
                 'token_received' => !empty($token),
             ]);
             return response()->json(['message' => 'Unauthorized: ' . $e->getMessage()], 401);

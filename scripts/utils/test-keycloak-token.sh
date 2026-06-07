@@ -17,7 +17,7 @@ INGRESS_PORT="${INGRESS_PORT:-30003}"
 INGRESS_IP="${INGRESS_IP:-172.22.0.4}"
 
 # Credentials - you should store these securely in Vault
-CLIENT_ID="${CLIENT_ID:-candidate-app-dev}"
+CLIENT_ID="${CLIENT_ID:-candidate-app}"
 CLIENT_SECRET="${CLIENT_SECRET:-MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW}"  # Get from Vault secret
 USERNAME="${USERNAME:-testuser}"
 PASSWORD="${PASSWORD:-testpass}"

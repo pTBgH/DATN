@@ -1,10 +1,10 @@
-# registry:
-#   url: "docker-registry.registry.svc.cluster.local:5000"
+replicaCount: 1
+
+internalReloadToken: "candidate-secure-reload-token-22222"
 
 image:
-  # registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/candidate-service
-  tag: "v1.0.7"
+  fullImage: "100.74.189.43:5000/job7189/candidate@sha256:4b2be6712e108640d5ad90f8aef84df44f4d22cc4df770b6e5c0fbb7965f53bc"
   pullPolicy: Always
 
 service:
@@ -20,22 +20,27 @@ redis:
 
 env:
   APP_NAME: "Job7189 Candidate Service"
-  DB_CONNECTION: mysql
-  DB_HOST: mysql.data.svc.cluster.local
-  DB_PORT: "3306"
+  DB_CONNECTION: mongodb
+  DB_HOST: mongodb.data.svc.cluster.local
+  DB_PORT: "27017"
   DB_DATABASE: job7189_candidate_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/candidate-service
-  
+  CACHE_DRIVER: "redis"
+  REDIS_HOST: "candidate-service-redis"
+  REDIS_PORT: "6379"
   CACHE_PREFIX: candidate_
-  REDIS_HOST: candidate-service-redis
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "info"
 
 vault:
+  role: candidate-service
   extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/candidate-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-
-
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

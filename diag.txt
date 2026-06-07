@@ -1,0 +1,600 @@
+##1 PDP CNP
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"allow-pdp-controller-egress","namespace":"security"},"spec":{"egress":[{"toEntities":["kube-apiserver","host","remote-node"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]},{"toCIDR":["10.96.0.0/12","172.18.0.0/16"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]},{"toEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system","k8s:k8s-app":"kube-dns"}}],"toPorts":[{"ports":[{"port":"53","protocol":"UDP"},{"port":"53","protocol":"TCP"}],"rules":{"dns":[{"matchPattern":"*"}]}}]},{"toFQDNs":[{"matchPattern":"*.pypi.org"},{"matchPattern":"*.pythonhosted.org"},{"matchPattern":"*.fastly.net"},{"matchPattern":"*.fastlylb.net"}],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"}]}]},{"toCIDR":["0.0.0.0/0"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"}]}]}],"endpointSelector":{"matchLabels":{"app":"zta-pdp"}},"ingress":[{"fromEndpoints":[{"matchLabels":{"app":"prometheus","k8s:io.kubernetes.pod.namespace":"monitoring"}}],"toPorts":[{"ports":[{"port":"9100","protocol":"TCP"}]}]}]}}
+  creationTimestamp: "2026-05-14T08:47:32Z"
+  generation: 1
+  name: allow-pdp-controller-egress
+  namespace: security
+  resourceVersion: "199427"
+  uid: a0392c7c-1b0a-4a76-beef-932a9d196ecc
+spec:
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+      rules:
+        dns:
+        - matchPattern: '*'
+  - toFQDNs:
+    - matchPattern: '*.pypi.org'
+    - matchPattern: '*.pythonhosted.org'
+    - matchPattern: '*.fastly.net'
+    - matchPattern: '*.fastlylb.net'
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  - toCIDR:
+    - 0.0.0.0/0
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  endpointSelector:
+    matchLabels:
+      app: zta-pdp
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: prometheus
+        k8s:io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "9100"
+        protocol: TCP
+status:
+  conditions:
+  - lastTransitionTime: "2026-05-14T08:47:32Z"
+    message: Policy validation succeeded
+    status: "True"
+    type: Valid
+##1 PDP describe
+Name:             zta-pdp-5bc48b78bd-4nxzb
+Namespace:        security
+Priority:         0
+Service Account:  zta-pdp
+Node:             7189srv05/172.16.82.128
+Start Time:       Fri, 05 Jun 2026 23:37:14 +0700
+Labels:           app=zta-pdp
+                  pod-template-hash=5bc48b78bd
+                  zta.job7189/data-classification=confidential
+                  zta.job7189/env=prod
+                  zta.job7189/exposure=cluster-only
+                  zta.job7189/role=pdp
+                  zta.job7189/team=security
+                  zta.job7189/tier=T1
+Annotations:      prometheus.io/path: /metrics
+                  prometheus.io/port: 9100
+                  prometheus.io/scrape: true
+Status:           Running
+SeccompProfile:   RuntimeDefault
+IP:               10.244.4.166
+IPs:
+  IP:           10.244.4.166
+Controlled By:  ReplicaSet/zta-pdp-5bc48b78bd
+Containers:
+  controller:
+    Container ID:  containerd://539d8eb553f8ded6ae6598d888b39a02e0cc9d9ac99c875fac60c940e2cdd37a
+    Image:         python:3.11-slim
+    Image ID:      docker.io/library/python@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0
+    Port:          9100/TCP
+    Host Port:     0/TCP
+    Command:
+      /bin/sh
+      -c
+    Args:
+      set -eu
+      export PYTHONPATH=/tmp/pylibs
+      # Skip pip install if cached from previous container restart
+      # (emptyDir persists across restarts within same pod).
+      if [ ! -d /tmp/pylibs/kopf ]; then
+        echo "[init] Installing kopf + kubernetes + prometheus_client to /tmp/pylibs..."
+        pip install --no-cache-dir --target=/tmp/pylibs -r /app/requirements.txt
+      else
+        echo "[init] Found cached libs in /tmp/pylibs (container restart)"
+      fi
+      echo "[init] Starting PDP controller (kopf clusterwide standalone)..."
+      exec python /app/pdp_controller.py
+      
+    State:          Running
+      Started:      Sat, 06 Jun 2026 10:17:22 +0700
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    137
+      Started:      Sat, 06 Jun 2026 10:13:19 +0700
+      Finished:     Sat, 06 Jun 2026 10:14:27 +0700
+    Ready:          False
+    Restart Count:  9
+    Limits:
+      cpu:     200m
+      memory:  256Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get http://:9100/metrics delay=0s timeout=1s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:9100/metrics delay=0s timeout=1s period=10s #success=1 #failure=3
+    Startup:    http-get http://:9100/metrics delay=30s timeout=1s period=10s #success=1 #failure=30
+    Environment:
+      ZTA_NAMESPACES:    data,vault,security,monitoring,gateway,management,job7189-apps
+      PROMETHEUS_PORT:   9100
+      RECONCILE_PERIOD:  60
+      LOG_LEVEL:         INFO
+      POD_NAME:          zta-pdp-5bc48b78bd-4nxzb (v1:metadata.name)
+    Mounts:
+      /app from script (ro)
+      /tmp from pip-cache (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-rgfnw (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      zta-pdp-script
+    Optional:  false
+  pip-cache:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  256Mi
+  kube-api-access-rgfnw:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason          Age                   From               Message
+  ----     ------          ----                  ----               -------
+  Normal   Scheduled       10h                   default-scheduler  Successfully assigned security/zta-pdp-5bc48b78bd-4nxzb to 7189srv05
+  Normal   Pulling         10h                   kubelet            Pulling image "python:3.11-slim"
+  Normal   Pulled          10h                   kubelet            Successfully pulled image "python:3.11-slim" in 8.328s (8.328s including waiting). Image size: 45457254 bytes.
+  Normal   Pulled          10h                   kubelet            Container image "python:3.11-slim" already present on machine
+  Normal   Created         10h (x2 over 10h)     kubelet            Created container: controller
+  Normal   Started         10h (x2 over 10h)     kubelet            Started container controller
+  Warning  Unhealthy       10h (x25 over 10h)    kubelet            Startup probe failed: Get "http://10.244.4.34:9100/metrics": dial tcp 10.244.4.34:9100: connect: connection refused
+  Warning  FailedMount     23m (x3 over 23m)     kubelet            MountVolume.SetUp failed for volume "script" : object "security"/"zta-pdp-script" not registered
+  Warning  FailedMount     23m (x2 over 23m)     kubelet            MountVolume.SetUp failed for volume "kube-api-access-rgfnw" : object "security"/"kube-root-ca.crt" not registered
+  Normal   SandboxChanged  22m                   kubelet            Pod sandbox changed, it will be killed and re-created.
+  Normal   Pulled          21m                   kubelet            Container image "python:3.11-slim" already present on machine
+  Normal   Created         21m                   kubelet            Created container: controller
+  Normal   Started         21m                   kubelet            Started container controller
+  Warning  BackOff         7m40s (x13 over 18m)  kubelet            Back-off restarting failed container controller in pod zta-pdp-5bc48b78bd-4nxzb_security(8b724d23-6e2a-4305-96a5-4e9fdc50c524)
+  Warning  Unhealthy       2m21s (x61 over 21m)  kubelet            Startup probe failed: Get "http://10.244.4.166:9100/metrics": dial tcp 10.244.4.166:9100: connect: connection refused
+
+
+Name:                      zta-pdp-5bc48b78bd-b5lwf
+Namespace:                 security
+Priority:                  0
+Service Account:           zta-pdp
+Node:                      7189srv03/100.112.57.2
+Start Time:                Fri, 05 Jun 2026 21:50:17 +0700
+Labels:                    app=zta-pdp
+                           pod-template-hash=5bc48b78bd
+                           zta.job7189/data-classification=confidential
+                           zta.job7189/env=prod
+                           zta.job7189/exposure=cluster-only
+                           zta.job7189/role=pdp
+                           zta.job7189/score-bucket=high
+                           zta.job7189/team=security
+                           zta.job7189/tier=T1
+Annotations:               kopf.zalando.org/last-handled-configuration:
+                             {"spec":{"volumes":[{"name":"script","configMap":{"name":"zta-pdp-script","defaultMode":292}},{"name":"pip-cache","emptyDir":{"sizeLimit":...
+                           prometheus.io/path: /metrics
+                           prometheus.io/port: 9100
+                           prometheus.io/scrape: true
+                           zta.job7189/trust-score: 100
+Status:                    Terminating (lasts 10h)
+Termination Grace Period:  0s
+SeccompProfile:            RuntimeDefault
+IP:                        
+IPs:                       <none>
+Controlled By:             ReplicaSet/zta-pdp-5bc48b78bd
+Containers:
+  controller:
+    Container ID:  containerd://9e06fd28aac45838cb7751c461b498a8389027d7253dd3e01bc8cdabfefddb98
+    Image:         python:3.11-slim
+    Image ID:      docker.io/library/python@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0
+    Port:          9100/TCP
+    Host Port:     0/TCP
+    Command:
+      /bin/sh
+      -c
+    Args:
+      set -eu
+      export PYTHONPATH=/tmp/pylibs
+      # Skip pip install if cached from previous container restart
+      # (emptyDir persists across restarts within same pod).
+      if [ ! -d /tmp/pylibs/kopf ]; then
+        echo "[init] Installing kopf + kubernetes + prometheus_client to /tmp/pylibs..."
+        pip install --no-cache-dir --target=/tmp/pylibs -r /app/requirements.txt
+      else
+        echo "[init] Found cached libs in /tmp/pylibs (container restart)"
+      fi
+      echo "[init] Starting PDP controller (kopf clusterwide standalone)..."
+      exec python /app/pdp_controller.py
+      
+    State:          Terminated
+      Reason:       Error
+      Exit Code:    137
+      Started:      Fri, 05 Jun 2026 23:35:20 +0700
+      Finished:     Fri, 05 Jun 2026 23:37:44 +0700
+    Ready:          False
+    Restart Count:  22
+    Limits:
+      cpu:     200m
+      memory:  256Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get http://:9100/metrics delay=0s timeout=1s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:9100/metrics delay=0s timeout=1s period=10s #success=1 #failure=3
+    Startup:    http-get http://:9100/metrics delay=30s timeout=1s period=10s #success=1 #failure=30
+    Environment:
+      ZTA_NAMESPACES:    data,vault,security,monitoring,gateway,management,job7189-apps
+      PROMETHEUS_PORT:   9100
+      RECONCILE_PERIOD:  60
+      LOG_LEVEL:         INFO
+      POD_NAME:          zta-pdp-5bc48b78bd-b5lwf (v1:metadata.name)
+    Mounts:
+      /app from script (ro)
+      /tmp from pip-cache (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-ppzdh (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   False 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      zta-pdp-script
+    Optional:  false
+  pip-cache:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  256Mi
+  kube-api-access-ppzdh:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason                  Age                  From               Message
+  ----     ------                  ----                 ----               -------
+  Normal   Scheduled               12h                  default-scheduler  Successfully assigned security/zta-pdp-5bc48b78bd-b5lwf to 7189srv03
+  Normal   Pulling                 12h                  kubelet            Pulling image "python:3.11-slim"
+  Normal   Pulled                  12h                  kubelet            Successfully pulled image "python:3.11-slim" in 52.015s (2m53.235s including waiting). Image size: 45457254 bytes.
+  Normal   Created                 12h (x2 over 12h)    kubelet            Created container controller
+  Normal   Pulled                  12h                  kubelet            Container image "python:3.11-slim" already present on machine
+  Normal   Started                 12h (x2 over 12h)    kubelet            Started container controller
+  Warning  BackOff                 11h (x26 over 12h)   kubelet            Back-off restarting failed container controller in pod zta-pdp-5bc48b78bd-b5lwf_security(a422f254-e406-41b9-9b68-76d622b0a567)
+  Warning  Unhealthy               11h (x118 over 12h)  kubelet            Startup probe failed: Get "http://10.244.2.137:9100/metrics": dial tcp 10.244.2.137:9100: connect: connection refused
+  Warning  FailedMount             11h                  kubelet            MountVolume.SetUp failed for volume "script" : failed to sync configmap cache: timed out waiting for the condition
+  Warning  FailedCreatePodSandBox  11h                  kubelet            Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox "c476dba00a8753ede7a734c3cf801bf9c1faf9e1b98fb5d35e39c5c9028fd9c7": plugin type="cilium-cni" failed (add): unable to connect to Cilium agent: failed to create cilium agent client after 30.000000 seconds timeout: Get "http://localhost/v1/config": dial unix /var/run/cilium/cilium.sock: connect: no such file or directory
+Is the agent running?
+  Normal   SandboxChanged  11h (x2 over 11h)   kubelet  Pod sandbox changed, it will be killed and re-created.
+  Normal   Created         11h                 kubelet  Created container controller
+  Normal   Started         11h                 kubelet  Started container controller
+  Warning  BackOff         11h                 kubelet  Back-off restarting failed container controller in pod zta-pdp-5bc48b78bd-b5lwf_security(a422f254-e406-41b9-9b68-76d622b0a567)
+  Warning  Unhealthy       11h (x61 over 11h)  kubelet  Startup probe failed: Get "http://10.244.2.117:9100/metrics": dial tcp 10.244.2.117:9100: connect: connection refused
+  Normal   Pulled          11h (x6 over 11h)   kubelet  Container image "python:3.11-slim" already present on machine
+  Normal   SandboxChanged  11h                 kubelet  Pod sandbox changed, it will be killed and re-created.
+  Normal   Pulled          11h (x2 over 11h)   kubelet  Container image "python:3.11-slim" already present on machine
+  Normal   Created         11h (x2 over 11h)   kubelet  Created container controller
+  Normal   Started         11h (x2 over 11h)   kubelet  Started container controller
+  Warning  Unhealthy       10h (x64 over 11h)  kubelet  Startup probe failed: Get "http://10.244.2.181:9100/metrics": dial tcp 10.244.2.181:9100: connect: connection refused
+  Warning  BackOff         10h (x71 over 11h)  kubelet  Back-off restarting failed container controller in pod zta-pdp-5bc48b78bd-b5lwf_security(a422f254-e406-41b9-9b68-76d622b0a567)
+##2 oauth2 init log
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+Keycloak not ready, retrying in 5s...
+##2 keycloak
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/keycloak   0/0     0            0           23d
+
+NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/keycloak   ClusterIP   10.111.167.29   <none>        8080/TCP   23d
+
+NAME                 ENDPOINTS   AGE
+endpoints/keycloak   <none>      23d
+NAME                TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
+service/kafka-svc   ClusterIP   None           <none>        9092/TCP,9093/TCP   23d
+service/mysql       ClusterIP   10.106.91.48   <none>        3306/TCP            23d
+##3 threat-intel describe
+Error from server (NotFound): pods "threat-intel-refresh-29678580-9hxq2" not found
+##3 nodes
+NAME        STATUS                     ROLES           AGE   VERSION    INTERNAL-IP       EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
+7189srv01   Ready                      control-plane   25d   v1.30.0    100.114.68.15     <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv02   Ready,SchedulingDisabled   <none>          25d   v1.30.0    100.108.231.127   <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv03   Ready,SchedulingDisabled   <none>          25d   v1.30.0    100.112.57.2      <none>        Debian GNU/Linux 13 (trixie)   6.12.86+deb13-amd64   containerd://2.2.3
+7189srv05   Ready,SchedulingDisabled   <none>          24d   v1.30.14   172.16.82.128     <none>        Ubuntu 24.04.4 LTS             6.8.0-124-generic     containerd://2.2.3
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  7189srv01
+  AcquireTime:     <unset>
+  RenewTime:       Sat, 06 Jun 2026 10:20:12 +0700
+Conditions:
+--
+  MemoryPressure       False   Sat, 06 Jun 2026 10:17:04 +0700   Mon, 11 May 2026 22:44:43 +0700   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure         False   Sat, 06 Jun 2026 10:17:04 +0700   Mon, 11 May 2026 22:44:43 +0700   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure          False   Sat, 06 Jun 2026 10:17:04 +0700   Mon, 11 May 2026 22:44:43 +0700   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                True    Sat, 06 Jun 2026 10:17:04 +0700   Wed, 13 May 2026 20:33:36 +0700   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  100.114.68.15
+  Hostname:    7189srv01
+Capacity:
+  cpu:                2
+  ephemeral-storage:  19353424Ki
+--
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests     Limits
+  --------           --------     ------
+  cpu                1110m (61%)  1800m (100%)
+  memory             506Mi (15%)  1876Mi (59%)
+  ephemeral-storage  0 (0%)       0 (0%)
+--
+  Normal   NodeHasNoDiskPressure    11h (x8 over 11h)  kubelet          Node 7189srv01 status is now: NodeHasNoDiskPressure
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv01 event: Registered Node 7189srv01 in Controller
+  Normal   Starting                 11h                kubelet          Starting kubelet.
+  Warning  InvalidDiskCapacity      11h                kubelet          invalid capacity 0 on image filesystem
+  Normal   NodeHasSufficientMemory  11h (x8 over 11h)  kubelet          Node 7189srv01 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    11h (x7 over 11h)  kubelet          Node 7189srv01 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x7 over 11h)  kubelet          Node 7189srv01 status is now: NodeHasSufficientPID
+  Normal   NodeAllocatableEnforced  11h                kubelet          Updated Node Allocatable limit across pods
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv01 event: Registered Node 7189srv01 in Controller
+  Normal   Starting                 24m                kubelet          Starting kubelet.
+  Normal   NodeHasSufficientMemory  24m (x8 over 24m)  kubelet          Node 7189srv01 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    24m (x8 over 24m)  kubelet          Node 7189srv01 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     24m (x7 over 24m)  kubelet          Node 7189srv01 status is now: NodeHasSufficientPID
+  Normal   NodeAllocatableEnforced  24m                kubelet          Updated Node Allocatable limit across pods
+  Normal   RegisteredNode           22m                node-controller  Node 7189srv01 event: Registered Node 7189srv01 in Controller
+
+
+Name:               7189srv02
+--
+Taints:             node.kubernetes.io/unschedulable:NoSchedule
+Unschedulable:      true
+Lease:
+  HolderIdentity:  7189srv02
+  AcquireTime:     <unset>
+  RenewTime:       Sat, 06 Jun 2026 10:20:16 +0700
+Conditions:
+--
+  MemoryPressure       False   Sat, 06 Jun 2026 10:17:04 +0700   Fri, 05 Jun 2026 21:58:12 +0700   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure         False   Sat, 06 Jun 2026 10:17:04 +0700   Fri, 05 Jun 2026 21:58:13 +0700   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure          False   Sat, 06 Jun 2026 10:17:04 +0700   Fri, 05 Jun 2026 21:58:13 +0700   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                True    Sat, 06 Jun 2026 10:17:04 +0700   Fri, 05 Jun 2026 22:00:03 +0700   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  100.108.231.127
+  Hostname:    7189srv02
+Capacity:
+  cpu:                6
+  ephemeral-storage:  97341748Ki
+--
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                685m (11%)    2900m (50%)
+  memory             1032Mi (28%)  3400Mi (92%)
+  ephemeral-storage  0 (0%)        0 (0%)
+--
+  Normal   NodeNotReady             12h (x3 over 12h)   node-controller  Node 7189srv02 status is now: NodeNotReady
+  Normal   NodeHasSufficientMemory  12h (x12 over 13h)  kubelet          Node 7189srv02 status is now: NodeHasSufficientMemory
+  Normal   NodeHasSufficientPID     12h (x12 over 13h)  kubelet          Node 7189srv02 status is now: NodeHasSufficientPID
+  Normal   NodeHasNoDiskPressure    12h (x12 over 13h)  kubelet          Node 7189srv02 status is now: NodeHasNoDiskPressure
+  Normal   NodeNotReady             12h (x2 over 12h)   kubelet          Node 7189srv02 status is now: NodeNotReady
+  Normal   NodeReady                12h (x3 over 12h)   kubelet          Node 7189srv02 status is now: NodeReady
+  Normal   NodeNotSchedulable       12h (x2 over 13h)   kubelet          Node 7189srv02 status is now: NodeNotSchedulable
+  Normal   NodeAllocatableEnforced  11h                 kubelet          Updated Node Allocatable limit across pods
+  Normal   Starting                 11h                 kubelet          Starting kubelet.
+  Warning  InvalidDiskCapacity      11h                 kubelet          invalid capacity 0 on image filesystem
+  Normal   NodeHasSufficientPID     11h (x7 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasSufficientPID
+  Normal   NodeHasNoDiskPressure    11h (x7 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientMemory  11h (x8 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasSufficientMemory
+  Normal   RegisteredNode           11h                 node-controller  Node 7189srv02 event: Registered Node 7189srv02 in Controller
+  Normal   Starting                 11h                 kubelet          Starting kubelet.
+  Warning  InvalidDiskCapacity      11h                 kubelet          invalid capacity 0 on image filesystem
+  Normal   NodeAllocatableEnforced  11h                 kubelet          Updated Node Allocatable limit across pods
+  Normal   NodeHasSufficientMemory  11h (x5 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    11h (x5 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x5 over 11h)   kubelet          Node 7189srv02 status is now: NodeHasSufficientPID
+  Warning  Rebooted                 11h                 kubelet          Node 7189srv02 has been rebooted, boot id: d6b12b67-16e4-427b-8d54-fdaba71d159d
+  Normal   RegisteredNode           11h                 node-controller  Node 7189srv02 event: Registered Node 7189srv02 in Controller
+  Normal   NodeSchedulable          11h (x2 over 11h)   kubelet          Node 7189srv02 status is now: NodeSchedulable
+  Normal   NodeNotSchedulable       10h (x3 over 11h)   kubelet          Node 7189srv02 status is now: NodeNotSchedulable
+  Normal   Starting                 23m                 kubelet          Starting kubelet.
+--
+  Normal   NodeHasNoDiskPressure    23m (x2 over 23m)   kubelet          Node 7189srv02 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     23m (x2 over 23m)   kubelet          Node 7189srv02 status is now: NodeHasSufficientPID
+  Normal   NodeAllocatableEnforced  23m                 kubelet          Updated Node Allocatable limit across pods
+  Warning  Rebooted                 23m                 kubelet          Node 7189srv02 has been rebooted, boot id: 6ca0ee44-832d-4a3a-b541-efc4504235c8
+  Normal   NodeNotSchedulable       23m                 kubelet          Node 7189srv02 status is now: NodeNotSchedulable
+  Normal   RegisteredNode           22m                 node-controller  Node 7189srv02 event: Registered Node 7189srv02 in Controller
+
+--
+Taints:             node.kubernetes.io/unschedulable:NoSchedule
+Unschedulable:      true
+Lease:
+  HolderIdentity:  7189srv03
+  AcquireTime:     <unset>
+  RenewTime:       Sat, 06 Jun 2026 10:20:13 +0700
+Conditions:
+--
+  MemoryPressure       False   Sat, 06 Jun 2026 10:17:02 +0700   Wed, 03 Jun 2026 22:27:43 +0700   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure         False   Sat, 06 Jun 2026 10:17:02 +0700   Fri, 05 Jun 2026 21:29:23 +0700   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure          False   Sat, 06 Jun 2026 10:17:02 +0700   Wed, 03 Jun 2026 22:27:43 +0700   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                True    Sat, 06 Jun 2026 10:17:02 +0700   Wed, 03 Jun 2026 22:27:43 +0700   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  100.112.57.2
+  Hostname:    7189srv03
+Capacity:
+  cpu:                2
+  ephemeral-storage:  19353424Ki
+--
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                630m (35%)    3500m (194%)
+  memory             1312Mi (41%)  4108Mi (129%)
+  ephemeral-storage  0 (0%)        0 (0%)
+--
+  Normal   NodeHasNoDiskPressure    11h (x8 over 11h)  kubelet          Node 7189srv03 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientMemory  11h (x8 over 11h)  kubelet          Node 7189srv03 status is now: NodeHasSufficientMemory
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv03 event: Registered Node 7189srv03 in Controller
+  Normal   NodeAllocatableEnforced  11h                kubelet          Updated Node Allocatable limit across pods
+  Normal   Starting                 11h                kubelet          Starting kubelet.
+  Normal   NodeHasSufficientMemory  11h (x5 over 11h)  kubelet          Node 7189srv03 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    11h (x5 over 11h)  kubelet          Node 7189srv03 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x5 over 11h)  kubelet          Node 7189srv03 status is now: NodeHasSufficientPID
+  Warning  Rebooted                 11h                kubelet          Node 7189srv03 has been rebooted, boot id: 9953340c-f88c-4b92-8f81-7393ee3627cf
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv03 event: Registered Node 7189srv03 in Controller
+  Normal   NodeSchedulable          11h (x2 over 11h)  kubelet          Node 7189srv03 status is now: NodeSchedulable
+  Normal   NodeNotSchedulable       10h (x3 over 11h)  kubelet          Node 7189srv03 status is now: NodeNotSchedulable
+  Normal   Starting                 24m                kubelet          Starting kubelet.
+--
+  Normal   NodeHasNoDiskPressure    23m (x5 over 24m)  kubelet          Node 7189srv03 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     23m (x5 over 24m)  kubelet          Node 7189srv03 status is now: NodeHasSufficientPID
+  Warning  Rebooted                 23m                kubelet          Node 7189srv03 has been rebooted, boot id: b58d9d3c-93cd-4c09-b7da-4f912cdf450c
+  Normal   NodeNotSchedulable       23m                kubelet          Node 7189srv03 status is now: NodeNotSchedulable
+  Normal   RegisteredNode           22m                node-controller  Node 7189srv03 event: Registered Node 7189srv03 in Controller
+
+
+--
+Taints:             node.kubernetes.io/unschedulable:NoSchedule
+Unschedulable:      true
+Lease:
+  HolderIdentity:  7189srv05
+  AcquireTime:     <unset>
+  RenewTime:       Sat, 06 Jun 2026 10:20:15 +0700
+Conditions:
+--
+  MemoryPressure       False   Sat, 06 Jun 2026 10:17:49 +0700   Fri, 05 Jun 2026 22:37:10 +0700   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure         False   Sat, 06 Jun 2026 10:17:49 +0700   Fri, 05 Jun 2026 22:37:10 +0700   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure          False   Sat, 06 Jun 2026 10:17:49 +0700   Fri, 05 Jun 2026 22:37:10 +0700   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                True    Sat, 06 Jun 2026 10:17:49 +0700   Fri, 05 Jun 2026 22:37:10 +0700   KubeletReady                 kubelet is posting ready status
+Addresses:
+  InternalIP:  172.16.82.128
+  Hostname:    7189srv05
+Capacity:
+  cpu:                2
+  ephemeral-storage:  50254368Ki
+--
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests      Limits
+  --------           --------      ------
+  cpu                675m (37%)    2850m (158%)
+  memory             1134Mi (31%)  3528Mi (96%)
+  ephemeral-storage  0 (0%)        0 (0%)
+--
+  Normal   NodeHasNoDiskPressure    11h (x6 over 13h)  kubelet          Node 7189srv05 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x6 over 13h)  kubelet          Node 7189srv05 status is now: NodeHasSufficientPID
+  Normal   NodeNotReady             11h (x3 over 12h)  kubelet          Node 7189srv05 status is now: NodeNotReady
+  Normal   NodeNotSchedulable       11h (x2 over 13h)  kubelet          Node 7189srv05 status is now: NodeNotSchedulable
+  Warning  ContainerGCFailed        11h (x2 over 12h)  kubelet          rpc error: code = DeadlineExceeded desc = context deadline exceeded
+  Normal   NodeReady                11h (x2 over 12h)  kubelet          Node 7189srv05 status is now: NodeReady
+  Normal   NodeNotReady             11h (x3 over 12h)  node-controller  Node 7189srv05 status is now: NodeNotReady
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv05 event: Registered Node 7189srv05 in Controller
+  Normal   NodeNotReady             11h                kubelet          Node 7189srv05 status is now: NodeNotReady
+  Normal   Starting                 11h                kubelet          Starting kubelet.
+  Warning  InvalidDiskCapacity      11h                kubelet          invalid capacity 0 on image filesystem
+  Normal   NodeNotSchedulable       11h                kubelet          Node 7189srv05 status is now: NodeNotSchedulable
+  Normal   NodeReady                11h                kubelet          Node 7189srv05 status is now: NodeReady
+  Normal   NodeHasSufficientMemory  11h (x3 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    11h (x3 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x3 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasSufficientPID
+  Warning  Rebooted                 11h (x2 over 11h)  kubelet          Node 7189srv05 has been rebooted, boot id: 9625b549-e721-49c7-8cf0-562b63b3e16d
+  Normal   NodeAllocatableEnforced  11h                kubelet          Updated Node Allocatable limit across pods
+  Normal   Starting                 11h                kubelet          Starting kubelet.
+  Normal   NodeHasSufficientMemory  11h (x2 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasSufficientMemory
+  Normal   NodeHasNoDiskPressure    11h (x2 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     11h (x2 over 11h)  kubelet          Node 7189srv05 status is now: NodeHasSufficientPID
+  Normal   NodeAllocatableEnforced  11h                kubelet          Updated Node Allocatable limit across pods
+  Warning  Rebooted                 11h                kubelet          Node 7189srv05 has been rebooted, boot id: 272fe667-d9f2-4de0-b04b-605e470fec96
+  Normal   RegisteredNode           11h                node-controller  Node 7189srv05 event: Registered Node 7189srv05 in Controller
+  Normal   NodeSchedulable          11h (x2 over 11h)  kubelet          Node 7189srv05 status is now: NodeSchedulable
+  Normal   NodeNotSchedulable       10h (x3 over 11h)  kubelet          Node 7189srv05 status is now: NodeNotSchedulable
+--
+  Normal   NodeHasNoDiskPressure    23m (x2 over 23m)  kubelet          Node 7189srv05 status is now: NodeHasNoDiskPressure
+  Normal   NodeHasSufficientPID     23m (x2 over 23m)  kubelet          Node 7189srv05 status is now: NodeHasSufficientPID
+  Warning  InvalidDiskCapacity      23m                kubelet          invalid capacity 0 on image filesystem
+  Normal   NodeAllocatableEnforced  23m                kubelet          Updated Node Allocatable limit across pods
+  Warning  Rebooted                 23m                kubelet          Node 7189srv05 has been rebooted, boot id: 11dc2e0d-8a1c-48cc-93df-83ff80b0c107
+  Normal   NodeNotSchedulable       23m                kubelet          Node 7189srv05 status is now: NodeNotSchedulable
+  Normal   RegisteredNode           22m                node-controller  Node 7189srv05 event: Registered Node 7189srv05 in Controller

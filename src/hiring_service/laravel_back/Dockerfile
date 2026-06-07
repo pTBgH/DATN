@@ -15,9 +15,8 @@ RUN apt-get update && apt-get install -y \
     # supervisor \ # Không cài supervisor
     && docker-php-ext-install zip pdo pdo_mysql
 
-# Install MongoDB extension
-RUN pecl install mongodb \
-    && echo "extension=mongodb.so" > /usr/local/etc/php/conf.d/mongodb.ini
+# MongoDB extension removed (not required).
+# If MongoDB is needed in future, re-enable PECL install here.
 
 # Install Redis extension
 RUN pecl install redis \

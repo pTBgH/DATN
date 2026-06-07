@@ -1,7 +1,10 @@
+replicaCount: 1
+
+internalReloadToken: "communication-secure-reload-token-33333"
+
 image:
-  # registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/communication-service
-  tag: "v1.1.13"
+  fullImage: "100.74.189.43:5000/job7189/communication@sha256:2a2605f7c94a4d335e12bc1b3bbcb2ee51885066b7bb1946cb02a169a68bbf68"
   pullPolicy: Always
 
 service:
@@ -21,32 +24,23 @@ env:
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
   DB_DATABASE: job7189_communication_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/communication-service
-  
+  CACHE_DRIVER: "redis"
+  REDIS_HOST: "communication-service-redis"
+  REDIS_PORT: "6379"
   CACHE_PREFIX: communication_
-  REDIS_HOST: communication-service-redis
-
-  MAIL_MAILER: "smtp"
-  MAIL_HOST: "smtp.gmail.com"
-  MAIL_PORT: "587"
-  MAIL_USERNAME: "baophungthai2@gmail.com"
-  # MAIL_PASSWORD will be injected by Vault Agent from secret/data/communication-service
-  MAIL_ENCRYPTION: "tls"
-  MAIL_FROM_ADDRESS: "baophungthai2@gmail.com"
-  MAIL_FROM_NAME: "Job7189 System"
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "info"
 
 vault:
-  extraSecret: true
-  extraSecretTemplate: |
-    {{- with secret "secret/data/communication-service" -}}
-    MAIL_PASSWORD="{{ .Data.data.MAIL_PASSWORD }}"
-    {{ end }}
+  role: communication-service
+  extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/communication-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-
-
-
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

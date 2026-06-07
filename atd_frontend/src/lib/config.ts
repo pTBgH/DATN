@@ -27,7 +27,7 @@ export const config = {
     ),
     realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? "job7189",
     clientId:
-      process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? "candidate-app-dev",
+      process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? "candidate-app",
   },
 } as const;
 

@@ -298,7 +298,7 @@
           "attributes": {}
         }
       ],
-      "recruiter-app-dev": [],
+      "recruiter-app": [],
       "security-admin-console": [],
       "admin-cli": [],
       "account-console": [],
@@ -401,7 +401,7 @@
           "attributes": {}
         }
       ],
-      "candidate-app-dev": []
+      "candidate-app": []
     }
   },
   "groups": [],
@@ -649,8 +649,8 @@
     },
     {
       "id": "0450d924-29c8-452a-8cc7-c301c6d896ca",
-      "clientId": "candidate-app-dev",
-      "name": "Candidate Web App Dev",
+      "clientId": "candidate-app",
+      "name": "Candidate App (ATD Frontend)",
       "description": "",
       "rootUrl": "http://fe-candidate-dev.job7189.local",
       "adminUrl": "http://fe-candidate-dev.job7189.local",
@@ -671,7 +671,7 @@
       "consentRequired": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "publicClient": false,
       "frontchannelLogout": true,
@@ -742,8 +742,8 @@
     },
     {
       "id": "f2501d28-5e6a-45ff-87c2-9833a0195125",
-      "clientId": "recruiter-app-dev",
-      "name": "Recruiter Web App Dev",
+      "clientId": "recruiter-app",
+      "name": "Recruiter App (RCT Frontend)",
       "description": "",
       "rootUrl": "http://fe-recruiter-dev.job7189.local",
       "adminUrl": "http://fe-recruiter-dev.job7189.local",
@@ -752,7 +752,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "**********",
+      "secret": "recruiter-secret-job7189-app",
       "redirectUris": [
         "http://fe-recruiter-dev.job7189.local/*"
       ],
@@ -764,7 +764,7 @@
       "consentRequired": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
+      "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "publicClient": false,
       "frontchannelLogout": true,
@@ -2207,5 +2207,45 @@
   },
   "clientPolicies": {
     "policies": []
-  }
+  },
+  "users": [
+    {
+      "id": "recruiter-user-1",
+      "username": "recruiter1",
+      "firstName": "Recruiter",
+      "lastName": "One",
+      "email": "recruiter1@job7189.local",
+      "emailVerified": false,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "recruiter1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ]
+    },
+    {
+      "id": "candidate-user-1",
+      "username": "candidate1",
+      "firstName": "Candidate",
+      "lastName": "One",
+      "email": "candidate1@job7189.local",
+      "emailVerified": false,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "candidate1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ]
+    }
+  ]
 }

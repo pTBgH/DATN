@@ -54,8 +54,9 @@ phai phan van giua `knowledge-base/` va `docs/`.
 | 39 | `39-zta-alert-catalog.md` | ZTA Alert Catalog (Tier 1 + Tier 2) |
 | 40 | `40-zta-system-snapshot-20260527.md` | **SNAPSHOT** trạng thái hệ thống thực tế (source-of-truth) |
 | 41 | `41-cleanup-and-reconcile-plan.md` | Kế hoạch dọn dẹp repo + đối chiếu KB ↔ hệ thống thực tế |
+| 43 | `43-vault-laravel-rotation-debug.md` | **✅ VERIFIED 2026-06-06** Vault & Laravel Dynamic Credentials Rotation — All 7 services (hiring, identity, candidate, communication, storage, job, workspace) actively rotating credentials ~10min without pod restart |
 
-> Lưu ý: chương `21` không tồn tại (đã gộp); số `35` có 2 file (fix-report-summary + microseg-flow-baseline). Tổng file numbered = **42**.
+> Lưu ý: chương `21` không tồn tại (đã gộp); số `35` có 2 file (fix-report-summary + microseg-flow-baseline). Số `42` không được sử dụng. Tổng file numbered = **43** (**UPDATED: 2026-06-06**).
 
 ## Migration (Kind → Multi-VM kubeadm)
 
@@ -128,6 +129,7 @@ Symptom → Root cause → Fix → Operational guidance → Verification.
 | Hubble flow sink (Elasticsearch audit trail) | `30` |
 | Falco runtime detection (DEPRECATED — thay bằng Tetragon) | `31` |
 | Deploy script troubleshooting (--reset, --uninstall, RAM pre-flight) | `32` |
+| Vault dynamic credentials rotation debug + all 7 services verification | `43` |
 | Step 26 helm install hangs / VM crashes | `incident-gatekeeper-*.md` |
 | Tetragon OOM / host overcommit | `incident-falco-tetragon-ram-overcommit.md` |
 

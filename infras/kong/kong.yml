@@ -13,13 +13,13 @@ consumers:
         # BEGIN JOB7189 JWT PUBLIC KEY
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7NPvdwavIu1CD53/djlW
-          3Ojc0mWPK2l8bMxH5P+qJwKjZfY4oG0DvrFFW3Vt3tIUyZUbyJrfC9o92m6wJWgx
-          xBTUP9MRPuXkj22GSDfbqY/ptFlVgO63NxCjckXbJ6oWd0BIWBo9G8EfUboYryZG
-          6IQldXF8F3vNYcdet5Pn40g2PBR13xvdJ8tBWtDCZfvVPJKJk4KOr4r4hqqsHA62
-          HpodTbMEy82LUgHg03PbYiLhJr+SUwqqgjfwtWXjjzu7vaLWlLYhxtisC7hKWrDq
-          bUs/anKTZ0wyH4x/rUhxBvciyzlJQMUP3TUmETSxBK89XZY1vYawlsddKz03xCyc
-          8QIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1lv5qrFnc8x/1QEbqfXR
+          vFqBmsnjXVWMth1t9cCbkh+fB1rbd160UgVbDA+P7ImKjsiUEFjZdILwdwnCJekA
+          gWZm8TESYffRfwzxjOPlEG8QM/gft6IlcdkmHNBxj7Wc72T+jBCJaCv6L94K3Thl
+          7O+S0oD2dtMWECO8E+YkFUeW2MleIZpokbv8WRnYhtXC6O8TaNF/2YBozxEGhlF0
+          A23ib5tasHMD/RyBC8BjTuGO5mChIux2lOkJalI28I1s85UwL20XTwf6gAVFU4tX
+          JVfFBM6Uk9z4XtTLdqbRxf1gRrY+eKdigMpW0RTGUqWOGflBQ0UYwJjVLHvoeet7
+          +wIDAQAB
           -----END PUBLIC KEY-----
         # END JOB7189 JWT PUBLIC KEY
       - algorithm: RS256
@@ -27,13 +27,13 @@ consumers:
         # BEGIN JOB7189 JWT PUBLIC KEY
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7NPvdwavIu1CD53/djlW
-          3Ojc0mWPK2l8bMxH5P+qJwKjZfY4oG0DvrFFW3Vt3tIUyZUbyJrfC9o92m6wJWgx
-          xBTUP9MRPuXkj22GSDfbqY/ptFlVgO63NxCjckXbJ6oWd0BIWBo9G8EfUboYryZG
-          6IQldXF8F3vNYcdet5Pn40g2PBR13xvdJ8tBWtDCZfvVPJKJk4KOr4r4hqqsHA62
-          HpodTbMEy82LUgHg03PbYiLhJr+SUwqqgjfwtWXjjzu7vaLWlLYhxtisC7hKWrDq
-          bUs/anKTZ0wyH4x/rUhxBvciyzlJQMUP3TUmETSxBK89XZY1vYawlsddKz03xCyc
-          8QIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1lv5qrFnc8x/1QEbqfXR
+          vFqBmsnjXVWMth1t9cCbkh+fB1rbd160UgVbDA+P7ImKjsiUEFjZdILwdwnCJekA
+          gWZm8TESYffRfwzxjOPlEG8QM/gft6IlcdkmHNBxj7Wc72T+jBCJaCv6L94K3Thl
+          7O+S0oD2dtMWECO8E+YkFUeW2MleIZpokbv8WRnYhtXC6O8TaNF/2YBozxEGhlF0
+          A23ib5tasHMD/RyBC8BjTuGO5mChIux2lOkJalI28I1s85UwL20XTwf6gAVFU4tX
+          JVfFBM6Uk9z4XtTLdqbRxf1gRrY+eKdigMpW0RTGUqWOGflBQ0UYwJjVLHvoeet7
+          +wIDAQAB
           -----END PUBLIC KEY-----
         # END JOB7189 JWT PUBLIC KEY
       - algorithm: RS256
@@ -41,13 +41,13 @@ consumers:
         # BEGIN JOB7189 JWT PUBLIC KEY
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7NPvdwavIu1CD53/djlW
-          3Ojc0mWPK2l8bMxH5P+qJwKjZfY4oG0DvrFFW3Vt3tIUyZUbyJrfC9o92m6wJWgx
-          xBTUP9MRPuXkj22GSDfbqY/ptFlVgO63NxCjckXbJ6oWd0BIWBo9G8EfUboYryZG
-          6IQldXF8F3vNYcdet5Pn40g2PBR13xvdJ8tBWtDCZfvVPJKJk4KOr4r4hqqsHA62
-          HpodTbMEy82LUgHg03PbYiLhJr+SUwqqgjfwtWXjjzu7vaLWlLYhxtisC7hKWrDq
-          bUs/anKTZ0wyH4x/rUhxBvciyzlJQMUP3TUmETSxBK89XZY1vYawlsddKz03xCyc
-          8QIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1lv5qrFnc8x/1QEbqfXR
+          vFqBmsnjXVWMth1t9cCbkh+fB1rbd160UgVbDA+P7ImKjsiUEFjZdILwdwnCJekA
+          gWZm8TESYffRfwzxjOPlEG8QM/gft6IlcdkmHNBxj7Wc72T+jBCJaCv6L94K3Thl
+          7O+S0oD2dtMWECO8E+YkFUeW2MleIZpokbv8WRnYhtXC6O8TaNF/2YBozxEGhlF0
+          A23ib5tasHMD/RyBC8BjTuGO5mChIux2lOkJalI28I1s85UwL20XTwf6gAVFU4tX
+          JVfFBM6Uk9z4XtTLdqbRxf1gRrY+eKdigMpW0RTGUqWOGflBQ0UYwJjVLHvoeet7
+          +wIDAQAB
           -----END PUBLIC KEY-----
         # END JOB7189 JWT PUBLIC KEY
       - algorithm: RS256
@@ -55,13 +55,13 @@ consumers:
         # BEGIN JOB7189 JWT PUBLIC KEY
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7NPvdwavIu1CD53/djlW
-          3Ojc0mWPK2l8bMxH5P+qJwKjZfY4oG0DvrFFW3Vt3tIUyZUbyJrfC9o92m6wJWgx
-          xBTUP9MRPuXkj22GSDfbqY/ptFlVgO63NxCjckXbJ6oWd0BIWBo9G8EfUboYryZG
-          6IQldXF8F3vNYcdet5Pn40g2PBR13xvdJ8tBWtDCZfvVPJKJk4KOr4r4hqqsHA62
-          HpodTbMEy82LUgHg03PbYiLhJr+SUwqqgjfwtWXjjzu7vaLWlLYhxtisC7hKWrDq
-          bUs/anKTZ0wyH4x/rUhxBvciyzlJQMUP3TUmETSxBK89XZY1vYawlsddKz03xCyc
-          8QIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1lv5qrFnc8x/1QEbqfXR
+          vFqBmsnjXVWMth1t9cCbkh+fB1rbd160UgVbDA+P7ImKjsiUEFjZdILwdwnCJekA
+          gWZm8TESYffRfwzxjOPlEG8QM/gft6IlcdkmHNBxj7Wc72T+jBCJaCv6L94K3Thl
+          7O+S0oD2dtMWECO8E+YkFUeW2MleIZpokbv8WRnYhtXC6O8TaNF/2YBozxEGhlF0
+          A23ib5tasHMD/RyBC8BjTuGO5mChIux2lOkJalI28I1s85UwL20XTwf6gAVFU4tX
+          JVfFBM6Uk9z4XtTLdqbRxf1gRrY+eKdigMpW0RTGUqWOGflBQ0UYwJjVLHvoeet7
+          +wIDAQAB
           -----END PUBLIC KEY-----
         # END JOB7189 JWT PUBLIC KEY
 
@@ -145,6 +145,7 @@ services:
       - { name: identity-profiles, paths: ["/api/recruiters/profile"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false, plugins: [{ name: jwt }] }
       - { name: identity-admin, paths: ["/api/admin/users"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-debug-headers, paths: ["/api/debug-headers"], strip_path: false }
       - { name: identity-health, paths: ["/api/health"], strip_path: false }
 
   # ======================
@@ -477,4 +478,11 @@ plugins:
               user    = claims.preferred_username or "anonymous",
               azp     = claims.azp or "",
             })
+          end
+
+          -- Re-inject the original JWT bearer token so downstream services
+          -- (e.g., identity-service middleware) can verify and use JWT claims.
+          -- The JWT plugin may have consumed/removed the Authorization header.
+          if token ~= "" then
+            ngx.req.set_header("authorization", "Bearer " .. token)
           end

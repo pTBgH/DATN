@@ -156,11 +156,13 @@ return [
         ],
 
         'default' => [
-            'driver' => 'custom', // <-- PHẢI LÀ 'custom' để gọi via
-            'via' => \App\Logging\CreateJsonLogger::class,
-            'path' => storage_path('logs/laravel.log'), // File log mặc định
+            'driver' => 'monolog',
+            'handler' => StreamHandler::class,
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 7, // <-- Giữ log trong 7 ngày
+            'with' => [
+                'stream' => 'php://stderr',
+            ],
+            'processors' => [PsrLogMessageProcessor::class],
         ],
     ],
 

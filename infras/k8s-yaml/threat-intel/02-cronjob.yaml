@@ -25,6 +25,7 @@ metadata:
     cilium.zta/sensitivity: confidential
 spec:
   schedule: "0 * * * *"
+  suspend: true
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Replace

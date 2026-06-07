@@ -1,9 +1,10 @@
-# registry:
-#   url: "docker-registry.registry.svc.cluster.local:5000"
+replicaCount: 1
+
+internalReloadToken: "hiring-secure-reload-token-11111"
+
 image:
-  # registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/hiring-service
-  tag: "v1.7.11"
+  fullImage: "100.74.189.43:5000/job7189/hiring-service@sha256:8f3c6e533c218ab4a8727bfa2722624b8a38504648e24aef2ae27975c511fba8"
   pullPolicy: Always
 
 service:
@@ -23,21 +24,23 @@ env:
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
   DB_DATABASE: job7189_hiring_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/hiring-service
-  
+  CACHE_DRIVER: "redis"
+  REDIS_HOST: "hiring-service-redis"
+  REDIS_PORT: "6379"
   CACHE_PREFIX: hiring_
-  REDIS_HOST: hiring-service-redis
-  SUPER_ADMIN_WORKSPACE_ID: "019bb56a-58cf-7241-b150-4e6c39f8ce4c"
-
-  IDENTITY_SERVICE_URL: "http://identity-service"
-  WORKSPACE_SERVICE_URL: "http://workspace-service"
-  JOB_SERVICE_URL: "http://job-service"
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "info"
 
 vault:
+  role: hiring-service
   extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/hiring-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

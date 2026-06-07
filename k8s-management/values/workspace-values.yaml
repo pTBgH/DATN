@@ -1,8 +1,12 @@
+replicaCount: 1
+
+internalReloadToken: "workspace-secure-reload-token-12345"
+
 image:
-  registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/workspace-service
-  tag: "v1.0.11"
+  fullImage: "100.74.189.43:5000/job7189/workspace@sha256:88ea023c2adf42b6e9d4f6ea247e11a1ff5502d5c19a8fcf8a4150c7bdfe3d23"
   pullPolicy: Always
+
 service:
   type: ClusterIP
   port: 80
@@ -20,21 +24,23 @@ env:
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
   DB_DATABASE: job7189_workspace_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/workspace-service
-  
+  CACHE_PREFIX: workspace_
   LOG_CHANNEL: "stderr"
   LOG_LEVEL: "debug"
-  CACHE_PREFIX: workspace_
   IDENTITY_SERVICE_URL: "http://identity-service"
   REDIS_HOST: "workspace-service-redis"
   SUPER_ADMIN_WORKSPACE_ID: "019bb56a-58cf-7241-b150-4e6c39f8ce4c"
 
 vault:
+  role: workspace-service
   extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/workspace-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

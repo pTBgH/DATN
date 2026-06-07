@@ -3,7 +3,7 @@
  *
  * OAuth2 Resource Owner Password Credentials grant against the realm token
  * endpoint (proxied through Kong). The client must be a PUBLIC client with
- * "Direct Access Grants" enabled (recruiter-app-dev).
+ * "Direct Access Grants" enabled (recruiter-app).
  *
  * The recruiter/admin role is derived from the token's realm roles so the
  * existing layout/nav (which gates on `role`) keeps working. Tokens are
@@ -14,7 +14,7 @@
  *   NEXT_PUBLIC_API_BASE_URL=<kong-url>
  *   NEXT_PUBLIC_KEYCLOAK_URL=<kong-url>
  *   NEXT_PUBLIC_KEYCLOAK_REALM=job7189
- *   NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=recruiter-app-dev
+ *   NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=recruiter-app
  */
 
 "use client";

@@ -3,7 +3,7 @@
  *
  * Uses the OAuth2 Resource Owner Password Credentials grant against the
  * realm token endpoint (proxied through Kong). The client must be a PUBLIC
- * client with "Direct Access Grants" enabled (candidate-app-dev).
+ * client with "Direct Access Grants" enabled (candidate-app).
  *
  * On success the access token is stored in localStorage under the same keys
  * the rest of the app already reads (TOKEN_KEY for api/client.ts, STORAGE_KEY
@@ -14,7 +14,7 @@
  *   NEXT_PUBLIC_API_BASE_URL=<kong-url>
  *   NEXT_PUBLIC_KEYCLOAK_URL=<kong-url>
  *   NEXT_PUBLIC_KEYCLOAK_REALM=job7189
- *   NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=candidate-app-dev
+ *   NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=candidate-app
  */
 
 "use client";

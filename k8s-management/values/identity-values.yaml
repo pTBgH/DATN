@@ -1,10 +1,11 @@
-image:
-  registry: ""
-  repository: job7189/identity-service
-  tag: "v2.8.18"
-  pullPolicy: IfNotPresent
+replicaCount: 1
 
-  internalReloadToken: "another-really-secure-token"
+internalReloadToken: "identity-secure-reload-token-99999"
+
+image:
+  repository: job7189/identity
+  fullImage: "100.74.189.43:5000/job7189/identity@sha256:1d80eb59916ed5ee543037e06da93919c851d15f761db4fa51d206d41c60e9c7"
+  pullPolicy: Always
 
 service:
   type: ClusterIP
@@ -23,32 +24,27 @@ env:
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
   DB_DATABASE: job7189_identity_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/identity-service
-
-  LOG_CHANNEL: "stderr"
-  LOG_LEVEL: "debug"
-  CACHE_PREFIX: identity_
-  KEYCLOAK_REALM: "job7189"
-  KEYCLOAK_BASE_URL: "http://keycloak.security.svc.cluster.local:8080"
+  CACHE_DRIVER: "redis"
   REDIS_HOST: "identity-service-redis"
-  IDENTITY_SERVICE_URL: "http://identity-service"
-  WORKSPACE_SERVICE_URL: "http://workspace-service"
-  # LARAVEL_INTERNAL_API_SECRET will be injected by Vault Agent from secret/data/identity-service
+  REDIS_PORT: "6379"
+  CACHE_PREFIX: identity_
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "info"
 
 vault:
-  extraSecret: true
-  extraSecretTemplate: |
-    {{- with secret "secret/data/identity-service" -}}
-    LARAVEL_INTERNAL_API_SECRET="{{ .Data.data.LARAVEL_INTERNAL_API_SECRET }}"
-    {{ end }}
+  role: identity-service
+  extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/identity-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
-  tier: T1
+  tier: T2
   env: prod
-  dataClassification: confidential
+  dataClassification: internal
   exposure: internal
   team: backend

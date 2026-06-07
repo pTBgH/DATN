@@ -29,6 +29,18 @@ Route::prefix('internal')->group(function () {
     Route::get('/users/{id}', [\App\Http\Controllers\Internal\IdentityInternalController::class, 'getUserDetail']);
 });
 
+// Debug endpoint (no middleware) to see what headers Kong sends
+Route::get('/debug-headers', function (\Illuminate\Http\Request $request) {
+    return response()->json([
+        'headers' => $request->headers->all(),
+        'bearer_token' => $request->bearerToken(),
+        'auth_header' => $request->header('authorization'),
+        'server_vars' => [
+            'HTTP_AUTHORIZATION' => $_SERVER['HTTP_AUTHORIZATION'] ?? null,
+        ],
+    ]);
+});
+
 
 
 

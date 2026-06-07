@@ -16,11 +16,11 @@
 ## EFK Stack
 
 ### Elasticsearch
-- Version: 7.17.18 (single-node) — image `docker.elastic.co/elasticsearch/elasticsearch:7.17.18` (xac nhan tren cluster 2026-06-03, snapshot 40)
-- Resource: request 512Mi / limit 1Gi
-- JVM: `-Xms512m -Xmx512m`
-- Storage: emptyDir (mat data khi restart)
-- Note: ngu RAM lon nhat
+- Version: 7.17.18 (single-node) — image `docker.elastic.co/elasticsearch/elasticsearch:7.17.18` (xác nhận trên cụm 2026-06-03)
+- Resource: request 384Mi / limit 768Mi (giảm để tiết kiệm tài nguyên RAM cụm)
+- JVM: `-Xms384m -Xmx384m`
+- Storage: Persistent Volume Claim (PVC) 2Gi sử dụng local-path-provisioner.
+- Node Placement: Chỉ định chạy trên node `7189srv05` (`nodeSelector` targeting `7189srv05`) để tránh DiskPressure crash loop trên các node thiếu đĩa (như `srv03`) và cách ly dữ liệu log với MySQL trên cùng node lưu trữ chính.
 
 ### Filebeat
 - Type: DaemonSet (1 pod moi worker node = 3 pods)

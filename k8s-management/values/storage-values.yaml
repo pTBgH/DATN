@@ -1,8 +1,11 @@
+replicaCount: 1
+
+internalReloadToken: "storage-secure-reload-token-44444"
+
 image:
-  registry: docker-registry.registry.svc.cluster.local:5000
   repository: job7189/storage-service
-  tag: "v1.3.3"
-  pullPolicy: IfNotPresent
+  fullImage: "100.74.189.43:5000/job7189/storage@sha256:fa9a8fb5074308aeee57faa065e545eb45f30498ef3f41c93c0a29147309ec56"
+  pullPolicy: Always
 
 service:
   type: ClusterIP
@@ -21,57 +24,24 @@ env:
   DB_HOST: mysql.data.svc.cluster.local
   DB_PORT: "3306"
   DB_DATABASE: job7189_storage_db
-  # DB_USERNAME will be injected by Vault Agent
-  # DB_PASSWORD will be injected by Vault Agent from database/creds/storage-service
-  
+  CACHE_DRIVER: "redis"
+  REDIS_HOST: "storage-service-redis"
+  REDIS_PORT: "6379"
+  CACHE_PREFIX: storage_
+  LOG_CHANNEL: "stderr"
+  LOG_LEVEL: "info"
   MINIO_ENDPOINT: "http://192.168.112.158:8080"
-  # MINIO_KEY and MINIO_SECRET will be injected by Vault Agent from secret/data/storage-service
-  
-  MINIO_REGION: "us-east-1"
-  MINIO_BUCKET: "job7189-storage"
-
-  MINIO_URL: "http://s3.job7189.local"
-  
-  MINIO_USE_PATH_STYLE_ENDPOINT: "true"
-
-  # AWS credentials will be injected by Vault Agent from secret/data/storage-service
-  AWS_DEFAULT_REGION: "us-east-1"
-  AWS_BUCKET: "job7189-storage"
-  AWS_ENDPOINT: "http://192.168.112.158:8080"
-  AWS_USE_PATH_STYLE_ENDPOINT: true
-
-  # NEXTJS_INTERNAL_API_SECRET will be injected by Vault Agent from secret/data/storage-service
 
 vault:
-  extraSecret: true
-  extraSecretTemplate: |
-    {{- with secret "secret/data/storage-service" -}}
-    MINIO_KEY="{{ .Data.data.MINIO_KEY }}"
-    MINIO_SECRET="{{ .Data.data.MINIO_SECRET }}"
-    AWS_ACCESS_KEY_ID="{{ .Data.data.MINIO_KEY }}"
-    AWS_SECRET_ACCESS_KEY="{{ .Data.data.MINIO_SECRET }}"
-    NEXTJS_INTERNAL_API_SECRET="{{ .Data.data.NEXTJS_INTERNAL_API_SECRET }}"
-    {{ end }}
+  role: storage-service
+  extraSecret: false
+  secretTemplate: |
+    {{- with secret "database/creds/storage-service" -}}
+    DB_USERNAME="{{ .Data.username }}"
+    DB_PASSWORD="{{ .Data.password }}"
+    LEASE_ID="{{ .Data.lease_id }}"
+    {{- end }}
 
-
-  # FILESYSTEM_DISK: s3
-  
-  # AWS_ACCESS_KEY_ID: "minioadmin"
-  # AWS_SECRET_ACCESS_KEY: "minioadmin"
-  # AWS_DEFAULT_REGION: "us-east-1"
-  # AWS_BUCKET: "job7189-storage" # Tên bucket bạn vừa tạo
-  
-  # # Đường dẫn nội bộ để Laravel gọi MinIO (Nhanh hơn gọi qua domain public)
-  # AWS_ENDPOINT: "http://minio:9000"
-  
-  # # Đường dẫn public để hiển thị ảnh trên web (Frontend dùng cái này)
-  # AWS_URL: "http://s3.job7189.local"
-  
-  # # Bắt buộc để dùng MinIO thay vì AWS thật
-  # AWS_USE_PATH_STYLE_ENDPOINT: "true"
-  
-
-# ZTA workload labels (PR #9 — knowledge-base/19-label-schema.md)
 zta:
   role: api
   tier: T2

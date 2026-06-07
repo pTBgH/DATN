@@ -43,6 +43,8 @@ spec:
         zta.job7189/exposure: cluster-only
         zta.job7189/team: platform
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: "7189srv05"
       initContainers:
       - name: fix-permissions
         image: busybox

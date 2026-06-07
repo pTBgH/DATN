@@ -22,12 +22,37 @@ class VerifyKeycloakToken
 
         try {
             // 1. Lấy JWKS & Verify Chữ ký
-            $jwksUrl = rtrim(config('services.keycloak.base_url'), '/') . "/realms/" . config('services.keycloak.realm') . "/protocol/openid-connect/certs";
+            // TEMP: Hardcode Keycloak URL to test OAuth2 flow (env vars not accessible in Laravel middleware)
+            $baseUrl = 'http://keycloak.security.svc.cluster.local:8080';
+            $realm = 'job7189';
+            $jwksUrl = $baseUrl . "/realms/" . $realm . "/protocol/openid-connect/certs";
             
-            $jwks = Cache::remember('jwks_identity', 3600, function () use ($jwksUrl) {
-                return Http::withOptions(['verify' => false])->get($jwksUrl)->json();
-            });
+            Log::info("JWT verification starting", [
+                'jwks_url' => $jwksUrl,
+                'token_len' => strlen($token)
+            ]);
+            
+            $jwks = null;
+            try {
+                $jwks = Cache::remember('jwks_identity', 3600, function () use ($jwksUrl) {
+                    Log::info("Fetching JWKS from: " . $jwksUrl);
+                    try {
+                        $response = Http::withOptions(['verify' => false])->get($jwksUrl);
+                        Log::info("JWKS fetch response status: " . $response->status());
+                        return $response->json();
+                    } catch (\Exception $e) {
+                        Log::error("JWKS fetch failed: " . $e->getMessage(), ['class' => get_class($e)]);
+                        throw $e;
+                    }
+                });
+            } catch (\Exception $cacheError) {
+                Log::warning("Cache failed, fetching JWKS directly: " . $cacheError->getMessage());
+                // Fall back to direct fetch if cache fails
+                $response = Http::withOptions(['verify' => false])->get($jwksUrl);
+                $jwks = $response->json();
+            }
 
+            Log::info("JWKS retrieved, attempting decode");
             $decoded = JWT::decode($token, JWK::parseKeySet($jwks));
             
             $sub = $decoded->sub; // Keycloak ID
@@ -90,8 +115,14 @@ class VerifyKeycloakToken
             return $next($request);
 
         } catch (\Exception $e) {
-            Log::error("Identity Auth Failed: " . $e->getMessage());
-            return response()->json(['message' => 'Unauthorized'], 401);
+            Log::error("Identity Auth Failed: " . $e->getMessage(), [
+                'exception_class' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'token_received' => !empty($token),
+            ]);
+            return response()->json(['message' => 'Unauthorized: ' . $e->getMessage()], 401);
         }
     }
 }

@@ -60,8 +60,8 @@ if [ "$ARG1" == "" ]; then
     echo -e "${BLUE}=== Keycloak Token Generator ===${NC}"
     echo ""
     echo "Select which token to generate:"
-    echo "  0) Candidate Service (candidate-app-dev)"
-    echo "  1) Recruiter Service (recruiter-app-dev)"
+    echo "  0) Candidate Service (candidate-app)"
+    echo "  1) Recruiter Service (recruiter-app)"
     echo ""
     read -p "Enter choice [0-1]: " CHOICE
 else

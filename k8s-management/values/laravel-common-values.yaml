@@ -47,8 +47,8 @@ env:
 
   KEYCLOAK_REALM: "job7189"
   KEYCLOAK_BASE_URL: "http://keycloak.security.svc.cluster.local:8080"
-  KEYCLOAK_RECRUITER_CLIENT_ID: "recruiter-app-dev"
-  KEYCLOAK_CANDIDATE_CLIENT_ID: "candidate-app-dev"
+  KEYCLOAK_RECRUITER_CLIENT_ID: "recruiter-app"
+  KEYCLOAK_CANDIDATE_CLIENT_ID: "candidate-app"
 
 internalReloadToken: ""
 

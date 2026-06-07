@@ -244,7 +244,7 @@ vault write database/config/mysql plugin_name=mysql-database-plugin verify_conne
 
 for SVC_DB in identity-service:job7189_identity_db workspace-service:job7189_workspace_db job-service:job7189_job_db hiring-service:job7189_hiring_db candidate-service:job7189_candidate_db communication-service:job7189_communication_db storage-service:job7189_storage_db; do
   SVC="\${SVC_DB%%:*}"; DB="\${SVC_DB##*:}"
-  vault write database/roles/\$SVC db_name=mysql username_template='usr_{{random 16 | truncate 12}}' creation_statements="CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}'; GRANT SELECT,INSERT,UPDATE,DELETE ON \${DB}.* TO '{{name}}'@'%';" revocation_statements="DROP USER IF EXISTS '{{name}}'@'%';" default_ttl='1h' max_ttl='24h'
+  vault write database/roles/\$SVC db_name=mysql username_template='usr_{{random 16 | truncate 12}}' creation_statements="CREATE USER '{{name}}'@'%' IDENTIFIED BY '{{password}}'; GRANT SELECT,INSERT,UPDATE,DELETE ON \${DB}.* TO '{{name}}'@'%';" revocation_statements="DROP USER IF EXISTS '{{name}}'@'%';" default_ttl='15m' max_ttl='15m'
 done
 
 vault policy write keycloak - <<POL

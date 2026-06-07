@@ -87,7 +87,7 @@ spec:
           defaultMode: 0755
       initContainers:
       - name: wait-for-vault-secrets
-        image: busybox:1.36
+        image: {{ .Values.initImages.busybox | default "busybox:1.36" }}
         command:
           - sh
           - -c
@@ -110,7 +110,7 @@ spec:
         resources:
 {{ toYaml .Values.resources.init | indent 10 }}
       - name: fix-perms
-        image: busybox:1.36
+        image: {{ .Values.initImages.busybox | default "busybox:1.36" }}
         command:
           - sh
           - -c
@@ -128,7 +128,7 @@ spec:
 {{ toYaml .Values.resources.init | indent 10 }}
       containers:
         - name: env-loader
-          image: busybox:1.36
+          image: {{ .Values.initImages.busybox | default "busybox:1.36" }}
           command:
             - sh
             - -c
@@ -165,7 +165,7 @@ spec:
 {{ toYaml .Values.resources.sidecar | indent 12 }}
 
         - name: env-watcher
-          image: alpine:3.18
+          image: {{ .Values.sidecarImages.envWatcher | default "alpine:3.18" }}
           command:
             - sh
             - -c
@@ -197,11 +197,15 @@ spec:
 {{ toYaml .Values.resources.sidecar | indent 12 }}
 
         - name: app
+          {{- if .Values.image.fullImage }}
+          image: "{{ .Values.image.fullImage }}"
+          {{- else }}
           {{- $registry := include "registry.url" . -}}
           {{- if $registry }}
           image: "{{ $registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           {{- else }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- end }}
           {{- end }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

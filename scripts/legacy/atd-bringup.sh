@@ -22,7 +22,7 @@ set -uo pipefail
 
 # ---------------------------- Config ---------------------------------------
 REALM="${REALM:-job7189}"
-CANDIDATE_CLIENT="${CANDIDATE_CLIENT:-candidate-app-dev}"
+CANDIDATE_CLIENT="${CANDIDATE_CLIENT:-candidate-app}"
 TEST_USER="${TEST_USER:-member1}"
 TEST_PASSWORD="${TEST_PASSWORD:-dev1234}"
 FE_ORIGIN="${FE_ORIGIN:-https://job7189-atd.pages.dev}"

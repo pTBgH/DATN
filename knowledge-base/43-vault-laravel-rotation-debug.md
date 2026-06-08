@@ -32,12 +32,19 @@ Mỗi Pod trong namespace `job7189-apps` chứa 4 containers chạy song song:
       ▼
 [app container] (Chạy watch-env.sh ngầm dưới supervisor)
       │
-      │ 1. Phát hiện MD5 /app-secrets/.env thay đổi.
+      │ 1. Phát hiện MD5 /vault/secrets/.env.db thay đổi.
       │ 2. Copy đè vào thư mục app chính: /var/www/.env
-      │ 3. Chạy lệnh: supervisorctl restart laravel-service:*
+      │ 3. Restart CÓ CHỌN LỌC: laravel-service:nginx php8-fpm laravel-queue_00
+      │    (KHÔNG restart cả group `laravel-service:*` và KHÔNG restart watch-env)
       ▼
 [Laravel & Workers] (Nạp lại cấu hình, kết nối DB bằng credential mới)
 ```
+
+> **CẢNH BÁO (sự cố 502 ngày 2026-06-08):** bản `watch-env.sh` cũ chạy
+> `supervisorctl restart laravel-service:*` — restart cả group gồm chính nó →
+> mất state RAM khi respawn → loop restart vô tận → nginx/php-fpm bật-tắt liên
+> tục → Kong trả 502 (`connect() failed (111: Connection refused)`). Chi tiết &
+> cách sửa: [44-watch-env-restart-storm-502.md](./44-watch-env-restart-storm-502.md).
 
 ---
 

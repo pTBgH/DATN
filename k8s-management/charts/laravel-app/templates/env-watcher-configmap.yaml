@@ -7,3 +7,5 @@ metadata:
 data:
   env-watcher.sh: |-
 {{ .Files.Get "files/env-watcher.sh" | indent 4 }}
+  watch-env.sh: |-
+{{ .Files.Get "files/watch-env.sh" | indent 4 }}

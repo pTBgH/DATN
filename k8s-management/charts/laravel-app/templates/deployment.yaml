@@ -232,6 +232,12 @@ spec:
           volumeMounts:
           - name: app-env
             mountPath: /app-secrets
+          # Override the in-image watch-env.sh with the fixed version (no restart
+          # storm) via ConfigMap, so the fix applies without rebuilding images.
+          - name: env-watcher-script
+            mountPath: /usr/local/bin/watch-env.sh
+            subPath: watch-env.sh
+            readOnly: true
           # NOTE: Vault secrets are available at /app-secrets/.env
           # The app's docker run.sh should source or copy this file to .env
           # Or Laravel can be configured to load from this path

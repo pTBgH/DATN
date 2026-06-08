@@ -31,12 +31,20 @@ spec:
         {{- end }}
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/agent-init-first: "true"
-        vault.hashicorp.com/role: "{{ .Release.Name }}"
+        # vault-agent-init runs LAST (after the spiffe-helper native sidecar has seeded the JWT-SVID)
+        vault.hashicorp.com/agent-init-first: "false"
+        # --- SPIRE JWT-SVID auth (replaces auth/kubernetes) ---
+        vault.hashicorp.com/auth-type: "jwt"
+        vault.hashicorp.com/auth-path: "auth/jwt"
+        vault.hashicorp.com/auth-config-role: "{{ .Release.Name }}"
+        vault.hashicorp.com/auth-config-path: "/spire-jwt/jwt_svid.token"
+        vault.hashicorp.com/auth-config-remove_jwt_after_reading: "false"
+        # copy the /spire-jwt mount from the spiffe-helper container into vault-agent(-init)
+        vault.hashicorp.com/agent-copy-volume-mounts: "spiffe-helper"
         # Skip TLS verification for Vault (cluster uses self-signed cert)
         vault.hashicorp.com/tls-skip-verify: "true"
         vault.hashicorp.com/agent-inject-status: "update"
-
+ 
         # Common secrets — APP_KEY
         vault.hashicorp.com/agent-inject-secret-common: "secret/data/laravel-common"
         vault.hashicorp.com/agent-inject-file-common: ".env.common"
@@ -44,7 +52,7 @@ spec:
           {{`{{- with secret "secret/data/laravel-common" -}}
           APP_KEY="{{ .Data.data.APP_KEY }}"
           {{- end }}`}}
-
+ 
         # Dynamic DB credentials
         vault.hashicorp.com/agent-inject-secret-db: "database/creds/{{ .Release.Name }}"
         vault.hashicorp.com/agent-inject-file-db: ".env.db"
@@ -56,14 +64,14 @@ spec:
           LEASE_ID="{{ .LeaseID }}"
           
           {{ end }}`}}
-
+ 
         # Sentinel file with lease id to signal rotation
         vault.hashicorp.com/agent-inject-file-db-lease: ".env.db.lease"
         vault.hashicorp.com/agent-inject-template-db-lease: |-
           {{`{{- with secret "database/creds/`}}{{ .Release.Name }}{{`" -}}
           LEASE_ID="{{ .LeaseID }}"
           {{- end }}`}}
-
+ 
         {{- if .Values.vault.extraSecret }}
         # Service-specific secrets
         vault.hashicorp.com/agent-inject-secret-extra: "secret/data/{{ .Release.Name }}"
@@ -85,28 +93,39 @@ spec:
         configMap:
           name: {{ .Release.Name }}-env-watcher-script
           defaultMode: 0755
+      # SPIRE Workload API socket (CSI) + JWT-SVID output dir + spiffe-helper config
+      - name: spiffe-workload-api
+        csi:
+          driver: csi.spiffe.io
+          readOnly: true
+      - name: spire-jwt
+        emptyDir:
+          medium: Memory
+      - name: spiffe-helper-config
+        configMap:
+          name: {{ .Release.Name }}-spiffe-helper
       initContainers:
-      - name: wait-for-vault-secrets
-        image: {{ .Values.initImages.busybox | default "busybox:1.36" }}
-        command:
-          - sh
-          - -c
-          - |
-            # wait for initial Vault-injected DB secret to appear
-            i=0
-            while [ $i -lt 60 ]; do
-              if [ -f /vault/secrets/.env.db ]; then
-                echo "vault secrets ready"
-                exit 0
-              fi
-              i=$((i+1))
-              sleep 1
-            done
-            echo "timeout waiting for /vault/secrets/.env.db" >&2
-            exit 1
+      # Native sidecar (k8s >=1.29): fetches JWT-SVID (aud=vault) into /spire-jwt/jwt_svid.token,
+      # then keeps it refreshed for the long-running vault-agent to re-authenticate.
+      - name: spiffe-helper
+        image: {{ .Values.spiffeHelper.image | default "ghcr.io/spiffe/spiffe-helper@sha256:4d9863034d8f95d5b6592095b57a38828e54b4e92f66d744a6ed353f6fc0bf7f" }}
+        restartPolicy: Always
+        securityContext:
+          runAsUser: 100
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+        args:
+          - -config
+          - /etc/spiffe-helper/helper.conf
         volumeMounts:
-          - name: app-env
-            mountPath: /app-secrets
+          - name: spiffe-helper-config
+            mountPath: /etc/spiffe-helper
+            readOnly: true
+          - name: spiffe-workload-api
+            mountPath: /spiffe-workload-api
+            readOnly: true
+          - name: spire-jwt
+            mountPath: /spire-jwt
         resources:
 {{ toYaml .Values.resources.init | indent 10 }}
       - name: fix-perms
@@ -163,7 +182,7 @@ spec:
               mountPath: /var/run
           resources:
 {{ toYaml .Values.resources.sidecar | indent 12 }}
-
+ 
         - name: env-watcher
           image: {{ .Values.sidecarImages.envWatcher | default "alpine:3.18" }}
           command:
@@ -195,7 +214,7 @@ spec:
               readOnly: true
           resources:
 {{ toYaml .Values.resources.sidecar | indent 12 }}
-
+ 
         - name: app
           {{- if .Values.image.fullImage }}
           image: "{{ .Values.image.fullImage }}"

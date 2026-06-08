@@ -68,3 +68,7 @@ redis:
 vault:
   extraSecret: false
   extraSecretTemplate: ""
+
+# SPIRE spiffe-helper sidecar (provides JWT-SVID for Vault auth/jwt). Pinned by digest.
+spiffeHelper:
+  image: "ghcr.io/spiffe/spiffe-helper@sha256:4d9863034d8f95d5b6592095b57a38828e54b4e92f66d744a6ed353f6fc0bf7f"

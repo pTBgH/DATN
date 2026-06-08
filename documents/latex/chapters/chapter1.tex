@@ -76,7 +76,7 @@ Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207, 
 %==============================================================================
 % 1.2  KIẾN TRÚC THAM CHIẾU ZERO TRUST THEO NIST SP 800-207
 %==============================================================================
-\section{Kiến trúc tham chiếu Zero Trust (NIST SP 800-207)}
+\section{Kiến trúc tham chiếu Zero Trust}
 
 \subsection{Bảy nguyên lý}
 
@@ -107,7 +107,7 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 \end{tabularx}
 \end{table}
 
-\subsection{Mô hình logic}
+\subsection{Các thành phần trong kiến trúc tham chiếu}
 \label{subsec:logic_pdp_pep_pip}
 
 NIST SP 800-207 định nghĩa kiến trúc logic ZTA tách biệt hoàn toàn giữa \textbf{control plane (mặt phẳng điều khiển)} và \textbf{data plane (mặt phẳng dữ liệu)} \parencite{nist800207}. NIST SP 1800-35 bổ sung và sử dụng nhất quán bốn vai trò kiến trúc dưới đây, trong đó PE và PA hợp thành \textbf{Policy Decision Point (PDP)} ở control plane, còn PEP thực thi tại data plane và PIP cấp ngữ cảnh cho PDP \parencite{nist_sp_1800_35}.
@@ -133,16 +133,33 @@ NIST SP 800-207 định nghĩa kiến trúc logic ZTA tách biệt hoàn toàn g
 
 \begin{table}[H]
 \centering
-\caption{Phân loại biến thể \textit{trust algorithm}}
+\caption{Các hướng tiếp cận phổ biến của \textit{trust algorithm} trong Zero Trust}
 \label{tab:trust_algorithm}
-\begin{tabularx}{\textwidth}{|p{3.6cm}|X|}
+\begin{tabularx}{\textwidth}{|p{3.8cm}|X|}
 \hline
-\textbf{Trục phân loại} & \textbf{Hai biến thể đối lập} \\
+\textbf{Trục phân loại} & \textbf{Hai hướng tiếp cận tiêu biểu} \\
 \hline
-\textbf{Tiêu chí ra quyết định} \textit{(tiêu chí và.\ điểm số)} & \textit{Dựa trên tiêu chí:} chủ thể phải đạt một tập điều kiện cứng (rule-based, gần với ABAC truyền thống). \textit{Dựa trên điểm số:} PE tính một \textit{confidence/điểm tin cậy} từ tập tín hiệu có trọng số và so với ngưỡng để cấp/từ chối. \\
+
+\textbf{Tiêu chí ra quyết định}
+&
+\textit{Dựa trên chính sách/thuộc tính:}
+quyết định truy cập được đưa ra khi chủ thể thỏa mãn một tập điều kiện định nghĩa trước (rule-based hoặc attribute-based).
+
+\textit{Dựa trên điểm số/rủi ro:}
+Policy Engine tính toán một giá trị đánh giá tin cậy hoặc rủi ro từ nhiều tín hiệu ngữ cảnh có trọng số (ví dụ: danh tính, trạng thái thiết bị, hành vi, vị trí, threat intelligence) rồi so sánh với ngưỡng chính sách để cho phép hoặc từ chối truy cập.
+\\
 \hline
-	\textbf{Cách dùng ngữ cảnh} \textit{(đơn lẻ và.\ theo ngữ cảnh )} & \textit{Đơn lẻ:} đánh giá từng yêu cầu độc lập, không nhớ lịch sử. \textit{Theo ngữ cảnh:} dùng lịch sử phiên, hành vi gần đây, thay đổi trạng thái bảo mật làm đầu vào -- là điều kiện cần để \textit{đánh giá lại giữa phiên} thay vì chỉ tại lúc mở phiên. \\\hline
+
+\textbf{Mức độ sử dụng ngữ cảnh}
+&
+\textit{Đánh giá độc lập theo từng yêu cầu:}
+mỗi yêu cầu được xử lý như một sự kiện riêng lẻ với ít hoặc không sử dụng dữ liệu lịch sử.
+
+\textit{Đánh giá liên tục theo ngữ cảnh:}
+quyết định truy cập được cập nhật động dựa trên lịch sử phiên, hành vi gần đây, thay đổi trạng thái bảo mật hoặc tín hiệu rủi ro mới phát sinh, phục vụ cơ chế đánh giá lại trong suốt vòng đời phiên truy cập.
+\\
 \hline
+
 \end{tabularx}
 \end{table}
 
@@ -165,7 +182,7 @@ Bốn hướng này không loại trừ lẫn nhau. Một thiết kế tối ưu
 %==============================================================================
 \section{Các khái niệm mở rộng của Zero Trust}
 
-\subsection{Bảo mật thích ứng và CAEP (Continuous Access Evaluation)}
+\subsection{Bảo mật thích ứng và CAEP}
 \label{subsec:adaptive_caep}
 
 Khi Policy Engine sử dụng thuật toán tin cậy theo ngữ cảnh, quyết định cấp truy cập không kết thúc tại thời điểm cấp token. Vòng đời truy cập trong ZTA là một vòng đời \emph{đánh giá liên tục}, trong đó PIP tiếp tục đẩy tín hiệu mới (thiết bị bị xâm nhập, hành vi bất thường) tới PDP để \textit{thu hồi quyền truy cập giữa phiên}.
@@ -183,7 +200,7 @@ Do đó, xu hướng hiện đại hướng tới tổ hợp \textbf{Đa thành 
 %==============================================================================
 % 1.4  MÔ HÌNH TRƯỞNG THÀNH ZERO TRUST (ZTMM)
 %==============================================================================
-\section{Mô hình Trưởng thành Zero Trust (ZTMM)}
+\section{Mô hình Trưởng thành Zero Trust}
 
 Bên cạnh kiến trúc tham chiếu của NIST, Cơ quan An ninh Mạng và Cơ sở Hạ tầng Hoa Kỳ (CISA) cung cấp một lộ trình thực tiễn dưới dạng \textbf{Mô hình Trưởng thành ZTMM 2.0} \parencite{cisa_ztmm2023}. ZTMM không coi Zero Trust là một trạng thái bật/tắt nhị phân, mà là một cuộc hành trình tiến hóa được cấu thành từ 5 trụ cột, 3 năng lực xuyên suốt và 4 cấp độ trưởng thành.
 

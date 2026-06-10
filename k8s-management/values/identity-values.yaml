@@ -4,7 +4,7 @@ internalReloadToken: "identity-secure-reload-token-99999"
 
 image:
   repository: job7189/identity
-  fullImage: "100.74.189.43:5000/job7189/identity-service@sha256:a4359f9f6a5ae6921678f2c63a7a7b106edb420a099e54a5b715d8ff59301d30"
+  fullImage: "100.74.189.43:5443/job7189/identity@sha256:06716f333c4cba88805fcb47c1a0689d55630fee03bf5d3533ac35a9e77dce83"
   pullPolicy: Always
 
 service:

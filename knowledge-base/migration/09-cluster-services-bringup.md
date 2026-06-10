@@ -128,33 +128,30 @@ kubectl apply -f /tmp/standard-storageclass.yaml
 kubectl get sc
 ```
 
-## 6. In-cluster Docker Registry
+## 6. Docker Registry trên Ubuntu Host (baosrc)
 
-Từ `infras/k8s-yaml/12-docker-registry.yaml` (đã có sẵn). Adapt:
-- NodeAffinity `kubernetes.io/hostname=7189srv05` (always-on, có PVC)
-- Service NodePort 30005
+Chúng ta sử dụng registry chạy bên ngoài cụm Kubernetes dưới dạng Docker container trên máy chủ `baosrc` (IP Tailscale: `100.74.189.43:5443`), sử dụng HTTPS với chứng chỉ TLS cấp từ Vault CA. Thiết kế này giúp tiết kiệm RAM cho các VM trong cụm và giữ an toàn dữ liệu images khi reset cụm.
+
+## 7. Cấu hình containerd trên các node (để pull qua HTTPS registry)
+
+Để containerd trên tất cả các VM (srv01, srv02, srv03, srv05) tin tưởng kết nối HTTPS tới registry trên `baosrc`, chúng ta chạy một DaemonSet `containerd-certs-setup` trong namespace `kube-system`:
 
 ```bash
-# tạo file mới: infras/k8s-yaml/12-docker-registry-multi-vm.yaml
-# (chỉ thêm nodeAffinity + nodePort vào file gốc)
-kubectl apply -f infras/k8s-yaml/12-docker-registry-multi-vm.yaml
+kubectl apply -f infras/k8s-yaml/containerd-certs-setup.yaml
 ```
 
-## 7. Containerd config trên 4 VM (cho image pull qua registry)
+DaemonSet này tự động tạo thư mục cấu hình và sao chép CA cert trên từng node:
+- Thư mục cấu hình: `/etc/containerd/certs.d/100.74.189.43:5443/`
+- File cấu hình hosts.toml trỏ trực tiếp đến registry:
+  ```toml
+  server = "https://100.74.189.43:5443"
 
-Trên TẤT CẢ 4 VM:
-```bash
-sudo mkdir -p /etc/containerd/certs.d/7189srv05.<tailnet>.ts.net:30005
-sudo tee /etc/containerd/certs.d/7189srv05.<tailnet>.ts.net:30005/hosts.toml <<'EOF'
-server = "http://7189srv05.<tailnet>.ts.net:30005"
+  [host."https://100.74.189.43:5443"]
+    capabilities = ["pull", "resolve"]
+    ca = "/etc/containerd/certs.d/100.74.189.43:5443/ca.crt"
+  ```
+Containerd tự động nhận diện các file cấu hình registry certs này dynamically mà không cần restart service.
 
-[host."http://7189srv05.<tailnet>.ts.net:30005"]
-  capabilities = ["pull", "resolve"]
-  skip_verify = true
-EOF
-
-sudo systemctl restart containerd
-```
 
 ## 8. Sanity smoke test
 

@@ -4,7 +4,7 @@ internalReloadToken: "candidate-secure-reload-token-22222"
 
 image:
   repository: job7189/candidate-service
-  fullImage: "100.74.189.43:5000/job7189/candidate@sha256:4b2be6712e108640d5ad90f8aef84df44f4d22cc4df770b6e5c0fbb7965f53bc"
+  fullImage: "100.74.189.43:5443/job7189/candidate@sha256:9fa42a6bad234a30fb9fae7f13b16660e315194174f0171f36c63db82c9e3c80"
   pullPolicy: Always
 
 service:

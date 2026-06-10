@@ -4,7 +4,7 @@ internalReloadToken: "job-secure-reload-token-67890"
 
 image:
   repository: job7189/job-service
-  fullImage: "100.74.189.43:5000/job7189/job@sha256:54babfc486cd4293e7e46f74d7af537611a77e96a497b85cb5bba8ab9c8f041a"
+  fullImage: "100.74.189.43:5443/job7189/job@sha256:bbac84f348e6da99d1b2475d7556e8df865e8483de5d7bc63c9fd37c2b2b0bc3"
   pullPolicy: Always
 
 service:

@@ -125,80 +125,39 @@ nodePathMap:
 > `/opt/local-path-provisioner` cho mọi PVC, không cố ép tên thư mục
 > giống ZTA cũ. Update `zta-teardown.sh` để xóa path mới.
 
-## 4. In-cluster Docker Registry
+## 4. Docker Registry trên Ubuntu HOST (baosrc)
 
-### Vì sao cần
-Build image trên admin laptop → push ở đâu? Kind cũ map `localhost:5000`
-host port → worker3:5000. Multi-VM thì:
-- Option A: chạy registry **trên admin laptop**, expose qua Tailscale
-  Funnel/Serve, các node pull qua HTTPS Tailnet.
-- Option B: chạy registry **trong cluster** (`registry` namespace), mọi
-  node pull qua ClusterIP + image:tag dạng `registry.registry.svc:5000/...`.
-- Option C: dùng GHCR (`ghcr.io/bpt03/...`) — yêu cầu PAT, chậm khi pull.
+### Lựa chọn thiết kế
+Chúng ta sử dụng **Option A**: Chạy registry trực tiếp trên máy chủ chứa VM (`baosrc`), thay vì chạy registry bên trong cụm Kubernetes.
 
-→ **Chọn B** (giống Kind cũ, đã có manifest `infras/k8s-yaml/12-docker-registry.yaml`,
-chỉ cần điều chỉnh).
+- **Địa chỉ Registry**: `100.74.189.43:5443` (IP Tailscale của máy `baosrc`).
+- **Giao thức**: HTTPS trên port `5443` (sử dụng chứng chỉ TLS được cấp bởi Vault CA).
+- **Lý do**: Tránh quá tải RAM của srv05, bảo toàn dữ liệu image khi reset cluster, và giải quyết vấn đề "chicken-and-egg" khi bootstrap cluster.
 
-### Thay đổi cần làm
-1. Đặt registry trên `7189srv05` (always-on, có PVC):
-   ```yaml
-   spec:
-     template:
-       spec:
-         affinity:
-           nodeAffinity:
-             requiredDuringSchedulingIgnoredDuringExecution:
-               nodeSelectorTerms:
-               - matchExpressions:
-                 - key: kubernetes.io/hostname
-                   operator: In
-                   values: ["7189srv05"]
-   ```
-2. Service NodePort 30005:
-   ```yaml
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: docker-registry
-     namespace: registry
-   spec:
-     type: NodePort
-     ports:
-     - port: 5000
-       targetPort: 5000
-       nodePort: 30005
-   ```
-3. Trên admin laptop:
-   ```
-   docker login 7189srv05.<tailnet>.ts.net:30005   # nếu có auth, hoặc bỏ
-   docker tag job7189/identity-service:dev 7189srv05.<tailnet>.ts.net:30005/job7189/identity-service:dev
-   docker push 7189srv05.<tailnet>.ts.net:30005/job7189/identity-service:dev
-   ```
-4. Trên mọi VM (7189srv01..04), config containerd để trust HTTP registry
-   này:
-   ```toml
-   # /etc/containerd/certs.d/7189srv05.<tailnet>.ts.net:30005/hosts.toml
-   server = "http://7189srv05.<tailnet>.ts.net:30005"
+### Thay đổi và Cấu hình đã thực hiện
 
-   [host."http://7189srv05.<tailnet>.ts.net:30005"]
-     capabilities = ["pull", "resolve"]
-     skip_verify = true
-   ```
-5. Helm values cho 7 Laravel:
-   ```yaml
-   image:
-     repository: 7189srv05.<tailnet>.ts.net:30005/job7189/identity-service
-     tag: dev
-     pullPolicy: Always
-   ```
+1. **Cấu hình HTTPS trên baosrc**:
+   - Container `zta-registry` được cấu hình mount certificates từ `/var/lib/zta-registry/certs`.
+   - Docker daemon trên `baosrc` tin tưởng CA qua `/etc/docker/certs.d/100.74.189.43:5443/ca.crt`.
 
-### Alt: Dùng `docker-registry.registry.svc.cluster.local:5000` cho pod-to-registry
+2. **Cấu hình containerd trên toàn bộ cluster nodes**:
+   - Tự động hóa việc cấu hình registry qua DaemonSet `containerd-certs-setup` trong namespace `kube-system`.
+   - DaemonSet thực hiện tạo thư mục và ghi file trên từng node host:
+     - `/etc/containerd/certs.d/100.74.189.43:5443/hosts.toml`
+     - `/etc/containerd/certs.d/100.74.189.43:5443/ca.crt`
+   - File `hosts.toml` trỏ trực tiếp đến registry:
+     ```toml
+     server = "https://100.74.189.43:5443"
 
-Trong cluster, pod kéo image qua kubelet → containerd → DNS resolve
-`docker-registry.registry.svc.cluster.local` về ClusterIP. Nhưng kubelet
-**không** dùng cluster DNS để resolve image registry — kubelet dùng node's
-`/etc/resolv.conf`. Vì vậy phải dùng tên reachable từ node:
-**Tailscale MagicDNS hostname** là chọn ổn định nhất.
+     [host."https://100.74.189.43:5443"]
+       capabilities = ["pull", "resolve"]
+       ca = "/etc/containerd/certs.d/100.74.189.43:5443/ca.crt"
+     ```
+
+3. **Deploy & Build Pipeline**:
+   - Sử dụng script `scripts/build_and_deploy.sh` để build image, push lên `100.74.189.43:5443`, giải quyết digest và cập nhật trực tiếp vào file values của Helm.
+   - Các pod trong cụm sẽ kéo image trực tiếp từ `100.74.189.43:5443` qua kết nối HTTPS bảo mật, sau khi được ký bằng `cosign`.
+
 
 ## 5. NFS server-of-1 (optional, chỉ khi cần)
 

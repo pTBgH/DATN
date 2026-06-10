@@ -4,7 +4,7 @@ internalReloadToken: "communication-secure-reload-token-33333"
 
 image:
   repository: job7189/communication-service
-  fullImage: "100.74.189.43:5000/job7189/communication@sha256:2a2605f7c94a4d335e12bc1b3bbcb2ee51885066b7bb1946cb02a169a68bbf68"
+  fullImage: "100.74.189.43:5443/job7189/communication@sha256:506ecc1b96bf5726e3a6da2d7a8f9b6aeaabfd0da237a620688f3e6ce760930d"
   pullPolicy: Always
 
 service:

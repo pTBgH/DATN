@@ -21,8 +21,13 @@
 
 ## TL;DR
 
-**Khuyến nghị: Chạy registry như Docker container TRÊN UBUNTU HOST**
-(ngoài K8s, ngoài VM). Lý do:
+**Khuyến nghị: Chạy registry như Docker container TRÊN UBUNTU HOST (baosrc)**
+(ngoài K8s, ngoài VM srv05). 
+
+> [!NOTE]
+> **Cập nhật 2026-06-10**: Option A đã được triển khai chạy trên HTTPS port `5443` bằng cách sử dụng chứng chỉ TLS được ký bởi Vault CA. Các cluster node đã được cấu hình tự động thông qua DaemonSet để trust kết nối HTTPS này.
+
+Lý do chọn Option A:
 
 1. **Tách lifecycle khỏi K8s**: `kubeadm reset`, snapshot revert, hay
    wipe srv05 → registry KHÔNG mất images. Re-build lại 7 Laravel images

@@ -4,7 +4,7 @@ internalReloadToken: "workspace-secure-reload-token-12345"
 
 image:
   repository: job7189/workspace-service
-  fullImage: "100.74.189.43:5000/job7189/workspace@sha256:88ea023c2adf42b6e9d4f6ea247e11a1ff5502d5c19a8fcf8a4150c7bdfe3d23"
+  fullImage: "100.74.189.43:5443/job7189/workspace@sha256:38cc17bb662b5f5614d3cd32324d2d0fdc9a523cb476664a5759923083c1df96"
   pullPolicy: Always
 
 service:

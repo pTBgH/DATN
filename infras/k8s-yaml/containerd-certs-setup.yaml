@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: containerd-certs-setup
+  namespace: kube-system
+  labels:
+    app: containerd-certs-setup
+spec:
+  selector:
+    matchLabels:
+      name: containerd-certs-setup
+  template:
+    metadata:
+      labels:
+        name: containerd-certs-setup
+    spec:
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
+      initContainers:
+      - name: setup
+        image: alpine
+        command:
+        - sh
+        - -c
+        - |
+          mkdir -p /mnt/containerd/certs.d/100.74.189.43:5443
+          cat <<'EOF' > /mnt/containerd/certs.d/100.74.189.43:5443/ca.crt
+          -----BEGIN CERTIFICATE-----
+          MIIE8zCCAtugAwIBAgIRALwTBN0WiPiYhzCPO3rvf00wDQYJKoZIhvcNAQELBQAw
+          EzERMA8GA1UEAxMIdmF1bHQtY2EwHhcNMjYwNjA2MTYzNzMwWhcNMzYwNjAzMTYz
+          NzMwWjATMREwDwYDVQQDEwh2YXVsdC1jYTCCAiIwDQYJKoZIhvcNAQEBBQADggIP
+          ADCCAgoCggIBAL7Tbc57kBqTKtJH9/+b6haIvyVhHto5LwH0zcBfjEGKw/aV6jKi
+          RySssb9JX7N4Jo8SmPEncpGVDwcv0L2iV6sE7AMvdzL4CuF2FQd6pKzcfxjXwqpE
+          ZqmQ0pxLkY8ZMd/Cu8F/GiSSu5P0mhNYUENiMXpHOkHS1lNutzplJEagnnpiXBhu
+          E4cdNUyaBvSlP7KsUPgPFtnheDHqvfrHm9u/PBZDeVq7dUYcIZEsPHJf38Pa5Ybc
+          GbAM8r7dZY77xa7QHKXmy1vNr1bV0g54PoH2wRsECY1e5xAu1+fAji3GfmToHTMU
+          WwDK+66+yU2Hy6KTRzGhrIoXCAI9e2Lv9SLNpBtZ3xMsR50MZk/MYqGOoE4Om89+
+          c4Hyi1pjJk/xItDrAR3O+VO7u/JNFz85FTlRm0DcpvoxHBBAl+IKWbuvuQSzNRpx
+          esJFfvAU8fM6H19/3kPAhtsLNd7jDcC8J6e+4QRe3ssJbhZjeQiDO4InyHD9OQY/
+          sVCN4H183xLNH3mM7FRfucHsSqG1N9Lk95ivGQFL5x/O+P3yJGrAbNMF+iTCpHRf
+          IpmtdeAWhejsX3b+trbLQALUQfMbOhx/CEFEKYgoRF+3gupjVxv1m0MZSavooPig
+          6QtNtp5HlVv6neIBbNAxk/LM/6rhcfQMIl8VpgGR/2U8Lu/FQS+gdcQdAgMBAAGj
+          QjBAMA4GA1UdDwEB/wQEAwICpDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBR0
+          llCWDoAV9GJVDQuG+f4drtgDTzANBgkqhkiG9w0BAQsFAAOCAgEABqgF/1P1aQ6m
+          KvBk6VZZh8/ALhzgmd/RjS/ubjKdfnJL6guJ5goW0U/eAfdWRtoAVRbi1S4xiasD
+          b+0axJG6gH8VbN5tMIWKwvWJWs+qWYU+Q/3vHQx+ZLDANNbQKn1NRO8CsLeMbovK
+          YDAy08T6yWq6HZRiBzFjmFI01oM5xJBepuqK8da5lz0+j5NNo/KilY+3G7XXkdBI
+          PfK5zTpo7IwCdyAXHdc50y5+EyOhRvMAJOTAX0ZQ5mFpD2fq5vBKEyTbinYoNk8t
+          DMFRth/1j4uE5idz7uOXjj1UnWcFAilO5t9rM8a+zb61WPKcjoAr6DEpg61vxmA7
+          x+Iu4WXccThDHI1EQeDD6fCEtVXq+E+xA87eZUNtidvm7Du/7fJx49ZfUi96C9ev
+          NpYE0+odsbnIndGlEBAfeh7pL45+N1e1X601IR7Gnq/+NWmqlflgpkK2lAEtguVp
+          i/BSm6TTh3s3yirTUSiv0SSgmvvEgqKA6L4U9FJNb5XCAamL4j2hzMlYNCx7Aw3S
+          hur++kTmZr/5lzMFiN2TRhFoNdcXJCb6+OHK5pI8hacMfFoCq7u2fPrD/RTe0CN/
+          QVgluzJyZoRqQSTwbiH9Eog+jl6tJ+9S/9ZDfbMRDgMkK0IIGEkGkcKYLqPICRrO
+          6R1DXljLKUOEe9peQAR/chgpS9wTB2o=
+          -----END CERTIFICATE-----
+          EOF
+          cat <<'EOF' > /mnt/containerd/certs.d/100.74.189.43:5443/hosts.toml
+          server = "https://100.74.189.43:5443"
+
+          [host."https://100.74.189.43:5443"]
+            capabilities = ["pull", "resolve"]
+            ca = "/etc/containerd/certs.d/100.74.189.43:5443/ca.crt"
+          EOF
+          echo "Certs and hosts.toml written successfully!"
+        volumeMounts:
+        - name: host-containerd
+          mountPath: /mnt/containerd
+      containers:
+      - name: pause
+        image: registry.k8s.io/pause:3.9
+      volumes:
+      - name: host-containerd
+        hostPath:
+          path: /etc/containerd

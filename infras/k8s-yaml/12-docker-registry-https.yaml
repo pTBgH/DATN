@@ -1,0 +1,156 @@
+---
+# Docker Registry - K8s Native deployment with HTTPS/TLS
+# Stores container images for microservices, accessible from cluster + local host via HTTPS
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+
+---
+# PVC for registry data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-storage
+  namespace: registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# Deployment - Docker Registry with TLS
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry
+  namespace: registry
+  labels:
+    app: docker-registry
+    zta.job7189/role: db
+    zta.job7189/tier: T3
+    zta.job7189/env: prod
+    zta.job7189/data-classification: none
+    zta.job7189/exposure: cluster-only
+    zta.job7189/team: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-registry
+  template:
+    metadata:
+      labels:
+        app: docker-registry
+        zta.job7189/role: db
+        zta.job7189/tier: T3
+        zta.job7189/env: prod
+        zta.job7189/data-classification: none
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: platform
+    spec:
+      serviceAccountName: docker-registry
+      # Pin to data-tier node so registry PVC (local-path) lands on srv05
+      # alongside vault/mysql/kafka. See knowledge-base/migration/transition-srv04-to-srv05.md.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - 7189srv05
+      containers:
+      - name: registry
+        image: registry:2
+        ports:
+        - containerPort: 5443
+          name: registry-tls
+        volumeMounts:
+        - name: registry-storage
+          mountPath: /var/lib/registry
+        - name: registry-tls
+          mountPath: /certs
+          readOnly: true
+        env:
+        - name: REGISTRY_STORAGE_DELETE_ENABLED
+          value: "true"
+        # HTTPS/TLS configuration
+        - name: REGISTRY_HTTP_ADDR
+          value: "0.0.0.0:5443"
+        - name: REGISTRY_HTTP_TLS_CERTIFICATE
+          value: "/certs/tls.crt"
+        - name: REGISTRY_HTTP_TLS_KEY
+          value: "/certs/tls.key"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /v2/
+            port: 5443
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: registry-storage
+        persistentVolumeClaim:
+          claimName: registry-storage
+      - name: registry-tls
+        secret:
+          secretName: registry-tls-secret
+
+---
+# Service - ClusterIP (for pods inside cluster)
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry
+  namespace: registry
+  labels:
+    app: docker-registry
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5443
+    targetPort: 5443
+    protocol: TCP
+    name: registry-tls
+  selector:
+    app: docker-registry
+
+---
+# Service - NodePort (for host docker cli access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-nodeport
+  namespace: registry
+  labels:
+    app: docker-registry
+spec:
+  type: NodePort
+  ports:
+  - port: 5443
+    targetPort: 5443
+    nodePort: 30005
+    protocol: TCP
+    name: registry-tls
+  selector:
+    app: docker-registry
+
+---
+# Service Account for registry operations
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docker-registry
+  namespace: registry

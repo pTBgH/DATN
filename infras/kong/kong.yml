@@ -142,9 +142,9 @@ services:
   - name: identity-service
     url: http://identity-service.job7189-apps.svc.cluster.local:80
     routes:
-      - { name: identity-profiles, paths: ["/api/recruiters/profile"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: identity-admin, paths: ["/api/admin/users"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: identity-profiles, paths: ["/api/recruiters/profile"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: identity-candidate-profiles, paths: ["/api/candidates/profile"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: identity-admin, paths: ["/api/admin/users"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
       - { name: identity-debug-headers, paths: ["/api/debug-headers"], strip_path: false }
       - { name: identity-health, paths: ["/api/health"], strip_path: false }
 
@@ -154,9 +154,9 @@ services:
   - name: workspace-service
     url: http://workspace-service.job7189-apps.svc.cluster.local:80
     routes:
-      - { name: workspace-core, paths: ["/api/workspaces"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: workspace-my-workspaces, paths: ["/api/my-workspaces"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: workspace-invitations, paths: ["/api/invitations"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: workspace-core, paths: ["/api/workspaces"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: workspace-my-workspaces, paths: ["/api/my-workspaces"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: workspace-invitations, paths: ["/api/invitations"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
       - { name: workspace-options, paths: ["/api/options/company-types"], strip_path: false }
 
   # ======================
@@ -168,10 +168,10 @@ services:
       - name: job-workspace-context
         paths: ["~/api/workspaces/[^/]+/jobs"]
         strip_path: false
-        plugins: [{ name: jwt }]
+        plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }]
 
-      - { name: job-admin, paths: ["/api/admin/jobs"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: job-admin-categories, paths: ["/api/admin/categories"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: job-admin, paths: ["/api/admin/jobs"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: job-admin-categories, paths: ["/api/admin/categories"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
 
       - { name: job-standalone, paths: ["/api/jobs"], strip_path: false }
       - { name: job-public, paths: ["/api/public/jobs"], strip_path: false }
@@ -203,18 +203,18 @@ services:
       - name: hiring-pipelines
         paths: ["~/api/workspaces/[^/]+/pipelines"]
         strip_path: false
-        plugins: [{ name: jwt }]
+        plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }]
       - { name: hiring-apply, paths: ["~/api/jobs/[^/]+/apply"], strip_path: false }
-      - { name: hiring-applications, paths: ["/api/applications"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: hiring-board, paths: ["/api/board"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: hiring-applications, paths: ["/api/applications"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: hiring-board, paths: ["/api/board"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
 
-      - { name: hiring-interviews, paths: ["/api/interviews"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: hiring-interviews, paths: ["/api/interviews"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
 
       - name: hiring-scorecards
         paths: ["~/api/applications/[^/]%2B/scorecards"]
         strip_path: false
         regex_priority: 100
-        plugins: [{ name: jwt }]
+        plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }]
 
   # ======================
   # CANDIDATE
@@ -222,9 +222,9 @@ services:
   - name: candidate-service
     url: http://candidate-service.job7189-apps.svc.cluster.local:80
     routes:
-      - { name: candidate-resumes, paths: ["/api/resumes"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: candidate-my-applications, paths: ["/api/my-applications"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: candidate-interactions, paths: ["/api/interactions"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: candidate-resumes, paths: ["/api/resumes"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: candidate-my-applications, paths: ["/api/my-applications"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: candidate-interactions, paths: ["/api/interactions"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
 
   # ======================
   # COMMUNICATION
@@ -232,15 +232,15 @@ services:
   - name: communication-service
     url: http://communication-service.job7189-apps.svc.cluster.local:80
     routes:
-      - { name: comm-conversations, paths: ["/api/conversations"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: comm-messages, paths: ["/api/messages"], strip_path: false, plugins: [{ name: jwt }] }
-      - { name: comm-notifications, paths: ["/api/notifications"], strip_path: false, plugins: [{ name: jwt }] }
+      - { name: comm-conversations, paths: ["/api/conversations"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: comm-messages, paths: ["/api/messages"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
+      - { name: comm-notifications, paths: ["/api/notifications"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
 
       - name: comm-messages-history
         paths: ["~/api/conversations/[^/]%2B/messages"]
         strip_path: false
         regex_priority: 100
-        plugins: [{ name: jwt }]
+        plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }]
 
   # ======================
   # STORAGE

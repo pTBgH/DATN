@@ -31,7 +31,9 @@ class WorkspaceController extends Controller
         $workspaces = $this->workspaceService->getWorkspacesFor($recruiter);
 
         // Sử dụng Resource Collection để trả về snake_case
-        return WorkspaceResource::collection($workspaces)->response();
+        return response()->json([
+            'data' => WorkspaceResource::collection($workspaces)->resolve()
+        ]);
     }
 
     public function store(Request $request)

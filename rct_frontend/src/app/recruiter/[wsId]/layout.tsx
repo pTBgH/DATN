@@ -1,16 +1,29 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { workspaceApi } from "@/lib/api";
 import { WorkspaceMenuButton } from "@/components/WorkspaceMenuButton";
+import { useAuthedFetch } from "@/lib/auth/guard";
+import { PageLoading, PageError } from "@/components/PageState";
 
-export default async function WorkspaceLayout({
+export default function WorkspaceLayout({
   children,
-  params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ wsId: string }>;
 }) {
-  const { wsId } = await params;
-  const ws = await workspaceApi.getWorkspace(wsId);
+  const params = useParams<{ wsId: string }>();
+  const { wsId } = params ?? {};
+
+  const { data: ws, loading, error } = useAuthedFetch(
+    () => workspaceApi.getWorkspace(wsId!),
+    [wsId],
+  );
+
+  if (loading) return <PageLoading label="Đang tải workspace..." />;
+  if (error) return <PageError message={error} />;
+  if (!ws) return null;
+
   return (
     <div className="flex h-full flex-col gap-3 bg-slate-50 p-3">
       <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
@@ -30,7 +43,7 @@ export default async function WorkspaceLayout({
           >
             Đăng tin mới
           </Link>
-          <WorkspaceMenuButton wsId={wsId} location={ws.location} plan={ws.plan} />
+          <WorkspaceMenuButton wsId={wsId!} location={ws.location} plan={ws.plan} />
         </div>
       </header>
 

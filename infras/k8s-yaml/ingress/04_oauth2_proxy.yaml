@@ -39,6 +39,7 @@ data:
 
     # Client đã tạo trong Keycloak
     client_id = "oauth2-proxy"
+    oidc_extra_audiences = ["account"]
     # client_secret đọc từ env var (inject từ Secret bên dưới)
 
     # redirect_url để trống → OAuth2 Proxy tự build từ X-Forwarded-Host header

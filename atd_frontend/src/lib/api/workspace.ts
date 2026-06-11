@@ -26,10 +26,11 @@ export async function createWorkspace(
       email: input.email,
     });
   }
-  return apiFetch<WorkspaceResource>("/api/workspaces", {
+  const r = await apiFetch<any>("/api/workspaces", {
     method: "POST",
     body: input,
   });
+  return r?.data ?? r;
 }
 
 export async function getWorkspace(id: string): Promise<WorkspaceResource> {
@@ -38,7 +39,8 @@ export async function getWorkspace(id: string): Promise<WorkspaceResource> {
     if (!m) throw new Error("Workspace not found");
     return Promise.resolve(m);
   }
-  return apiFetch<WorkspaceResource>(`/api/workspaces/${id}`);
+  const r = await apiFetch<any>(`/api/workspaces/${id}`);
+  return r?.data ?? r;
 }
 
 export async function updateWorkspace(
@@ -49,10 +51,11 @@ export async function updateWorkspace(
     const m = mockMyWorkspaces.find((w) => w.id === id) ?? mockMyWorkspaces[0];
     return Promise.resolve({ ...m, ...input });
   }
-  return apiFetch<WorkspaceResource>(`/api/workspaces/${id}`, {
+  const r = await apiFetch<any>(`/api/workspaces/${id}`, {
     method: "PUT",
     body: input,
   });
+  return r?.data ?? r;
 }
 
 export async function getCompanyOptions(): Promise<CompanyOptionsResponse> {

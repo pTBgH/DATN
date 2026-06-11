@@ -16,7 +16,7 @@ set -eu
 #   This version keeps its dedup state in files under /tmp (survives restarts),
 #   enforces a cooldown, and restarts only nginx/php-fpm/queue.
 
-WATCH_FILE=/vault/secrets/.env.db
+WATCH_FILE=/app-secrets/.env.db.lease
 LAST_SUM_FILE=/tmp/watch-env.last-sum
 LAST_RESTART_TIME_FILE=/tmp/watch-env.last-restart-time
 MIN_RESTART_INTERVAL=300  # >= 5 min between restarts (creds rotate every ~10-15 min)
@@ -42,9 +42,9 @@ while true; do
       LAST_RESTART_TIME="$NOW"
 
       # Sync the freshly-rotated credentials into the env file Laravel reads.
-      if [ -f /vault/secrets/.env ]; then
-        echo "[watch-env] vault creds rotated; syncing /vault/secrets/.env -> /var/www/.env" >&2 || true
-        cp -f /vault/secrets/.env /var/www/.env 2>/dev/null || true
+      if [ -f /app-secrets/.env ]; then
+        echo "[watch-env] vault creds rotated; syncing /app-secrets/.env -> /var/www/.env" >&2 || true
+        cp -f /app-secrets/.env /var/www/.env 2>/dev/null || true
       fi
 
       if command -v supervisorctl >/dev/null 2>&1; then

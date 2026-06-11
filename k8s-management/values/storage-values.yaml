@@ -4,7 +4,7 @@ internalReloadToken: "storage-secure-reload-token-44444"
 
 image:
   repository: job7189/storage-service
-  fullImage: "100.74.189.43:5443/job7189/storage@sha256:741bc873de209b2ccb96d0cb905a67e188cc6f8e76e148cbc3e83257a28407a3"
+  fullImage: "100.74.189.43:5443/job7189/storage-service@sha256:55cc23d1f6c993c01e1e369b9f3413aa213b23a5e3d589128794b9b06060286d"
   pullPolicy: Always
 
 service:

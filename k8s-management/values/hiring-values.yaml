@@ -4,7 +4,7 @@ internalReloadToken: "hiring-secure-reload-token-11111"
 
 image:
   repository: job7189/hiring-service
-  fullImage: "100.74.189.43:5443/job7189/hiring@sha256:33b9528511a9cf1686ce905779b65c8c2a513c33b18148b1e697ed162cb03c4b"
+  fullImage: "100.74.189.43:5443/job7189/hiring-service@sha256:9a78ccf3565cc92498a6daaeab015b43e4cf534b4b2a49c76da19031dcacfef8"
   pullPolicy: Always
 
 service:

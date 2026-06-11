@@ -4,7 +4,7 @@ internalReloadToken: "candidate-secure-reload-token-22222"
 
 image:
   repository: job7189/candidate-service
-  fullImage: "100.74.189.43:5443/job7189/candidate@sha256:9fa42a6bad234a30fb9fae7f13b16660e315194174f0171f36c63db82c9e3c80"
+  fullImage: "100.74.189.43:5443/job7189/candidate-service@sha256:dc23e51cdb268e7578850e0a61a69afc72be0ff5900370ae355599dd843750cf"
   pullPolicy: Always
 
 service:
@@ -20,9 +20,9 @@ redis:
 
 env:
   APP_NAME: "Job7189 Candidate Service"
-  DB_CONNECTION: mongodb
-  DB_HOST: mongodb.data.svc.cluster.local
-  DB_PORT: "27017"
+  DB_CONNECTION: mysql
+  DB_HOST: mysql.data.svc.cluster.local
+  DB_PORT: "3306"
   DB_DATABASE: job7189_candidate_db
   CACHE_DRIVER: "redis"
   REDIS_HOST: "candidate-service-redis"

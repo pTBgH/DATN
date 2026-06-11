@@ -1,0 +1,110 @@
+[init] Found cached libs in /tmp/pylibs (container restart)
+[init] Starting PDP controller (kopf clusterwide standalone)...
+{"ts":"2026-06-11T02:01:10Z","lvl":"INFO","comp":"pdp","event":"startup","namespaces":"data,vault,security,monitoring,gateway,management,job7189-apps","prom":9100}
+{"ts":"2026-06-11T02:01:10Z","lvl":"INFO","comp":"pdp","event":"cve-input-enabled","source":"trivy-operator"}
+Activity 'on_startup' succeeded.
+Initial authentication has been initiated.
+Activity 'login_via_client' succeeded.
+Initial authentication has finished.
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:01:33Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:02:40Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:03:47Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:04:54Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:06:03Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:07:11Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:08:18Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:09:26Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:10:36Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:11:45Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:12:53Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_delete' succeeded.
+{"ts":"2026-06-11T02:13:38Z","lvl":"INFO","comp":"pdp","event":"pod-deleted","ns":"data","pod":"mysql-6c697678cf-68nkc"}
+Deletion is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:14:01Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:15:01Z","lvl":"INFO","comp":"pdp","event":"pod-deleted","ns":"data","pod":"mysql-6c697678cf-h4lxv"}
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:15:08Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:16:17Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:17:25Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:18:39Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:19:51Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:20:59Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:22:06Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:23:14Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:25:40Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:25:58Z","lvl":"INFO","comp":"pdp","event":"pod-deleted","ns":"data","pod":"mysql-6c697678cf-vj6dm"}
+Handler 'on_pod_delete' succeeded.
+Deletion is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:26:55Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:28:06Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:29:16Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:30:26Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:31:35Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:32:43Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:33:46Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+Handler 'on_pod_event' succeeded.
+Creation is processed: 1 succeeded; 0 failed.
+Handler 'on_pod_event/metadata.labels' succeeded.
+Updating is processed: 1 succeeded; 0 failed.
+{"ts":"2026-06-11T02:34:51Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:35:55Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:36:58Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:38:02Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:39:06Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:40:09Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:41:15Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:42:20Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:43:24Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:44:27Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:45:32Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:46:37Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}
+{"ts":"2026-06-11T02:47:42Z","lvl":"INFO","comp":"pdp","event":"reconcile-complete","namespaces":7}

@@ -308,18 +308,5 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/healthz"
-  - fromEntities:
-    - host
-    - remote-node
-    toPorts:
-    - ports:
       - port: "8081"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/"

@@ -245,3 +245,24 @@ spec:
         protocol: TCP
       - port: "9308"   # kafka-exporter (alternative)
         protocol: TCP
+---
+# 7) Allow mysql SA in data namespace to reach Vault SA on 8200 for bootstrap
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mysql-to-vault
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: mysql
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app: vault
+        k8s:io.kubernetes.pod.namespace: vault
+    toPorts:
+    - ports:
+      - port: "8200"
+        protocol: TCP
+  ingress: []

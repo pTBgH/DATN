@@ -12,7 +12,7 @@ import { apiFetch } from "./client";
 export async function getMyWorkspaces(): Promise<WorkspaceResource[]> {
   if (config.useMock) return Promise.resolve(mockMyWorkspaces);
   const r = await apiFetch<{ data: WorkspaceResource[] }>("/api/my-workspaces");
-  return r.data;
+  return Array.isArray(r) ? r : r.data; // Hỗ trợ cả 2 dạng bọc và không bọc
 }
 
 export async function createWorkspace(

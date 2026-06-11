@@ -422,7 +422,13 @@ else
 fi
 
 # Substitute kind-era image registry (172.17.0.1:5000) → ${REGISTRY_HOST}
-sed "s|172\.17\.0\.1:5000|${REGISTRY_HOST}|g" infras/k8s-yaml/02-keycloak.yaml | kubectl apply -f -
+patched_manifest="infras/k8s-yaml/02-keycloak-patched.yaml"
+sed "s|172\.17\.0\.1:5000|${REGISTRY_HOST}|g" infras/k8s-yaml/02-keycloak.yaml > "$patched_manifest"
+if [ -f "scripts/zta-cosign-sign-deployment.sh" ]; then
+  echo "   Signing Keycloak manifest..."
+  COSIGN_PASSWORD="" bash scripts/zta-cosign-sign-deployment.sh "$patched_manifest"
+fi
+kubectl apply -f "$patched_manifest"
 echo "   Waiting for Keycloak rollout (up to 900s due to first-boot DB migration/import)..."
 if kubectl -n security rollout status deploy/keycloak --timeout=900s; then
   echo "   ✔ Keycloak rollout succeeded"

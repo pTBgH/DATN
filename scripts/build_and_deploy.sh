@@ -48,7 +48,7 @@ cd "$SRC_DIR"
 # -----------------------------
 # BUILD
 # -----------------------------
-docker build -t "$IMAGE_BASE:$VERSION" .
+docker build -f Dockerfile.production -t "$IMAGE_BASE:$VERSION" .
 
 # IMPORTANT: ensure tag exists in local repo
 docker tag "$IMAGE_BASE:$VERSION" "$IMAGE_BASE:latest"

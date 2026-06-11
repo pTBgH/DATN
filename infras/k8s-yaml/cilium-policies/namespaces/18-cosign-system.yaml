@@ -137,6 +137,8 @@ spec:
     - ports:
       - port: "5000"
         protocol: TCP
+      - port: "5443"
+        protocol: TCP
   # Internal cluster registry (if used)
   - toEndpoints:
     - matchLabels:
@@ -145,6 +147,8 @@ spec:
     toPorts:
     - ports:
       - port: "5000"
+        protocol: TCP
+      - port: "5443"
         protocol: TCP
 ---
 # 5b) policy-controller → Sigstore public services (Rekor / Fulcio / TUF root)

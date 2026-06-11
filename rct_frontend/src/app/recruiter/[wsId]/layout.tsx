@@ -7,9 +7,10 @@ export default async function WorkspaceLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: { wsId: string };
+  params: Promise<{ wsId: string }>;
 }) {
-  const ws = await workspaceApi.getWorkspace(params.wsId);
+  const { wsId } = await params;
+  const ws = await workspaceApi.getWorkspace(wsId);
   return (
     <div className="flex h-full flex-col gap-3 bg-slate-50 p-3">
       <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
@@ -29,14 +30,14 @@ export default async function WorkspaceLayout({
           >
             Đăng tin mới
           </Link>
-          <WorkspaceMenuButton wsId={params.wsId} location={ws.location} plan={ws.plan} />
+          <WorkspaceMenuButton wsId={wsId} location={ws.location} plan={ws.plan} />
         </div>
       </header>
 
       <nav className="flex gap-1 rounded-lg border bg-white p-1 text-xs overflow-x-auto">
-        <Tab href={`/recruiter/${params.wsId}`}>Tổng quan</Tab>
-        <Tab href={`/recruiter/${params.wsId}/jobs`}>Tin tuyển dụng</Tab>
-        <Tab href={`/recruiter/${params.wsId}/pipelines`}>Pipeline</Tab>
+        <Tab href={`/recruiter/${wsId}`}>Tổng quan</Tab>
+        <Tab href={`/recruiter/${wsId}/jobs`}>Tin tuyển dụng</Tab>
+        <Tab href={`/recruiter/${wsId}/pipelines`}>Pipeline</Tab>
       </nav>
 
       <div className="flex-1 overflow-auto">{children}</div>

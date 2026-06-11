@@ -51,7 +51,9 @@ export async function getPublicJobDetail(idOrSlug: string): Promise<JobJdResourc
     if (!j) throw new Error("Job not found");
     return Promise.resolve(j);
   }
-  return apiFetch<JobJdResource>(`/api/public/jobs/${encodeURIComponent(idOrSlug)}`);
+  const r = await apiFetch<any>(`/api/public/jobs/${encodeURIComponent(idOrSlug)}`);
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export async function getGeneralOptions(): Promise<GeneralOptionsResponse> {

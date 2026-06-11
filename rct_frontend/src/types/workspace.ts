@@ -22,21 +22,21 @@ export interface WorkspaceResource {
 /**
  * Identity service shape (recruiter profile.workspaces[]).
  * Source: src/identity_service/laravel_back/app/Http/Resources/WorkspaceResource.php
+ * 
+ * Backend API returns flat structure with workspace info and permissions array
  */
 export interface WorkspaceMinimal {
-  workspace_id: string;
+  id: string;
+  name: string;
+  logo: string | null;
   email: string;
-  member_status: string;
+  status: string;
   permissions: string[];
-  company: {
-    name: string;
-    logo: string | null;
-    active_jobs: number;
-    views: number;
-    applications: number;
-    apply_rate: number;
-  };
-  created_at: string;
+  active_jobs: number;
+  views: number;
+  applications: number;
+  apply_rate: number;
+  created_at?: string;
 }
 
 export interface CreateWorkspaceInput {

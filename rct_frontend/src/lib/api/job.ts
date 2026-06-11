@@ -113,9 +113,11 @@ export async function getWorkspaceJob(
     if (!j) throw new Error("Job not found");
     return Promise.resolve(j);
   }
-  return apiFetch<JobSubJdResource>(
+  const r = await apiFetch<any>(
     `/api/workspaces/${wsId}/jobs/${encodeURIComponent(jobId)}`,
   );
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export async function createDraftJob(
@@ -123,10 +125,12 @@ export async function createDraftJob(
   input: JobInput,
 ): Promise<JobSubJdResource> {
   if (config.useMock) return Promise.resolve(mockRecruiterJobs[0]);
-  return apiFetch<JobSubJdResource>(`/api/workspaces/${wsId}/jobs/draft`, {
+  const r = await apiFetch<any>(`/api/workspaces/${wsId}/jobs/draft`, {
     method: "POST",
     body: input,
   });
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export async function submitNewJob(
@@ -134,10 +138,12 @@ export async function submitNewJob(
   input: JobInput,
 ): Promise<JobSubJdResource> {
   if (config.useMock) return Promise.resolve(mockRecruiterJobs[0]);
-  return apiFetch<JobSubJdResource>(`/api/workspaces/${wsId}/jobs/submit`, {
+  const r = await apiFetch<any>(`/api/workspaces/${wsId}/jobs/submit`, {
     method: "POST",
     body: input,
   });
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export async function updateJob(
@@ -146,10 +152,12 @@ export async function updateJob(
   input: JobInput,
 ): Promise<JobSubJdResource> {
   if (config.useMock) return Promise.resolve(mockRecruiterJobs[0]);
-  return apiFetch<JobSubJdResource>(
+  const r = await apiFetch<any>(
     `/api/workspaces/${wsId}/jobs/${encodeURIComponent(jobId)}`,
     { method: "PUT", body: input },
   );
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 /**
@@ -164,10 +172,12 @@ async function patchJobStatus(
   action: "submit" | "archive" | "restore",
 ): Promise<JobSubJdResource> {
   if (config.useMock) return Promise.resolve(mockRecruiterJobs[0]);
-  return apiFetch<JobSubJdResource>(
+  const r = await apiFetch<any>(
     `/api/workspaces/${wsId}/jobs/${encodeURIComponent(jobId)}/${action}`,
     { method: "PATCH" },
   );
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export const submitExistingJob = (wsId: string, jobId: string) =>

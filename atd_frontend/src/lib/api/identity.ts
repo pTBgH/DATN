@@ -33,7 +33,9 @@ export async function updateRecruiterProfile(
 
 export async function getCandidateProfile(): Promise<CandidateProfileResource> {
   if (config.useMock) return Promise.resolve(mockCandidateProfile);
-  return apiFetch<CandidateProfileResource>("/api/candidates/profile");
+  const r = await apiFetch<any>("/api/candidates/profile");
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }
 
 export async function updateCandidateProfile(
@@ -42,8 +44,10 @@ export async function updateCandidateProfile(
   if (config.useMock) {
     return Promise.resolve({ ...mockCandidateProfile, ...input });
   }
-  return apiFetch<CandidateProfileResource>("/api/candidates/profile", {
+  const r = await apiFetch<any>("/api/candidates/profile", {
     method: "PUT",
     body: input,
   });
+  // Backend uses JsonResource::withoutWrapping() for single resources
+  return r?.data ?? r;
 }

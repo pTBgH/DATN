@@ -45,6 +45,7 @@ export async function createWorkspace(
     method: "POST",
     body: input,
   });
+  // Backend uses JsonResource::withoutWrapping() for single resources, so unwrap safely
   return r?.data ?? r;
 }
 
@@ -55,6 +56,7 @@ export async function getWorkspace(id: string): Promise<WorkspaceResource> {
     return Promise.resolve(m);
   }
   const r = await apiFetch<any>(`/api/workspaces/${id}`);
+  // Backend uses JsonResource::withoutWrapping() for single resources
   return r?.data ?? r;
 }
 
@@ -70,6 +72,7 @@ export async function updateWorkspace(
     method: "PUT",
     body: input,
   });
+  // Backend uses JsonResource::withoutWrapping() for single resources
   return r?.data ?? r;
 }
 

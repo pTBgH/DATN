@@ -36,17 +36,17 @@ export default function RecruiterProfilePage() {
         <ul className="space-y-2 text-sm">
           {profile.workspaces.map((w) => (
             <li
-              key={w.workspace_id}
+              key={w.id}
               className="flex items-center justify-between rounded border bg-white p-3"
             >
               <div>
-                <div className="font-medium">{w.company.name}</div>
+                <div className="font-medium">{w.name}</div>
                 <div className="text-xs text-slate-500">
-                  {w.email} · {w.member_status} · {w.permissions.length} permissions
+                  {w.email} · {w.status} · {w.permissions.length} permissions
                 </div>
               </div>
               <div className="text-right text-xs text-slate-500">
-                {w.company.active_jobs} jobs · {w.company.applications} applications
+                {w.active_jobs} jobs · {w.applications} applications
               </div>
             </li>
           ))}

@@ -157,7 +157,6 @@ services:
       - { name: workspace-core, paths: ["/api/workspaces"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
       - { name: workspace-my-workspaces, paths: ["/api/my-workspaces"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
       - { name: workspace-invitations, paths: ["/api/invitations"], strip_path: false, plugins: [{ name: jwt, config: { claims_to_verify: [exp] } }] }
-      - { name: workspace-options, paths: ["/api/options/company-types"], strip_path: false }
 
   # ======================
   # JOB
@@ -176,6 +175,7 @@ services:
       - { name: job-standalone, paths: ["/api/jobs"], strip_path: false }
       - { name: job-public, paths: ["/api/public/jobs"], strip_path: false }
       - { name: job-options, paths: ["/api/options/general"], strip_path: false }
+      - { name: job-company-options, paths: ["/api/options/company-types"], strip_path: false }
 
       # Metadata (private)
       - { name: job-metadata-common, paths: ["/api/metadata/common"], strip_path: false }

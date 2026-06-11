@@ -13,6 +13,7 @@ use App\Http\Controllers\Job\JobCompanyController;
 
 // 1. PUBLIC ROUTES
 Route::get('/options/general', [OptionController::class, 'getGeneralOptions']);
+Route::get('/options/company-types', [OptionController::class, 'getCompanyOptions']);
 Route::get('/public/jobs', [JobController::class, 'publicSearch']);
 Route::get('/public/jobs/{id}', [JobController::class, 'publicDetail']);
 Route::get('/public/metadata/common', [MetadataController::class, 'getCommon']);
@@ -30,8 +31,10 @@ Route::middleware([IdentifyUserContext::class])->group(function () {
     });
 
     Route::prefix('admin/categories')->middleware('super.admin')->group(function () {
+        Route::get('/sectors', [\App\Http\Controllers\Admin\CategoryController::class, 'indexSectors']);
         Route::post('/sectors', [\App\Http\Controllers\Admin\CategoryController::class, 'storeSector']);
-        // ...
+        Route::put('/sectors/{id}', [\App\Http\Controllers\Admin\CategoryController::class, 'updateSector']);
+        Route::delete('/sectors/{id}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroySector']);
     });
 
     Route::middleware('role:recruiter')->group(function () {

@@ -80,14 +80,10 @@ class OptionController extends Controller
     public function getCompanyOptions(): JsonResponse
     {
         // Cache những dữ liệu này sẽ rất tốt cho hiệu năng
-        $sizes = \App\Models\Company\CpnSize::query()->get(['SizeID as id', 'SizeRange as name']);
+        $sizes = \App\Models\Job\JobCompanySize::query()->get(['SizeID as id', 'SizeName as name']);
 
-        // Lấy theo ngôn ngữ của request, mặc định là Tiếng Việt
-        $lang = request()->header('Accept-Language', 'vi');
-        $nameColumn = ($lang === 'en') ? 'NameEN' : 'NameVI';
-
-        $industries = \App\Models\Company\CpnIndustry::query()
-            ->get(['IndustryID as id', "$nameColumn as name", 'Code as code']);
+        $industries = \App\Models\Job\JobIndustry::query()
+            ->get(['IndustryID as id', 'IndustryName as name']);
 
         return response()->json([
             'sizes' => $sizes,

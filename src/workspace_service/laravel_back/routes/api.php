@@ -16,9 +16,6 @@ use App\Http\Controllers\Internal\InternalWorkspaceController;
 // 1. PUBLIC ROUTES (Không cần đăng nhập)
 // =================================================================
 
-// Lấy danh sách loại hình công ty, quy mô (Master Data cho Workspace)
-Route::get('/options/company-types', [OptionController::class, 'getCompanyOptions']);
-
 // =================================================================
 // 2. INTERNAL ROUTES (Dành cho Service khác gọi - Job, Identity...)
 // =================================================================

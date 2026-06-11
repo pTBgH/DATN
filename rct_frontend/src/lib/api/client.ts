@@ -12,6 +12,7 @@
  */
 
 import { config } from "@/lib/config";
+import { refreshToken } from "@/lib/auth/keycloak";
 import type { ApiError } from "@/types";
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
@@ -35,6 +36,9 @@ export class ApiClientError extends Error {
     this.errors = error.errors;
   }
 }
+
+// Manage concurrent refresh requests to avoid race conditions
+let refreshPromise: Promise<string> | null = null;
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
   const base = config.apiBaseUrl.replace(/\/$/, "");
@@ -84,6 +88,41 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
     const text = await res.text();
     const parsed = text ? safeJson(text) : null;
+
+    // Handle 401 Unauthorized - try to refresh token and retry
+    if (res.status === 401) {
+      // Prevent infinite loops if token refresh endpoint itself returns 401
+      if (path.includes("/protocol/openid-connect/token")) {
+        const err: ApiError =
+          typeof parsed === "object" && parsed !== null
+            ? (parsed as ApiError)
+            : { message: `HTTP ${res.status}` };
+        err.status = res.status;
+        throw new ApiClientError(err);
+      }
+
+      try {
+        // Queue concurrent refresh requests to use same promise
+        if (!refreshPromise) {
+          refreshPromise = refreshToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+
+        const newToken = await refreshPromise;
+
+        // Retry original request with new token
+        return apiFetch<T>(path, { ...opts, token: newToken });
+      } catch (refreshErr) {
+        // Refresh failed - throw original 401 error
+        const err: ApiError =
+          typeof parsed === "object" && parsed !== null
+            ? (parsed as ApiError)
+            : { message: `HTTP ${res.status}` };
+        err.status = res.status;
+        throw new ApiClientError(err);
+      }
+    }
 
     if (!res.ok) {
       const err: ApiError =

@@ -38,8 +38,12 @@ export function useAuthedFetch<T>(
     const token = window.localStorage.getItem(TOKEN_KEY);
 
     if (!token) {
-      const cb = window.location.pathname;
-      router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
+      // Show error message instead of redirecting immediately
+      setState({
+        data: null,
+        loading: false,
+        error: "Bạn cần đăng nhập để xem nội dung này",
+      });
       return;
     }
 
@@ -51,8 +55,12 @@ export function useAuthedFetch<T>(
     } catch (e: unknown) {
       if (cancelledRef.current) return;
       if (e instanceof ApiClientError && e.status === 401) {
-        const cb = window.location.pathname;
-        router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
+        // 401 after silent refresh failed - show error instead of immediate redirect
+        setState({
+          data: null,
+          loading: false,
+          error: "Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+        });
         return;
       }
       setState({

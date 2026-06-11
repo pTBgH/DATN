@@ -24,6 +24,7 @@ export function useAuthedFetch<T>(
 ): FetchState<T> & { refetch: () => Promise<void> } {
   const router = useRouter();
   const cancelledRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
   const [state, setState] = useState<FetchState<T>>({
     data: null,
     loading: true,
@@ -34,13 +35,10 @@ export function useAuthedFetch<T>(
     // Reset cancelled flag when starting a new fetch
     cancelledRef.current = false;
 
-    const token =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(TOKEN_KEY)
-        : null;
+    const token = window.localStorage.getItem(TOKEN_KEY);
 
     if (!token) {
-      const cb = typeof window !== "undefined" ? window.location.pathname : "/";
+      const cb = window.location.pathname;
       router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
       return;
     }
@@ -53,8 +51,7 @@ export function useAuthedFetch<T>(
     } catch (e: unknown) {
       if (cancelledRef.current) return;
       if (e instanceof ApiClientError && e.status === 401) {
-        const cb =
-          typeof window !== "undefined" ? window.location.pathname : "/";
+        const cb = window.location.pathname;
         router.replace(`/login?callbackUrl=${encodeURIComponent(cb)}`);
         return;
       }
@@ -66,14 +63,30 @@ export function useAuthedFetch<T>(
     }
   };
 
+  // Only run on client after mount
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     cancelledRef.current = false;
     performFetch();
     return () => {
       cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [mounted, ...deps]);
+
+  // Return loading state on server to prevent hydration mismatch
+  if (!mounted) {
+    return {
+      data: null,
+      loading: true,
+      error: null,
+      refetch: performFetch,
+    };
+  }
 
   return {
     ...state,

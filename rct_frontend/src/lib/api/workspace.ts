@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import { mockCompanyOptions, mockMyWorkspaces, addMockWorkspace } from "@/mocks/workspace";
+import { mockMyWorkspaces, mockCompanyOptions, addMockWorkspace } from "@/mocks/workspace";
 import type {
   CompanyOptionsResponse,
   CreateWorkspaceInput,
@@ -69,6 +69,8 @@ export async function updateWorkspace(
     body: input,
   });
 }
+
+
 
 export async function getCompanyOptions(): Promise<CompanyOptionsResponse> {
   if (config.useMock) return Promise.resolve(mockCompanyOptions);

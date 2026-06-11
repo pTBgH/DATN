@@ -113,6 +113,47 @@ export async function passwordGrant(
   return { role, email, roles };
 }
 
+export async function refreshToken(): Promise<string> {
+  const refreshTokenValue = window.localStorage.getItem(REFRESH_KEY);
+  if (!refreshTokenValue) {
+    throw new Error("Không có refresh token");
+  }
+
+  // Mock mode: bypass Keycloak
+  if (config.useMock) {
+    const newToken = `mock-recruiter-${Date.now()}`;
+    window.localStorage.setItem(TOKEN_KEY, newToken);
+    return newToken;
+  }
+
+  const base = config.keycloak.baseUrl.replace(/\/$/, "");
+  const url = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/token`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: config.keycloak.clientId,
+      refresh_token: refreshTokenValue,
+    }),
+  });
+
+  if (!res.ok) {
+    logout();
+    throw new Error("Refresh token hết hạn hoặc không hợp lệ");
+  }
+
+  const tok = (await res.json()) as TokenResponse;
+
+  window.localStorage.setItem(TOKEN_KEY, tok.access_token);
+  if (tok.refresh_token) {
+    window.localStorage.setItem(REFRESH_KEY, tok.refresh_token);
+  }
+
+  return tok.access_token;
+}
+
 export function logout() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_KEY);

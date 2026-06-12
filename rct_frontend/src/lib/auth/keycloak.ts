@@ -50,6 +50,11 @@ export async function passwordGrant(
   username: string,
   password: string,
 ): Promise<LoginResult> {
+  // Ensure window is available (client-side only)
+  if (typeof window === "undefined") {
+    throw new Error("Login must be called client-side");
+  }
+
   // Mock mode: bypass Keycloak and use localStorage
   if (config.useMock) {
     // Mock user roles: admin for "admin", recruiter for anything else

@@ -50,6 +50,11 @@ export async function passwordGrant(
   username: string,
   password: string,
 ): Promise<LoginResult> {
+  // Ensure window is available (client-side only)
+  if (typeof window === "undefined") {
+    throw new Error("Login must be called client-side");
+  }
+
   const base = config.keycloak.baseUrl.replace(/\/$/, "");
   const url = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/token`;
 

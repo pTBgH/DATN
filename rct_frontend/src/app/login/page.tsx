@@ -8,7 +8,7 @@ import { passwordGrant } from "@/lib/auth/keycloak";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <LoginForm />
     </Suspense>
   );
@@ -36,9 +36,12 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
+      console.log("[v0] Login attempt with username:", username);
       await passwordGrant(username.trim(), password);
+      console.log("[v0] Login successful, redirecting");
       router.replace(callbackUrl ?? "/recruiter");
     } catch (err) {
+      console.error("[v0] Login error:", err);
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
     } finally {
       setLoading(false);

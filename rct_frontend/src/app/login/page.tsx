@@ -18,7 +18,7 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { role } = useMockAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      await passwordGrant(email.trim(), password);
+      await passwordGrant(username.trim(), password);
       router.replace(callbackUrl ?? "/recruiter");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
@@ -71,17 +71,17 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Email/Password Form */}
+          {/* Username/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Email
+                Tên đăng nhập
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="your_username"
                 className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                 disabled={loading}
                 required
@@ -121,15 +121,13 @@ function LoginForm() {
               Quên mật khẩu?
             </Link>
           </div>
+        </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-muted-light"></div>
-            <span className="text-sm text-foreground-muted">HOẶC</span>
-            <div className="flex-1 h-px bg-muted-light"></div>
-          </div>
-
-          {/* Google Login Button */}
+        {/* Google Section - Separate */}
+        <div className="mt-6 bg-white rounded-2xl shadow-md p-8">
+          <p className="text-center text-sm text-foreground-muted mb-4">
+            Hoặc tiếp tục bằng
+          </p>
           <button
             onClick={handleGoogleLogin}
             type="button"
@@ -154,7 +152,7 @@ function LoginForm() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span>Đăng Nhập với Google</span>
+            <span>Google</span>
           </button>
         </div>
 

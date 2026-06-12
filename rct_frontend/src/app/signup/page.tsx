@@ -7,6 +7,7 @@ import { registerUser } from "@/lib/auth/keycloak";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,7 +18,7 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
 
-    if (!email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
       setError("Vui lòng điền tất cả các trường");
       return;
     }
@@ -69,8 +70,23 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Email/Password Form */}
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Tên đăng nhập
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="your_username"
+                className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                disabled={isLoading}
+                required
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
                 Email
@@ -128,14 +144,13 @@ export default function SignupPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-muted-light"></div>
-            <span className="text-sm text-foreground-muted">HOẶC</span>
-            <div className="flex-1 h-px bg-muted-light"></div>
-          </div>
+        </div>
 
-          {/* Google Signup Button */}
+        {/* Google Section - Separate */}
+        <div className="mt-6 bg-white rounded-2xl shadow-md p-8">
+          <p className="text-center text-sm text-foreground-muted mb-4">
+            Hoặc tiếp tục bằng
+          </p>
           <button
             onClick={handleGoogleSignup}
             type="button"
@@ -160,7 +175,7 @@ export default function SignupPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span>Đăng Ký với Google</span>
+            <span>Google</span>
           </button>
         </div>
 

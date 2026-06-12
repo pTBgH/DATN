@@ -50,6 +50,7 @@ export function useMockAuth() {
   const signOut = useCallback(() => {
     window.localStorage.removeItem(STORAGE_KEY);
     window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem("job7189.refresh");
     setState({ role: null, email: null });
   }, []);
 

@@ -104,6 +104,8 @@ export async function passwordGrant(
     ((claims.realm_access as { roles?: string[] } | undefined)?.roles) ?? [];
   const role: MockRole = roles.includes("admin") ? "admin" : "recruiter";
 
+  // TODO(security): To prevent potential XSS theft of sensitive authentication tokens,
+  // session tokens should be stored in secure, HttpOnly, and Secure cookies instead of localStorage.
   window.localStorage.setItem(TOKEN_KEY, tok.access_token);
   if (tok.refresh_token) {
     window.localStorage.setItem(REFRESH_KEY, tok.refresh_token);
@@ -146,6 +148,8 @@ export async function refreshToken(): Promise<string> {
 
   const tok = (await res.json()) as TokenResponse;
 
+  // TODO(security): To prevent potential XSS theft of sensitive authentication tokens,
+  // session tokens should be stored in secure, HttpOnly, and Secure cookies instead of localStorage.
   window.localStorage.setItem(TOKEN_KEY, tok.access_token);
   if (tok.refresh_token) {
     window.localStorage.setItem(REFRESH_KEY, tok.refresh_token);
@@ -155,9 +159,14 @@ export async function refreshToken(): Promise<string> {
 }
 
 export function logout() {
+  // TODO(security): Ensure sensitive authentication states are fully purged and
+  // trigger a full page reload or redirect to clear any sensitive cache on logout.
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_KEY);
   window.localStorage.removeItem(STORAGE_KEY);
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
 }
 
 export async function registerUser(

@@ -661,10 +661,13 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "MYIpuUHIlIFyrfk1zjktZcnChO3WTFYW",
       "redirectUris": [
-        "http://fe-candidate-dev.job7189.local/*"
+        "http://fe-candidate-dev.job7189.local/*",
+        "https://job7189-atd.pages.dev/*"
       ],
       "webOrigins": [
-        "http://fe-candidate-dev.job7189.local"
+        "http://fe-candidate-dev.job7189.local",
+        "https://job7189-atd.pages.dev",
+        "+"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -673,7 +676,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "publicClient": false,
+      "publicClient": true,
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "attributes": {
@@ -754,10 +757,13 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "recruiter-secret-job7189-app",
       "redirectUris": [
-        "http://fe-recruiter-dev.job7189.local/*"
+        "http://fe-recruiter-dev.job7189.local/*",
+        "https://job7189-rct.pages.dev/*"
       ],
       "webOrigins": [
-        "http://fe-recruiter-dev.job7189.local"
+        "http://fe-recruiter-dev.job7189.local",
+        "https://job7189-rct.pages.dev",
+        "+"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -766,7 +772,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "publicClient": false,
+      "publicClient": true,
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "attributes": {

@@ -44,7 +44,7 @@
    - Input 4 — threat-intel: load `threat-intel-blocklist` ConfigMap (IP/FQDN/SHA256), match identity / image digest.
 2. Score formula đề xuất: `score = 100 - 30*missing_label_ratio - 50*has_critical_cve - 30*recent_kill_event - 100*ioc_match` (clamp 0..100).
 3. **Bind score vào enforcement** (chỗ đang hoàn toàn thiếu):
-   - **Cilium**: PDP patch label `cilium.zta/score-bucket=high|medium|low` (3 bucket, không phải số) → CNP dùng `endpointSelector.matchLabels.cilium.zta/score-bucket=high` cho high-sensitivity routes.
+   - **Cilium**: PDP patch label `zta.job7189/score-bucket=high|medium|low` (3 bucket, không phải số) → CNP dùng `endpointSelector.matchLabels.zta.job7189/score-bucket=high` cho high-sensitivity routes.
    - **Kong**: PDP expose `/decision/<sub>` → Kong custom plugin (Lua) gọi để gate route nhạy cảm.
    - **Gatekeeper**: thêm ConstraintTemplate `K8sBlockLowTrust` admission deny pod create nếu owner namespace có `score-bucket=low`.
 4. Audit: mọi thay đổi score → JSON line stdout (đã có `audit()`); thêm field `inputs` với breakdown.

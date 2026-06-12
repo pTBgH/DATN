@@ -4,6 +4,11 @@
 #
 # Keycloak admin console (/admin) chỉ accessible từ host (operator); workload
 # chỉ cần realm endpoints (login, token, jwks, userinfo).
+#
+# ARCHITECTURE NOTE — Same-node Envoy loopback issue:
+# ingress-nginx và Keycloak đều trên 7189srv02. Khi Cilium L7 redirect traffic
+# qua Envoy (TPROXY), cùng node gây loopback timeout. Fix: ingress-nginx dùng
+# L4-only (nginx tự handle HTTP filtering). Kong giữ L7 vì là external API GW.
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -16,19 +21,11 @@ spec:
       app: keycloak
       zta.job7189/role: sso
   ingress:
-  # 1) oauth2-proxy + Kong + ingress-nginx + apps — chỉ realm endpoint
+  # 1) Kong gateway only — L7 HTTP inspection (external API entry point)
+  #    ingress-nginx removed from L7 due to same-node Envoy loopback timeout.
   - fromEndpoints:
-    - matchExpressions:
-      - key: zta.job7189/role
-        operator: In
-        values: ["proxy", "api"]
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
-        zta.job7189/role: proxy
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: gateway
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: ingress-nginx
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     toPorts:
     - ports:
       - port: "8080"
@@ -37,32 +34,58 @@ spec:
         http:
         # OIDC discovery + JWKS
         - method: "GET"
-          path: "/realms/zta/.well-known/openid-configuration"
+          path: "/realms/job7189/.well-known/openid-configuration"
         - method: "GET"
-          path: "/realms/zta/protocol/openid-connect/certs"
+          path: "/realms/job7189/protocol/openid-connect/certs"
         # Auth flow
         - method: "GET"
-          path: "/realms/zta/protocol/openid-connect/auth"
+          path: "/realms/job7189/protocol/openid-connect/auth"
         - method: "POST"
-          path: "/realms/zta/protocol/openid-connect/auth"
+          path: "/realms/job7189/protocol/openid-connect/auth"
         - method: "POST"
-          path: "/realms/zta/protocol/openid-connect/token"
+          path: "/realms/job7189/protocol/openid-connect/token"
         - method: "GET"
-          path: "/realms/zta/protocol/openid-connect/userinfo"
+          path: "/realms/job7189/protocol/openid-connect/userinfo"
         - method: "POST"
-          path: "/realms/zta/protocol/openid-connect/userinfo"
+          path: "/realms/job7189/protocol/openid-connect/userinfo"
         - method: "GET"
-          path: "/realms/zta/protocol/openid-connect/logout"
+          path: "/realms/job7189/protocol/openid-connect/logout"
         - method: "POST"
-          path: "/realms/zta/protocol/openid-connect/logout"
+          path: "/realms/job7189/protocol/openid-connect/logout"
         # Login form static assets
         - method: "GET"
-          path: "/realms/zta/login-actions/.*"
+          path: "/realms/job7189/login-actions/.*"
         - method: "POST"
-          path: "/realms/zta/login-actions/.*"
+          path: "/realms/job7189/login-actions/.*"
         - method: "GET"
           path: "/resources/.*"
-  # 2) Admin console — chỉ host/remote-node (operator port-forward)
+        - method: "POST"
+          path: "/resources/.*"
+
+  # 2) ingress-nginx — L4-only (nginx is reverse proxy, handles HTTP itself;
+  #    same-node Envoy loopback would cause TCP connect timeout)
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+
+  # 3) Internal apps & oauth2-proxy — L4-only to bypass same-node Envoy loopback issues
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        zta.job7189/role: api
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        zta.job7189/role: proxy
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+
+  # 4) Admin console & Probes — host/remote-node allowed for all paths (L4-only)
   - fromEntities:
     - host
     - remote-node
@@ -70,21 +93,3 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/admin/.*"
-        - method: "POST"
-          path: "/admin/.*"
-        - method: "PUT"
-          path: "/admin/.*"
-        - method: "DELETE"
-          path: "/admin/.*"
-        - method: "GET"
-          path: "/realms/master/.*"
-        - method: "POST"
-          path: "/realms/master/.*"
-        - method: "GET"
-          path: "/health.*"
-        - method: "GET"
-          path: "/metrics"

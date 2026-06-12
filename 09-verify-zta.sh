@@ -120,7 +120,7 @@ fi
 
 # 2c: Secrets on tmpfs
 echo ""
-TMPFS_CHECK=$(kx_exec -n job7189-apps deploy/identity-service -c app -- mount 2>/dev/null | grep tmpfs | grep -c "vault-secrets\|app-secrets" || echo "0")
+TMPFS_CHECK=$(kx_exec -n job7189-apps deploy/identity-service -c app -- mount 2>/dev/null | grep tmpfs | grep -c "vault-secrets\|app-secrets" || true)
 if [ "$TMPFS_CHECK" -gt 0 ]; then
   result PASS "Secrets mounted on tmpfs (RAM-only, not on disk)"
 else
@@ -531,7 +531,7 @@ if kubectl get ns gatekeeper-system >/dev/null 2>&1 \
   fi
 
   # 4f.2 ConstraintTemplates registered
-  CT_COUNT=$(kubectl get constrainttemplate --no-headers 2>/dev/null | grep -c "^zta" || echo "0")
+  CT_COUNT=$(kubectl get constrainttemplate --no-headers 2>/dev/null | grep -c "^zta" || true)
   if [ "$CT_COUNT" -ge 3 ]; then
     result PASS "ZTA ConstraintTemplates registered ($CT_COUNT/3)"
   else
@@ -758,14 +758,8 @@ if kubectl get ns "$SPIRE_NS" >/dev/null 2>&1; then
   # exist with different label sets, so iterate through them all instead of assuming
   # a single label match.
   TD=$(kubectl -n "$SPIRE_NS" get cm -o jsonpath='{range .items[*]}{.data}{"\n"}{end}' 2>/dev/null \
-    | grep -oE 'trust_domain[^"]*"[^"]+"' | head -1 \
-    | grep -oE '"[^"]+"' | tr -d '"' || echo "")
-  if [ -z "$TD" ]; then
-    # Fallback: query the running spire-server pod directly
-    TD=$(kubectl -n "$SPIRE_NS" exec statefulset/spire-server -c spire-server -- \
-      sh -c 'grep -E "trust_domain" /run/spire/config/server.conf 2>/dev/null | head -1' 2>/dev/null \
-      | grep -oE '"[^"]+"' | tr -d '"' || echo "")
-  fi
+    | grep -oE 'trustDomain: [a-zA-Z0-9.-]+|trust_domain\\?":\\? "[a-zA-Z0-9.-]+' | head -1 \
+    | grep -oE '[a-zA-Z0-9.-]+$' || echo "")
   if [ "$TD" = "zta.job7189" ]; then
     result PASS "SPIRE trustDomain = 'zta.job7189' (matches knowledge-base/27)"
   elif [ -n "$TD" ]; then
@@ -924,7 +918,7 @@ if kubectl -n "$DEMO_NS" get deploy "$DEMO_NAME" >/dev/null 2>&1; then
   ENTRIES=$(kubectl -n spire exec statefulset/spire-server -c spire-server -- \
     /opt/spire/bin/spire-server entry show \
     -socketPath /tmp/spire-server/private/api.sock 2>/dev/null \
-    | grep -c "sa/$DEMO_NAME" || echo 0)
+    | grep -c "sa/$DEMO_NAME" || true)
   ENTRIES=${ENTRIES:-0}
   if [ "$ENTRIES" -ge 1 ]; then
     result PASS "SPIRE entry registered for $DEMO_NAME ($ENTRIES entries)"
@@ -1107,9 +1101,9 @@ if kubectl -n security-cdm get cronjob threat-intel-refresh >/dev/null 2>&1; the
   # Check ConfigMap exists and has entries
   if kubectl -n security-cdm get cm threat-intel-blocklist >/dev/null 2>&1; then
     CIDR_COUNT=$(kubectl -n security-cdm get cm threat-intel-blocklist \
-      -o jsonpath='{.data.cidr-list}' 2>/dev/null | grep -cE '^[0-9]' || echo 0)
+      -o jsonpath='{.data.cidr-list}' 2>/dev/null | grep -cE '^[0-9]' || true)
     FQDN_COUNT=$(kubectl -n security-cdm get cm threat-intel-blocklist \
-      -o jsonpath='{.data.fqdn-list}' 2>/dev/null | grep -cE '^[a-z0-9]' || echo 0)
+      -o jsonpath='{.data.fqdn-list}' 2>/dev/null | grep -cE '^[a-z0-9]' || true)
     LAST_UPDATE=$(kubectl -n security-cdm get cm threat-intel-blocklist \
       -o jsonpath='{.metadata.annotations.threat-intel/last-updated}' 2>/dev/null || echo "")
     if [ "${CIDR_COUNT:-0}" -ge 100 ]; then
@@ -1151,23 +1145,23 @@ APP_NS="${APP_NS:-job7189-apps}"
 if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
   # 1. Check at least one pod has score-bucket label
   BUCKET_PODS=$(kubectl get pods -n "$APP_NS" \
-    -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
-    | grep -cE '^(high|medium|low)$' || echo 0)
+    -o jsonpath='{range .items[*]}{.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null \
+    | grep -cE '^(high|medium|low)$' || true)
   TOTAL_PODS=$(kubectl get pods -n "$APP_NS" --no-headers 2>/dev/null | wc -l | tr -d ' ')
   if [ "${BUCKET_PODS:-0}" -ge 1 ]; then
     HIGH_COUNT=$(kubectl get pods -n "$APP_NS" \
-      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
-      | grep -c '^high$' || echo 0)
+      -o jsonpath='{range .items[*]}{.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^high$' || true)
     MED_COUNT=$(kubectl get pods -n "$APP_NS" \
-      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
-      | grep -c '^medium$' || echo 0)
+      -o jsonpath='{range .items[*]}{.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^medium$' || true)
     LOW_COUNT=$(kubectl get pods -n "$APP_NS" \
-      -o jsonpath='{range .items[*]}{.metadata.labels.cilium\.zta/score-bucket}{"\n"}{end}' 2>/dev/null \
-      | grep -c '^low$' || echo 0)
+      -o jsonpath='{range .items[*]}{.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null \
+      | grep -c '^low$' || true)
     result PASS "score-bucket labels: ${BUCKET_PODS}/${TOTAL_PODS} pods labelled (high=${HIGH_COUNT} med=${MED_COUNT} low=${LOW_COUNT})"
   else
     result WARN "No pods have score-bucket label yet — PDP reconcile may need ~60s" \
-      "Wait 60s then: kubectl get pods -n $APP_NS -L cilium.zta/score-bucket"
+      "Wait 60s then: kubectl get pods -n $APP_NS -L zta.job7189/score-bucket"
   fi
 
   # 2. Check CNP cnp-block-low-trust-to-vault exists
@@ -1218,7 +1212,7 @@ fi
 if kubectl -n monitoring get cm prometheus-zta-rules >/dev/null 2>&1; then
   RULE_COUNT=$(kubectl -n monitoring get cm prometheus-zta-rules \
     -o jsonpath='{.data.zta-rules\.yml}' 2>/dev/null \
-    | grep -c '^\s*- alert:' || echo 0)
+    | grep -c '^\s*- alert:' || true)
   if [ "${RULE_COUNT:-0}" -ge 1 ]; then
     result PASS "Prometheus ZTA alerting rules: ${RULE_COUNT} alerts configured"
   else

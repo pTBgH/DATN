@@ -44,8 +44,8 @@ schema (PR #9). Cột "Why" tóm tắt; chi tiết trong audit log Hubble + Falc
 | 4 | `role=api` (mọi backend) | `data/kafka:9092` TCP | Event publish | Audit/notify/stream | — | ✓ | `10-data.yaml` |
 | 5 | `role=api,team=backend` (identity-service ServiceAccount) | `vault/vault:8200` TCP | `POST /v1/database/creds/<role>` | Issue JIT DB cred | **L7 — POST /v1/database/creds/* + GET /v1/sys/health** | ✓ | `30-l7-vault-api.yaml` (PR #10) |
 | 6 | `role=secret-store,env=prod` (vault-prod) | `vault/vault-dev:8300` TCP | Auto-unseal transit | Cluster boot | — | ✓ | `11-vault.yaml` |
-| 7 | `role=proxy,team=security` (oauth2-proxy) | `security/keycloak:8080` TCP | OIDC code exchange | SSO flow | **L7 — GET/POST /realms/zta/protocol/openid-connect/* + GET /realms/zta/.well-known/openid-configuration** | ✓ | `30-l7-keycloak-oidc.yaml` (PR #10) |
-| 8 | `role=proxy,team=platform` (kong-gateway) | `security/keycloak:8080` TCP | JWKS fetch (verify JWT) | Kong validate JWT | **L7 — GET /realms/zta/protocol/openid-connect/certs** | ✓ | `30-l7-keycloak-jwks.yaml` (PR #10) |
+| 7 | `role=proxy,team=security` (oauth2-proxy) | `security/keycloak:8080` TCP | OIDC code exchange | SSO flow | **L7 — GET/POST /realms/job7189/protocol/openid-connect/* + GET /realms/job7189/.well-known/openid-configuration** | ✓ | `30-l7-keycloak-oidc.yaml` (PR #10) |
+| 8 | `role=proxy,team=platform` (kong-gateway) | `security/keycloak:8080` TCP | JWKS fetch (verify JWT) | Kong validate JWT | **L7 — GET /realms/job7189/protocol/openid-connect/certs** | ✓ | `30-l7-keycloak-jwks.yaml` (PR #10) |
 
 ### 2.2 Luồng vào tier T2 (gateway, monitoring, job7189-apps API)
 
@@ -86,8 +86,8 @@ allow-list bị Cilium reject ngay tại data-plane (Envoy redirect):
 | File | Selector | Allowed methods/paths | Tier |
 |------|---------|----------------------|------|
 | `30-l7-vault-api.yaml` | `vault/vault` (StatefulSet) | `POST /v1/database/creds/*`, `GET /v1/sys/health`, `GET /v1/sys/seal-status`, `POST /v1/auth/kubernetes/login` | T1 |
-| `30-l7-keycloak-oidc.yaml` | `security/keycloak` | `GET/POST /realms/zta/protocol/openid-connect/*`, `GET /realms/zta/.well-known/openid-configuration` | T1 |
-| `30-l7-keycloak-jwks.yaml` | `security/keycloak` ← `gateway/kong-gateway` | `GET /realms/zta/protocol/openid-connect/certs` (chỉ JWKS) | T1 |
+| `30-l7-keycloak-oidc.yaml` | `security/keycloak` | `GET/POST /realms/job7189/protocol/openid-connect/*`, `GET /realms/job7189/.well-known/openid-configuration` | T1 |
+| `30-l7-keycloak-jwks.yaml` | `security/keycloak` ← `gateway/kong-gateway` | `GET /realms/job7189/protocol/openid-connect/certs` (chỉ JWKS) | T1 |
 | `30-l7-kong-admin.yaml` | `gateway/kong-gateway:8001` | `GET /status`, `GET /metrics` (read-only health/metrics) | T2 |
 | `30-l7-prom-metrics.yaml` | mọi pod chứa `zta.job7189/role=monitoring` đến mọi pod có port `metrics` | `GET /metrics` (read-only) | T2 |
 

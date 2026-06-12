@@ -54,7 +54,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -125,7 +125,7 @@ spec:
         protocol: TCP
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:
@@ -184,7 +184,7 @@ spec:
   # gateway/kong
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: gateway
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     toPorts:
     - ports:
       - port: "80"
@@ -198,10 +198,10 @@ spec:
   # security ns
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
         app: keycloak
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
         app: oauth2-proxy
     toPorts:
     - ports:
@@ -212,7 +212,7 @@ spec:
   # kube-system / Hubble UI
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
         k8s:k8s-app: hubble-ui
     toPorts:
     - ports:
@@ -223,7 +223,7 @@ spec:
   # management/phpmyadmin
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: management
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: management
         app: phpmyadmin
     toPorts:
     - ports:
@@ -234,7 +234,7 @@ spec:
   # monitoring (kibana, grafana, ES)
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         app: kibana
     toPorts:
     - ports:
@@ -242,7 +242,7 @@ spec:
         protocol: TCP
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         app: grafana
     toPorts:
     - ports:
@@ -250,7 +250,7 @@ spec:
         protocol: TCP
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         app: elasticsearch
     toPorts:
     - ports:

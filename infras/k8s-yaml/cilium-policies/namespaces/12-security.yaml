@@ -64,21 +64,21 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: ingress-nginx
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: gateway
         app: kong-gateway
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
         app: oauth2-proxy
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: job7189-apps
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
     toPorts:
     - ports:
       - port: "8080"
         protocol: TCP
 ---
-# 4) Keycloak egress: MySQL DB
+# 4) Keycloak egress: MySQL DB & Host/Remote-Node for Health Probes
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -91,12 +91,24 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: data
         app: mysql
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
     toPorts:
     - ports:
       - port: "3306"
         protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+  - toEntities:
+    - host
+    - remote-node
 ---
 # 5) oauth2-proxy ingress (4180)
 apiVersion: cilium.io/v2
@@ -254,7 +266,7 @@ spec:
   - fromEndpoints:
     - matchLabels:
         app: kong-gateway
-        k8s:io.kubernetes.pod.namespace: gateway
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     toPorts:
     - ports:
       - port: "8080"
@@ -274,8 +286,8 @@ spec:
   # Allow backend apps to reach Keycloak for JWKS verification
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: job7189-apps
         zta.job7189/role: api
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
     toPorts:
     - ports:
       - port: "8080"

@@ -22,7 +22,7 @@ spec:
     - matchLabels:
         app: kong-gateway
         zta.job7189/role: proxy
-        k8s:io.kubernetes.pod.namespace: gateway
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     toPorts:
     - ports:
       - port: "8080"
@@ -30,6 +30,6 @@ spec:
       rules:
         http:
         - method: "GET"
-          path: "/realms/zta/protocol/openid-connect/certs"
+          path: "/realms/job7189/protocol/openid-connect/certs"
         - method: "GET"
-          path: "/realms/zta/.well-known/openid-configuration"
+          path: "/realms/job7189/.well-known/openid-configuration"

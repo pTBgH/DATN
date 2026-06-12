@@ -20,4 +20,4 @@ spec:
   ingressDeny:
   - fromEndpoints:
     - matchLabels:
-        cilium.zta/score-bucket: low
+        zta.job7189/score-bucket: low

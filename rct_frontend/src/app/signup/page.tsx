@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { registerUser } from "@/lib/auth/keycloak";
+import { useMockAuth } from "@/lib/auth/mock";
+import { config } from "@/lib/config";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -43,8 +45,17 @@ export default function SignupPage() {
     }
   };
 
+  const { signIn } = useMockAuth();
+
   const handleGoogleSignup = () => {
-    // TODO: Implement Google OAuth signup via Keycloak
+    if (config.useMock) {
+      signIn("recruiter", "mock-google-user@job7189.local");
+      router.push("/recruiter");
+      return;
+    }
+    const redirectUri = encodeURIComponent(`${window.location.origin}/login`);
+    const base = config.keycloak.baseUrl.replace(/\/$/, "");
+    window.location.href = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/auth?client_id=${config.keycloak.clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20profile%20email&kc_idp_hint=google`;
   };
 
   return (

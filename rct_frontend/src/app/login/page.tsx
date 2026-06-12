@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMockAuth } from "@/lib/auth/mock";
-import { passwordGrant } from "@/lib/auth/keycloak";
+import { passwordGrant, exchangeCode } from "@/lib/auth/keycloak";
+import { config } from "@/lib/config";
 
 export default function LoginPage() {
   return (
@@ -17,19 +18,49 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const { role } = useMockAuth();
+  const { role, signIn } = useMockAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const callbackUrl = params.get("callbackUrl");
+  const code = params.get("code");
 
   useEffect(() => {
-    if (role) {
+    if (role && !code && !loading) {
       router.replace(callbackUrl ?? "/recruiter");
     }
-  }, [role, router, callbackUrl]);
+  }, [role, router, callbackUrl, code, loading]);
+
+  useEffect(() => {
+    if (code) {
+      let isMounted = true;
+      const doExchange = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const redirectUri = `${window.location.origin}/login`;
+          await exchangeCode(code, redirectUri);
+          if (isMounted) {
+            router.replace(callbackUrl ?? "/recruiter");
+          }
+        } catch (err) {
+          if (isMounted) {
+            setError(err instanceof Error ? err.message : "Đăng nhập bằng Google thất bại");
+          }
+        } finally {
+          if (isMounted) {
+            setLoading(false);
+          }
+        }
+      };
+      doExchange();
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [code, router, callbackUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +77,14 @@ function LoginForm() {
   };
 
   const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth login via Keycloak
+    if (config.useMock) {
+      signIn("recruiter", "mock-google-user@job7189.local");
+      router.replace(callbackUrl ?? "/recruiter");
+      return;
+    }
+    const redirectUri = encodeURIComponent(`${window.location.origin}/login`);
+    const base = config.keycloak.baseUrl.replace(/\/$/, "");
+    window.location.href = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/auth?client_id=${config.keycloak.clientId}&redirect_uri=${redirectUri}&response_type=code&scope=openid%20profile%20email&kc_idp_hint=google`;
   };
 
   return (

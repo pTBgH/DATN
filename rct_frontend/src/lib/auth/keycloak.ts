@@ -220,3 +220,54 @@ export async function registerUser(
   // After successful registration, log in
   return passwordGrant(email, password);
 }
+
+export async function exchangeCode(
+  code: string,
+  redirectUri: string,
+): Promise<LoginResult> {
+  const base = config.keycloak.baseUrl.replace(/\/$/, "");
+  const url = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/token`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: config.keycloak.clientId,
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  if (!res.ok) {
+    let message = `Đổi code thất bại (HTTP ${res.status})`;
+    try {
+      const err = (await res.json()) as { error_description?: string; error?: string };
+      message = err.error_description || err.error || message;
+    } catch {
+      /* keep default message */
+    }
+    throw new Error(message);
+  }
+
+  const tok = (await res.json()) as TokenResponse;
+  const claims = decodeJwt(tok.access_token);
+
+  const email =
+    (claims.email as string) ||
+    (claims.preferred_username as string) ||
+    "user";
+  const roles =
+    ((claims.realm_access as { roles?: string[] } | undefined)?.roles) ?? [];
+  const role: MockRole = roles.includes("admin") ? "admin" : "recruiter";
+
+  // TODO(security): To prevent potential XSS theft of sensitive authentication tokens,
+  // session tokens should be stored in secure, HttpOnly, and Secure cookies instead of localStorage.
+  window.localStorage.setItem(TOKEN_KEY, tok.access_token);
+  if (tok.refresh_token) {
+    window.localStorage.setItem(REFRESH_KEY, tok.refresh_token);
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, email }));
+
+  return { role, email, roles };
+}

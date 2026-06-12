@@ -197,15 +197,14 @@ Hệ thống chạy trên cụm 4 máy ảo máy chủ và được tổ chức 
 \section{Quy trình triển khai theo giai đoạn}
 \label{sec:deployment_process}
 
-Quá trình chuyển đổi hệ thống Job7189 từ trạng thái tin cậy ngầm định sang ZTA tuân theo nguyên tắc triển khai tăng dần của NIST SP 800-207 (\S7.3.6: vận hành ở chế độ quan sát trước, cưỡng chế sau) và kinh nghiệm các build trong NIST SP 1800-35. Mỗi giai đoạn đều có điều kiện tiên quyết, bước kiểm chứng và phương án quay lui:
+Quá trình chuyển đổi hệ thống Job7189 từ trạng thái tin cậy ngầm định sang ZTA tuân theo nguyên tắc triển khai tăng dần của NIST SP 800-207 (\S7.3.6: vận hành ở chế độ quan sát trước, cưỡng chế sau) và ánh xạ trực tiếp vào 3 nhóm quy trình vận hành của NIST SP 1800-35. Mỗi giai đoạn đều có điều kiện tiên quyết, bước kiểm chứng và phương án quay lui:
 
 \begin{enumerate}
-    \item \textbf{Giai đoạn 0 --- Baseline:} Triển khai 7 vi dịch vụ trên cluster với cấu hình mặc định (không network policy, mật khẩu tĩnh). Trạng thái này đóng vai trò đối chứng để đo lường hiệu quả ZTA ở Chương 4.
-    \item \textbf{Giai đoạn 1 --- Định danh:} Triển khai Keycloak, cert-manager, SPIRE. Kiểm chứng: mọi Pod nghiệp vụ nhận được SVID, luồng OIDC hoạt động. Giai đoạn này không gây gián đoạn vì chưa cưỡng chế.
-    \item \textbf{Giai đoạn 2 --- Quan sát (monitor mode):} Triển khai Cilium/Hubble ở chế độ audit để ghi nhận toàn bộ luồng thực tế, xây bản đồ luồng dữ liệu (Mục~\ref{sec:discovery}) trước khi viết policy.
-    \item \textbf{Giai đoạn 3 --- Cưỡng chế mạng (enforce):} Áp \texttt{default-deny-all} kèm 10 chính sách allow đã kiểm chứng từ giai đoạn 2. Quay lui: gỡ policy bằng Helmfile nếu dịch vụ nghiệp vụ lỗi.
-    \item \textbf{Giai đoạn 4 --- Bí mật động:} Chuyển từng dịch vụ từ mật khẩu tĩnh sang Vault JIT credential theo kiểu cuốn chiếu (rolling), mỗi dịch vụ được kiểm chứng kết nối CSDL thành công trước khi chuyển dịch vụ tiếp theo.
-    \item \textbf{Giai đoạn 5 --- Nâng cao:} Cosign admission (WARN trước, ENFORCE sau khi xử lý các image bên thứ ba), Tetragon runtime, PDP vòng lặp điểm tin cậy.
+    \item \textbf{Giai đoạn 0 --- Baseline (Khảo sát nghiệp vụ):} Triển khai 7 vi dịch vụ trên cụm với cấu hình mặc định (không network policy, mật khẩu tĩnh) để làm mốc đối chứng đo lường.
+    \item \textbf{Giai đoạn 1 --- Quản lý Tài nguyên (Resource Management --- R()):} Triển khai gốc định danh và kiểm soát thiết bị cơ bản: \texttt{cert-manager} làm Enterprise PKI, \texttt{SPIRE} cấp chứng chỉ SVID xác thực workload động, và \texttt{Trivy Operator} quét đánh giá lỗ hổng hình ảnh container (hygiene).
+    \item \textbf{Giai đoạn 2 --- Chuẩn bị Khởi tạo Phiên (Session Initiation --- I() --- Audit Mode):} Khởi chạy \texttt{Keycloak} định danh người dùng. Vận hành \texttt{Cilium/Hubble} ở chế độ audit để ghi nhận luồng mạng thực tế, phục vụ xây dựng bản đồ luồng dữ liệu chính xác (Mục~\ref{sec:discovery}).
+    \item \textbf{Giai đoạn 3 --- Cưỡng chế Khởi tạo Phiên (Session Initiation --- I() --- Enforce Mode):} Áp dụng chính sách mặc định từ chối (\texttt{default-deny-all}) kèm 10 chính sách \texttt{allow-*} cho phép luồng mạng tường minh. Thực hiện kiểm tra chữ ký số bằng \texttt{Cosign} và xác thực token JWT tại \texttt{Kong API Gateway}.
+    \item \textbf{Giai đoạn 4 --- Quản lý Phiên thích ứng (Session Management --- S()):} Thiết lập các cơ chế đánh giá động và tự động thu hồi: Kích hoạt \texttt{Vault} để cấp và tự động thu hồi tài khoản CSDL động (JIT credentials) theo TTL; cấu hình \texttt{SPIRE} tự động xoay vòng SVID mỗi 15--60 phút; vận hành \texttt{zta-pdp} controller chạy vòng lặp cập nhật điểm tin cậy động và nhãn \texttt{score-bucket} trên cụm; cài đặt \texttt{Tetragon} giám sát runtime syscall.
 \end{enumerate}
 
 Cách tiếp cận ``audit trước --- enforce sau'' này phản ánh đúng khuyến nghị của NIST SP 800-207 \S7.3.6 rằng giai đoạn đầu nên vận hành ở chế độ báo cáo (reporting-only) để hiệu chỉnh chính sách, tránh khóa nhầm luồng nghiệp vụ hợp lệ.
@@ -500,7 +499,7 @@ NIST SP 1800-35 (\S3.1, General ZTA Reference Architecture) mô hình hóa vận
 \hline
 \textbf{Session Initiation---I():} chuỗi bước tuần tự thiết lập phiên giữa subject và tài nguyên & Kong xác thực JWT + OPA đánh giá ngữ cảnh (North-South); Cilium kiểm tra identity và policy theo từng flow (East-West); Vault cấp credential JIT khi phiên truy cập CSDL bắt đầu. \\
 \hline
-\textbf{Session Management---S():} PDP tái đánh giá phiên liên tục sau khi thiết lập, thu hồi khi ngữ cảnh thay đổi & PDP controller tái tính điểm tin cậy mỗi 90 giây từ dữ liệu Trivy; SVID hết hạn sau 15--60 phút buộc tái attest; Vault credential hết TTL tự thu hồi. Đây là quy trình hoàn thiện thấp nhất hiện tại (xem hạn chế ở Chương 4). \\
+\textbf{Session Management---S():} PDP tái đánh giá phiên liên tục sau khi thiết lập, thu hồi khi ngữ cảnh thay đổi & PDP controller chạy vòng lặp đối chiếu tự động, tính lại điểm tin cậy từ dữ liệu quét Trivy và cập nhật nhãn \texttt{score-bucket} của Pod để Cilium CNP thực thi chặn động. Đồng thời, SPIRE tự động xoay vòng SVID (mỗi 15--60 phút) và Vault tự động hủy/xoay vòng Dynamic Credentials khi hết hạn TTL. \\
 \hline
 \end{tabularx}
 \end{table}

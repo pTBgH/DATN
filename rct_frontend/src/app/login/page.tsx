@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useMockAuth } from "@/lib/auth/mock";
 import { passwordGrant } from "@/lib/auth/keycloak";
 
@@ -92,6 +93,18 @@ function LoginForm() {
           {loading ? "Đang đăng nhập…" : "Vào hệ thống"}
         </button>
       </form>
+
+      <div className="mt-6 text-center text-sm">
+        <p className="text-slate-600">
+          Chưa có tài khoản?{" "}
+          <Link
+            href="/signup"
+            className="font-medium text-brand hover:underline"
+          >
+            Đăng ký ngay
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

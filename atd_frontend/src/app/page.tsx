@@ -21,14 +21,14 @@ export default async function HomePage() {
             Khám phá hàng nghìn cơ hội việc làm từ các công ty hàng đầu. Nâng cao kỹ năng, phát triển sự nghiệp của bạn cùng Job7189.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/jobs">
+            <Link href="/login">
               <Button variant="secondary" size="lg">
-                Tìm Việc Ngay
+                Đăng Nhập
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/signup">
               <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
-                Đăng Nhập / Đăng Ký
+                Đăng Ký Miễn Phí
               </Button>
             </Link>
           </div>
@@ -143,14 +143,14 @@ export default async function HomePage() {
         <h2 className="text-5xl sm:text-6xl font-serif font-bold text-balance">Sẵn Sàng Bắt Đầu?</h2>
         <p className="mt-6 text-lg font-light text-slate-300">Tạo hồ sơ và ứng tuyển vào công việc mơ ước của bạn hôm nay.</p>
         <div className="mt-10 flex flex-wrap justify-center gap-4">
-          <Link href="/jobs">
+          <Link href="/login">
             <Button variant="primary" size="lg">
-              Khám Phá Công Việc
+              Đăng Nhập
             </Button>
           </Link>
-          <Link href="/login">
+          <Link href="/signup">
             <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
-              Đăng Ký Ngay
+              Đăng Ký Miễn Phí
             </Button>
           </Link>
         </div>

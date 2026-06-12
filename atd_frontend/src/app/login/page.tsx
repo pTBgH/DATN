@@ -44,83 +44,95 @@ function LoginForm() {
   };
 
   const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth login
-    setError("Google login chưa được cấu hình");
+    // TODO: Implement Google OAuth login via Keycloak
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#FF6B4A" }}>
-      <div className="w-full max-w-md bg-white rounded-xl p-8 shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Đăng Nhập</h1>
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-serif font-bold text-foreground mb-2">
+            Đăng Nhập
+          </h1>
+          <p className="text-foreground-muted">
+            Tìm công việc phù hợp với bạn
+          </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-md p-8 space-y-6">
+          {/* Error Message */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>
           )}
 
-          {/* Email Input */}
-          <div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email / Tên đăng nhập"
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-              disabled={loading}
-              required
-            />
-          </div>
+        {/* Email/Password Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                disabled={loading}
+                required
+              />
+            </div>
 
-          {/* Password Input */}
-          <div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mật khẩu"
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-              disabled={loading}
-              required
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Mật khẩu
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                disabled={loading}
+                required
+              />
+            </div>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 text-white font-semibold rounded-lg transition disabled:opacity-60"
-            style={{ backgroundColor: "#FF6B4A" }}
-          >
-            {loading ? "Đang đăng nhập…" : "ĐĂNG NHẬP"}
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-6 px-4 py-3 rounded-lg bg-brand text-white font-medium hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition"
+            >
+              {loading ? "Đang đăng nhập…" : "Đăng Nhập"}
+            </button>
         </form>
 
         {/* Forgot Password */}
-        <div className="text-center mt-4">
-          <Link href="#" className="text-blue-600 text-sm hover:underline">
+        <div className="text-center">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-brand hover:text-brand-dark font-medium transition"
+          >
             Quên mật khẩu?
           </Link>
         </div>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 border-t border-slate-300"></div>
-          <span className="text-slate-500 text-sm">HOẶC</span>
-          <div className="flex-1 border-t border-slate-300"></div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-muted-light"></div>
+          <span className="text-sm text-foreground-muted">HOẶC</span>
+          <div className="flex-1 h-px bg-muted-light"></div>
         </div>
 
-        {/* Google Button */}
+        {/* Google Login Button */}
         <button
-          type="button"
           onClick={handleGoogleLogin}
+          type="button"
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-3 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground font-medium hover:bg-surface-alt transition disabled:opacity-60"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -140,28 +152,29 @@ function LoginForm() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          <span>Đăng nhập bằng Google</span>
+          <span>Đăng Nhập với Google</span>
         </button>
+        </div>
 
-        {/* Sign Up Link */}
-        <div className="text-center mt-6">
-          <p className="text-slate-600 text-sm">
+        {/* Bottom Links */}
+        <div className="mt-8 text-center space-y-4">
+          <p className="text-foreground-muted text-sm">
             Chưa có tài khoản?{" "}
-            <Link href="/signup" className="font-medium text-blue-600 hover:underline">
+            <Link
+              href="/signup"
+              className="text-brand font-medium hover:text-brand-dark transition"
+            >
               Đăng ký ngay
             </Link>
           </p>
-        </div>
 
-        {/* Terms */}
-        <div className="text-center mt-6 text-xs text-slate-500">
-          <p>
+          <p className="text-xs text-foreground-muted">
             Bằng cách đăng nhập, bạn đồng ý với{" "}
-            <Link href="#" className="text-orange-600 hover:underline">
+            <Link href="/terms" className="text-brand hover:text-brand-dark transition">
               Điều khoản dịch vụ
             </Link>{" "}
             &{" "}
-            <Link href="#" className="text-orange-600 hover:underline">
+            <Link href="/privacy" className="text-brand hover:text-brand-dark transition">
               Chính sách bảo mật
             </Link>
           </p>

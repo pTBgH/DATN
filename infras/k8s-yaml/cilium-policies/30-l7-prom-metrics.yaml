@@ -27,7 +27,7 @@ spec:
     - matchLabels:
         app: prometheus
         zta.job7189/role: monitoring
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
     toPorts:
     - ports:
       - port: "9100"
@@ -54,7 +54,7 @@ spec:
     - matchLabels:
         app: prometheus
         zta.job7189/role: monitoring
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
     toPorts:
     - ports:
       - port: "8080"

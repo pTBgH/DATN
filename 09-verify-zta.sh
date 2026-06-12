@@ -1177,7 +1177,7 @@ if kubectl get deploy -n security zta-pdp >/dev/null 2>&1; then
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
   if [ -n "$PDP_POD" ]; then
     METRICS=$(kubectl -n security exec "$PDP_POD" -- \
-      wget -qO- http://localhost:9100/metrics 2>/dev/null || true)
+      python3 -c 'import urllib.request; print(urllib.request.urlopen("http://localhost:9100/metrics", timeout=3).read().decode())' 2>/dev/null || true)
     if echo "$METRICS" | grep -q "pdp_score_bucket"; then
       result PASS "PDP metrics include pdp_score_bucket gauge"
     elif echo "$METRICS" | grep -q "pdp_trust_score"; then

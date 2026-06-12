@@ -9,7 +9,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: gateway
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
     toPorts:
     - ports:
       - port: "80"

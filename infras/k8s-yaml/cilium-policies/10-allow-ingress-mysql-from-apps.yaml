@@ -10,7 +10,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: job7189-apps
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
     toPorts:
     - ports:
       - port: "3306"

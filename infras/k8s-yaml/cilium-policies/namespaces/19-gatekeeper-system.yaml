@@ -52,7 +52,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -146,7 +146,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:

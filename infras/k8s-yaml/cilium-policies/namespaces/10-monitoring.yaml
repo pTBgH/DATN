@@ -12,10 +12,10 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: ingress-nginx
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
     - matchLabels:
         app: oauth2-proxy
-        k8s:io.kubernetes.pod.namespace: security
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
     toPorts:
     - ports:
       - port: "5601"

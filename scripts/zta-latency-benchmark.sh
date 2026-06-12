@@ -19,8 +19,8 @@
 set -uo pipefail
 
 MODE="${1:-enforced}"
-KONG_HOST="${KONG_HOST:-100.108.231.127}"   # Tailscale IP of srv01; override via env
-KONG_PORT="${KONG_PORT:-8000}"
+KONG_HOST="${KONG_HOST:-}"   # auto-detected from cluster if empty; override via env
+KONG_PORT="${KONG_PORT:-}"   # auto-detected NodePort of gateway/kong-proxy if empty
 DURATION="${DURATION:-60s}"
 CONCURRENCY="${CONCURRENCY:-20}"
 PATHS=("/api/health" "/api/public/jobs" "/api/jobs")
@@ -40,9 +40,25 @@ command -v curl >/dev/null 2>&1 || fail "curl not found"
 HAVE_HEY=true
 command -v hey >/dev/null 2>&1 || { HAVE_HEY=false; log "WARN: 'hey' not found, falling back to curl sampling (less accurate)"; }
 
-# Reachability of Kong before generating load
-HTTP_CODE=$(timeout 10 curl -s -o /dev/null -w '%{http_code}' "http://${KONG_HOST}:${KONG_PORT}/api/health" || echo "000")
-[[ "$HTTP_CODE" == "000" ]] && fail "Kong unreachable at ${KONG_HOST}:${KONG_PORT} (set KONG_HOST/KONG_PORT env)"
+# Auto-detect Kong endpoint from the cluster if not provided
+if command -v kubectl >/dev/null 2>&1 && timeout 15 kubectl version --request-timeout=10s >/dev/null 2>&1; then
+  if [[ -z "$KONG_PORT" ]]; then
+    KONG_PORT=$(kubectl get svc -n gateway kong-proxy -o jsonpath='{.spec.ports[?(@.name=="proxy")].nodePort}' 2>/dev/null || true)
+    [[ -z "$KONG_PORT" ]] && KONG_PORT=$(kubectl get svc -n gateway kong-proxy -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || true)
+  fi
+  if [[ -z "$KONG_HOST" ]]; then
+    KONG_HOST=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || true)
+  fi
+fi
+[[ -n "$KONG_HOST" && -n "$KONG_PORT" ]] || fail "Could not determine Kong endpoint; set KONG_HOST and KONG_PORT env vars"
+log "Kong endpoint: ${KONG_HOST}:${KONG_PORT}"
+
+# Reachability of Kong before generating load: require an actual HTTP response
+HTTP_CODE=$(timeout 10 curl -s -o /dev/null -w '%{http_code}' "http://${KONG_HOST}:${KONG_PORT}/api/health" 2>/dev/null)
+CURL_RC=$?
+if [[ "$CURL_RC" -ne 0 || -z "$HTTP_CODE" || "$HTTP_CODE" == "000" ]]; then
+  fail "Kong unreachable at ${KONG_HOST}:${KONG_PORT} (curl rc=$CURL_RC, code=${HTTP_CODE:-none}) — check NodePort/Tailscale, or set KONG_HOST/KONG_PORT"
+fi
 log "Kong reachable (HTTP $HTTP_CODE on /api/health)"
 
 # If kubectl available, verify cluster state so results are attributable
@@ -85,6 +101,11 @@ for path in "${PATHS[@]}"; do
     grep -E "50% in|99% in|requests/sec|Status code" -A2 "$OUT" | head -20
     P50=$(grep "50% in" "$OUT" | awk '{print $3}')
     P99=$(grep "99% in" "$OUT" | awk '{print $3}')
+    if [[ -z "$P50" || -z "$P99" ]]; then
+      log "ERROR: no successful responses for $path — endpoint not serving (see $OUT)"
+      OVERALL_FAIL=1
+      continue
+    fi
     # targets: P50 < 0.5s, P99 < 2s
     awk -v p50="$P50" -v p99="$P99" 'BEGIN{exit !(p50<0.5 && p99<2)}' \
       || { log "TARGET MISSED on $path (P50=${P50}s P99=${P99}s)"; OVERALL_FAIL=1; }

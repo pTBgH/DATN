@@ -43,3 +43,4 @@ node_modules/
 **/.vault-token
 vendor/
 .vscode/
+infras/k8s-yaml/*-patched.yaml

@@ -1,52 +1,51 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useMockAuth } from "@/lib/auth/mock";
-import { passwordGrant } from "@/lib/auth/keycloak";
+import { registerUser } from "@/lib/auth/keycloak";
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-function LoginForm() {
+export default function SignupPage() {
   const router = useRouter();
-  const params = useSearchParams();
-  const { role } = useMockAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const callbackUrl = params.get("callbackUrl");
-
-  useEffect(() => {
-    if (role) {
-      router.replace(callbackUrl ?? "/recruiter");
-    }
-  }, [role, router, callbackUrl]);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
+    setError("");
+
+    // Validation
+    if (!email || !password || !confirmPassword) {
+      setError("Vui lòng điền tất cả các trường");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Mật khẩu không trùng khớp");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Mật khẩu phải có ít nhất 8 ký tự");
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      await passwordGrant(email.trim(), password);
-      router.replace(callbackUrl ?? "/recruiter");
+      await registerUser(email, password);
+      router.push("/browse");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
-    } finally {
-      setLoading(false);
+      setError(err instanceof Error ? err.message : "Đăng ký thất bại");
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth login via Keycloak
+  const handleGoogleSignup = () => {
+    // TODO: Implement Google OAuth signup via Keycloak
   };
 
   return (
@@ -55,10 +54,10 @@ function LoginForm() {
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-4xl font-serif font-bold text-foreground mb-2">
-            Đăng Nhập
+            Đăng Ký
           </h1>
           <p className="text-foreground-muted">
-            Quản lý tuyển dụng của công ty bạn
+            Tạo tài khoản và bắt đầu tìm việc
           </p>
         </div>
 
@@ -83,7 +82,7 @@ function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-                disabled={loading}
+                disabled={isLoading}
                 required
               />
             </div>
@@ -98,29 +97,37 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-                disabled={loading}
+                disabled={isLoading}
+                required
+              />
+              <p className="mt-1 text-xs text-foreground-muted">
+                Tối thiểu 8 ký tự
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Xác nhận mật khẩu
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                disabled={isLoading}
                 required
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isLoading}
               className="w-full mt-6 px-4 py-3 rounded-lg bg-brand text-white font-medium hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed transition"
             >
-              {loading ? "Đang đăng nhập…" : "Đăng Nhập"}
+              {isLoading ? "Đang đăng ký…" : "Đăng Ký"}
             </button>
           </form>
-
-          {/* Forgot Password */}
-          <div className="text-center">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-brand hover:text-brand-dark font-medium transition"
-            >
-              Quên mật khẩu?
-            </Link>
-          </div>
 
           {/* Divider */}
           <div className="flex items-center gap-3">
@@ -129,11 +136,11 @@ function LoginForm() {
             <div className="flex-1 h-px bg-muted-light"></div>
           </div>
 
-          {/* Google Login Button */}
+          {/* Google Signup Button */}
           <button
-            onClick={handleGoogleLogin}
+            onClick={handleGoogleSignup}
             type="button"
-            disabled={loading}
+            disabled={isLoading}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground font-medium hover:bg-surface-alt transition disabled:opacity-60"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -154,24 +161,24 @@ function LoginForm() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span>Đăng Nhập với Google</span>
+            <span>Đăng Ký với Google</span>
           </button>
         </div>
 
         {/* Bottom Links */}
         <div className="mt-8 text-center space-y-4">
           <p className="text-foreground-muted text-sm">
-            Chưa có tài khoản?{" "}
+            Đã có tài khoản?{" "}
             <Link
-              href="/signup"
+              href="/login"
               className="text-brand font-medium hover:text-brand-dark transition"
             >
-              Đăng ký ngay
+              Đăng nhập
             </Link>
           </p>
 
           <p className="text-xs text-foreground-muted">
-            Bằng cách đăng nhập, bạn đồng ý với{" "}
+            Bằng cách đăng ký, bạn đồng ý với{" "}
             <Link href="/terms" className="text-brand hover:text-brand-dark transition">
               Điều khoản dịch vụ
             </Link>{" "}

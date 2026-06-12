@@ -19,14 +19,14 @@ export default function HomePage() {
             Quản lý công việc, đội ngũ, phỏng vấn và hồ sơ ứng viên từ một nơi duy nhất. Tối ưu hóa quy trình tuyển dụng của công ty bạn.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/recruiter">
+            <Link href="/login">
               <Button variant="secondary" size="lg">
-                Vào Trang Nhà Tuyển Dụng
+                Đăng Nhập
               </Button>
             </Link>
-            <Link href="/admin">
+            <Link href="/signup">
               <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
-                Vào Trang Quản Trị
+                Đăng Ký Miễn Phí
               </Button>
             </Link>
           </div>
@@ -125,14 +125,14 @@ export default function HomePage() {
         <h2 className="text-5xl sm:text-6xl font-serif font-bold text-balance">Bắt Đầu Quản Lý Tuyển Dụng Ngay</h2>
         <p className="mt-6 text-lg font-light text-slate-300">Tối ưu hóa quy trình tuyển dụng và tìm được ứng viên tuyệt vời.</p>
         <div className="mt-10 flex flex-wrap justify-center gap-4">
-          <Link href="/recruiter">
+          <Link href="/login">
             <Button variant="primary" size="lg">
-              Vào Trang Nhà Tuyển Dụng
+              Đăng Nhập
             </Button>
           </Link>
-          <Link href="/admin">
+          <Link href="/signup">
             <Button variant="outline" size="lg" className="border-white text-white hover:bg-white/10">
-              Vào Trang Quản Trị
+              Đăng Ký Miễn Phí
             </Button>
           </Link>
         </div>

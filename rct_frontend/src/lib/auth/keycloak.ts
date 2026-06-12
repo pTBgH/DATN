@@ -159,3 +159,55 @@ export function logout() {
   window.localStorage.removeItem(REFRESH_KEY);
   window.localStorage.removeItem(STORAGE_KEY);
 }
+
+export async function registerUser(
+  email: string,
+  password: string,
+): Promise<LoginResult> {
+  // Mock mode: register and auto-login
+  if (config.useMock) {
+    const roles = ["recruiter"];
+    const role: MockRole = "recruiter";
+
+    // Store token and auth state
+    window.localStorage.setItem(TOKEN_KEY, `mock-recruiter-${Date.now()}`);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ role, email }));
+
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    return { role, email, roles };
+  }
+
+  // Real Keycloak: register via user registration endpoint
+  const base = config.keycloak.baseUrl.replace(/\/$/, "");
+  const url = `${base}/realms/${config.keycloak.realm}/protocol/openid-connect/registrations`;
+
+  const registerRes = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      password,
+      firstName: "",
+      lastName: "",
+    }),
+  });
+
+  if (!registerRes.ok) {
+    let message = `Đăng ký thất bại (HTTP ${registerRes.status})`;
+    try {
+      const err = (await registerRes.json()) as {
+        errorMessage?: string;
+        error?: string;
+      };
+      message = err.errorMessage || err.error || message;
+    } catch {
+      /* keep default message */
+    }
+    throw new Error(message);
+  }
+
+  // After successful registration, log in
+  return passwordGrant(email, password);
+}

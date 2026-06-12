@@ -40,7 +40,7 @@ spec:
   - fromEndpoints:
     - matchLabels:
         io.cilium.k8s.policy.serviceaccount: identity-service
-        io.kubernetes.pod.namespace: job7189-apps
+        io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
     toPorts:
     - ports:
       - port: "8200"
@@ -55,7 +55,7 @@ spec:
       - key: zta.job7189/team
         operator: In
         values: ["backend"]
-      - key: io.kubernetes.pod.namespace
+      - key: io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name
         operator: In
         values: ["job7189-apps"]
     toPorts:
@@ -65,7 +65,7 @@ spec:
   # 3) vault-agent-injector (same namespace) — webhook callback to vault
   - fromEndpoints:
     - matchLabels:
-        io.kubernetes.pod.namespace: vault
+        io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
     toPorts:
     - ports:
       - port: "8200"

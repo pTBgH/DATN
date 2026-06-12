@@ -99,28 +99,39 @@ fi
 
 if $APPLY && [[ -z "$SRC_LEGACY_FILES" && "$LIVE_LEGACY" -gt 0 ]]; then
   log "  Re-applying migrated policy files to converge live state..."
-  timeout 120 kubectl apply -f "$CILIUM_POLICY_DIR/namespaces/" 2>&1 | tee -a "$REPORT" \
+  timeout 180 kubectl apply -f "$CILIUM_POLICY_DIR/" 2>&1 | tee -a "$REPORT" \
+    || warn "kubectl apply of top-level policies failed"
+  timeout 180 kubectl apply -f "$CILIUM_POLICY_DIR/namespaces/" 2>&1 | tee -a "$REPORT" \
     || warn "kubectl apply of namespaces/ policies failed"
+  REMAIN=$(timeout 60 kubectl get cnp -A -o yaml 2>/dev/null | grep -c "$LEGACY_LABEL" || true)
+  log "  Legacy occurrences in live CNPs after apply: $REMAIN"
 fi
 
 #------------------------------------------------------------------------------
 # TASK 2: PDP Controller deployment
 #------------------------------------------------------------------------------
 log "=== TASK 2: PDP Controller ==="
-PDP_PODS=$(kubectl get pods -n pdp-system $KUBECTL_TIMEOUT --no-headers 2>/dev/null | grep -c Running || true)
-if [[ "$PDP_PODS" -eq 0 ]]; then
-  warn "No Running pods in pdp-system — Adaptive Loop is open (NIST S() process broken)"
+# PDP may run in pdp-system (per plan) or security (current zta-pdp deployment)
+PDP_NS=""
+for ns in pdp-system security; do
+  CNT=$(kubectl get pods -n "$ns" $KUBECTL_TIMEOUT --no-headers 2>/dev/null | grep -E "pdp" | grep -c Running || true)
+  if [[ "$CNT" -gt 0 ]]; then PDP_NS="$ns"; PDP_PODS="$CNT"; break; fi
+done
+if [[ -z "$PDP_NS" ]]; then
+  warn "No Running PDP pods in pdp-system or security — Adaptive Loop is open (NIST S() process broken)"
   if $APPLY && [[ -x "$REPO_ROOT/scripts/zta-deploy-pdp.sh" ]]; then
     log "  Deploying PDP controller..."
     timeout 600 bash "$REPO_ROOT/scripts/zta-deploy-pdp.sh" 2>&1 | tee -a "$REPORT" \
       || warn "zta-deploy-pdp.sh failed (see $REPORT)"
-    timeout 120 kubectl rollout status -n pdp-system deployment --timeout=100s 2>/dev/null \
-      || warn "PDP rollout did not complete in 100s"
   fi
 else
-  ok "PDP controller Running ($PDP_PODS pod(s))"
+  ok "PDP controller Running in namespace '$PDP_NS' ($PDP_PODS pod(s))"
+  [[ "$PDP_NS" != "pdp-system" ]] && log "  NOTE: plan (47-next-tasks) expects pdp-system; actual=$PDP_NS — update docs or migrate"
   log "  Score-bucket labels on app pods:"
-  kubectl get pods -n job7189-apps -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null | tee -a "$REPORT"
+  LABELS=$(kubectl get pods -n job7189-apps -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null)
+  echo "$LABELS" | tee -a "$REPORT"
+  UNLABELED=$(echo "$LABELS" | grep -vc ": ." || true)
+  [[ "$UNLABELED" -gt 0 ]] && warn "$UNLABELED app pods missing zta.job7189/score-bucket label — PDP loop not labeling"
 fi
 
 #------------------------------------------------------------------------------
@@ -187,12 +198,17 @@ if kubectl get pods -n spire spire-server-0 $KUBECTL_TIMEOUT >/dev/null 2>&1; th
   else
     warn "spire-server has no registration entries — ClusterSPIFFEID reconciliation broken?"
   fi
-  SVID_LS=$(timeout 60 kubectl exec -n job7189-apps deployment/identity-service -c app -- \
-    ls /run/spiffe/ 2>/dev/null || true)
-  if [[ -n "$SVID_LS" ]]; then
-    ok "identity-service has SPIFFE socket/certs mounted: $SVID_LS"
+  SVID_PATH=""
+  for p in /run/spiffe /run/spire/sockets /spiffe-workload-api /run/secrets/workload-spiffe-uds; do
+    SVID_LS=$(timeout 60 kubectl exec -n job7189-apps deployment/identity-service -c app -- \
+      ls "$p" 2>/dev/null || true)
+    [[ -n "$SVID_LS" ]] && { SVID_PATH="$p"; break; }
+  done
+  if [[ -n "$SVID_PATH" ]]; then
+    ok "identity-service has SPIFFE socket/certs at $SVID_PATH: $SVID_LS"
   else
-    warn "identity-service: /run/spiffe/ empty or unmounted — check spiffe-csi-driver"
+    MOUNTS=$(kubectl get deployment -n job7189-apps identity-service -o jsonpath='{.spec.template.spec.volumes[*].name}' 2>/dev/null)
+    warn "identity-service: no SPIFFE socket found in known paths — volumes present: [$MOUNTS]; check spiffe-csi-driver mount"
   fi
 else
   warn "spire-server-0 not found in namespace spire"

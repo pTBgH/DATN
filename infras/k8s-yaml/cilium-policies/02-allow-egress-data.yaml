@@ -9,14 +9,14 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: vault
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
     toPorts:
     - ports:
       - port: "8200"
         protocol: TCP
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: data
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
     toPorts:
     - ports:
       - port: "3306"
@@ -25,7 +25,7 @@ spec:
         protocol: TCP
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: security
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
     toPorts:
     - ports:
       - port: "80"

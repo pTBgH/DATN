@@ -1,0 +1,87 @@
+NAMESPACE            NAME                                                    READY   STATUS        RESTARTS        AGE     IP                NODE        NOMINATED NODE   READINESS GATES
+cert-manager         cert-manager-bbc84b684-ggzwl                            1/1     Running       12 (30m ago)    6d23h   10.244.1.3        7189srv02   <none>           <none>
+cert-manager         cert-manager-cainjector-67fd5f9578-pprgk                1/1     Running       12 (30m ago)    6d23h   10.244.2.90       7189srv03   <none>           <none>
+cert-manager         cert-manager-webhook-5b7d7fbfbd-2nc5p                   1/1     Running       12 (30m ago)    6d23h   10.244.1.201      7189srv02   <none>           <none>
+cosign-system        policy-controller-webhook-6c487dcfdc-ptqcd              1/1     Running       48 (30m ago)    10d     10.244.2.10       7189srv03   <none>           <none>
+data                 kafka-0                                                 1/1     Running       0               23m     10.244.4.1        7189srv05   <none>           <none>
+data                 mysql-6c697678cf-bcsqs                                  1/1     Running       0               23m     10.244.2.217      7189srv03   <none>           <none>
+default              node-debugger-7189srv01-nhsfm                           0/1     Completed     0               2d21h   100.114.68.15     7189srv01   <none>           <none>
+default              node-debugger-7189srv02-bhq2d                           0/1     Completed     0               2d21h   100.108.231.127   7189srv02   <none>           <none>
+default              node-debugger-7189srv03-b8lxn                           0/1     Completed     0               2d21h   100.112.57.2      7189srv03   <none>           <none>
+gatekeeper-system    gatekeeper-controller-manager-f87d7d679-5kg4p           1/1     Running       12 (30m ago)    6d23h   10.244.2.94       7189srv03   <none>           <none>
+gateway              kong-gateway-64d6d7454d-db7md                           1/1     Running       2 (30m ago)     22h     10.244.2.139      7189srv03   <none>           <none>
+ingress-nginx        ingress-nginx-controller-56b4cd4657-qqtq5               1/1     Running       13 (30m ago)    6d23h   10.244.1.55       7189srv02   <none>           <none>
+job7189-apps         candidate-service-6549cd7d6d-p5bgs                      5/5     Running       0               15m     10.244.1.24       7189srv02   <none>           <none>
+job7189-apps         candidate-service-redis-5b484c7f88-fblj7                1/1     Running       0               15m     10.244.4.148      7189srv05   <none>           <none>
+job7189-apps         communication-service-6dc7d6dd46-bj2v8                  5/5     Running       0               15m     10.244.1.85       7189srv02   <none>           <none>
+job7189-apps         communication-service-redis-fc6645965-km75r             1/1     Running       0               15m     10.244.4.250      7189srv05   <none>           <none>
+job7189-apps         hiring-service-85c57cc589-4rpxm                         5/5     Running       0               14m     10.244.1.72       7189srv02   <none>           <none>
+job7189-apps         hiring-service-redis-6585c68cb9-jjj9p                   1/1     Running       0               14m     10.244.4.156      7189srv05   <none>           <none>
+job7189-apps         identity-service-657f64c7d5-9prs4                       5/5     Running       0               22m     10.244.1.23       7189srv02   <none>           <none>
+job7189-apps         identity-service-redis-569fb4c444-ckc2h                 1/1     Running       0               22m     10.244.4.155      7189srv05   <none>           <none>
+job7189-apps         job-service-ff67cf45c-82bvd                             5/5     Running       0               22m     10.244.1.205      7189srv02   <none>           <none>
+job7189-apps         job-service-redis-5b987-2nh6n                           1/1     Running       0               22m     10.244.4.121      7189srv05   <none>           <none>
+job7189-apps         storage-service-7c5db66b7-rvmjs                         5/5     Running       0               14m     10.244.4.227      7189srv05   <none>           <none>
+job7189-apps         storage-service-redis-78cb79b765-sf77j                  1/1     Running       0               14m     10.244.4.50       7189srv05   <none>           <none>
+job7189-apps         workspace-service-6c68c569d9-s5vdv                      5/5     Running       0               14m     10.244.1.86       7189srv02   <none>           <none>
+job7189-apps         workspace-service-redis-65cf6d9fd-njzsn                 1/1     Running       0               14m     10.244.4.89       7189srv05   <none>           <none>
+kube-system          cilium-envoy-fkb5x                                      1/1     Running       36 (29m ago)    18d     172.16.82.128     7189srv05   <none>           <none>
+kube-system          cilium-envoy-tdnfg                                      1/1     Running       29 (30m ago)    18d     100.108.231.127   7189srv02   <none>           <none>
+kube-system          cilium-envoy-vpshq                                      1/1     Running       29 (30m ago)    18d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          cilium-envoy-z4ks4                                      1/1     Running       29 (30m ago)    18d     100.112.57.2      7189srv03   <none>           <none>
+kube-system          cilium-f7sw9                                            1/1     Running       2 (30m ago)     21h     100.112.57.2      7189srv03   <none>           <none>
+kube-system          cilium-gsm9b                                            1/1     Running       2 (30m ago)     21h     100.114.68.15     7189srv01   <none>           <none>
+kube-system          cilium-k9v4w                                            1/1     Running       2 (30m ago)     21h     100.108.231.127   7189srv02   <none>           <none>
+kube-system          cilium-operator-74c98fff9d-nn59f                        1/1     Running       31 (30m ago)    11d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          cilium-qwfqk                                            1/1     Running       2 (29m ago)     21h     172.16.82.128     7189srv05   <none>           <none>
+kube-system          containerd-certs-setup-jrh4d                            1/1     Running       3 (30m ago)     35h     10.244.0.244      7189srv01   <none>           <none>
+kube-system          containerd-certs-setup-jswjp                            1/1     Running       3 (30m ago)     35h     10.244.1.130      7189srv02   <none>           <none>
+kube-system          containerd-certs-setup-wdgtk                            1/1     Running       3 (30m ago)     35h     10.244.2.147      7189srv03   <none>           <none>
+kube-system          containerd-certs-setup-z2gm8                            1/1     Running       3 (29m ago)     35h     10.244.4.34       7189srv05   <none>           <none>
+kube-system          coredns-6cf5f79cf9-4sx7l                                1/1     Running       0               27m     10.244.0.158      7189srv01   <none>           <none>
+kube-system          coredns-6cf5f79cf9-bf89p                                1/1     Running       1 (30m ago)     12h     10.244.1.88       7189srv02   <none>           <none>
+kube-system          etcd-7189srv01                                          1/1     Running       70 (30m ago)    31d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          hubble-relay-7c66999c8-cr4mf                            1/1     Running       26 (27m ago)    6d23h   10.244.1.193      7189srv02   <none>           <none>
+kube-system          hubble-ui-7858459f57-v9wr5                              2/2     Running       24 (30m ago)    6d23h   10.244.1.107      7189srv02   <none>           <none>
+kube-system          kube-apiserver-7189srv01                                1/1     Running       70 (30m ago)    31d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          kube-controller-manager-7189srv01                       1/1     Running       51 (30m ago)    31d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          kube-scheduler-7189srv01                                1/1     Running       51 (30m ago)    31d     100.114.68.15     7189srv01   <none>           <none>
+kube-system          metrics-server-8454bcb474-8stzs                         1/1     Running       16 (30m ago)    10d     10.244.2.152      7189srv03   <none>           <none>
+kube-system          tetragon-8gcfs                                          2/2     Running       107 (27m ago)   18d     172.16.82.128     7189srv05   <none>           <none>
+kube-system          tetragon-fjpd7                                          2/2     Running       91 (28m ago)    18d     100.112.57.2      7189srv03   <none>           <none>
+kube-system          tetragon-m7qvb                                          2/2     Running       90 (28m ago)    18d     100.108.231.127   7189srv02   <none>           <none>
+kube-system          tetragon-operator-5dd7674d4d-thrrz                      1/1     Running       12 (30m ago)    6d23h   10.244.2.75       7189srv03   <none>           <none>
+local-path-storage   local-path-provisioner-79874bcbd9-kjgtz                 1/1     Running       12              6d23h   10.244.2.5        7189srv03   <none>           <none>
+monitoring           es-0                                                    1/1     Running       1 (29m ago)     6h22m   10.244.4.5        7189srv05   <none>           <none>
+monitoring           filebeat-hcqkw                                          1/1     Running       3 (29m ago)     21h     172.16.82.128     7189srv05   <none>           <none>
+monitoring           filebeat-ld6kw                                          1/1     Running       3 (30m ago)     21h     100.112.57.2      7189srv03   <none>           <none>
+monitoring           filebeat-wxptk                                          1/1     Running       3 (30m ago)     21h     100.108.231.127   7189srv02   <none>           <none>
+monitoring           hubble-flow-shipper-b6b6j                               1/1     Running       2 (30m ago)     21h     10.244.2.253      7189srv03   <none>           <none>
+monitoring           hubble-flow-shipper-fsvk6                               1/1     Running       2               21h     10.244.0.3        7189srv01   <none>           <none>
+monitoring           hubble-flow-shipper-spm44                               1/1     Running       2 (30m ago)     21h     10.244.1.48       7189srv02   <none>           <none>
+monitoring           hubble-flow-shipper-xt5l9                               1/1     Running       2 (29m ago)     21h     10.244.4.166      7189srv05   <none>           <none>
+monitoring           kube-state-metrics-678985f974-4vns7                     1/1     Running       9 (30m ago)     35h     10.244.2.95       7189srv03   <none>           <none>
+monitoring           node-exporter-r96vc                                     1/1     Running       44 (30m ago)    29d     100.114.68.15     7189srv01   <none>           <none>
+monitoring           node-exporter-r9csz                                     1/1     Running       45 (30m ago)    29d     100.108.231.127   7189srv02   <none>           <none>
+monitoring           node-exporter-vlt88                                     1/1     Running       45 (30m ago)    29d     100.112.57.2      7189srv03   <none>           <none>
+monitoring           node-exporter-wtnmz                                     1/1     Running       50 (29m ago)    29d     172.16.82.128     7189srv05   <none>           <none>
+monitoring           prometheus-5dbd69b7b-6qgjx                              1/1     Running       1 (30m ago)     6h22m   10.244.1.17       7189srv02   <none>           <none>
+security-cdm         scan-vulnerabilityreport-64d7f4c959-96kwp               0/1     Init:0/1      0               16s     10.244.2.208      7189srv03   <none>           <none>
+security-cdm         scan-vulnerabilityreport-7ddc68d788-7mlkb               1/5     Terminating   0               5m24s   10.244.2.169      7189srv03   <none>           <none>
+security-cdm         trivy-operator-77fcc94d9f-5qggz                         1/1     Running       1 (30m ago)     6h16m   10.244.2.64       7189srv03   <none>           <none>
+security             keycloak-5b45bcbdd4-95p7n                               1/1     Running       0               22m     10.244.1.89       7189srv02   <none>           <none>
+security             oauth2-proxy-867df54b46-jvhrj                           1/1     Running       1 (30m ago)     12h     10.244.2.157      7189srv03   <none>           <none>
+security             opa-79d477b6cc-btp2r                                    2/2     Running       34 (30m ago)    11d     10.244.2.82       7189srv03   <none>           <none>
+security             zta-pdp-5bc48b78bd-9xt98                                1/1     Running       9 (30m ago)     6d10h   10.244.2.31       7189srv03   <none>           <none>
+spire                spiffe-csi-driver-7thch                                 2/2     Running       88 (30m ago)    29d     10.244.2.158      7189srv03   <none>           <none>
+spire                spiffe-csi-driver-ld6ks                                 2/2     Running       116 (29m ago)   29d     10.244.4.196      7189srv05   <none>           <none>
+spire                spiffe-csi-driver-psq9w                                 2/2     Running       96 (30m ago)    29d     10.244.1.76       7189srv02   <none>           <none>
+spire                spire-agent-hvh2g                                       1/1     Running       30 (30m ago)    18d     100.114.68.15     7189srv01   <none>           <none>
+spire                spire-agent-n2zbp                                       1/1     Running       57 (30m ago)    29d     100.108.231.127   7189srv02   <none>           <none>
+spire                spire-agent-r5c6c                                       1/1     Running       65 (29m ago)    29d     172.16.82.128     7189srv05   <none>           <none>
+spire                spire-agent-tc9wt                                       1/1     Running       50 (30m ago)    29d     100.112.57.2      7189srv03   <none>           <none>
+spire                spire-server-0                                          2/2     Running       46 (29m ago)    5d21h   10.244.4.138      7189srv05   <none>           <none>
+spire                spire-spiffe-oidc-discovery-provider-557bbd97b7-sfdrr   2/2     Running       34 (30m ago)    5d4h    10.244.1.20       7189srv02   <none>           <none>
+vault                vault-0                                                 1/1     Running       0               23m     10.244.4.147      7189srv05   <none>           <none>
+vault                vault-agent-agent-injector-58b4d7489c-t822g             1/1     Running       9 (29m ago)     5d21h   10.244.4.24       7189srv05   <none>           <none>
+vault                vault-dev-7d4444cc49-j5tkn                              1/1     Running       1 (29m ago)     12h     10.244.4.100      7189srv05   <none>           <none>

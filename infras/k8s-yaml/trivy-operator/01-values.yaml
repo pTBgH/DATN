@@ -30,21 +30,20 @@ trivy:
       memory: 100Mi
     limits:
       cpu: 500m
-      memory: 500Mi              # Trivy DB load spike
+      memory: 800Mi              # Trivy DB load spike
+
+# Scan only ZTA-relevant namespaces at the root level.
+targetNamespaces: "job7189-apps,vault,security,gateway,data,management"
 
 operator:
   vulnerabilityScannerEnabled: true
-  configAuditScannerEnabled: true
+  configAuditScannerEnabled: false
   sbomGenerationEnabled: false
   rbacAssessmentScannerEnabled: false
   infraAssessmentScannerEnabled: false
   exposedSecretScannerEnabled: false
   clusterComplianceEnabled: false
   metricsVulnIdEnabled: true     # Prometheus metric per CVE id
-
-  # Scan only ZTA-relevant namespaces. Skip kube-system + monitoring infra
-  # to reduce CR churn (Cilium agents, ES, Prometheus images don't change).
-  targetNamespaces: "job7189-apps,vault,security,gateway,data,management"
 
   # Why scanJobsConcurrentLimit=1 (was 3)?
   #
@@ -94,3 +93,9 @@ service:
 trivyOperator:
   scanJobAffinity: {}
   scanJobTolerations: []
+  scanJobNodeSelector:
+    kubernetes.io/hostname: 7189srv03
+
+# Pin operator pod to srv03
+nodeSelector:
+  kubernetes.io/hostname: 7189srv03

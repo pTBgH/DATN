@@ -110,6 +110,8 @@ spec:
     - ports:
       - port: "80"
         protocol: TCP
+      - port: "8000"
+        protocol: TCP
 ---
 # 5) Egress kong → keycloak (security/8080) cho JWKS / OIDC discovery
 apiVersion: cilium.io/v2

@@ -27,9 +27,3 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
-      rules:
-        http:
-        - method: "GET"
-          path: "/realms/job7189/protocol/openid-connect/certs"
-        - method: "GET"
-          path: "/realms/job7189/.well-known/openid-configuration"

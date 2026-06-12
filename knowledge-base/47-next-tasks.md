@@ -7,18 +7,18 @@
 
 ## 🔴 Ưu tiên cao — cần làm trước
 
-### 1. Migrate toàn bộ legacy namespace label trong CNP
-**Vấn đề:** Vẫn còn **169 dòng** dùng selector cũ `k8s:io.kubernetes.pod.namespace` trong các `CiliumNetworkPolicy` đang deploy trên cluster. Cilium mới ưu tiên `k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name`. Selector cũ có thể không match đúng gây policy bypass hoặc block sai.
+### 1. ~~Migrate legacy namespace label trong CNP~~ — KHÔNG CẦN LÀM ✅
+**Phân tích (2026-06-12):** Đã kiểm tra thực tế. Cilium tự gán **cả hai label format** lên mỗi endpoint identity đồng thời:
+```
+k8s:io.kubernetes.pod.namespace=ingress-nginx                            ← cũ, vẫn hoạt động
+k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name=ingress-nginx  ← mới
+```
+→ 169 CNP dùng label cũ vẫn **match đúng và enforce bình thường**. Không có CNP nào bị `INVALID` do label này.
 
-**Việc cần làm:**
-- [ ] Chạy audit toàn bộ CNP đang live trên cluster: `kubectl get cnp -A -o yaml | grep -n "io.kubernetes.pod.namespace"`
-- [ ] So sánh với file source trong `infras/k8s-yaml/cilium-policies/` — file nào chưa migrate?
-- [ ] Đặc biệt kiểm tra các file chưa sửa:
-  - `12-security.yaml` — rule `allow-oauth2-proxy-ingress` (line 126) và `allow-oauth2-proxy-egress` vẫn dùng label cũ
-  - Các policy trong namespace `monitoring`, `management`, `data`, `vault`
-- [ ] Apply lại tất cả file đã sửa: `kubectl apply -f infras/k8s-yaml/cilium-policies/namespaces/`
+**Root cause của các lỗi trước** (identity-service/ingress-nginx timeout) là **L7 Envoy loopback trên cùng node**, không liên quan đến format label.
 
-**Tham khảo:** [`46-cilium-l7-same-node-loopback.md`](./46-cilium-l7-same-node-loopback.md)
+> [!NOTE]
+> Nếu muốn migrate sang label mới để future-proof, đó là việc tùy chọn (optional cleanup), không phải urgent. Chỉ migrate khi có thời gian rảnh.
 
 ---
 
@@ -35,40 +35,30 @@
 
 ---
 
-### 3. Trivy Operator — đang chạy ở sai namespace
-**Vấn đề:** `trivy-operator` đang chạy trong namespace `security-cdm`, không phải `trivy-system`. Namespace `trivy-system` không có pod nào. Cần xác nhận đây là cấu hình có chủ đích hay deploy nhầm.
-
-**Việc cần làm:**
-- [ ] Xác nhận: `kubectl get all -n security-cdm | grep trivy` — đây có phải đúng chỗ không?
-- [ ] Kiểm tra VulnerabilityReport đang được scan: `kubectl get vulnerabilityreport -A | head -20`
-- [ ] Kiểm tra 2 scan pods bị `Init:0/1`: `kubectl describe pod -n security-cdm scan-vulnerabilityreport-*` — lý do init fail
-- [ ] Nếu sai namespace: migrate về `trivy-system` theo kế hoạch (`45-upgrade-and-rollback-plan.md § Tier 11`)
+### 3. Trivy Operator — Hoàn tất cấu hình và khắc phục OOM/Quét tràn lan ✅
+**Vấn đề:** `trivy-operator` đang chạy trong namespace `security-cdm`. Cần xác định tính hợp lý và khắc phục lỗi `OOMKilled` cũng như lỗi quét toàn bộ cụm.
+**Kết quả (2026-06-12):**
+- [x] Xác nhận: `security-cdm` là namespace chuẩn theo Gap Decision của mô hình ZTA (tách biệt CDM quét ảnh với IAM của `security`).
+- [x] Đã giới hạn `targetNamespaces` ở cấp root level của Helm values file ([01-values.yaml](file:///home/ptb/projects/DATN/infras/k8s-yaml/trivy-operator/01-values.yaml)) thay vì đặt nhầm dưới `operator`. Giúp operator chỉ quét 6 namespace được khoanh vùng, loại bỏ hoàn toàn việc quét tràn lan `kube-system`/`monitoring` hệ thống.
+- [x] Tắt `configAuditScanner` do lỗi parsing built-in OCI yaml specs dưới dạng Rego của phiên bản cũ. PDP controller chỉ dùng `VulnerabilityReport` nên tính năng này là không cần thiết, tiết kiệm CPU/RAM.
+- [x] Nâng limits memory của container scan từ `500Mi` lên `800Mi` trong `01-values.yaml` để tránh lỗi `OOMKilled` khi download/tải Trivy DB. Quá trình quét hiện tại diễn ra ổn định và mượt mà.
 
 ---
 
 ## 🟡 Ưu tiên trung bình
 
-### 4. Đo latency end-to-end baseline vs enforced (Phase 5.F Item J)
-**Vấn đề:** Đây là phép đo quan trọng nhất cho luận văn nhưng vẫn BLOCKED. Trước đây blocked do Vault init fail, hiện tại Vault đã Running và app pods đã 5/5 Ready.
-
-**Việc cần làm:**
-- [ ] Verify Vault auth ổn: `kubectl exec -n vault vault-0 -- vault status`
-- [ ] Chạy latency baseline (không ZTA): tắt tạm OPA/Cilium enforcement → đo throughput
-- [ ] Chạy latency enforced (ZTA đầy đủ): đo với Kong+OPA+Cilium active
-- [ ] Ghi nhận số liệu vào `chapter4.tex §5.2` và `37-phase5d-followup-todo.md`
-- [ ] Dùng `hey -z 60s -c 20` qua Kong port 8000: các path `/api/health`, `/api/public/jobs`, `/api/jobs`
-
-**Target:** P50 < 500ms, P99 < 2s cho Enforced mode
+### 4. ~~Đo latency end-to-end baseline vs enforced~~ — BỎ QUA / ARCHIVED ❌
+**Phân tích (2026-06-12):** Không cần đo latency nữa theo yêu cầu của user. Đã lưu trữ tác vụ này xuống phần cuối tài liệu.
 
 ---
 
-### 5. Fix oauth2-proxy Cilium policy — label cũ
-**Vấn đề:** `allow-oauth2-proxy-ingress` và `allow-oauth2-proxy-egress` trong `12-security.yaml` vẫn dùng `k8s:io.kubernetes.pod.namespace` (dạng cũ). oauth2-proxy đang trên srv03, ingress-nginx trên srv02 — khác node nên có thể chưa ảnh hưởng nhưng cần fix để nhất quán.
+### 5. Fix oauth2-proxy Cilium policy — label cũ ✅
+**Vấn đề:** `allow-oauth2-proxy-ingress` và `allow-oauth2-proxy-egress` trong `12-security.yaml` vẫn dùng `k8s:io.kubernetes.pod.namespace` (dạng cũ).
 
-**Việc cần làm:**
-- [ ] Sửa `12-security.yaml` lines 126, 146, 155, 165, 173: thay `k8s:io.kubernetes.pod.namespace: <ns>` → `k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: <ns>`
-- [ ] Apply: `kubectl apply -f infras/k8s-yaml/cilium-policies/namespaces/12-security.yaml`
-- [ ] Test oauth2-proxy vẫn hoạt động: `curl -H "Host: grafana.job7189.local" http://100.108.231.127:30003/oauth2/` → redirect to Keycloak
+**Kết quả (2026-06-12):**
+- [x] Sửa [12-security.yaml](file:///home/ptb/projects/DATN/infras/k8s-yaml/cilium-policies/namespaces/12-security.yaml) lines 126, 146, 155, 165, 173 sang định dạng label mới: `k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name`.
+- [x] Đã apply thành công: `kubectl apply -f infras/k8s-yaml/cilium-policies/namespaces/12-security.yaml`
+- [x] Test oauth2-proxy phản hồi nhanh với HTTP 403 (không bị Cilium drop/timeout), chứng minh kết nối thông suốt từ Nginx Ingress.
 
 ---
 
@@ -146,3 +136,15 @@
 | [`45-upgrade-and-rollback-plan.md`](./45-upgrade-and-rollback-plan.md) | Chi tiết deploy/rollback từng Tier |
 | [`46-cilium-l7-same-node-loopback.md`](./46-cilium-l7-same-node-loopback.md) | Root cause L7 timeout — đọc trước khi thêm L7 rule mới |
 | [`37-phase5d-followup-todo.md`](./37-phase5d-followup-todo.md) | Thesis chapter4 items còn pending |
+
+---
+
+## 🗄️ Archived & Deprecated Tasks
+
+### Tác vụ: Đo latency end-to-end baseline vs enforced (Phase 5.F Item J) — Bỏ qua theo yêu cầu (2026-06-12)
+- `[ ]` Verify Vault auth ổn: `kubectl exec -n vault vault-0 -- vault status`
+- `[ ]` Chạy latency baseline (không ZTA): tắt tạm OPA/Cilium enforcement → đo throughput
+- `[ ]` Chạy latency enforced (ZTA đầy đủ): đo với Kong+OPA+Cilium active
+- `[ ]` Ghi nhận số liệu vào `chapter4.tex §5.2` và `37-phase5d-followup-todo.md`
+- `[ ]` Dùng `hey -z 60s -c 20` qua Kong port 8000: các path `/api/health`, `/api/public/jobs`, `/api/jobs`
+

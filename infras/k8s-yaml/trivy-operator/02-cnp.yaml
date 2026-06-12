@@ -45,9 +45,6 @@ spec:
     - ports:
       - {port: "53", protocol: UDP}
       - {port: "53", protocol: TCP}
-      rules:
-        dns:
-        - matchPattern: "*"
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

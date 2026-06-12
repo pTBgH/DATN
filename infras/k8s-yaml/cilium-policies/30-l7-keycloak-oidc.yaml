@@ -30,37 +30,6 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
-      rules:
-        http:
-        # OIDC discovery + JWKS
-        - method: "GET"
-          path: "/realms/job7189/.well-known/openid-configuration"
-        - method: "GET"
-          path: "/realms/job7189/protocol/openid-connect/certs"
-        # Auth flow
-        - method: "GET"
-          path: "/realms/job7189/protocol/openid-connect/auth"
-        - method: "POST"
-          path: "/realms/job7189/protocol/openid-connect/auth"
-        - method: "POST"
-          path: "/realms/job7189/protocol/openid-connect/token"
-        - method: "GET"
-          path: "/realms/job7189/protocol/openid-connect/userinfo"
-        - method: "POST"
-          path: "/realms/job7189/protocol/openid-connect/userinfo"
-        - method: "GET"
-          path: "/realms/job7189/protocol/openid-connect/logout"
-        - method: "POST"
-          path: "/realms/job7189/protocol/openid-connect/logout"
-        # Login form static assets
-        - method: "GET"
-          path: "/realms/job7189/login-actions/.*"
-        - method: "POST"
-          path: "/realms/job7189/login-actions/.*"
-        - method: "GET"
-          path: "/resources/.*"
-        - method: "POST"
-          path: "/resources/.*"
 
   # 2) ingress-nginx — L4-only (nginx is reverse proxy, handles HTTP itself;
   #    same-node Envoy loopback would cause TCP connect timeout)

@@ -2,26 +2,9 @@
 # PR #12 — Adaptive Security Loop (PEP Runtime)
 # TracingPolicy: block-suspicious-exec-t1
 #
-# IMPORTANT — action downgraded to Post (2026-05-20):
-# The previous version used `action: Sigkill` on `/bin/sh`/`/bin/bash` exec
-# inside T1 namespaces (vault, data, security). In practice this killed the
-# Vault probe (`exec ["/bin/sh","-c","vault status..."]`), the MySQL container
-# entry (`exec ["/bin/sh","/entrypoint.sh"]`), the Keycloak start script, and
-# `kubectl exec` recovery sessions. Symptom: vault-0 entered a probe-fail
-# → kubelet restart loop within seconds of policy apply, then cascaded into
-# the whole namespace (kubectl exec returning exit 137) — see
-# knowledge-base/incident-vault-tetragon-redis-cascade.md.
-#
-# Strategy:
-#  - Keep audit visibility by switching to `action: Post`.
-#  - Drop /usr/bin/socat /usr/bin/ssh from the value list (not installed in
-#    any of the official images we ship; they were noise).
-#  - Re-introduce Sigkill ONLY after layering a `matchBinaries` whitelist for
-#    legitimate parents (vault, kubelet probe wrappers, etc.) — see the
-#    commented-out block in block-suspicious-exec.yaml.
-#
-# Cluster-shape: one namespaced policy per T1 namespace (Tetragon does not
-# support k8s label selectors; we approximate by per-namespace policies).
+# Selective Sigkill enforcement layered for Tier-1 namespaces (vault, data, security):
+# - Block highly suspicious hacking and networking tools immediately using Sigkill.
+# - Audit other utilities (sh, bash, curl, wget) using Post to prevent probe-fail loops.
 # =============================================================================
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicyNamespaced
@@ -36,6 +19,20 @@ spec:
     - index: 0
       type: "string"
     selectors:
+    # Block highly suspicious hacking and networking tools immediately using Sigkill
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/usr/bin/nc"
+        - "/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/bin/socat"
+      matchActions:
+      - action: Sigkill
+    # Audit other utilities that are used by system probes and init scripts using Post
     - matchArgs:
       - index: 0
         operator: "Equal"
@@ -44,9 +41,6 @@ spec:
         - "/bin/bash"
         - "/usr/bin/curl"
         - "/usr/bin/wget"
-        - "/usr/bin/nc"
-        - "/usr/bin/ncat"
-        - "/usr/bin/nmap"
       matchActions:
       - action: Post
 ---
@@ -63,6 +57,20 @@ spec:
     - index: 0
       type: "string"
     selectors:
+    # Block highly suspicious hacking and networking tools immediately using Sigkill
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/usr/bin/nc"
+        - "/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/bin/socat"
+      matchActions:
+      - action: Sigkill
+    # Audit other utilities that are used by system probes and init scripts using Post
     - matchArgs:
       - index: 0
         operator: "Equal"
@@ -71,9 +79,6 @@ spec:
         - "/bin/bash"
         - "/usr/bin/curl"
         - "/usr/bin/wget"
-        - "/usr/bin/nc"
-        - "/usr/bin/ncat"
-        - "/usr/bin/nmap"
       matchActions:
       - action: Post
 ---
@@ -90,6 +95,20 @@ spec:
     - index: 0
       type: "string"
     selectors:
+    # Block highly suspicious hacking and networking tools immediately using Sigkill
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/usr/bin/nc"
+        - "/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/bin/socat"
+      matchActions:
+      - action: Sigkill
+    # Audit other utilities that are used by system probes and init scripts using Post
     - matchArgs:
       - index: 0
         operator: "Equal"
@@ -98,8 +117,5 @@ spec:
         - "/bin/bash"
         - "/usr/bin/curl"
         - "/usr/bin/wget"
-        - "/usr/bin/nc"
-        - "/usr/bin/ncat"
-        - "/usr/bin/nmap"
       matchActions:
       - action: Post

@@ -371,7 +371,7 @@ plugins:
           -- ConfigMap, or extend `KONG_UNTRUSTED_LUA_SANDBOX_ENVIRONMENT` to
           -- whitelist `os.getenv`.
           local OPA_URL     = "https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow"
-          local FAIL_CLOSED = false
+          local FAIL_CLOSED = true
           local TIMEOUT_MS  = 1000   -- 1s upper bound on OPA round-trip
 
           local req_method = kong.request.get_method()

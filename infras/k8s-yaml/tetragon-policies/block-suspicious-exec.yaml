@@ -35,8 +35,20 @@ spec:
     - index: 0
       type: "string"
     selectors:
-    # Tetragon has no "In" operator. "Equal" with a list of values does
-    # OR-match: triggers if arg equals ANY of the listed values.
+    # Block highly suspicious hacking and networking tools immediately using Sigkill
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values:
+        - "/usr/bin/nc"
+        - "/bin/nc"
+        - "/usr/bin/ncat"
+        - "/usr/bin/nmap"
+        - "/usr/bin/socat"
+        - "/bin/socat"
+      matchActions:
+      - action: Sigkill
+    # Audit other utilities that are used by system probes and init scripts using Post
     - matchArgs:
       - index: 0
         operator: "Equal"
@@ -45,13 +57,7 @@ spec:
         - "/bin/bash"
         - "/usr/bin/curl"
         - "/usr/bin/wget"
-        - "/usr/bin/nc"
-        - "/usr/bin/ncat"
-        - "/usr/bin/nmap"
       matchActions:
-      # Post = generate an event into the Tetragon export stream; the kernel
-      # still allows the exec to proceed. Keeps observability without
-      # breaking legitimate shell exec from init containers and probes.
       - action: Post
     # ─── Future: re-enable kill on suspicious shell only from unknown parents ─
     # - matchArgs:

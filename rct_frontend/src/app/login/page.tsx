@@ -19,7 +19,7 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { role, signIn } = useMockAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,7 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      await passwordGrant(email.trim(), password);
+      await passwordGrant(username.trim(), password);
       router.replace(callbackUrl ?? "/recruiter");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
@@ -113,13 +113,13 @@ function LoginForm() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Email
+                Tên đăng nhập hoặc Email
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Tên đăng nhập hoặc email..."
                 className="w-full px-4 py-3 rounded-lg border border-muted-light bg-white text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                 disabled={loading}
                 required

@@ -37,7 +37,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -65,7 +65,7 @@ spec:
   # (external NodePort with KPR source preservation)
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
     toPorts:
     - ports:
       - port: "8000"
@@ -105,7 +105,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
     toPorts:
     - ports:
       - port: "80"
@@ -126,7 +126,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: keycloak
     toPorts:
     - ports:
@@ -150,7 +150,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: opa
     toPorts:
     - ports:
@@ -171,7 +171,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: management
+        k8s:io.kubernetes.pod.namespace: management
     toPorts:
     - ports:
       - port: "8080"
@@ -190,7 +190,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:
@@ -228,7 +228,7 @@ spec:
   # Allow traffic from ingress-nginx (if needed)
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
     toPorts:
     - ports:
       - port: "8000"
@@ -251,7 +251,7 @@ spec:
   - toEndpoints:
     - matchLabels:
         app: keycloak
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
     toPorts:
     - ports:
       - port: "8080"
@@ -259,7 +259,7 @@ spec:
   # Allow Kong to resolve DNS
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
         k8s-app: kube-dns
     toPorts:
     - ports:

@@ -55,7 +55,12 @@ spec:
       k8s-app: kube-dns
   ingress:
   - fromEndpoints:
-    - {}    # every pod with a Cilium identity in the cluster
+    - matchExpressions:
+      - key: "io.kubernetes.pod.namespace"
+        operator: Exists
+    - matchExpressions:
+      - key: "k8s:io.kubernetes.pod.namespace"
+        operator: Exists
     toPorts:
     - ports:
       - port: "53"
@@ -108,16 +113,18 @@ spec:
         protocol: TCP
       - port: "6443"
         protocol: TCP
-  # Optional upstream DNS resolution (recursive). Disabled by default;
-  # uncomment if Corefile has `forward . 8.8.8.8`.
-  # - toCIDR:
-  #   - 8.8.8.8/32
-  #   - 8.8.4.4/32
-  #   - 1.1.1.1/32
-  #   toPorts:
-  #   - ports:
-  #     - port: "53"
-  #       protocol: UDP
+  # Optional upstream DNS resolution (recursive).
+  - toCIDR:
+    - 8.8.8.8/32
+    - 8.8.4.4/32
+    - 1.1.1.1/32
+    - 1.0.0.1/32
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
 ---
 # 3) Prometheus scrape CoreDNS metrics on :9153
 apiVersion: cilium.io/v2
@@ -132,7 +139,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:

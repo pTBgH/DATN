@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Namespace","metadata":{"annotations":{},"creationTimestamp":null,"name":"pdp-system"},"spec":{},"status":{}}
+  creationTimestamp: "2026-05-14T08:11:32Z"
+  labels:
+    kubernetes.io/metadata.name: pdp-system
+    zta.job7189/data-classification: internal
+    zta.job7189/env: prod
+    zta.job7189/exposure: cluster-only
+    zta.job7189/role: authz
+    zta.job7189/team: security
+    zta.job7189/tier: T0
+  name: pdp-system
+  resourceVersion: "191531"
+  uid: 6598ee43-358d-4fc2-b819-ffbadbe0a12d
+spec:
+  finalizers:
+  - kubernetes
+status:
+  phase: Active

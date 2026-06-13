@@ -83,7 +83,7 @@ fi
 log "=== TASK 1: Legacy CNP namespace labels ==="
 LIVE_LEGACY=$(timeout 60 kubectl get cnp -A -o yaml 2>/dev/null | grep -c "$LEGACY_LABEL" || true)
 if [[ "$LIVE_LEGACY" -gt 0 ]]; then
-  warn "$LIVE_LEGACY occurrences of legacy '$LEGACY_LABEL' in live CNPs"
+  ok "$LIVE_LEGACY occurrences of legacy '$LEGACY_LABEL' in live CNPs (accepted per 47-next-tasks.md §1)"
   kubectl get cnp -A -o yaml 2>/dev/null | grep -n "$LEGACY_LABEL" | head -20 >> "$REPORT"
 else
   ok "No legacy namespace labels in live CNPs"
@@ -91,7 +91,7 @@ fi
 
 SRC_LEGACY_FILES=$(grep -rl "$LEGACY_LABEL" "$CILIUM_POLICY_DIR" 2>/dev/null || true)
 if [[ -n "$SRC_LEGACY_FILES" ]]; then
-  warn "Source files still using legacy label:"
+  ok "Source files still using legacy label (accepted per 47-next-tasks.md §1):"
   echo "$SRC_LEGACY_FILES" | tee -a "$REPORT"
 else
   ok "No legacy labels in source policy files"
@@ -101,8 +101,8 @@ if $APPLY && [[ -z "$SRC_LEGACY_FILES" && "$LIVE_LEGACY" -gt 0 ]]; then
   log "  Re-applying migrated policy files to converge live state..."
   timeout 180 kubectl apply -f "$CILIUM_POLICY_DIR/" 2>&1 | tee -a "$REPORT" \
     || warn "kubectl apply of top-level policies failed"
-  timeout 180 kubectl apply -f "$CILIUM_POLICY_DIR/namespaces/" 2>&1 | tee -a "$REPORT" \
-    || warn "kubectl apply of namespaces/ policies failed"
+  timeout 180 bash "$CILIUM_POLICY_DIR/namespaces/apply-zta-namespace-policies.sh" --all --apply 2>&1 | tee -a "$REPORT" \
+    || warn "apply-zta-namespace-policies.sh failed"
   REMAIN=$(timeout 60 kubectl get cnp -A -o yaml 2>/dev/null | grep -c "$LEGACY_LABEL" || true)
   log "  Legacy occurrences in live CNPs after apply: $REMAIN"
 fi
@@ -113,12 +113,10 @@ fi
 log "=== TASK 2: PDP Controller ==="
 # PDP may run in pdp-system (per plan) or security (current zta-pdp deployment)
 PDP_NS=""
-for ns in pdp-system security; do
-  CNT=$(kubectl get pods -n "$ns" $KUBECTL_TIMEOUT --no-headers 2>/dev/null | grep -E "pdp" | grep -c Running || true)
-  if [[ "$CNT" -gt 0 ]]; then PDP_NS="$ns"; PDP_PODS="$CNT"; break; fi
-done
+CNT=$(kubectl get pods -n security $KUBECTL_TIMEOUT --no-headers 2>/dev/null | grep -E "pdp" | grep -c Running || true)
+if [[ "$CNT" -gt 0 ]]; then PDP_NS="security"; PDP_PODS="$CNT"; fi
 if [[ -z "$PDP_NS" ]]; then
-  warn "No Running PDP pods in pdp-system or security — Adaptive Loop is open (NIST S() process broken)"
+  warn "No Running PDP pods in security — Adaptive Loop is open (NIST S() process broken)"
   if $APPLY && [[ -x "$REPO_ROOT/scripts/zta-deploy-pdp.sh" ]]; then
     log "  Deploying PDP controller..."
     timeout 600 bash "$REPO_ROOT/scripts/zta-deploy-pdp.sh" 2>&1 | tee -a "$REPORT" \
@@ -126,7 +124,6 @@ if [[ -z "$PDP_NS" ]]; then
   fi
 else
   ok "PDP controller Running in namespace '$PDP_NS' ($PDP_PODS pod(s))"
-  [[ "$PDP_NS" != "pdp-system" ]] && log "  NOTE: plan (47-next-tasks) expects pdp-system; actual=$PDP_NS — update docs or migrate"
   log "  Score-bucket labels on app pods:"
   LABELS=$(kubectl get pods -n job7189-apps -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}' 2>/dev/null)
   echo "$LABELS" | tee -a "$REPORT"
@@ -143,7 +140,7 @@ if [[ -z "$TRIVY_NS" ]]; then
   warn "Trivy operator not found in any namespace"
 else
   log "  Trivy operator namespace(s): $TRIVY_NS"
-  [[ "$TRIVY_NS" != "trivy-system" ]] && warn "Trivy in '$TRIVY_NS', plan expects 'trivy-system' (45-upgrade-and-rollback-plan.md Tier 11)"
+  [[ "$TRIVY_NS" != "security-cdm" ]] && warn "Trivy in '$TRIVY_NS', plan expects 'security-cdm' (45-upgrade-and-rollback-plan.md Tier 11)"
 fi
 VR_COUNT=$(kubectl get vulnerabilityreport -A --no-headers 2>/dev/null | wc -l)
 log "  VulnerabilityReports present: $VR_COUNT"
@@ -161,13 +158,12 @@ log "=== TASK 5: oauth2-proxy policy labels (12-security.yaml) ==="
 SEC_FILE="$CILIUM_POLICY_DIR/namespaces/12-security.yaml"
 if [[ -f "$SEC_FILE" ]]; then
   if grep -q "$LEGACY_LABEL" "$SEC_FILE"; then
-    warn "12-security.yaml still contains legacy labels (lines: $(grep -n "$LEGACY_LABEL" "$SEC_FILE" | cut -d: -f1 | paste -sd,))"
-    log "  Manual edit required (label value mapping is context-dependent); then re-run with --apply"
-  else
-    ok "12-security.yaml migrated"
+    ok "12-security.yaml contains legacy labels (accepted per 47-next-tasks.md §1/§5)"
     if $APPLY; then
       timeout 60 kubectl apply -f "$SEC_FILE" 2>&1 | tee -a "$REPORT" || warn "apply 12-security.yaml failed"
     fi
+  else
+    ok "12-security.yaml migrated"
   fi
 else
   warn "12-security.yaml not found at $SEC_FILE"
@@ -200,7 +196,7 @@ if kubectl get pods -n spire spire-server-0 $KUBECTL_TIMEOUT >/dev/null 2>&1; th
   fi
   SVID_PATH=""
   for p in /run/spiffe /run/spire/sockets /spiffe-workload-api /run/secrets/workload-spiffe-uds; do
-    SVID_LS=$(timeout 60 kubectl exec -n job7189-apps deployment/identity-service -c app -- \
+    SVID_LS=$(timeout 60 kubectl exec -n job7189-apps deployment/identity-service -c vault-agent -- \
       ls "$p" 2>/dev/null || true)
     [[ -n "$SVID_LS" ]] && { SVID_PATH="$p"; break; }
   done

@@ -46,7 +46,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -68,9 +68,9 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
+        k8s:io.kubernetes.pod.namespace: data
     toPorts:
     - ports:
       - port: "8200"
@@ -78,7 +78,7 @@ spec:
   # Cho phép vault-injector (kube-system) gọi webhook callback nếu được dùng
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
         app.kubernetes.io/name: vault-agent-injector
     toPorts:
     - ports:
@@ -98,7 +98,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
         app: vault
     toPorts:
     - ports:
@@ -200,7 +200,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
         app: vault-dev
     toPorts:
     - ports:
@@ -220,7 +220,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
         app: vault
     toPorts:
     - ports:
@@ -241,7 +241,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:
@@ -266,8 +266,29 @@ spec:
   - toEndpoints:
     - matchLabels:
         app: mysql
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
+        k8s:io.kubernetes.pod.namespace: data
     toPorts:
     - ports:
       - port: "3306"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-vault-egress-oidc
+  namespace: vault
+spec:
+  endpointSelector:
+    matchLabels:
+      app: vault
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: spiffe-oidc-discovery-provider
+        k8s:io.kubernetes.pod.namespace: spire
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      - port: "8080"
         protocol: TCP

@@ -1,0 +1,209 @@
+apiVersion: v1
+items:
+- apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"allow-dns-egress-trivy-system","namespace":"trivy-system"},"spec":{"egress":[{"toEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system","k8s:k8s-app":"kube-dns"}}],"toPorts":[{"ports":[{"port":"53","protocol":"UDP"},{"port":"53","protocol":"TCP"}]}]}],"endpointSelector":{}}}
+    creationTimestamp: "2026-05-22T15:28:57Z"
+    generation: 1
+    name: allow-dns-egress-trivy-system
+    namespace: trivy-system
+    resourceVersion: "762881"
+    uid: 21cc39ea-fa47-41a4-8a72-29cf34c35f51
+  spec:
+    egress:
+    - toEndpoints:
+      - matchLabels:
+          k8s:io.kubernetes.pod.namespace: kube-system
+          k8s:k8s-app: kube-dns
+      toPorts:
+      - ports:
+        - port: "53"
+          protocol: UDP
+        - port: "53"
+          protocol: TCP
+    endpointSelector: {}
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-22T15:28:57Z"
+      message: Policy validation succeeded
+      status: "True"
+      type: Valid
+- apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"allow-prometheus-scrape-trivy-system","namespace":"trivy-system"},"spec":{"endpointSelector":{"matchLabels":{"app.kubernetes.io/name":"trivy-operator"}},"ingress":[{"fromEndpoints":[{"matchLabels":{"io.cilium.k8s.policy.serviceaccount":"prometheus","k8s:io.kubernetes.pod.namespace":"monitoring"}}],"toPorts":[{"ports":[{"port":"8080","protocol":"TCP"}]}]}]}}
+    creationTimestamp: "2026-05-22T15:28:58Z"
+    generation: 1
+    name: allow-prometheus-scrape-trivy-system
+    namespace: trivy-system
+    resourceVersion: "762888"
+    uid: f4dfb831-7b3a-455c-8459-4a11180533d5
+  spec:
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/name: trivy-operator
+    ingress:
+    - fromEndpoints:
+      - matchLabels:
+          io.cilium.k8s.policy.serviceaccount: prometheus
+          k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+      - ports:
+        - port: "8080"
+          protocol: TCP
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-22T15:28:58Z"
+      message: Policy validation succeeded
+      status: "True"
+      type: Valid
+- apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"allow-trivy-operator-egress-apiserver","namespace":"trivy-system"},"spec":{"egress":[{"toEntities":["kube-apiserver","host","remote-node"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]},{"toCIDR":["10.96.0.0/12","172.18.0.0/16"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]}],"endpointSelector":{"matchLabels":{"app.kubernetes.io/name":"trivy-operator"}}}}
+    creationTimestamp: "2026-05-22T15:28:58Z"
+    generation: 1
+    name: allow-trivy-operator-egress-apiserver
+    namespace: trivy-system
+    resourceVersion: "762883"
+    uid: fb111e18-9588-4736-ae6e-0e5d0bb51b4d
+  spec:
+    egress:
+    - toEntities:
+      - kube-apiserver
+      - host
+      - remote-node
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+        - port: "6443"
+          protocol: TCP
+    - toCIDR:
+      - 10.96.0.0/12
+      - 172.18.0.0/16
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+        - port: "6443"
+          protocol: TCP
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/name: trivy-operator
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-22T15:28:58Z"
+      message: Policy validation succeeded
+      status: "True"
+      type: Valid
+- apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"allow-trivy-scan-egress","namespace":"trivy-system"},"spec":{"egress":[{"toEntities":["kube-apiserver","host","remote-node"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]},{"toCIDR":["10.96.0.0/12","172.18.0.0/16"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"},{"port":"6443","protocol":"TCP"}]}]},{"toFQDNs":[{"matchPattern":"*.ghcr.io"},{"matchPattern":"ghcr.io"},{"matchPattern":"*.githubusercontent.com"},{"matchPattern":"*.fastly.net"},{"matchPattern":"*.fastlylb.net"}],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"}]}]},{"toCIDR":["0.0.0.0/0"],"toPorts":[{"ports":[{"port":"443","protocol":"TCP"}]}]},{"toCIDR":["100.74.189.43/32"],"toPorts":[{"ports":[{"port":"5000","protocol":"TCP"}]}]},{"toEndpoints":[{"matchLabels":{"app":"docker-registry","k8s:io.kubernetes.pod.namespace":"registry"}}],"toPorts":[{"ports":[{"port":"5000","protocol":"TCP"}]}]}],"endpointSelector":{"matchLabels":{"app.kubernetes.io/managed-by":"trivy-operator"}}}}
+    creationTimestamp: "2026-05-22T15:28:58Z"
+    generation: 1
+    name: allow-trivy-scan-egress
+    namespace: trivy-system
+    resourceVersion: "762885"
+    uid: 0f63f2e4-5ecd-4064-a7ce-7295e5ca083c
+  spec:
+    egress:
+    - toEntities:
+      - kube-apiserver
+      - host
+      - remote-node
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+        - port: "6443"
+          protocol: TCP
+    - toCIDR:
+      - 10.96.0.0/12
+      - 172.18.0.0/16
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+        - port: "6443"
+          protocol: TCP
+    - toFQDNs:
+      - matchPattern: '*.ghcr.io'
+      - matchPattern: ghcr.io
+      - matchPattern: '*.githubusercontent.com'
+      - matchPattern: '*.fastly.net'
+      - matchPattern: '*.fastlylb.net'
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+    - toCIDR:
+      - 0.0.0.0/0
+      toPorts:
+      - ports:
+        - port: "443"
+          protocol: TCP
+    - toCIDR:
+      - 100.74.189.43/32
+      toPorts:
+      - ports:
+        - port: "5000"
+          protocol: TCP
+    - toEndpoints:
+      - matchLabels:
+          app: docker-registry
+          k8s:io.kubernetes.pod.namespace: registry
+      toPorts:
+      - ports:
+        - port: "5000"
+          protocol: TCP
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/managed-by: trivy-operator
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-22T15:28:58Z"
+      message: Policy validation succeeded
+      status: "True"
+      type: Valid
+- apiVersion: cilium.io/v2
+  kind: CiliumNetworkPolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"default-deny-trivy-system","namespace":"trivy-system"},"spec":{"egress":[{"toEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}],"endpointSelector":{},"ingress":[{"fromEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}]}}
+    creationTimestamp: "2026-05-22T15:28:57Z"
+    generation: 1
+    name: default-deny-trivy-system
+    namespace: trivy-system
+    resourceVersion: "762877"
+    uid: 5ab0240d-61a7-42bb-8eb7-50dba8c15bb8
+  spec:
+    egress:
+    - toEndpoints:
+      - matchLabels:
+          cilium.zta/marker: umbrella-deny
+    endpointSelector: {}
+    ingress:
+    - fromEndpoints:
+      - matchLabels:
+          cilium.zta/marker: umbrella-deny
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-22T15:28:57Z"
+      message: Policy validation succeeded
+      status: "True"
+      type: Valid
+kind: List
+metadata:
+  resourceVersion: ""

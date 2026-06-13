@@ -273,7 +273,7 @@ sec_namespaces() {
   # ns -> mô tả (theo knowledge-base/00 + snapshot 40)
   local core_ns=(job7189-apps gateway security vault data monitoring management)
   local infra_ns=(ingress-nginx cert-manager kube-system local-path-storage)
-  local zta_ns=(spire gatekeeper-system cosign-system trivy-system security-cdm)
+  local zta_ns=(spire gatekeeper-system cosign-system security-cdm)
   local optional_ns=(registry)
 
   echo "  Core namespaces (bắt buộc):"
@@ -294,10 +294,6 @@ sec_namespaces() {
     if ns_exists "$ns"; then pass "namespace/$ns tồn tại"
     else note "namespace/$ns không có (optional — không trong snapshot 40; có thể dùng registry ngoài)"; fi
   done
-  # Orphan ns: có trên cluster nhưng không do manifest nào trong repo tạo.
-  if ns_exists pdp-system; then
-    warn "namespace/pdp-system TỔN TẠI nhưng không có manifest trong repo" "PDP thật ở ns=security — pdp-system có thể là ns mồ côi; kiểm tra: kubectl get all -n pdp-system"
-  fi
 
   # frontend ns: port-mapping doc claims fe-candidate/fe-recruiter trong ns 'frontend',
   # nhưng knowledge-base/19 + cleanup-plan nói frontend ĐÃ tách khỏi cluster ZTA.
@@ -923,11 +919,10 @@ sec_trivy() {
     if [ "${vr:-0}" -ge 1 ]; then pass "VulnerabilityReport CR count=$vr (snapshot ~45)"
     else warn "0 VulnerabilityReport (snapshot ghi 45 — có thể đã GC)"; fi
   else warn "CRD vulnerabilityreports không tồn tại (Trivy CRD chưa cài — khớp 'deferred')"; fi
-  if k get pods -n trivy-system --no-headers 2>/dev/null | grep -qi .; then
-    warn "trivy-system có pod đang chạy" "snapshot ghi DEFERRED/0-0 — cập nhật snapshot nếu đã bật lại"
-    drift "snapshot 40 ghi Trivy Operator DEFERRED nhưng trivy-system có pod chạy. Cập nhật snapshot."
+  if k get pods -n security-cdm -l app.kubernetes.io/name=trivy-operator --no-headers 2>/dev/null | grep -qi .; then
+    pass "Trivy Operator đang chạy trong security-cdm"
   else
-    pass "trivy-system không có pod (khớp snapshot: deferred)"
+    note "Trivy Operator không chạy trong security-cdm (deferred/tắt)"
   fi
 }
 

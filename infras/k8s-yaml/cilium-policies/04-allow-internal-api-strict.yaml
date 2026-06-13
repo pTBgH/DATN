@@ -1,7 +1,7 @@
 apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
 metadata:
-  name: "allow-internal-job-to-workspace"
+  name: "allow-internal-api-workspace"
   namespace: "job7189-apps"
 spec:
   endpointSelector:
@@ -19,17 +19,54 @@ spec:
         http:
         - method: "GET"
           path: "/api/v1/internal/workspaces/.*"
+        - method: "GET"
+          path: "/api/internal/permissions/.*"
+        - method: "POST"
+          path: "/api/internal/companies/batch-info"
+  - fromEndpoints:
+    - matchLabels:
+        app: hiring-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/internal/permissions/.*"
+  - fromEndpoints:
+    - matchLabels:
+        app: identity-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/internal/workspaces/by-user/.*"
 ---
 apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
 metadata:
-  name: "allow-internal-identity"
+  name: "allow-internal-api-identity"
   namespace: "job7189-apps"
 spec:
   endpointSelector:
     matchLabels:
       app: identity-service
   ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: job7189-apps
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "POST"
+          path: "/api/internal/auth/sync-user"
   - fromEndpoints:
     - matchLabels:
         app: hiring-service
@@ -41,3 +78,71 @@ spec:
         http:
         - method: "GET"
           path: "/api/v1/internal/profile/.*"
+        - method: "GET"
+          path: "/api/internal/users/.*"
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-api-hiring"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: hiring-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: candidate-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "GET"
+          path: "/api/internal/applications/candidate/.*"
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-api-job"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: job-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: candidate-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "POST"
+          path: "/api/internal/jobs/batch-info"
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-internal-api-storage"
+  namespace: "job7189-apps"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: storage-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: candidate-service
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "POST"
+          path: "/api/internal/files/view-url"

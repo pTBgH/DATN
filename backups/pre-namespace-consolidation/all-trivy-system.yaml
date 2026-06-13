@@ -1,0 +1,880 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      meta.helm.sh/release-name: trivy-operator
+      meta.helm.sh/release-namespace: trivy-system
+    creationTimestamp: "2026-05-14T04:08:33Z"
+    labels:
+      app.kubernetes.io/instance: trivy-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: trivy-operator
+      app.kubernetes.io/version: 0.19.0
+      helm.sh/chart: trivy-operator-0.21.0
+    name: trivy-operator
+    namespace: trivy-system
+    resourceVersion: "137095"
+    uid: ae512bec-b574-4abf-8999-811b25a43407
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - appProtocol: TCP
+      name: metrics
+      port: 80
+      protocol: TCP
+      targetPort: metrics
+    selector:
+      app.kubernetes.io/instance: trivy-operator
+      app.kubernetes.io/name: trivy-operator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: trivy-operator
+      meta.helm.sh/release-namespace: trivy-system
+    creationTimestamp: "2026-05-14T04:08:33Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/instance: trivy-operator
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: trivy-operator
+      app.kubernetes.io/version: 0.19.0
+      helm.sh/chart: trivy-operator-0.21.0
+    name: trivy-operator
+    namespace: trivy-system
+    resourceVersion: "253762"
+    uid: 116d7a6d-cf1c-4857-baa1-e66a063fb992
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: trivy-operator
+        app.kubernetes.io/name: trivy-operator
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/instance: trivy-operator
+          app.kubernetes.io/name: trivy-operator
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - env:
+          - name: OPERATOR_NAMESPACE
+            value: trivy-system
+          - name: OPERATOR_TARGET_NAMESPACES
+          - name: OPERATOR_EXCLUDE_NAMESPACES
+          - name: OPERATOR_TARGET_WORKLOADS
+            value: pod,replicaset,replicationcontroller,statefulset,daemonset,cronjob,job
+          - name: OPERATOR_SERVICE_ACCOUNT
+            value: trivy-operator
+          envFrom:
+          - configMapRef:
+              name: trivy-operator-config
+          image: ghcr.io/aquasecurity/trivy-operator:0.19.0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /healthz/
+              port: probes
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: trivy-operator
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          - containerPort: 9090
+            name: probes
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz/
+              port: probes
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: cache-policies
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: trivy-operator
+        serviceAccountName: trivy-operator
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: cache-policies
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-14T04:08:33Z"
+      lastUpdateTime: "2026-05-14T04:09:06Z"
+      message: ReplicaSet "trivy-operator-669b7df74b" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-16T03:36:50Z"
+      lastUpdateTime: "2026-05-16T03:36:50Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 2
+- apiVersion: apps/v1
+  kind: ReplicaSet
+  metadata:
+    annotations:
+      deployment.kubernetes.io/desired-replicas: "0"
+      deployment.kubernetes.io/max-replicas: "0"
+      deployment.kubernetes.io/revision: "1"
+      meta.helm.sh/release-name: trivy-operator
+      meta.helm.sh/release-namespace: trivy-system
+    creationTimestamp: "2026-05-14T04:08:33Z"
+    generation: 2
+    labels:
+      app.kubernetes.io/instance: trivy-operator
+      app.kubernetes.io/name: trivy-operator
+      pod-template-hash: 669b7df74b
+    name: trivy-operator-669b7df74b
+    namespace: trivy-system
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: trivy-operator
+      uid: 116d7a6d-cf1c-4857-baa1-e66a063fb992
+    resourceVersion: "253761"
+    uid: 5632f2e2-ffaf-4397-a53d-d1fe8d413756
+  spec:
+    replicas: 0
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: trivy-operator
+        app.kubernetes.io/name: trivy-operator
+        pod-template-hash: 669b7df74b
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/instance: trivy-operator
+          app.kubernetes.io/name: trivy-operator
+          pod-template-hash: 669b7df74b
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - env:
+          - name: OPERATOR_NAMESPACE
+            value: trivy-system
+          - name: OPERATOR_TARGET_NAMESPACES
+          - name: OPERATOR_EXCLUDE_NAMESPACES
+          - name: OPERATOR_TARGET_WORKLOADS
+            value: pod,replicaset,replicationcontroller,statefulset,daemonset,cronjob,job
+          - name: OPERATOR_SERVICE_ACCOUNT
+            value: trivy-operator
+          envFrom:
+          - configMapRef:
+              name: trivy-operator-config
+          image: ghcr.io/aquasecurity/trivy-operator:0.19.0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /healthz/
+              port: probes
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: trivy-operator
+          ports:
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          - containerPort: 9090
+            name: probes
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz/
+              port: probes
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: cache-policies
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: trivy-operator
+        serviceAccountName: trivy-operator
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: cache-policies
+  status:
+    observedGeneration: 2
+    replicas: 0
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    creationTimestamp: "2026-05-14T04:14:17Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: trivy-operator
+      node-info.collector: Trivy
+      trivy-operator.resource.kind: Node
+      trivy-operator.resource.name: 7189srv02
+    name: node-collector-bc5776677
+    namespace: trivy-system
+    resourceVersion: "139585"
+    uid: 600d3af3-1ef6-4bb9-86dd-02ce94920462
+  spec:
+    activeDeadlineSeconds: 300
+    backoffLimit: 0
+    completionMode: NonIndexed
+    completions: 1
+    manualSelector: false
+    parallelism: 1
+    podReplacementPolicy: TerminatingOrFailed
+    selector:
+      matchLabels:
+        batch.kubernetes.io/controller-uid: 600d3af3-1ef6-4bb9-86dd-02ce94920462
+    suspend: false
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: node-collector
+          batch.kubernetes.io/controller-uid: 600d3af3-1ef6-4bb9-86dd-02ce94920462
+          batch.kubernetes.io/job-name: node-collector-bc5776677
+          controller-uid: 600d3af3-1ef6-4bb9-86dd-02ce94920462
+          job-name: node-collector-bc5776677
+      spec:
+        automountServiceAccountToken: true
+        containers:
+        - args:
+          - k8s
+          - --node
+          - 7189srv02
+          command:
+          - node-collector
+          image: ghcr.io/aquasecurity/node-collector:0.1.2
+          imagePullPolicy: IfNotPresent
+          name: node-collector
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100M
+            requests:
+              cpu: 50m
+              memory: 50M
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: var-lib-etcd
+            readOnly: true
+          - mountPath: /var/lib/kubelet
+            name: var-lib-kubelet
+            readOnly: true
+          - mountPath: /var/lib/kube-scheduler
+            name: var-lib-kube-scheduler
+            readOnly: true
+          - mountPath: /var/lib/kube-controller-manager
+            name: var-lib-kube-controller-manager
+            readOnly: true
+          - mountPath: /etc/systemd
+            name: etc-systemd
+            readOnly: true
+          - mountPath: /lib/systemd/
+            name: lib-systemd
+            readOnly: true
+          - mountPath: /etc/kubernetes
+            name: etc-kubernetes
+            readOnly: true
+          - mountPath: /etc/cni/net.d/
+            name: etc-cni-netd
+            readOnly: true
+        dnsPolicy: ClusterFirst
+        hostPID: true
+        nodeSelector:
+          kubernetes.io/hostname: 7189srv02
+        restartPolicy: Never
+        schedulerName: default-scheduler
+        securityContext:
+          runAsGroup: 0
+          runAsUser: 0
+          seccompProfile:
+            type: RuntimeDefault
+        serviceAccount: trivy-operator
+        serviceAccountName: trivy-operator
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - hostPath:
+            path: /var/lib/etcd
+            type: ""
+          name: var-lib-etcd
+        - hostPath:
+            path: /var/lib/kubelet
+            type: ""
+          name: var-lib-kubelet
+        - hostPath:
+            path: /var/lib/kube-scheduler
+            type: ""
+          name: var-lib-kube-scheduler
+        - hostPath:
+            path: /var/lib/kube-controller-manager
+            type: ""
+          name: var-lib-kube-controller-manager
+        - hostPath:
+            path: /etc/systemd
+            type: ""
+          name: etc-systemd
+        - hostPath:
+            path: /lib/systemd
+            type: ""
+          name: lib-systemd
+        - hostPath:
+            path: /etc/kubernetes
+            type: ""
+          name: etc-kubernetes
+        - hostPath:
+            path: /etc/cni/net.d/
+            type: ""
+          name: etc-cni-netd
+  status:
+    completionTime: "2026-05-14T04:16:51Z"
+    conditions:
+    - lastProbeTime: "2026-05-14T04:16:51Z"
+      lastTransitionTime: "2026-05-14T04:16:51Z"
+      status: "True"
+      type: Complete
+    ready: 0
+    startTime: "2026-05-14T04:14:18Z"
+    succeeded: 1
+    terminating: 0
+    uncountedTerminatedPods: {}
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    annotations:
+      trivy-operator.container-images: '{"ensure-alternate-names":"cgr.dev/chainguard/bash:latest@sha256:ef209fd7d231ead12bf24287db24991bdd979669f4df2e037698f94545816d3e","spire-agent":"ghcr.io/spiffe/spire-agent:1.14.5"}'
+    creationTimestamp: "2026-05-14T04:57:43Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: trivy-operator
+      resource-spec-hash: c64f49585
+      trivy-operator.resource.kind: DaemonSet
+      trivy-operator.resource.name: spire-agent
+      trivy-operator.resource.namespace: spire
+      vulnerabilityReport.scanner: Trivy
+    name: scan-vulnerabilityreport-7f7c49d4cc
+    namespace: trivy-system
+    resourceVersion: "150466"
+    uid: d604e2f4-a64c-40ec-bbfc-88fb360678e7
+  spec:
+    activeDeadlineSeconds: 300
+    backoffLimit: 0
+    completionMode: NonIndexed
+    completions: 1
+    manualSelector: false
+    parallelism: 1
+    podReplacementPolicy: TerminatingOrFailed
+    selector:
+      matchLabels:
+        batch.kubernetes.io/controller-uid: d604e2f4-a64c-40ec-bbfc-88fb360678e7
+    suspend: false
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/managed-by: trivy-operator
+          batch.kubernetes.io/controller-uid: d604e2f4-a64c-40ec-bbfc-88fb360678e7
+          batch.kubernetes.io/job-name: scan-vulnerabilityreport-7f7c49d4cc
+          controller-uid: d604e2f4-a64c-40ec-bbfc-88fb360678e7
+          job-name: scan-vulnerabilityreport-7f7c49d4cc
+          resource-spec-hash: c64f49585
+          trivy-operator.resource.kind: DaemonSet
+          trivy-operator.resource.name: spire-agent
+          trivy-operator.resource.namespace: spire
+          vulnerabilityReport.scanner: Trivy
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: kubernetes.io/os
+                  operator: In
+                  values:
+                  - linux
+        automountServiceAccountToken: false
+        containers:
+        - args:
+          - -c
+          - trivy image --slow 'ghcr.io/spiffe/spire-agent:1.14.5' --scanners vuln   --skip-db-update  --cache-dir
+            /tmp/trivy/.cache --quiet --list-all-pkgs --format json > /tmp/scan/result_spire-agent.json
+            &&  bzip2 -c /tmp/scan/result_spire-agent.json | base64
+          command:
+          - /bin/sh
+          env:
+          - name: TRIVY_SEVERITY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.severity
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_IGNORE_UNFIXED
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.ignoreUnfixed
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_OFFLINE_SCAN
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.offlineScan
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_JAVA_DB_REPOSITORY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.javaDbRepository
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_TIMEOUT
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.timeout
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_SKIP_FILES
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.skipFiles
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_SKIP_DIRS
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.skipDirs
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: HTTP_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: HTTPS_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpsProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: NO_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.noProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          image: ghcr.io/aquasecurity/trivy:0.49.1
+          imagePullPolicy: IfNotPresent
+          name: spire-agent
+          resources:
+            limits:
+              cpu: "1"
+              memory: 500Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /tmp/scan
+            name: scanresult
+        - args:
+          - -c
+          - trivy image --slow 'cgr.dev/chainguard/bash:latest@sha256:ef209fd7d231ead12bf24287db24991bdd979669f4df2e037698f94545816d3e'
+            --scanners vuln   --skip-db-update  --cache-dir /tmp/trivy/.cache --quiet
+            --list-all-pkgs --format json > /tmp/scan/result_ensure-alternate-names.json
+            &&  bzip2 -c /tmp/scan/result_ensure-alternate-names.json | base64
+          command:
+          - /bin/sh
+          env:
+          - name: TRIVY_SEVERITY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.severity
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_IGNORE_UNFIXED
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.ignoreUnfixed
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_OFFLINE_SCAN
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.offlineScan
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_JAVA_DB_REPOSITORY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.javaDbRepository
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_TIMEOUT
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.timeout
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_SKIP_FILES
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.skipFiles
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: TRIVY_SKIP_DIRS
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.skipDirs
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: HTTP_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: HTTPS_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpsProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: NO_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.noProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          image: ghcr.io/aquasecurity/trivy:0.49.1
+          imagePullPolicy: IfNotPresent
+          name: ensure-alternate-names
+          resources:
+            limits:
+              cpu: "1"
+              memory: 500Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp
+          - mountPath: /tmp/scan
+            name: scanresult
+        dnsPolicy: ClusterFirst
+        initContainers:
+        - args:
+          - --cache-dir
+          - /tmp/trivy/.cache
+          - image
+          - --download-db-only
+          - --db-repository
+          - ghcr.io/aquasecurity/trivy-db
+          command:
+          - trivy
+          env:
+          - name: HTTP_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: HTTPS_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.httpsProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: NO_PROXY
+            valueFrom:
+              configMapKeyRef:
+                key: trivy.noProxy
+                name: trivy-operator-trivy-config
+                optional: true
+          - name: GITHUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: trivy.githubToken
+                name: trivy-operator-trivy-config
+                optional: true
+          image: ghcr.io/aquasecurity/trivy:0.49.1
+          imagePullPolicy: IfNotPresent
+          name: 181d17c2-92d1-43ae-87fc-17aba3c3e9b7
+          resources:
+            limits:
+              cpu: "1"
+              memory: 500Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp
+        restartPolicy: Never
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: trivy-operator
+        serviceAccountName: trivy-operator
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: tmp
+        - emptyDir: {}
+          name: scanresult
+  status:
+    completionTime: "2026-05-14T04:58:35Z"
+    conditions:
+    - lastProbeTime: "2026-05-14T04:58:35Z"
+      lastTransitionTime: "2026-05-14T04:58:35Z"
+      status: "True"
+      type: Complete
+    ready: 0
+    startTime: "2026-05-14T04:57:43Z"
+    succeeded: 1
+    terminating: 0
+    uncountedTerminatedPods: {}
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"warn","zta-policy/scope":"app-workloads"},"name":"zta-job7189-apps-signed"},"spec":{"authorities":[{"key":{"data":"-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZjQYeYKPcPWU0D/MOdKR0v2++rs2\n6oKPhqAAyRf/s1rWQIuqlt2XBfEQmmHyHIXjzVIykLW2kDJYUv5z1zSBrQ==\n-----END PUBLIC KEY-----\n","kms":""},"name":"zta-cosign-key"}],"images":[{"glob":"**"}],"mode":"warn"}}
+      zta-policy/mode: warn
+      zta-policy/scope: app-workloads
+    creationTimestamp: "2026-05-13T17:46:14Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 1
+    name: zta-job7189-apps-signed
+    resourceVersion: "97820"
+    uid: 330ddfda-3c7f-40bb-8620-508849b497af
+  spec:
+    authorities:
+    - key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZjQYeYKPcPWU0D/MOdKR0v2++rs2
+          6oKPhqAAyRf/s1rWQIuqlt2XBfEQmmHyHIXjzVIykLW2kDJYUv5z1zSBrQ==
+          -----END PUBLIC KEY-----
+      name: zta-cosign-key
+    images:
+    - glob: '**'
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 1
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"warn","zta-policy/scope":"keyless-supply-chain"},"name":"zta-keyless-trust-job7189"},"spec":{"authorities":[{"keyless":{"identities":[{"issuer":"https://token.actions.githubusercontent.com","subjectRegExp":"^https://github.com/pTBgH/.+$"}],"url":"https://fulcio.sigstore.dev"},"name":"keyless-gha"}],"images":[{"glob":"ghcr.io/ptbgh/**"}],"mode":"warn"}}
+      zta-policy/mode: warn
+      zta-policy/scope: keyless-supply-chain
+    creationTimestamp: "2026-05-13T17:46:14Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 1
+    name: zta-keyless-trust-job7189
+    resourceVersion: "97825"
+    uid: c6a8b001-f0ec-43bd-8e00-e6636fca0adb
+  spec:
+    authorities:
+    - keyless:
+        identities:
+        - issuer: https://token.actions.githubusercontent.com
+          subjectRegExp: ^https://github.com/pTBgH/.+$
+        url: https://fulcio.sigstore.dev
+      name: keyless-gha
+    images:
+    - glob: ghcr.io/ptbgh/**
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 1
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"passthrough-allow","zta-policy/scope":"cluster-infra"},"name":"zta-system-passthrough"},"spec":{"authorities":[{"static":{"action":"pass"}}],"images":[{"glob":"registry.k8s.io/**"},{"glob":"quay.io/cilium/**"},{"glob":"quay.io/coreos/**"},{"glob":"quay.io/keycloak/**"},{"glob":"quay.io/jetstack/**"},{"glob":"quay.io/strimzi/**"},{"glob":"ghcr.io/spiffe/**"},{"glob":"ghcr.io/sigstore/**"},{"glob":"ghcr.io/cilium/**"},{"glob":"docker.io/library/**"},{"glob":"docker.io/bitnami/**"},{"glob":"hashicorp/vault*"},{"glob":"hashicorp/vault-k8s*"},{"glob":"openpolicyagent/gatekeeper*"},{"glob":"ghcr.io/falcosecurity/**"},{"glob":"rancher/local-path-provisioner**"},{"glob":"elastic.co/**"},{"glob":"docker.elastic.co/**"}],"mode":"warn"}}
+      zta-policy/mode: passthrough-allow
+      zta-policy/scope: cluster-infra
+    creationTimestamp: "2026-05-13T17:46:13Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 2
+    name: zta-system-passthrough
+    resourceVersion: "111925"
+    uid: d6fc40c9-4034-45b1-838c-514f1ae8da15
+  spec:
+    authorities:
+    - name: authority-0
+      static:
+        action: pass
+    images:
+    - glob: registry.k8s.io/**
+    - glob: quay.io/cilium/**
+    - glob: quay.io/coreos/**
+    - glob: quay.io/keycloak/**
+    - glob: quay.io/jetstack/**
+    - glob: quay.io/strimzi/**
+    - glob: ghcr.io/spiffe/**
+    - glob: ghcr.io/sigstore/**
+    - glob: ghcr.io/cilium/**
+    - glob: docker.io/library/**
+    - glob: docker.io/bitnami/**
+    - glob: hashicorp/vault*
+    - glob: hashicorp/vault-k8s*
+    - glob: openpolicyagent/gatekeeper*
+    - glob: ghcr.io/falcosecurity/**
+    - glob: rancher/local-path-provisioner**
+    - glob: elastic.co/**
+    - glob: docker.elastic.co/**
+    - glob: 100.74.189.43:5000/**
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 2
+kind: List
+metadata:
+  resourceVersion: ""

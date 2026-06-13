@@ -39,7 +39,6 @@ declare -A NS_TO_YAML=(
   [gatekeeper-system]=19-gatekeeper-system.yaml
   [ingress-nginx]=20-ingress-nginx.yaml
   [local-path-storage]=22-local-path-storage.yaml
-  [trivy-system]=24-trivy-system.yaml
 )
 
 hdr "1/3 POD LABELS (key=value cho mỗi pod)"

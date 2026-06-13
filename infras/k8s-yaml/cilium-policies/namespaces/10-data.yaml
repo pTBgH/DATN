@@ -41,7 +41,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -63,7 +63,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: keycloak
     toPorts:
     - ports:
@@ -86,7 +86,7 @@ spec:
   - fromEndpoints:
     - matchLabels:
         app: vault
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
     toPorts:
     - ports:
       - port: "3306"
@@ -105,7 +105,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: management
+        k8s:io.kubernetes.pod.namespace: management
         app: phpmyadmin
     toPorts:
     - ports:
@@ -125,7 +125,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
     toPorts:
     - ports:
       - port: "9092"
@@ -147,7 +147,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
+        k8s:io.kubernetes.pod.namespace: data
         app: kafka
     toPorts:
     - ports:
@@ -172,7 +172,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
     toPorts:
     - ports:
       - port: "6379"   # Redis
@@ -188,7 +188,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
     toPorts:
     - ports:
       - port: "6379"
@@ -215,7 +215,7 @@ spec:
 #   ingress:
 #   - fromEndpoints:
 #     - matchLabels:
-#         k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: management
+#         k8s:io.kubernetes.pod.namespace: management
 #         app: kafbat
 #     toPorts:
 #     - ports:
@@ -235,7 +235,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:
@@ -260,7 +260,7 @@ spec:
   - toEndpoints:
     - matchLabels:
         app: vault
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
     toPorts:
     - ports:
       - port: "8200"

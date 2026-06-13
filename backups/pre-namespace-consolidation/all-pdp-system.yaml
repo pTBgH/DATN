@@ -1,0 +1,144 @@
+apiVersion: v1
+items:
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"warn","zta-policy/scope":"app-workloads"},"name":"zta-job7189-apps-signed"},"spec":{"authorities":[{"key":{"data":"-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZjQYeYKPcPWU0D/MOdKR0v2++rs2\n6oKPhqAAyRf/s1rWQIuqlt2XBfEQmmHyHIXjzVIykLW2kDJYUv5z1zSBrQ==\n-----END PUBLIC KEY-----\n","kms":""},"name":"zta-cosign-key"}],"images":[{"glob":"**"}],"mode":"warn"}}
+      zta-policy/mode: warn
+      zta-policy/scope: app-workloads
+    creationTimestamp: "2026-05-13T17:46:14Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 1
+    name: zta-job7189-apps-signed
+    resourceVersion: "97820"
+    uid: 330ddfda-3c7f-40bb-8620-508849b497af
+  spec:
+    authorities:
+    - key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZjQYeYKPcPWU0D/MOdKR0v2++rs2
+          6oKPhqAAyRf/s1rWQIuqlt2XBfEQmmHyHIXjzVIykLW2kDJYUv5z1zSBrQ==
+          -----END PUBLIC KEY-----
+      name: zta-cosign-key
+    images:
+    - glob: '**'
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 1
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"warn","zta-policy/scope":"keyless-supply-chain"},"name":"zta-keyless-trust-job7189"},"spec":{"authorities":[{"keyless":{"identities":[{"issuer":"https://token.actions.githubusercontent.com","subjectRegExp":"^https://github.com/pTBgH/.+$"}],"url":"https://fulcio.sigstore.dev"},"name":"keyless-gha"}],"images":[{"glob":"ghcr.io/ptbgh/**"}],"mode":"warn"}}
+      zta-policy/mode: warn
+      zta-policy/scope: keyless-supply-chain
+    creationTimestamp: "2026-05-13T17:46:14Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 1
+    name: zta-keyless-trust-job7189
+    resourceVersion: "97825"
+    uid: c6a8b001-f0ec-43bd-8e00-e6636fca0adb
+  spec:
+    authorities:
+    - keyless:
+        identities:
+        - issuer: https://token.actions.githubusercontent.com
+          subjectRegExp: ^https://github.com/pTBgH/.+$
+        url: https://fulcio.sigstore.dev
+      name: keyless-gha
+    images:
+    - glob: ghcr.io/ptbgh/**
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 1
+- apiVersion: policy.sigstore.dev/v1beta1
+  kind: ClusterImagePolicy
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"policy.sigstore.dev/v1beta1","kind":"ClusterImagePolicy","metadata":{"annotations":{"zta-policy/mode":"passthrough-allow","zta-policy/scope":"cluster-infra"},"name":"zta-system-passthrough"},"spec":{"authorities":[{"static":{"action":"pass"}}],"images":[{"glob":"registry.k8s.io/**"},{"glob":"quay.io/cilium/**"},{"glob":"quay.io/coreos/**"},{"glob":"quay.io/keycloak/**"},{"glob":"quay.io/jetstack/**"},{"glob":"quay.io/strimzi/**"},{"glob":"ghcr.io/spiffe/**"},{"glob":"ghcr.io/sigstore/**"},{"glob":"ghcr.io/cilium/**"},{"glob":"docker.io/library/**"},{"glob":"docker.io/bitnami/**"},{"glob":"hashicorp/vault*"},{"glob":"hashicorp/vault-k8s*"},{"glob":"openpolicyagent/gatekeeper*"},{"glob":"ghcr.io/falcosecurity/**"},{"glob":"rancher/local-path-provisioner**"},{"glob":"elastic.co/**"},{"glob":"docker.elastic.co/**"}],"mode":"warn"}}
+      zta-policy/mode: passthrough-allow
+      zta-policy/scope: cluster-infra
+    creationTimestamp: "2026-05-13T17:46:13Z"
+    finalizers:
+    - clusterimagepolicies.policy.sigstore.dev
+    generation: 2
+    name: zta-system-passthrough
+    resourceVersion: "111925"
+    uid: d6fc40c9-4034-45b1-838c-514f1ae8da15
+  spec:
+    authorities:
+    - name: authority-0
+      static:
+        action: pass
+    images:
+    - glob: registry.k8s.io/**
+    - glob: quay.io/cilium/**
+    - glob: quay.io/coreos/**
+    - glob: quay.io/keycloak/**
+    - glob: quay.io/jetstack/**
+    - glob: quay.io/strimzi/**
+    - glob: ghcr.io/spiffe/**
+    - glob: ghcr.io/sigstore/**
+    - glob: ghcr.io/cilium/**
+    - glob: docker.io/library/**
+    - glob: docker.io/bitnami/**
+    - glob: hashicorp/vault*
+    - glob: hashicorp/vault-k8s*
+    - glob: openpolicyagent/gatekeeper*
+    - glob: ghcr.io/falcosecurity/**
+    - glob: rancher/local-path-provisioner**
+    - glob: elastic.co/**
+    - glob: docker.elastic.co/**
+    - glob: 100.74.189.43:5000/**
+    mode: warn
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: ConfigMapUpdated
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: KeysInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: PoliciesInlined
+    - lastTransitionTime: "2026-05-13T17:46:14Z"
+      status: "True"
+      type: Ready
+    observedGeneration: 2
+kind: List
+metadata:
+  resourceVersion: ""

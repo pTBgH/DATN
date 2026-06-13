@@ -1,0 +1,136 @@
+% !TEX encoding = UTF-8
+\chapter{Hướng dẫn vận hành và Cơ chế hoạt động của các dịch vụ}
+\label{ch:appendix}
+
+Phụ lục này mô tả chi tiết cơ chế hoạt động của từng dịch vụ nghiệp vụ và bảo mật trong hệ thống Job7189, đồng thời cung cấp hướng dẫn vận hành thực tế cho quản trị viên hệ thống.
+
+\section{Cơ chế hoạt động của các dịch vụ}
+
+Hệ thống được tổ chức thành các phân vùng mạng độc lập ở cấp độ không gian tên (namespace) để thực thi ranh giới bảo mật nghiêm ngặt. Dưới đây là cơ chế hoạt động và vai trò của từng thành phần trong kiến trúc Zero Trust.
+
+\subsection{Cổng giao tiếp Kong (Kong Gateway)}
+Cổng giao tiếp Kong đóng vai trò là điểm kiểm soát duy nhất cho toàn bộ luồng dữ liệu đi vào hệ thống từ bên ngoài (luồng Bắc-Nam).
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Cổng giao tiếp chạy ở chế độ không lưu trữ trạng thái cơ sở dữ liệu (declarative/DB-less mode) thông qua tệp cấu hình \texttt{kong.yml}. Khi có yêu cầu gửi tới từ phía người dùng, cổng giao tiếp sẽ chặn lại và kiểm tra mã thông báo bảo mật JWT được đính kèm ở tiêu đề \texttt{Authorization}.
+    \item \textbf{Thực thi bảo mật}: Nếu mã thông báo hợp lệ, cổng giao tiếp sẽ giải mã thông tin và chuyển tiếp yêu cầu tới dịch vụ đích tương ứng trong không gian tên \texttt{job7189-apps} thông qua cổng mạng nội bộ thích hợp.
+\end{itemize}
+
+\subsection{Dịch vụ xác thực Keycloak}
+Keycloak là trung tâm định danh người dùng cuối, quản lý hai nhóm tài khoản độc lập: nhà tuyển dụng và ứng viên.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Keycloak được tích hợp với nhà cung cấp nhận dạng của Google để hỗ trợ cơ chế đăng nhập một lần (SSO). Keycloak thực hiện xác thực và ký số mã thông báo truy cập JWT bằng khóa riêng tư của mình.
+    \item \textbf{Tích hợp hệ thống}: Các khóa công khai để xác thực chữ ký số được công bố công khai tại đường dẫn chứng chỉ (JWKS endpoint). Các vi dịch vụ trong hệ thống sẽ tải định kỳ hoặc lưu trữ tạm khóa công khai này để xác thực mã thông báo cục bộ mà không cần truy vấn ngược lại Keycloak trong mỗi yêu cầu.
+\end{itemize}
+
+\subsection{Hệ thống định danh vi dịch vụ SPIRE/SPIFFE}
+SPIRE cung cấp cơ chế định danh tự động và bảo mật cao cho từng tiến trình chạy trong container (workload).
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Máy chủ SPIRE (SPIRE Server) định kỳ đồng bộ cấu hình đăng ký thực thể từ cụm điều khiển. Khi một vi dịch vụ được khởi chạy, tác nhân SPIRE (SPIRE Agent) trên cùng máy ảo vật lý sẽ thu thập các đặc điểm nhận dạng của Pod (như không gian tên, tài khoản dịch vụ Kubernetes, ID của Pod) từ API của hệ thống để thực hiện quy trình chứng thực.
+    \item \textbf{Cấp phát chứng thư}: Sau khi xác thực danh tính thành công, tác nhân SPIRE sẽ sinh ra và ký số chứng thư định danh X.509 SVID, sau đó ghi trực tiếp vào socket dùng chung nằm trong phân khu bộ nhớ tạm (tmpfs) của Pod. Tiến trình ứng dụng sẽ đọc chứng thư này để thiết lập kết nối an toàn mTLS.
+\end{itemize}
+
+\subsection{Hệ thống quản lý khóa động Vault}
+Vault quản lý toàn bộ các thông tin mật tĩnh và cấp phát tài khoản truy cập cơ sở dữ liệu động có thời hạn ngắn.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Khi Pod ứng dụng khởi chạy, một container phụ trợ khởi tạo (Vault Agent Init) sẽ tự động dùng chứng thư định danh hoặc mã thông báo của Kubernetes để xác thực với Vault thông qua giao thức JWT/OIDC.
+    \item \textbf{Sinh tài khoản tức thời (JIT)}: Sau khi xác thực thành công, Vault Agent sẽ gửi yêu cầu tới công cụ cơ sở dữ liệu của Vault để sinh ra một tài khoản MySQL động mới có thời hạn sử dụng tối đa là 1 giờ. Tài khoản này sau đó được điền vào tệp môi trường cấu hình \texttt{.env} trong phân khu RAM ảo (tmpfs) để ứng dụng sử dụng. Khi hết thời hạn, Vault sẽ tự động thu hồi tài khoản này trên MySQL.
+\end{itemize}
+
+\subsection{Bộ điều khiển quyết định chính sách PDP (Policy Decision Point)}
+Bộ điều khiển PDP đóng vai trò là bộ não thích ứng của kiến trúc Zero Trust, liên tục điều chỉnh chính sách an ninh dựa trên trạng thái thực tế của hệ thống.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Bộ điều khiển PDP liên tục truy vấn các báo cáo quét lỗ hổng ảnh container từ cụm dữ liệu an ninh để tính toán điểm tin cậy của từng Pod ứng dụng nghiệp vụ đang chạy.
+    \item \textbf{Phản hồi thích ứng}: Điểm tin cậy này sau đó được chuyển đổi thành các nhãn phân hạng mức độ tin cậy (\texttt{high}, \texttt{medium}, \texttt{low}) và được gắn động trực tiếp lên Pod thông qua API của Kubernetes. Nếu một Pod bị phát hiện có lỗ hổng bảo mật nghiêm trọng mới, điểm tin cậy sẽ bị hạ xuống mức \texttt{low}, kích hoạt chính sách mạng của Cilium để cô lập hoàn toàn Pod đó khỏi các tài nguyên nhạy cảm như Vault.
+\end{itemize}
+
+\subsection{Bộ quét lỗ hổng Trivy Operator}
+Trivy Operator chịu trách nhiệm giám sát liên tục mã nguồn đóng gói trong cụm.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động}: Được triển khai độc lập trong không gian tên \texttt{security-cdm} để tách biệt ranh giới đặc quyền bảo mật. Bộ quét sẽ tự động theo dõi các sự kiện tạo mới tài nguyên trong các không gian tên được chỉ định sẵn để kích hoạt các tiến trình quét ảnh độc lập.
+    \item \textbf{Cung cấp dữ liệu}: Kết quả quét được biểu diễn dưới dạng tài nguyên tùy biến \texttt{VulnerabilityReport} trong Kubernetes, làm nguồn dữ liệu đầu vào trực tiếp cho bộ điều khiển PDP đánh giá điểm tin cậy.
+\end{itemize}
+
+\subsection{Bộ lọc mạng Cilium và Giám sát runtime Tetragon}
+Hai cấu phần này triển khai các chốt thực thi chính sách ở tầng thấp (nhân hệ điều hành) sử dụng công nghệ eBPF.
+\begin{itemize}
+    \item \textbf{Cilium}: Thực thi chính sách từ chối mặc định (default-deny) trên cả hai chiều vào và ra của toàn bộ 7 không gian tên nghiệp vụ. Cilium cũng thực thi mã hóa mTLS ở tầng mạng L4 và kiểm soát các đường dẫn gọi ứng dụng L7 thông qua Envoy proxy được chạy ẩn trên mỗi nút máy chủ.
+    \item \textbf{Tetragon}: Giám sát trực tiếp các lệnh gọi hệ thống trong nhân hệ điều hành của máy ảo. Nếu phát hiện một tiến trình trong container thực hiện các hành vi bất thường (như ghi đè tệp tin nhạy cảm, thực thi lệnh Shell không được phép), Tetragon sẽ gửi cảnh báo an ninh hoặc gửi tín hiệu dừng tiến trình đó lập tức ở cấp độ phần cứng.
+\end{itemize}
+
+\subsection{Các dịch vụ nghiệp vụ (Business Microservices)}
+Hệ thống nghiệp vụ bao gồm 7 dịch vụ được viết bằng khung phát triển Laravel, thực thi các tính năng phục vụ ứng viên và nhà tuyển dụng.
+\begin{itemize}
+    \item \textbf{Cấu trúc Pod}: Mỗi Pod ứng dụng nghiệp vụ được đóng gói chặt chẽ gồm 4 container chạy song song:
+        \begin{enumerate}
+            \item \texttt{app}: Chứa mã nguồn logic nghiệp vụ chạy qua máy chủ PHP-FPM.
+            \item \texttt{nginx}: Máy chủ web nhận yêu cầu từ cổng Gateway Kong chuyển tiếp vào PHP-FPM qua socket cục bộ.
+            \item \texttt{vault-agent}: Tiến trình liên tục chạy ngầm để thực hiện quy trình tự động xoay vòng tài khoản MySQL từ Vault.
+            \item \texttt{env-watcher}: Công cụ giám sát sự thay đổi của tệp cấu hình \texttt{.env} để tải lại cấu hình hệ thống khi tài khoản CSDL được xoay vòng mà không cần khởi động lại container chính.
+        \end{enumerate}
+    \item \textbf{Giao tiếp}: Các dịch vụ giao tiếp với nhau qua API HTTP (được kiểm soát bởi các chính sách L7 nghiêm ngặt của Cilium) và giao tiếp không đồng bộ thông qua các luồng thông điệp sự kiện của Kafka nằm trong phân vùng dữ liệu.
+\end{itemize}
+
+\section{Hướng dẫn vận hành hệ thống}
+
+Phần này hướng dẫn quản trị viên thực hiện các thao tác vận hành cơ bản để quản lý, kiểm tra và bảo trì hệ thống an ninh Zero Trust.
+
+\subsection{Khởi tạo và cấu hình hệ thống ban đầu}
+Khi khởi động hoặc triển khai mới hệ thống, quản trị viên cần thực hiện tuần tự các bước sau từ thư mục gốc của dự án:
+\begin{enumerate}
+    \item Thiết lập hạ tầng định danh và chứng chỉ:
+    \begin{lstlisting}[language=bash]
+# Khoi tao cum va cai dat phan mem co ban
+bash 01-setup-cluster.sh
+# Trien khai cac he thong nen tang nhu Vault, SPIRE, Keycloak
+bash 02-deploy-infrastructure.sh
+    \end{lstlisting}
+    \item Trien khai cac vi dich vu va kiem tra nhan nhan dang:
+    \begin{lstlisting}[language=bash]
+# Trien khai 7 microservices vao namespace job7189-apps
+bash 03-deploy-microservices.sh
+# Khoi tao co so du lieu ban dau
+bash 05-seed-databases.sh
+# Gan nhan ZTA bat buoc len cac Pod vua tao
+bash scripts/zta-apply-workload-labels.sh --apply
+    \end{lstlisting}
+    \item Kich hoat cac chinh sach bao mat nghiem ngat:
+    \begin{lstlisting}[language=bash]
+# Bat cac chinh sach chan mac dinh va cho phep co chon loc cua Cilium
+bash infras/k8s-yaml/cilium-policies/apply-zta-microsegmentation.sh
+# Trien khai Tetragon de kiem soat runtime
+bash 10-deploy-tetragon.sh
+    \end{lstlisting}
+\end{enumerate}
+
+\subsection{Xác minh trạng thái an ninh của hệ thống}
+Để kiểm tra xem hệ thống đã tuân thủ đúng kiến trúc Zero Trust hay chưa và phát hiện sớm các trôi dạt cấu hình, quản trị viên chạy các công cụ đối chiếu tự động sau:
+\begin{itemize}
+    \item \textbf{Đối chiếu cơ sở dữ liệu tri thức} (\texttt{zta-kb-reconcile.sh}):
+    \begin{lstlisting}[language=bash]
+bash scripts/zta-kb-reconcile.sh
+    \end{lstlisting}
+    Lệnh này sẽ tự động kiểm tra xem cấu hình thực tế trên cụm Kubernetes có khớp với tài liệu kiến trúc lưu trữ trong thư mục \texttt{knowledge-base/} hay không (như số lượng nút máy ảo, phiên bản phần mềm, nhãn dán, trạng thái mở khóa của Vault).
+    
+    \item \textbf{Kiểm tra lỗ hổng và chính sách mạng} (\texttt{zta-audit-and-remediate.sh}):
+    \begin{lstlisting}[language=bash]
+bash scripts/zta-audit-and-remediate.sh
+    \end{lstlisting}
+    Lệnh này rà soát xem còn tệp tin cấu hình nào sử dụng định dạng nhãn mạng cũ gây mất an toàn hoặc làm chậm hệ thống hay không, đồng thời kiểm tra tiến trình hoạt động của bộ quét Trivy và bộ não quyết định PDP.
+    
+    \item \textbf{Chạy bộ kiểm thử an ninh toàn diện}:
+    \begin{lstlisting}[language=bash]
+bash 09-verify-zta.sh
+    \end{lstlisting}
+    Đây là bộ kiểm thử quan trọng nhất để tạo ra bằng chứng khoa học cho hệ thống. Nó tự động thực hiện các kết nối kiểm tra mTLS, kiểm tra việc thu hồi quyền truy cập khi điểm tin cậy hạ xuống mức thấp, kiểm tra tính toàn vẹn của tệp cấu hình, và xuất các báo cáo chi tiết vào thư mục \texttt{evidence/}.
+\end{itemize}
+
+\subsection{Giám sát luồng thông tin mạng trực quan}
+Khi cần khắc phục sự cố kết nối hoặc phân tích luồng traffic East-West nội bộ, quản trị viên sử dụng giao diện đồ họa Hubble:
+\begin{enumerate}
+    \item Kích hoạt cổng chuyển tiếp kết nối từ máy trạm đến dịch vụ Hubble UI trong cụm:
+    \begin{lstlisting}[language=bash]
+kubectl port-forward -n kube-system svc/hubble-ui 12000:80
+    \end{lstlisting}
+    \item Mở trình duyệt web và truy cập địa chỉ \texttt{http://localhost:12000}.
+    \item Chọn không gian tên \texttt{job7189-apps} ở góc trên bên trái để quan sát sơ đồ kết nối thời gian thực giữa các vi dịch vụ nghiệp vụ. Các kết nối bị chặn bởi chính sách Cilium sẽ hiển thị màu đỏ (dropped), các luồng hợp lệ sẽ hiển thị màu xanh (forwarded), giúp dễ dàng định vị lỗi cấu hình chính sách.
+\end{enumerate}

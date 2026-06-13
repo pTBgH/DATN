@@ -141,7 +141,7 @@ spec:
   # learns IP→FQDN mappings for the toFQDNs rule below to work.
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -172,7 +172,7 @@ spec:
   # Prometheus scrape on port 9100
   - fromEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
         app: prometheus
     toPorts:
     - ports:

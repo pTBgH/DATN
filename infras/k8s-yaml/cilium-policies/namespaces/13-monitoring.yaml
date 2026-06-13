@@ -39,7 +39,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
         k8s:k8s-app: kube-dns
     toPorts:
     - ports:
@@ -61,40 +61,40 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:io.kubernetes.pod.namespace: kube-system
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
+        k8s:io.kubernetes.pod.namespace: data
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gateway
+        k8s:io.kubernetes.pod.namespace: gateway
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: spire
+        k8s:io.kubernetes.pod.namespace: spire
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: cert-manager
+        k8s:io.kubernetes.pod.namespace: cert-manager
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: gatekeeper-system
+        k8s:io.kubernetes.pod.namespace: gatekeeper-system
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: cosign-system
+        k8s:io.kubernetes.pod.namespace: cosign-system
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+        k8s:io.kubernetes.pod.namespace: job7189-apps
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: vault
+        k8s:io.kubernetes.pod.namespace: vault
   - toEntities:
     - host
     - remote-node
@@ -112,13 +112,13 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: grafana
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: oauth2-proxy
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
     toPorts:
     - ports:
       - port: "9090"
@@ -137,10 +137,10 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: kibana
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: grafana
   - fromEntities:
     - host
@@ -163,10 +163,10 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: oauth2-proxy
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
     toPorts:
     - ports:
       - port: "5601"
@@ -184,10 +184,10 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: security
+        k8s:io.kubernetes.pod.namespace: security
         app: oauth2-proxy
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: ingress-nginx
+        k8s:io.kubernetes.pod.namespace: ingress-nginx
     toPorts:
     - ports:
       - port: "3000"
@@ -206,7 +206,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: elasticsearch
     toPorts:
     - ports:
@@ -225,7 +225,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         io.cilium.k8s.policy.serviceaccount: prometheus
     toPorts:
     - ports:
@@ -233,7 +233,7 @@ spec:
         protocol: TCP
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: elasticsearch
     toPorts:
     - ports:
@@ -253,7 +253,7 @@ spec:
   egress:
   - toEndpoints:
     - matchLabels:
-        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+        k8s:io.kubernetes.pod.namespace: monitoring
         app: elasticsearch
     toPorts:
     - ports:

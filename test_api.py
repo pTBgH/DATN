@@ -35,7 +35,7 @@ def api_get(path, token=None):
         
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=5) as res:
+        with urllib.request.urlopen(req, timeout=15) as res:
             return res.status, json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:

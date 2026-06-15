@@ -4,13 +4,18 @@
 %======================================================================
 \documentclass[12pt, a4paper, oneside]{report}
 
+% Cấu hình cmap để PDF xuất ra mịn mượt và tìm kiếm được tiếng Việt
+\usepackage{cmap}
+
 % Hỗ trợ gõ tiếng Việt và hiển thị đúng
 \usepackage[utf8]{vietnam}
 \usepackage[T5]{fontenc}
 \usepackage{textcomp}
 
-% Thiết lập font chữ Times New Roman hoặc tương đương
-\usepackage{mathptmx} 
+% Thiết lập font chữ Times New Roman sử dụng bộ font newtx (mượt hơn mathptmx)
+\usepackage{newtxtext}
+\usepackage{newtxmath}
+\usepackage{microtype} % Tối ưu hóa khoảng cách và căn lề chữ mượt mà hơn 
 
 %======================================================================
 % 2. CANH LỀ VÀ LAYOUT TRANG
@@ -86,7 +91,8 @@
     framesep=2mm,     
     baselinestretch=1.2,
     fontsize=\small,  
-    linenos           
+    linenos,
+    breaklines        % Tự động xuống dòng khi các đoạn code quá dài
 }
 
 % Định dạng lại tiêu đề chương, mục

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-checker-srv02
+  namespace: default
+spec:
+  nodeName: 7189srv02
+  containers:
+  - name: checker
+    image: alpine
+    command: ["/bin/sh", "-c", "echo '=== DMESG ===' && dmesg | tail -n 100 && echo '=== DMESG OOM ===' && dmesg | grep -i -E 'oom|kill'"]
+    securityContext:
+      privileged: true
+  restartPolicy: Never

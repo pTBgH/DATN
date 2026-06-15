@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: disk-checker-srv05
+  namespace: default
+spec:
+  nodeName: 7189srv05
+  tolerations:
+  - key: "node.kubernetes.io/disk-pressure"
+    operator: "Exists"
+    effect: "NoSchedule"
+  containers:
+  - name: checker
+    image: alpine
+    command: ["/bin/sh", "-c", "echo '=== DF ===' && df -h && echo '=== DU HOST ===' && du -hxd 1 /host 2>/dev/null && echo '=== DU VAR ===' && du -hxd 2 /host/var 2>/dev/null"]
+    volumeMounts:
+    - name: host-root
+      mountPath: /host
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+  restartPolicy: Never

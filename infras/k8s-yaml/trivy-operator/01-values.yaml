@@ -30,7 +30,7 @@ trivy:
       memory: 100Mi
     limits:
       cpu: 500m
-      memory: 800Mi              # Trivy DB load spike
+      memory: 1.5Gi              # Trivy DB load spike and large image scanning
 
 # Scan only ZTA-relevant namespaces at the root level.
 targetNamespaces: "job7189-apps,vault,security,gateway,data,management"

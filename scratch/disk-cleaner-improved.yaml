@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: disk-cleaner-srv05
+  namespace: kube-system
+spec:
+  nodeName: 7189srv05
+  priorityClassName: system-node-critical
+  tolerations:
+  - key: "node.kubernetes.io/disk-pressure"
+    operator: "Exists"
+    effect: "NoSchedule"
+  containers:
+  - name: cleaner
+    image: alpine
+    securityContext:
+      privileged: true
+    command:
+    - /bin/sh
+    - -c
+    - |
+      echo "=== BEFORE CLEANUP ==="
+      df -h /host
+      
+      echo "=== CLEANING SYSTEMD JOURNAL LOGS ==="
+      chroot /host journalctl --vacuum-size=50M || true
+      
+      echo "=== REMOVING CONTAINERD BACKUP ==="
+      rm -rf /host/var/lib/containerd.bak || true
+      
+      echo "=== CLEANING CONTAINERD IMAGES ==="
+      chroot /host crictl rmi --prune || true
+      
+      echo "=== CLEANING APT CACHE ==="
+      chroot /host apt-get clean || true
+      
+      echo "=== TRUNCATING LARGE LOG FILES ==="
+      find /host/var/log -type f -name "*.log" -size +50000000c -exec truncate -s 0 {} \; || true
+      find /host/var/log -type f -name "*.gz" -delete || true
+      find /host/var/log -type f -name "*.1" -delete || true
+      
+      echo "=== AFTER CLEANUP ==="
+      df -h /host
+    volumeMounts:
+    - name: host-root
+      mountPath: /host
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+  restartPolicy: Never

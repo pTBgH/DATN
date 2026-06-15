@@ -40,7 +40,11 @@ Moi service chay **4 containers** trong 1 Pod:
 | Data | `data` | MySQL 8.0, Kafka |
 | Management | `management` | phpMyAdmin (Kafbat removed — Kafka UI never used) |
 | Platform | `vault`, `monitoring` | Vault (Dual-Vault), EFK, Prometheus, Grafana |
-| CDM | `security-cdm` | Trivy Operator (image scan) + Threat-Intel CronJob (tách khỏi `security` sau consolidation; `trivy-system` cũ đã bỏ) |
+| CDM | `security-cdm` | Trivy Operator (image scan) + Threat-Intel CronJob (tách khỏi `security` sau consolidation; namespace trivy-system cũ đã bỏ) |
+| Identity | `spire` | SPIRE server + agent — phát hành SPIFFE SVID (nền tảng workload identity) |
+| Supply-chain | `cosign-system` | Sigstore policy-controller — verify chữ ký image ở admission |
+| Policy | `gatekeeper-system` | OPA Gatekeeper controller + audit — admission policy/constraints |
+| Registry | `registry` | Docker Registry (chưa deploy trên cluster hiện tại) |
 
 ## Luong giao dich chinh
 

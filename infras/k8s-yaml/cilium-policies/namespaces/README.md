@@ -20,7 +20,7 @@ Ref: `knowledge-base/18-daas-classification.md`.
 | `21-spire.yaml` | `spire` | T1 | spire-server, spire-agent, controller-manager — **draft (Phase 2C)** |
 | `22-local-path-storage.yaml` | `local-path-storage` | T3 | local-path-provisioner — **draft (Phase 2C)** |
 | `23-kube-system.yaml` | `kube-system` | T0 | CoreDNS allow-only (NO ns-wide default-deny) — **draft (Phase 2C)** |
-| `24-trivy-system.yaml` | `trivy-system` | T2 | trivy-operator + scan jobs — **draft (Phase 2C)** |
+| `24-security-cdm.yaml` | `security-cdm` | T1 | trivy-operator + scan jobs + threat-intel CronJob (CDM tier sau consolidation) — **draft (Phase 2C)** |
 
 Mỗi file gồm:
 
@@ -48,7 +48,7 @@ bash apply-zta-namespace-policies.sh --all --apply
 
 ```
  1. local-path-storage  (T3, provisioner — new PVC pending nếu sai, không ảnh hưởng app live)
- 2. trivy-system        (T2, scan job có thể fail, không ảnh hưởng app live)
+ 2. security-cdm        (T1, trivy scan job có thể fail, không ảnh hưởng app live)
  3. registry            (T3, ít người động vào)
  4. management          (T3, admin UI — có thể mất truy cập, nhưng không sập app user)
  5. spire               (T1, SVID issuance — nếu sai mTLS handshake fail toàn mesh)

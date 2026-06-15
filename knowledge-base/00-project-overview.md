@@ -40,6 +40,7 @@ Moi service chay **4 containers** trong 1 Pod:
 | Data | `data` | MySQL 8.0, Kafka |
 | Management | `management` | phpMyAdmin (Kafbat removed — Kafka UI never used) |
 | Platform | `vault`, `monitoring` | Vault (Dual-Vault), EFK, Prometheus, Grafana |
+| CDM | `security-cdm` | Trivy Operator (image scan) + Threat-Intel CronJob (tách khỏi `security` sau consolidation; `trivy-system` cũ đã bỏ) |
 
 ## Luong giao dich chinh
 

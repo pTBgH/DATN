@@ -1,0 +1,162 @@
+# =============================================================================
+# Namespace: security-cdm  (Tier 1 — CDM: Continuous Diagnostics & Mitigation)
+# DAAS:
+#   Service: trivy-operator (image vulnerability scanning, cluster-wide),
+#            threat-intel CronJob (FireHOL/URLhaus blocklist fetch, 1h cadence)
+# Step: 2.3.2 — Microperimeter + default-deny
+#
+# Lý do tách khỏi `security`: CDM kéo vuln-DB (~80 MiB) + fetch external feeds,
+# profile egress khác hẳn IAM/webhook trong `security` (xem
+# knowledge-base/zta-gap-decision.md, Quyết định 1 + 3).
+#
+# Nguồn policy: backup CNP trước consolidation (thư mục
+#   backups/pre-namespace-consolidation/) — namespace cũ đã gộp vào security-cdm.
+#   Selector trivy-operator giữ nguyên (`app.kubernetes.io/name`,
+#   `app.kubernetes.io/managed-by`).
+#
+# DRAFT — verify bằng Hubble flow trước khi enforce default-deny.
+# =============================================================================
+
+# 1) Default-deny (umbrella marker — chỉ cho phép qua các CNP allow bên dưới)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-security-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+---
+# 2) DNS egress (toàn ns)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress-security-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+# 3) Prometheus scrape trivy-operator metrics (TCP:8080)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape-security-cdm
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        io.cilium.k8s.policy.serviceaccount: prometheus
+        k8s:io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+---
+# 4) trivy-operator → kube-apiserver (list/watch CR, VulnerabilityReport CRUD)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-operator-egress-apiserver
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+---
+# 5) trivy scan-job egress: pull vuln-DB (ghcr.io) + image blobs từ registry.
+#    Selector theo managed-by=trivy-operator (scan job Pod do operator tạo).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-trivy-scan-egress
+  namespace: security-cdm
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: trivy-operator
+  egress:
+  - toEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toCIDR:
+    - 10.96.0.0/12
+    - 172.18.0.0/16
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "6443"
+        protocol: TCP
+  - toFQDNs:
+    - matchPattern: '*.ghcr.io'
+    - matchPattern: ghcr.io
+    - matchPattern: '*.githubusercontent.com'
+    - matchPattern: '*.fastly.net'
+    - matchPattern: '*.fastlylb.net'
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  - toCIDR:
+    - 100.74.189.43/32
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app: docker-registry
+        k8s:io.kubernetes.pod.namespace: registry
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP

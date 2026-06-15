@@ -53,6 +53,8 @@ Repo dùng **prefix riêng `zta.job7189/`** cho tất cả label do PR #9 thêm 
 | `node-exporter` | monitoring | scraper | T2 | prod | none | cluster-only | platform |
 | `minio` ⚠️ | data | db | T2 | prod | internal | cluster-only | data |
 | `docker-registry` ⚠️ | registry | db | T3 | prod | none | cluster-only | platform |
+| `trivy-operator` | security-cdm | scraper | T1 | prod | internal | cluster-only | security |
+| `threat-intel` (CronJob) | security-cdm | scraper | T1 | prod | internal | external | security |
 
 > ⚠️ **Chưa deploy trên cluster (2026-06-03):** `minio` (ns `data`/`job7189-infra`) và
 > `docker-registry` (ns `registry`) hiện KHÔNG tồn tại trên cluster — label schema dưới

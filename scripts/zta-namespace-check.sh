@@ -72,7 +72,7 @@ done
 
 # Namespace built-in của Kubernetes / add-on hạ tầng — KHÔNG bắt buộc tài liệu
 # hóa trong bảng Namespace Tiers (chúng không phải workload ZTA).
-BUILTIN_NS="kube-system kube-public kube-node-lease default local-path-storage"
+BUILTIN_NS="kube-system kube-public kube-node-lease default local-path-storage cilium-secrets"
 
 # Namespace ĐÃ BỎ sau consolidation — KHÔNG được xuất hiện trong code sống
 # (ngoại trừ script rollback + backups, vốn cố ý giữ để khôi phục).

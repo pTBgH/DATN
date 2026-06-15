@@ -8,7 +8,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-oauth2-db
-  namespace: security
+  namespace: management
   annotations:
     nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
@@ -58,7 +58,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-oauth2-grafana
-  namespace: security
+  namespace: monitoring
   annotations:
     nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
@@ -83,7 +83,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-oauth2-prometheus
-  namespace: security
+  namespace: monitoring
   annotations:
     nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
@@ -108,7 +108,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-oauth2-kibana
-  namespace: security
+  namespace: monitoring
   annotations:
     nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
@@ -133,7 +133,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-oauth2-hubble
-  namespace: security
+  namespace: kube-system
   annotations:
     nginx.ingress.kubernetes.io/proxy-pass-headers: "Set-Cookie"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"

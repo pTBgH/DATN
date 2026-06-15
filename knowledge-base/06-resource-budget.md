@@ -75,7 +75,7 @@
 | Cosign policy-controller | 1 | 64Mi | 128Mi | \u2705 deployed |
 | PDP Controller | 1 | 128Mi | 256Mi | \u2705 deployed (PDP_CVE_INPUT=false) |
 | Threat-intel CronJob | (peak 1 pod) | 64Mi peak | 128Mi peak | \u2705 deployed (1h cadence) |
-| ~~Trivy Operator~~ | ~~1~~ | ~~150Mi~~ | ~~300Mi~~ | \u274c **DEFERRED 2026-05-27** (RAM) |
+| Trivy Operator | 1 | 150Mi | 300Mi | ✅ deployed (ns `security-cdm`; mem limit đã nâng để scan toàn cụm) |
 | ~~Trivy node-collector~~ | ~~4 (DS)~~ | ~~50Mi\u00d74=200Mi~~ | ~~100Mi\u00d74=400Mi~~ | \u274c DEFERRED |
 | ~~Hubble \u2192 ES sink filebeat~~ | ~~4 (DS)~~ | ~~96Mi\u00d74=384Mi~~ | ~~192Mi\u00d74=768Mi~~ | \u26a0\ufe0f design-only, KHONG deploy |
 | **Subtotal (deployed)** | | **~928Mi** | **~2.0Gi** | |

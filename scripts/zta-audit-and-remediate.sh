@@ -5,7 +5,7 @@
 # Audits and (optionally) remediates the high-priority items from
 # knowledge-base/47-next-tasks.md:
 #   1. Legacy namespace label selectors in live CiliumNetworkPolicies
-#   2. PDP Controller deployment status (pdp-system)
+#   2. PDP Controller deployment status (ns security sau consolidation)
 #   3. Trivy Operator namespace placement + stuck scan pods
 #   5. oauth2-proxy policy legacy labels (12-security.yaml)
 #   6. Namespaces missing CNP coverage
@@ -111,7 +111,7 @@ fi
 # TASK 2: PDP Controller deployment
 #------------------------------------------------------------------------------
 log "=== TASK 2: PDP Controller ==="
-# PDP may run in pdp-system (per plan) or security (current zta-pdp deployment)
+# PDP chạy trong ns security (zta-pdp) sau consolidation (namespace cũ đã bỏ).
 PDP_NS=""
 CNT=$(kubectl get pods -n security $KUBECTL_TIMEOUT --no-headers 2>/dev/null | grep -E "pdp" | grep -c Running || true)
 if [[ "$CNT" -gt 0 ]]; then PDP_NS="security"; PDP_PODS="$CNT"; fi

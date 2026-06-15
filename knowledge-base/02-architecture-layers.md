@@ -39,9 +39,9 @@ Lop 5: Quan sat & Phan tich hanh vi (Observability)
 - Xem chi tiet: `knowledge-base/15-encryption-mtls-spiffe.md`
 
 ### Lop 2: Danh gia tu the
-- **Workload Posture**: Trivy scan (ly thuyet, chua tu dong hoa)
+- **Workload Posture**: Trivy Operator scan tu dong (deployed ns `security-cdm`)
 - **Device Posture**: ❌ Chua co MDM/EDR (thesis ghi ro "Initial")
-- **Threat Intel**: ❌ Chua tich hop external feeds
+- **Threat Intel**: ✅ Threat-intel CronJob (FireHOL/URLhaus) deployed ns `security-cdm`, 1h cadence
 - Trang thai: **Initial** theo CISA ZTMM
 
 ### Lop 3: Thuc thi chinh sach

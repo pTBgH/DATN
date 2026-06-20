@@ -80,11 +80,18 @@ Script sẽ:
 3. Tạo CNP `allow-pdp-controller-egress` (apiserver + DNS + PyPI cho pip).
 4. Wait `kubectl rollout status` 180s.
 
-> ⚠️ **`PDP_CVE_INPUT` — KB ↔ cluster cần đồng bộ (2026-06-03):** quyết định rollout (snapshot 40)
-> là **`PDP_CVE_INPUT=false`** (CVE-gating PENDING). Tuy nhiên trên cluster Deployment `zta-pdp`
-> **chưa set env này** → code mặc định `os.environ.get("PDP_CVE_INPUT","true")` = **`true`** (CVE-gating BẬT).
-> Đây là drift thực: muốn khớp ý định "pending", cần set tường minh `PDP_CVE_INPUT=false` trên Deployment
-> (`kubectl -n security set env deploy/zta-pdp PDP_CVE_INPUT=false`). Reconcile sẽ báo WARN tới khi đồng bộ.
+> ✅ **Trạng thái vòng adaptive (xác nhận cluster 2026-06-20):**
+> - `PDP_CVE_INPUT` **vẫn không set tường minh** trên Deployment `zta-pdp` → code mặc định
+>   `os.environ.get("PDP_CVE_INPUT","true")` = **`true`** ⇒ **CVE-gating đang BẬT**.
+> - CNP **`cnp-block-low-trust-to-vault` ĐÃ được apply và đang enforcing** trong namespace
+>   `vault` (xác nhận `kubectl get cnp -A | grep block-low-trust-to-vault`).
+> ⇒ Các mảnh để **đóng vòng adaptive đã đủ** (PDP chấm điểm → gán `score-bucket` →
+> CNP chặn pod `low/medium` truy cập Vault). Hiện tại tất cả pod nghiệp vụ đang `high`
+> nên chưa có pod nào bị chặn thực tế — muốn minh chứng end-to-end cần tạo lại một pod
+> điểm thấp (vd image có CVE Critical) rồi quan sát bị CNP chặn egress tới Vault.
+>
+> _(Lịch sử: snapshot 2026-06-03 từng ghi `PDP_CVE_INPUT=false` + CNP "chưa apply".
+> Cả hai đã thay đổi từ sau đó.)_
 
 ## Verify
 
@@ -166,6 +173,13 @@ PDP đã đọc `VulnerabilityReport` của Trivy Operator, phát hiện image
 Redis có CVE nặng, và hạ trust-score cho mọi pod dùng image đó. CNP/Gatekeeper
 phía sau có thể bắt vào nhãn `zta.job7189/score-bucket=low` để hạn chế
 egress hoặc reject re-schedule.
+
+> **Cập nhật 2026-06-20:** trên cluster hiện tại **tất cả** pod `job7189-apps`
+> (kể cả Redis) đang ở `score-bucket=high`, và chỉ còn **5 `VulnerabilityReport`**
+> (trước đây ~45). Tức input Trivy đã thay đổi (image Redis có thể đã được vá hoặc
+> số VR thu hẹp). Bảng "Redis = low" ở trên là minh chứng lịch sử của Phase 5.B.1;
+> để tái hiện kịch bản "low-trust bị CNP chặn Vault" cần chủ động đưa vào một image
+> có CVE Critical/High.
 
 ### Caveat — Cosign webhook chặn PATCH
 

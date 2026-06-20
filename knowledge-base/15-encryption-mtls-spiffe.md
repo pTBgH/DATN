@@ -18,11 +18,14 @@ He thong su dung 2 lop ma hoa chong cheo:
 └─────────────────────────────────────────┘
 ```
 
-> ⚠️ **Trang thai thuc te (cluster 2026-06-03, snapshot 40):** so do tren la THIET KE
-> muc tieu. Hien tai tren cluster: Cilium **mesh-auth = false** va Cilium **WireGuard = false**.
-> Lop ma hoa L3 node-to-node thuc te do **Tailscale WireGuard** (mesh CGNAT 100.64.0.0/10)
-> dam nhan; SPIFFE SVID van duoc SPIRE cap phat (xem chuong 03) nhung peer-mTLS sidecarless
-> qua Cilium mesh-auth CHUA duoc kich hoat.
+> ✅ **Trang thai thuc te (cluster 2026-06-20):** Cilium **mesh-auth-enabled = true** —
+> peer-mTLS sidecarless qua Cilium mesh-auth DA duoc kich hoat (SPIFFE SVID do SPIRE cap
+> phat, xem chuong 03). Cilium **WireGuard = false**; lop ma hoa L3 node-to-node do
+> **Tailscale WireGuard** (mesh CGNAT 100.64.0.0/10) dam nhan.
+>
+> Lich su: snapshot 2026-06-03 tung ghi `mesh-auth-enabled=false` (so do tren khi do la
+> THIET KE muc tieu); cluster da bat mesh-auth tu sau do — xac nhan lai bang
+> `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.mesh-auth-enabled}'`.
 
 ## mTLS Sidecarless (Cilium Mesh Auth)
 
@@ -44,19 +47,18 @@ He thong su dung 2 lop ma hoa chong cheo:
 | communication-service | `spiffe://job7189.local/ns/job7189-apps/sa/communication-service` |
 | storage-service | `spiffe://job7189.local/ns/job7189-apps/sa/storage-service` |
 
-### Config tren cluster (xac nhan 2026-06-03, snapshot 40)
+### Config tren cluster (xac nhan 2026-06-20)
 ```
 cilium-config:
-  mesh-auth-enabled: "false"   # HIEN DANG TAT tren cluster
+  mesh-auth-enabled: "true"    # XAC NHAN BAT tren cluster
   mesh-auth-gc-interval: "5m0s"
   mesh-auth-queue-size: "1024"
   mesh-auth-rotated-identities-queue-size: "1024"
 ```
-> Script 08 co buoc bat `mesh-auth-enabled=true`, nhung gia tri thuc te tren
-> `cilium-config` dang la `false`. Kien truc o tren la THIET KE muc tieu; phan
-> peer-mTLS sidecarless CHUA active. SPIFFE SVID van duoc SPIRE cap (xem chuong 03).
+> Script 08 bat `mesh-auth-enabled=true` va gia tri thuc te tren `cilium-config`
+> hien la `true` — peer-mTLS sidecarless DA active. SPIFFE SVID do SPIRE cap (xem chuong 03).
 
-### Trang thai: ❌ CHUA KICH HOAT (cluster: `mesh-auth-enabled=false`)
+### Trang thai: ✅ DA KICH HOAT (cluster: `mesh-auth-enabled=true`)
 
 ---
 
@@ -94,7 +96,7 @@ Thesis de xuat **Dual-Identity** — xac thuc kep:
 |-----|-----------|-----------|------------|
 | User Identity | Keycloak OIDC → JWT | Xac thuc nguoi dung | ✅ |
 | Workload Identity | SPIFFE SVID (SPIRE) | Xac thuc service | ✅ (SPIRE cap SVID) |
-| Peer verification | mTLS handshake (Cilium mesh-auth) | Dam bao 2 ben deu co cert hop le | ❌ CHUA bat (mesh-auth=false) |
+| Peer verification | mTLS handshake (Cilium mesh-auth) | Dam bao 2 ben deu co cert hop le | ✅ DA bat (mesh-auth=true) |
 
 ### Luong xac thuc kep
 

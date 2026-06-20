@@ -40,9 +40,21 @@ nhưng cluster 2026-06-20 xác nhận đã hoạt động:
 - **Lý do chấp nhận (PoC):** 5 image upstream (Hashicorp/Alpine/Busybox…) chưa ký được
   bằng `static` authority; bật ENFORCE sẽ chặn nhầm workload hợp lệ.
 - **Hướng xử lý:** ký lại các image upstream → chuyển `mode=enforce`.
-- **Cần xác nhận thêm:** script không đọc được Gatekeeper `constrainttemplate`
-  (output rỗng). Cần kiểm: `kubectl get constrainttemplate; kubectl api-resources | grep -i constraint`
-  để biết Gatekeeper còn dùng hay đã thay hoàn toàn bằng Sigstore policy-controller.
+- **Hai tầng admission tách biệt (xác nhận 2026-06-20):**
+  1. **Sigstore policy-controller** (kiểm *chữ ký* Cosign): 3 ClusterImagePolicy `mode=warn`.
+  2. **Gatekeeper / OPA** (kiểm *chính sách* khác): **ĐÃ deploy**, 6 ConstraintTemplate +
+     constraint — 3 về image (`k8sblocklatesttag`, `k8simagedigestrequired`,
+     `k8ssignedimageannotation`) + 3 về pod-security ZTA (`ztablockhostmounts`,
+     `ztarequiredlabels`, `ztarestrictprivileged`).
+- **Còn cần chốt:** `enforcementAction` của từng constraint (audit/warn = không chặn,
+  `deny`/trống = chặn thật). Kiểm bằng:
+  ```
+  for k in k8sblocklatesttag k8simagedigestrequired k8ssignedimageannotation \
+           ztablockhostmounts ztarequiredlabels ztarestrictprivileged; do
+    echo "== $k =="
+    kubectl get $k -o jsonpath='{range .items[*]}{.metadata.name}{" enforcementAction="}{.spec.enforcementAction}{"\n"}{end}'
+  done
+  ```
 
 ### B2. Vòng adaptive PDP chưa có minh chứng end-to-end "đang chạy thật"
 - **Thực tế:** đủ mảnh để đóng vòng (PDP chấm điểm → gán `score-bucket` → CNP chặn
@@ -62,8 +74,23 @@ nhưng cluster 2026-06-20 xác nhận đã hoạt động:
   động** (Continuous Access Evaluation). Đây là cấu hình Keycloak backchannel, không
   phải đối tượng Kubernetes nên script `zta-conflict-check` không đo được.
 - **Hệ quả:** khoảng trống rõ nhất giữa lý thuyết (giới thiệu ở §1.3.1) và thực nghiệm.
-- **Cần làm để chốt:** kiểm Keycloak realm (backchannel logout / token revocation endpoint).
-- **Hướng xử lý:** cấu hình Keycloak backchannel logout → Kong/OPA invalidate token đang sống.
+- **CAEP là gì:** Continuous Access Evaluation Protocol (OpenID Shared Signals Framework).
+  Thay vì tin JWT tới khi hết TTL, IdP (Keycloak) phát *security event* (session-revoked,
+  credential-change, token-revoked) tới relying party (Kong/OPA) để **cắt quyền giữa
+  phiên** gần thời gian thực. Hệ thống hiện chỉ có JWT TTL ngắn + Kong validate chữ
+  ký/expiry cục bộ → token bị lộ vẫn dùng được tới khi hết hạn.
+- **Cách kiểm (chứng minh GAP — không phải đối tượng K8s):**
+  1. Login → lấy JWT (còn hạn).
+  2. Keycloak admin: logout session hoặc disable user đó.
+  3. Gọi ngay API bảo vệ bằng JWT cũ (vẫn còn hạn).
+  4. Nếu request **vẫn đi qua** tới khi token hết hạn ⇒ CAEP/thu hồi CHƯA có (đúng là gap).
+     Nếu bị chặn ngay ⇒ đã có thu hồi.
+  - Kiểm cấu hình: Keycloak → Clients → (client của Kong) → field **Backchannel Logout URL**
+    (trống = không có); và Kong dùng plugin `jwt` (chỉ validate cục bộ, không thu hồi) hay
+    `oauth2-introspection` (gọi IdP mỗi request).
+- **Hướng xử lý:** bật Keycloak backchannel logout / token introspection endpoint
+  (`/protocol/openid-connect/token/introspect`) → Kong/OPA introspect mỗi request hoặc
+  subscribe Shared Signals stream để invalidate token đang sống.
 
 ### B5. Mã hóa East-West: Cilium WireGuard tắt (mTLS đã bù phần authn/encrypt L7)
 - **Thực tế:** Cilium `enable-wireguard=false`; lớp mã hóa L3 node-to-node do

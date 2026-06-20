@@ -22,11 +22,11 @@ Danh gia theo Mo hinh Truong thanh Zero Trust cua CISA (ZTMM v2.0).
 
 | Tieu chi | Trien khai | |
 |----------|-----------|---|
-| Kiem ke thiet bi | Container image scan (Trivy — ly thuyet) | ⚠️ |
-| Danh gia suc khoe | Kube-bench (ke hoach) | ❌ |
-| MDM/EDR | Khong co | ❌ |
+| Kiem ke thiet bi | Trivy Operator quet image (VulnerabilityReport CRD) | ✅ |
+| Danh gia suc khoe | Kube-bench (ke hoach, chua deploy) | ❌ |
+| MDM/EDR (client device) | Khong co — ngoai pham vi (chi quan workload, khong quan client) | ❌ |
 
-**De dat Advanced**: Can Trivy tu dong + kube-bench. Can MDM cho end-user devices.
+**De dat Advanced**: Can kube-bench (CIS) cho node health. MDM/EDR cho end-user device la ngoai pham vi de an (xem `52-limitations-and-known-gaps.md`).
 
 ### 3. Networks — **Advanced+**
 
@@ -34,23 +34,24 @@ Danh gia theo Mo hinh Truong thanh Zero Trust cua CISA (ZTMM v2.0).
 |----------|-----------|---|
 | Microsegmentation | Cilium eBPF L3/L4/L7, 6 policies, Default Deny | ✅ |
 | mTLS sidecarless | Cilium mesh-auth (SPIFFE SVID) | ✅ DA BAT |
-| WireGuard encryption | Transparent node-to-node (ChaCha20) | ✅ DA BAT |
+| Ma hoa L3 node-to-node | Tailscale WireGuard (mesh CGNAT 100.64.0.0/10) | ✅ DA BAT (Cilium WireGuard TAT, Tailscale dam nhan L3) |
 | Egress filtering | Cilium egress policy | ✅ |
 | Network flow visibility | Hubble UI/CLI + Hubble Relay | ✅ |
 | PIP Network tools | Hubble Relay (port 4245), Prometheus (port 9090) | ✅ |
 
 **De dat Optimal**: Can AI/ML-driven policy adaptation.
 
-### 4. Applications & Workloads — **Advanced (mot phan)**
+### 4. Applications & Workloads — **Advanced**
 
 | Tieu chi | Trien khai | |
 |----------|-----------|---|
 | API Gateway JWT | Kong RS256 per-route | ✅ |
 | CI/CD bao mat | Build pipeline tu dong, ko hardcode secret | ✅ |
-| Runtime enforcement | Tetragon (du kien, chua deploy) | ❌ |
-| Image scanning | Trivy (ly thuyet) | ⚠️ |
+| Runtime enforcement | Tetragon v1.7.0 (DaemonSet 3/3): `block-suspicious-exec` Sigkill enforce o 4 ns + Post audit | ✅ |
+| Image admission | Sigstore Cosign (3 ClusterImagePolicy, **mode=warn**) | ⚠️ WARN (chua ENFORCE) |
+| Image scanning | Trivy Operator (VulnerabilityReport CRD) | ✅ |
 
-**De dat Optimal**: Deploy Tetragon + tu dong scan images trong CI.
+**De dat Optimal**: Chuyen Cosign tu WARN sang ENFORCE + tu dong scan images trong CI.
 
 ### 5. Data — **Advanced**
 
@@ -93,13 +94,13 @@ Danh gia theo Mo hinh Truong thanh Zero Trust cua CISA (ZTMM v2.0).
 
 | Tru cot | Cap do hien tai | Gap chinh |
 |---------|-----------------|-----------|
-| Identity | Advanced | CAEP/ITDR |
-| Devices | Initial | MDM/EDR, Trivy CI |
+| Identity | Advanced | CAEP/ITDR (thu hoi phien) |
+| Devices | Initial | kube-bench; MDM/EDR ngoai pham vi |
 | Networks | **Advanced+** | AI/ML policy |
-| Apps & Workloads | Advanced (1 phan) | Tetragon runtime |
+| Apps & Workloads | **Advanced** | Cosign WARN→ENFORCE; image scan trong CI |
 | Data | Advanced | Data classification |
 
-**Tong the**: He thong dat **Advanced** (Networks dat Advanced+). Can CAEP + Tetragon de tien gan Optimal.
+**Tong the**: He thong dat **Advanced** (Networks dat Advanced+). Tetragon runtime da deploy va enforce (Sigkill); gap con lai chu yeu la CAEP (Identity) + Cosign ENFORCE (Apps). Xem `52-limitations-and-known-gaps.md`.
 
 ## Xem them
 

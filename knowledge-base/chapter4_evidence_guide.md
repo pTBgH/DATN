@@ -1,5 +1,14 @@
 # Hướng dẫn lắp bằng chứng vào Chương 4
 
+> ⚠️ **CẬP NHẬT 2026-06-20 — đọc trước:** tài liệu này được viết theo **snapshot
+> 27/05**. Một số trạng thái đã thay đổi trên cluster kể từ đó (đối chiếu log
+> `zta-conflict-check` 2026-06-20): **mTLS `mesh-auth-enabled=true`** (đã bật),
+> **Tetragon đã enforce `Sigkill`** (4 ns) thay vì chỉ Post audit, **threat-intel
+> feed đã sync** (~2000 CIDR), **CNP `cnp-block-low-trust-to-vault` đã apply &
+> enforcing** + `PDP_CVE_INPUT` default `true`. Các câu "snapshot 27/05" bên dưới
+> giữ nguyên làm minh chứng lịch sử; trạng thái mới nhất xem §4.6 và
+> `knowledge-base/52-limitations-and-known-gaps.md`.
+
 Tài liệu này KHÔNG phải là một phần của bản LaTeX cuối. Mục đích duy nhất:
 nói rõ **bằng chứng nào** lấy ở **file nào, đoạn nào**, **trình bày ra sao**
 trong từng tiểu mục của Chương 4 — và **chụp ảnh gì** nếu muốn bổ trợ trực
@@ -11,8 +20,9 @@ Phạm vi:
 
 - 6 kịch bản đã có bằng chứng thật → viết đầy đủ (setup / tấn công / cơ chế
   chặn / bằng chứng).
-- 2 hạng mục chưa có bằng chứng end-to-end (OPA decision log, threat-intel
-  feed) → ghi vào §4.6 *Giới hạn & hướng phát triển*, KHÔNG dựng demo giả.
+- Hạng mục chưa có bằng chứng end-to-end khi viết (OPA decision log) → ghi vào
+  §4.6 *Giới hạn & hướng phát triển*, KHÔNG dựng demo giả. (Threat-intel feed
+  tại 27/05 còn rỗng nhưng **đã sync tại 2026-06-20** — xem §4.6.)
 
 Quy ước thư mục:
 
@@ -51,7 +61,7 @@ active. Phần này KHÔNG demo bất cứ thứ gì, chỉ là bảng + đoạn
 | ClusterImagePolicy (Cosign) | 3 — `zta-job7189-apps-signed`, `zta-keyless-trust-job7189`, `zta-system-passthrough` | `kubectl get clusterimagepolicy` |
 | ClusterSPIFFEID | 10 — 3 tier (`zta-default-workload-identity`, `zta-tier1-extended-ttl`, `zta-tier3-short-ttl`) + 7 spike/oidc | `kubectl get clusterspiffeid` |
 | Pod nghiệp vụ | 7 service (4/4 container/pod) + 7 Redis (1/1) chạy ổn định | `kubectl -n job7189-apps get pod` |
-| Cilium ServiceMesh mTLS | **TẮT** (`mesh-auth-enabled=false`) — Tailscale lo L3 encryption | `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.mesh-auth-enabled}'` |
+| Cilium ServiceMesh mTLS | _27/05:_ TẮT (`mesh-auth-enabled=false`). **2026-06-20: BẬT (`mesh-auth-enabled=true`)** — Cilium WireGuard off, Tailscale lo L3 | `kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.mesh-auth-enabled}'` |
 | WireGuard | Không bật trong Cilium (cell trống) | `…enable-wireguard` |
 
 **Cách trình bày trong LaTeX:** 1 `\begin{table}` `tabularx` 2 cột (Hạng
@@ -173,6 +183,7 @@ mục / Giá trị). Caption: *"Cấu hình hệ thống tại thời điểm th
 
 - `TracingPolicyNamespaced block-suspicious-exec` cài cho 4 namespace (data, job7189-apps, security, vault), hook `sys_execve`, theo dõi 7 binary `/bin/sh`, `/bin/bash`, `/usr/bin/curl`, `/usr/bin/wget`, `/usr/bin/nc`, `/usr/bin/ncat`, `/usr/bin/nmap`.
 - **Action = `Post`** (audit-only) theo quyết định 2026-05-20 vì init container hợp lệ exec /bin/sh. Sigkill hoãn tới phase 5.E sau khi upgrade Tetragon v1.7.0.
+  - **Cập nhật 2026-06-20:** phase 5.E đã hoàn tất — `block-suspicious-exec` hiện chạy **`Sigkill` (enforce)** + `Post` (audit) ở 4 ns (data, job7189-apps, security, vault), Tetragon v1.7.0 DaemonSet 3/3.
 
 **Tấn công mô phỏng:**
 
@@ -352,7 +363,7 @@ image upstream).
 **Setup:**
 
 - Deployment `zta-pdp` trong `security` namespace, image `python:3.11-slim`, 1/1 replica.
-- `PDP_CVE_INPUT=false` (rollout pending — snapshot 27/05).
+- `PDP_CVE_INPUT=false` (rollout pending — snapshot 27/05). **2026-06-20:** env không còn được set tường minh → code default `true` (CVE-gating BẬT); CNP `cnp-block-low-trust-to-vault` đã apply & enforcing.
 - 45 Trivy `VulnerabilityReport` CR đã thu thập sẵn (xem `kubectl get vulnerabilityreport -A`).
 
 **Bằng chứng (lấy từ `scenario-08-adaptive-trust-loop-20260527-234755.txt`):**
@@ -443,16 +454,24 @@ warm-path < 5ms theo knowledge-base/24" — nếu có file đó), KHÔNG bịa s
 
 ## 10. §4.6 Giới hạn & hướng phát triển (BẢNG bắt buộc)
 
-| Hạng mục | Trạng thái 27/05 | Hướng xử lý |
-|---|---|---|
-| OPA decision log | Chưa cấu hình `decision_logs`; chỉ có pod 2/2 Running | Bật `--set decisionLogs.console=true` hoặc sidecar collector; demo `opa eval` offline trong Phụ lục B |
-| Threat-intel feed CronJob | `threat-intel-refresh` đã chạy nhưng `externalCIDRs:[]` rỗng | Debug template parsing trong CronJob; bổ sung test unit cho parser. Phase 5.G |
-| Cosign mode | WARN (Warning sinh ra, không deny) | Sau khi ký Hashicorp/Alpine/Busybox bằng `static` authority → bật ENFORCE |
-| Registry nội bộ TLS | Serve HTTP, Cosign từ chối HTTPS | Cấp cert qua cert-manager hoặc whitelist `--allow-http-registry` |
-| Tetragon action | `Post` (audit-only) | Phase 5.E: upgrade v1.7.0 kernel 6.8 → bật `Sigkill` kèm `matchBinaries` whitelist (php-fpm, vault, supervisord) |
-| Cilium ServiceMesh mTLS | `mesh-auth-enabled=false` — Tailscale lo L3 | Phase 5.F: bật sidecarless mTLS sau khi xác minh SPIRE-Cilium integration không break |
-| PDP CVE input | `PDP_CVE_INPUT=false`, CNP block-low-trust-to-vault chưa apply | Phase 5.D: bật flag sau khi backfill score cho 7 service và test rollback |
-| Vault revoke demo | Token test không có policy `sys/leases/revoke-prefix` | Phase 5.G: tạo AppRole `zta-ops-revoker` với policy giới hạn |
+> ⚠️ **CẬP NHẬT 2026-06-20:** cột "Trạng thái 27/05" là snapshot cũ. Nhiều hạng mục
+> ĐÃ được xử lý trên cluster từ sau đó (đối chiếu log `zta-conflict-check`). Cột
+> "Trạng thái hiện tại" phản ánh thực tế mới nhất. Xem chi tiết ở
+> `knowledge-base/52-limitations-and-known-gaps.md`.
+
+| Hạng mục | Trạng thái 27/05 | Trạng thái hiện tại (2026-06-20) | Hướng xử lý |
+|---|---|---|---|
+| OPA decision log | Chưa cấu hình `decision_logs`; pod 2/2 Running | Chưa kiểm lại | Bật `--set decisionLogs.console=true` hoặc sidecar collector; demo `opa eval` offline trong Phụ lục B |
+| Threat-intel feed | `externalCIDRs:[]` rỗng | ✅ **ĐÃ SYNC** (~2000 CIDR; CronJob + CCNP `cnp-threat-intel-egress-deny` enforcing) | Đã xong cơ bản; theo dõi refresh định kỳ |
+| Cosign mode | WARN (Warning, không deny) | ⚠️ **VẪN WARN** (3 ClusterImagePolicy `mode=warn`) | Sau khi ký Hashicorp/Alpine/Busybox bằng `static` authority → bật ENFORCE |
+| Registry nội bộ TLS | Serve HTTP, Cosign từ chối HTTPS | Chưa kiểm lại | Cấp cert qua cert-manager hoặc whitelist `--allow-http-registry` |
+| Tetragon action | `Post` (audit-only) | ✅ **Sigkill ENFORCE** (4 ns) + Post audit, v1.7.0 DaemonSet 3/3 | Tinh chỉnh `matchBinaries` whitelist (php-fpm, vault, supervisord) |
+| Cilium ServiceMesh mTLS | `mesh-auth-enabled=false` — Tailscale lo L3 | ✅ **mesh-auth-enabled=true** (mTLS BẬT); Cilium WireGuard vẫn off, Tailscale lo L3 | Đã bật; theo dõi ổn định SPIRE-Cilium |
+| PDP CVE input | `PDP_CVE_INPUT=false`, CNP block-low-trust chưa apply | ✅ CNP `cnp-block-low-trust-to-vault` **đã apply & enforcing**; `PDP_CVE_INPUT` không set → default **true** (CVE-gating BẬT) | Tạo lại pod điểm thấp để demo end-to-end (hiện mọi pod = high) |
+| Vault revoke demo | Token test không có policy `sys/leases/revoke-prefix` | Chưa kiểm lại | Phase 5.G: tạo AppRole `zta-ops-revoker` với policy giới hạn |
+| Kube-bench (CIS) | — | ❌ **CHƯA deploy** | Phase tương lai: chạy kube-bench job, xuất report |
+| CAEP / thu hồi phiên | — | ❌ **CHƯA triển khai** (Keycloak backchannel chưa cấu hình) | Cấu hình Keycloak backchannel logout → Kong invalidate |
+| Device posture (MDM/EDR) | — | ❌ **Ngoài phạm vi** (đề án chỉ quản workload, không quản client device) | Ghi rõ loại trừ có chủ đích |
 
 ---
 
@@ -463,13 +482,13 @@ phải sửa (KHÔNG cần re-run script, chỉ đối chiếu evidence S0):
 
 | Mục §3 | Sửa gì | Lý do |
 |---|---|---|
-| Identity / SPIRE | Ghi rõ 10 ClusterSPIFFEID hiện tại (3 zta-* + 7 spike/oidc); nêu thẳng `mesh-auth-enabled=false`, SPIRE phục vụ policy/audit, Tailscale lo L3 | Khớp `scenario-00` |
+| Identity / SPIRE | Ghi rõ 10 ClusterSPIFFEID hiện tại (3 zta-* + 7 spike/oidc); nêu **`mesh-auth-enabled=true`** (mTLS sidecarless ĐÃ bật, 2026-06-20), SPIRE cấp SVID phục vụ mTLS + policy/audit; Cilium WireGuard off → Tailscale lo L3 | Khớp `scenario-00` (đã cập nhật) |
 | Vault | Thay ví dụ chung chung bằng pattern thật `v-kubernetes-<service>-XXXXXX`; ghi TTL 1h/24h; nêu agent renew log hiện thực | Khớp `scenario-04` |
 | Cilium policies | Liệt kê 11 CNP/job7189-apps + 1 CCNP + 1 CIDRGroup; in YAML `default-deny-all` (umbrella-deny marker) trực tiếp trong chương, không bắt người đọc mở repo | Khớp `scenario-00`, `scenario-01` |
-| Tetragon | Nói thẳng action=Post (audit-only) + lý do quyết định 2026-05-20; liệt kê 7 binary; tham chiếu doc TETRAGON_UPGRADE.md cho phase 5.E (không trích file path repo, chỉ tên doc) | Khớp `scenario-00`, `scenario-03` |
+| Tetragon | Nói rõ **đã enforce `Sigkill`** (4 ns: data, job7189-apps, security, vault) + Post audit, v1.7.0 DaemonSet 3/3 (cập nhật 2026-06-20; snapshot 27/05 từng là Post audit-only); liệt kê 7 binary; tham chiếu doc TETRAGON_UPGRADE.md (chỉ tên doc) | Khớp `scenario-00`, `scenario-03` (đã cập nhật) |
 | OPA + Kong | Mô tả luồng Lua → POST OPA → Rego (6 file, default aggregator + 5 resource); KHÔNG show decision log (chưa có decisionLogs); chú thích sẽ demo offline `opa eval` ở Phụ lục B | Khớp `scenario-00`, §4.6 |
 | Cosign | 3 ClusterImagePolicy + webhook 1/1 Running; nói rõ đang ở WARN mode; 5 image upstream chưa ký được nêu ở Chương 4 §4.3.5 | Khớp `scenario-08` |
-| PDP | Deployment Running, reconcile 90s, namespaces:7, `PDP_CVE_INPUT=false`, CNP block-low-trust-to-vault chưa apply (rollout pending) | Khớp `scenario-08` |
+| PDP | Deployment Running, reconcile 90s, namespaces:7; **CNP `cnp-block-low-trust-to-vault` đã apply & enforcing**; `PDP_CVE_INPUT` không set → default `true` (CVE-gating BẬT) — cập nhật 2026-06-20 (snapshot 27/05 từng là false + chưa apply) | Khớp `scenario-08` (đã cập nhật) |
 | **Style — bỏ tham chiếu file path repo trong văn bản** | Thay `infras/k8s-yaml/cilium-policies/00-default-deny.yaml` bằng `CiliumNetworkPolicy default-deny-all` (tên tài nguyên Kubernetes). Khi cần show YAML, in trực tiếp 8–15 dòng vào chương | Yêu cầu của người dùng |
 
 ---

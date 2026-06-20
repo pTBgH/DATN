@@ -1,12 +1,10 @@
-% !TEX encoding = UTF-8
-
+%======================================================================
+% TÓM TẮT ĐỒ ÁN
+%======================================================================
 \chapter*{Tóm tắt đồ án}
 \addcontentsline{toc}{chapter}{Tóm tắt đồ án}
 
-Đồ án tập trung giải quyết các thách thức bảo mật nội tại của kiến trúc Microservices trên môi trường đám mây, nơi mô hình phòng thủ vành đai truyền thống bộc lộ nhiều điểm yếu rủi ro. Dựa trên tiêu chuẩn NIST SP 800-207, mục tiêu của nghiên cứu là thiết kế và ứng dụng một kiến trúc bảo mật Zero Trust toàn diện.
+Kiến trúc Microservices mang lại sự linh hoạt vượt trội cho các hệ thống phần mềm hiện đại nhưng đồng thời phá vỡ ranh giới an ninh mạng truyền thống. Việc duy trì cơ chế "tin cậy ngầm định" trên môi trường Kubernetes tạo ra bề mặt tấn công lớn, dễ dẫn đến các rủi ro như lộ lọt bí mật, leo thang đặc quyền và di chuyển ngang khi hệ thống bị xâm phạm. Để giải quyết vấn đề này, đồ án nghiên cứu và đề xuất một khung kiến trúc Zero Trust 5 lớp chức năng dành riêng cho nền tảng Kubernetes (tuân thủ tiêu chuẩn NIST SP 800-207) bao gồm: định danh đa thực thể, đánh giá tư thế bảo mật, thực thi chính sách đa tầng, quản trị bí mật động, và vòng lặp quan sát - phản hồi thích ứng. Quá trình cài đặt và mô phỏng được thực hiện trên một hệ thống vi dịch vụ thực tế, tích hợp tổ hợp các công nghệ mã nguồn mở (như Kong, Cilium, SPIRE, Vault, Tetragon) nhằm loại bỏ sự tin cậy dựa trên vị trí mạng, thay bằng cơ chế kiểm soát truy cập dựa trên định danh mật mã học và đặc quyền tối thiểu. Kết quả kiểm thử trước các kịch bản tấn công cho thấy kiến trúc đề xuất đã thiết lập thành công phân đoạn vi mô (microsegmentation), tự động hóa cấp phát thông tin xác thực ngắn hạn (JIT credentials) và duy trì khả năng cô lập mối đe dọa theo thời gian thực. Nhìn chung, đồ án đã chứng minh tính khả thi của Zero Trust trong môi trường Microservices, đồng thời cung cấp một mô hình tham chiếu có tính ứng dụng cao cho các doanh nghiệp khi dịch chuyển lên đám mây.
 
-Giải pháp của đồ án là đề xuất Khung kiến trúc Zero Trust 5 lớp tích hợp, bao gồm: Định danh đa thực thể, Đánh giá tư thế bảo mật, Thực thi chính sách đa tầng, Quản trị bí mật động và Vòng lặp quan sát - phản hồi. Thay vì tin cậy ngầm định, khung kiến trúc này dịch chuyển trọng tâm bảo vệ từ ranh giới mạng lưới sang việc kiểm soát khắt khe từng thực thể và từng luồng dữ liệu riêng biệt.
-
-Thông qua quá trình triển khai thực nghiệm trên một hệ thống vi dịch vụ cụ thể, đồ án đã chứng minh được tính khả thi và độ hiệu quả của giải pháp đề xuất. Hệ thống thực nghiệm đã đáp ứng thành công các nguyên tắc cốt lõi của Zero Trust: thiết lập phân đoạn vi mô triệt để, tự động hóa vòng đời thông tin xác thực và duy trì khả năng giám sát an ninh theo thời gian thực để ngăn chặn các kỹ thuật tấn công di chuyển ngang. Kết quả của đồ án cung cấp một mô hình tham chiếu thực tiễn theo đúng triết lý Zero Trust .
-
-\textbf{Từ khóa:} Zero Trust Architecture, NIST SP 800-207, Microservices Security, Kubernetes, Microsegmentation, Dynamic Secrets.
+\vspace{0.5cm}
+\noindent\textbf{Từ khóa:} Zero Trust Architecture, NIST SP 800-207, Microservices Security, Kubernetes, Microsegmentation, Dynamic Secrets.

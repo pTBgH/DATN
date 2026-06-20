@@ -1,5 +1,5 @@
 % !TEX encoding = UTF-8
-\chapter{Tổng quan về Kiến trúc Zero Trust}
+\chapter{Tổng quan về kiến trúc Zero Trust}
 
 %==============================================================================
 % 1.1  TỪ BẢO MẬT VÀNH ĐAI ĐẾN ZERO TRUST
@@ -8,70 +8,69 @@
 
 \subsection{Hạn chế của mô hình bảo mật dựa trên chu vi}
 
-Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ dựa trên chu vi}, hay còn gọi là chiến lược ``Lâu đài và Hào nước''. Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng quan sát được là cấp quyền truy cập chủ yếu dựa trên vị trí mạng \parencite{kindervag2010build,jericho2004}.
+Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ dựa trên chu vi}. Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng của mô hình này là cấp quyền truy cập chủ yếu dựa trên vị trí mạng \parencite{kindervag2010build,jericho2004}. 
 
 Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ (chia VLAN, tường lửa nội bộ, các cơ chế định danh tĩnh ở tầng ứng dụng), mô hình này bộc lộ ba hạn chế khi đối mặt với hạ tầng cloud-native (thiết kế tối ưu cho môi trường đám mây) hiện đại:
 
 \begin{itemize}
-    \item \textbf{Sự tin cậy ngầm định:} một khi kẻ tấn công hoặc mối đe doạ nội bộ đã có chỗ đứng bên trong mạng, các hệ thống thường mặc định coi mọi giao tiếp xuất phát từ dải IP nội bộ là an toàn \parencite{nist800207}.
-    \item \textbf{Di chuyển ngang:} Khi chu vi đã bị chọc thủng, các biện pháp kiểm soát nội bộ truyền thống chủ yếu dựa trên việc chia mạng theo VLAN/subnet(mạng con) ở quy mô lớn. Kẻ tấn công sau khi chiếm được một máy hợp lệ có thể tái sử dụng danh tính tĩnh (header hoặc token lâu dài) để trinh sát và di chuyển sang các tài nguyên khác trong cùng phân đoạn mạng trước khi bị phát hiện \parencite{kindervag2010build,gilman2017zero}.
-    \item \textbf{Sự mờ nhạt của chu vi vật lý:} Môi trường cloud-native, làm việc từ xa và thiết bị cá nhân khiến việc xác định một ``chu vi mạng'' rõ ràng để đặt tường lửa trở nên bất khả thi \parencite{cisa_ztmm2023,nist800207}.
+    \item \textbf{Sự tin cậy ngầm định:} Các hệ thống an ninh truyền thống thường mặc định tin cậy thiết bị và luồng dữ liệu xuất phát từ bên trong mạng. Theo \parencite{nist800207}, việc cấp quyền truy cập dựa trên vị trí mạng dẫn đến rủi ro: một khi kẻ tấn công hoặc tác nhân nội bộ vượt qua được ranh giới mạng, các hoạt động của họ bên trong hệ thống thường không bị kiểm tra thêm.
+    
+    \item \textbf{Di chuyển ngang:} Các biện pháp kiểm soát mạng nội bộ truyền thống chủ yếu dựa trên việc phân chia theo mạng con (VLAN/Subnet). Do thiếu cơ chế kiểm soát truy cập chi tiết, khi một điểm nút bị chiếm quyền, kẻ tấn công có thể tái sử dụng các danh tính tĩnh (như token có thời hạn dài) để quét mạng và kết nối đến các tài nguyên khác trong cùng phân đoạn mạng trước khi bị hệ thống phát hiện \parencite{kindervag2010build,gilman2017zero}.
+    
+    \item \textbf{Sự mờ nhạt của ranh giới mạng:} Môi trường điện toán đám mây, xu hướng làm việc từ xa và việc sử dụng thiết bị cá nhân cho công việc làm cho ranh giới mạng vật lý của tổ chức không còn xác định rõ ràng. Theo định hướng của CISA, việc thiết lập một "chu vi" cố định để đặt thiết bị kiểm soát (như tường lửa) không còn đáp ứng được yêu cầu khi tài nguyên và người dùng bị phân tán \parencite{cisa_ztmm2023,nist800207}.
 \end{itemize}
 
-\subsection{Định nghĩa và các thuật ngữ}
+\subsection{Khái niệm và định nghĩa về Zero Trust}
 
-Đối mặt với các hạn chế trên, khái niệm Zero Trust được John Kindervag đề xuất năm 2010 tại Forrester Research \parencite{kindervag2010build}, kế thừa các nguyên tắc \emph{không còn phụ thuộc chu vi mạng} của Jericho Forum \parencite{jericho2004} và sau đó được chuẩn hoá thành kiến trúc tham chiếu trong \textbf{NIST SP 800-207} \parencite{nist800207}.
+Đối mặt với những hạn chế của mô hình an ninh mạng dựa trên ranh giới truyền thống, thuật ngữ Zero Trust được John Kindervag đề xuất vào năm 2010 tại Forrester Research \parencite{kindervag2010build}. Cách tiếp cận này kế thừa tư tưởng phi chu vi của Jericho Forum \parencite{jericho2004} và sau đó được Viện Tiêu chuẩn và Công nghệ Quốc gia Hoa Kỳ (NIST) chuẩn hóa thành các định nghĩa chính thức trong tài liệu NIST SP 800-207 \parencite{nist800207}.
 
-Trong các tài liệu hiện nay, ba thuật ngữ ZT, ZTA và ZTE thường bị dùng lẫn lộn. Bảng~\ref{tab:zt_levels} phân biệt chúng theo đúng định nghĩa của NIST SP 800-207 (Mục 2.1) và CISA ZTMM 2.0 \parencite{nist800207,cisa_ztmm2023}.
+% Sử dụng môi trường Định nghĩa đã khai báo trong preamble
+\begin{definition}[Zero Trust]
+Zero Trust là một tập hợp các nguyên lý an ninh mạng phát triển dựa trên triết lý: không bao giờ tồn tại sự tin cậy ngầm định đối với bất kỳ tài sản hay tài khoản người dùng nào chỉ dựa trên vị trí mạng vật lý. Thay vào đó, mọi yêu cầu truy cập đều phải được xác thực, đánh giá liên tục theo ngữ cảnh và chỉ được cấp mức đặc quyền tối thiểu cần thiết để thực hiện nhiệm vụ \parencite{nist800207}.
+\end{definition}
 
-\begin{table}[H]
-\centering
-\caption{Phân biệt Zero Trust, ZTA và ZTE}
-\label{tab:zt_levels}
-\begin{tabularx}{\textwidth}{|l|l|X|}
-\hline
-\textbf{Thuật ngữ} & \textbf{Viết tắt} & \textbf{Định nghĩa} \\
-\hline
-Zero Trust & ZT & Tập hợp các \textit{nguyên tắc} an ninh mạng định hướng dịch chuyển phòng thủ từ chu vi mạng tĩnh sang việc tập trung bảo vệ \textit{từng tài sản} (người dùng, thiết bị, dịch vụ). ZT giả định không có sự tin cậy ngầm định cho bất kỳ thành phần nào dựa trên vị trí mạng. \\
-\hline
-Zero Trust Architecture & ZTA & \textit{Kế hoạch} an ninh mạng của tổ chức tận dụng các nguyên tắc Zero Trust để kiểm soát truy cập tới tài sản, bao gồm: quan hệ giữa các thành phần, thiết kế luồng công việc và chính sách truy cập. ZTA được hiện thực hoá thông qua các công cụ như IdP, PEP và hệ thống quan sát. \\
-\hline
-Zero Trust Enterprise & ZTE & Trạng thái khi cơ sở hạ tầng (mạng, thiết bị, nhân sự) và các \textit{chính sách} của tổ chức đã được triển khai theo ZTA. NIST nhấn mạnh ZTE là một \textit{lộ trình} chuyển đổi diễn ra trong nhiều năm, không phải sản phẩm. \\
-\hline
-\end{tabularx}
-\end{table}
+\begin{definition}[Kiến trúc Zero Trust]
+Kiến trúc Zero Trust là kế hoạch an ninh mạng của một tổ chức ứng dụng các nguyên tắc Zero Trust. Kiến trúc Zero Trust bao gồm việc thiết kế các thành phần hạ tầng, cấu trúc luồng công việc và chính sách kiểm soát nhằm hiện thực hóa các cơ chế xác thực, ủy quyền và giám sát trong môi trường thực tế \parencite{nist800207}.
+\end{definition}
 
-Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207, có thể rút ra hai tư tưởng xuyên suốt mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
-\begin{enumerate}
-    \item \textbf{Mạng luôn bị coi là đã bị xâm nhập}.
-    \item \textbf{Mọi truy cập đều phải được xác thực và uỷ quyền} một cách rõ ràng trên cơ sở \textit{từng yêu cầu}, không được phụ thuộc vào vị trí mạng của chủ thể.
-\end{enumerate}
+Nói một cách ngắn gọn, Zero Trust là một triết lý và hệ tư tưởng về an toàn thông tin, trong khi kiến trúc Zero Trust là bản thiết kế kỹ thuật để đưa triết lý đó vào vận hành thực tiễn.
 
-\subsection{So sánh ZTA với mô hình dựa trên chu vi}
+% Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207, có thể rút ra hai tư tưởng xuyên suốt mọi triển khai Zero Trust \parencite{nist800207,gilman2017zero}:
+% \begin{enumerate}
+%     \item \textbf{Mạng luôn bị coi là đã bị xâm nhập}.
+%     \item \textbf{Mọi truy cập đều phải được xác thực và uỷ quyền} một cách rõ ràng trên cơ sở \textit{từng yêu cầu}, không được phụ thuộc vào vị trí mạng của chủ thể.
+% \end{enumerate}
+
+\subsection{So sánh kiến trúc Zero Trust với mô hình dựa trên chu vi}
 
 Để làm rõ lý do tại sao ZTA là sự lựa chọn tất yếu cho môi trường công nghệ thông tin hiện đại, Bảng~\ref{tab:zta_vs_perimeter} so sánh sự khác biệt về triết lý và phương pháp tiếp cận kỹ thuật giữa hai mô hình:
 
+\subsection{So sánh kiến trúc Zero Trust với mô hình dựa trên chu vi}
+
+Bảng~\ref{tab:zta_vs_perimeter} trình bày tóm tắt sự khác biệt về phương pháp tiếp cận kỹ thuật và quản lý rủi ro giữa mô hình bảo mật mạng truyền thống và kiến trúc Zero Trust.
+
 \begin{table}[H]
 \centering
-\caption{So sánh mô hình bảo mật truyền thống và Kiến trúc Zero Trust}
+\renewcommand{\arraystretch}{1.3}
+\caption{So sánh mô hình bảo mật truyền thống và kiến trúc Zero Trust}
 \label{tab:zta_vs_perimeter}
-\begin{tabularx}{\textwidth}{|p{3cm}|X|X|}
+\begin{tabularx}{\textwidth}{|p{3.5cm}|X|X|}
 \hline
-\textbf{Tiêu chí} & \textbf{Bảo mật dựa trên chu vi} & \textbf{Kiến trúc Zero Trust} \\
+\textbf{Tiêu chí} & \textbf{Bảo mật truyền thống} & \textbf{Kiến trúc Zero Trust} \\
 \hline
-\textbf{Cơ sở tin cậy} & Dựa vào vị trí mạng (IP, subnet) hoặc chứng thực ban đầu tại cổng. & Không phụ thuộc vị trí; đánh giá ngữ cảnh liên tục từ các nguồn dữ liệu (PIP). \\
+\textbf{Cơ sở tin cậy} & Xác thực một lần tại biên mạng. Mức độ tin cậy phụ thuộc vào dải mạng (IP, subnet). & Không phụ thuộc vị trí mạng. Đánh giá độ tin cậy liên tục dựa trên ngữ cảnh từ các nguồn dữ liệu. \\
 \hline
-\textbf{Mức độ kiểm soát} & Tập trung ở biên mạng, phân đoạn vĩ mô. & Phân đoạn vi mô trực tiếp tại từng tài nguyên. \\
+\textbf{Mức độ kiểm soát} & Tập trung tại ranh giới mạng, chia hệ thống thành các vùng mạng có quy mô lớn. & Phân chia mạng ở mức độ chi tiết, áp dụng kiểm soát trực tiếp tại từng tài nguyên hoặc ứng dụng. \\
 \hline
-\textbf{Hạn chế di chuyển ngang} & Phụ thuộc tường lửa nội bộ hoặc các rào cản tĩnh. Kẻ tấn công có thể giả mạo nếu đã ở bên trong. & Kiểm tra tính hợp lệ trên từng truy cập theo yêu cầu bằng định danh mật mã học. \\
+\textbf{Kiểm soát di chuyển ngang} & Dựa vào các quy tắc mạng tĩnh. Khó phát hiện hành vi dò quét và di chuyển khi tác nhân đã lọt vào mạng nội bộ. & Áp dụng nguyên tắc từ chối mặc định. Truy cập chỉ được phép thông qua xác thực định danh mật mã học và tuân thủ nguyên tắc đặc quyền tối thiểu. \\
 \hline
-\textbf{Quản lý bí mật} & Thông tin xác thực dạng tĩnh, lưu trữ vô thời hạn. &JIT (cấp phát tức thời), TTL (thời gian sống) ngắn thông qua Policy Administrator. \\
+\textbf{Quản lý thông tin xác thực} & Sử dụng thông tin xác thực tĩnh, có thời gian sống dài hoặc vô hạn. & Cấp phát thông tin xác thực động  với thời gian sống ngắn, được thu hồi tự động. \\
 \hline
-\textbf{Khả năng giám sát} & Giới hạn ở log mạng biên. & Thu thập toàn diện log, metric, trace tại mọi PEP để phản hồi tự động. \\
+\textbf{Khả năng giám sát} & Dữ liệu giám sát chủ yếu thu thập từ lưu lượng tại các thiết bị mạng biên (tường lửa, router). & Thu thập nhật ký và số liệu toàn diện tại mọi điểm kiểm soát để phục vụ cơ chế phản hồi an ninh. \\
 \hline
 \end{tabularx}
 \end{table}
-
+% khả năng giám sát or khả năng quan sát?
 
 %==============================================================================
 % 1.2  KIẾN TRÚC THAM CHIẾU ZERO TRUST THEO NIST SP 800-207
@@ -80,29 +79,30 @@ Từ các tenet và mô hình logic được trình bày trong NIST SP 800-207, 
 
 \subsection{Bảy nguyên lý}
 
-NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai ZTA phải tuân thủ \parencite{nist800207}:
+NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai kiến trúc Zero Trust phải tuân thủ \parencite{nist800207}:
 
 \begin{table}[H]
 \centering
+\renewcommand{\arraystretch}{1.3} % Giãn dòng cho bảng dễ đọc
 \caption{Bảy nguyên lý Zero Trust}
 \label{tab:seven_tenets}
-\begin{tabularx}{\textwidth}{|c|p{4cm}|X|}
+\begin{tabularx}{\textwidth}{|c|p{4.5cm}|X|}
 \hline
 \textbf{\#} & \textbf{Nguyên lý} & \textbf{Nội dung} \\
 \hline
-1 & Mọi thứ đều là tài nguyên & Máy chủ, ứng dụng, API endpoint, CSDL - tất cả đều là tài nguyên cần bảo vệ riêng biệt. \\
+1 & Mọi thứ đều là tài nguyên & Máy chủ, ứng dụng, API endpoint, cơ sở dữ liệu (CSDL) đều được coi là tài nguyên độc lập cần bảo vệ. \\ 
 \hline
-2 & Bảo mật không phụ thuộc vị trí mạng & Không tồn tại vùng mạng được mặc định tin cậy; giao tiếp nội bộ phải được kiểm soát và xác thực với cùng mức độ chặt chẽ như lưu lượng từ bên ngoài. \\
+2 & Bảo mật không phụ thuộc vị trí mạng & Không có vùng mạng nào được tin cậy mặc định. Giao tiếp nội bộ phải được kiểm soát và xác thực với mức độ nghiêm ngặt tương đương lưu lượng từ bên ngoài. \\
 \hline
-3 & Cấp quyền theo phiên & Quyền truy cập được cấp tối thiểu, đánh giá lại mỗi phiên, thu hồi ngay sau khi hoàn thành. \\
+3 & Cấp quyền theo phiên & Quyền truy cập được cấp theo từng phiên cụ thể với đặc quyền tối thiểu và thu hồi ngay khi phiên kết thúc. \\
 \hline
-4 & Chính sách truy cập động & Quyết định dựa trên danh tính + trạng thái thiết bị + hành vi + thời gian + vị trí. \\
+4 & Chính sách truy cập động & Quyết định truy cập được đánh giá liên tục dựa trên sự kết hợp của nhiều yếu tố: danh tính, trạng thái thiết bị, hành vi người dùng, thời gian và vị trí. \\
 \hline
-5 & Giám sát toàn bộ tài sản & Liên tục đánh giá tính toàn vẹn và trạng thái tuân thủ của mọi thiết bị/ứng dụng. \\
+5 & Giám sát toàn bộ tài sản & Tổ chức phải liên tục giám sát và đánh giá tính toàn vẹn, cũng như trạng thái tuân thủ bảo mật của mọi thiết bị và ứng dụng. \\
 \hline
-6 & Xác thực liên tục & Không chỉ xác thực lần đầu - xác thực lại khi thực hiện hành động nhạy cảm. \\
+6 & Xác thực liên tục & Việc xác thực và ủy quyền không chỉ diễn ra ở lần kết nối đầu tiên mà là một tiến trình liên tục, đặc biệt trước các thao tác nhạy cảm. \\
 \hline
-7 & Thu thập tối đa dữ liệu & Thu thập dữ liệu trạng thái về tài sản, hạ tầng mạng và truyền thông để cung cấp đầu vào cho việc ra quyết định và liên tục cải thiện trạng thái bảo mật. \\
+7 & Thu thập tối đa dữ liệu & Thu thập dữ liệu trạng thái về tài sản, hạ tầng mạng và truyền thông để làm đầu vào cho việc ra quyết định và cải thiện tư thế an ninh. \\
 \hline
 \end{tabularx}
 \end{table}
@@ -110,72 +110,77 @@ NIST SP 800-207 định nghĩa 7 nguyên lý nền tảng mà mọi triển khai
 \subsection{Các thành phần trong kiến trúc tham chiếu}
 \label{subsec:logic_pdp_pep_pip}
 
-NIST SP 800-207 định nghĩa kiến trúc logic ZTA tách biệt hoàn toàn giữa \textbf{control plane (mặt phẳng điều khiển)} và \textbf{data plane (mặt phẳng dữ liệu)} \parencite{nist800207}. NIST SP 1800-35 bổ sung và sử dụng nhất quán bốn vai trò kiến trúc dưới đây, trong đó PE và PA hợp thành \textbf{Policy Decision Point (PDP)} ở control plane, còn PEP thực thi tại data plane và PIP cấp ngữ cảnh cho PDP \parencite{nist_sp_1800_35}.
+NIST SP 800-207 định nghĩa kiến trúc logic ZTA tách biệt hoàn toàn giữa \textbf{mặt phẳng điều khiển (control plane)} và \textbf{mặt phẳng dữ liệu (data plane)} \parencite{nist800207}. NIST SP 1800-35 bổ sung và sử dụng nhất quán bốn vai trò kiến trúc dưới đây, trong đó PE và PA hợp thành \textbf{Policy Decision Point (PDP)} ở control plane, còn PEP thực thi tại data plane và PIP cấp ngữ cảnh cho PDP.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1.1\textwidth]{images/nist_zta_logical.png}
+    \includegraphics[width=\textwidth]{images/nist_zta_logical.png}
     \caption[Kiến trúc tham chiếu tổng quát của ZTA]{Kiến trúc tham chiếu tổng quát của ZTA \parencite{nist_sp_1800_35}.}
     \label{fig:nist_zta_logical}
 \end{figure}
 
-\begin{itemize}
-    \item \textbf{Policy Engine (PE) -- Động cơ chính sách:} chịu trách nhiệm đưa ra quyết định cuối cùng về việc cấp, từ chối hoặc thu hồi quyền truy cập tới tài nguyên. PE sử dụng \textit{thuật toán tin cậy} để đánh giá rủi ro của từng yêu cầu.
-    \item \textbf{Policy Administrator (PA) -- Quản trị chính sách:} thực thi quyết định của PE bằng cách gửi lệnh tới PEP để thiết lập hoặc ngắt đường truyền giữa chủ thể và tài nguyên.
-    \item \textbf{Policy Enforcement Point (PEP) -- Điểm thực thi chính sách:} nằm trực tiếp trên đường truyền dữ liệu, bảo vệ vùng tin cậy chứa tài nguyên, kích hoạt, giám sát và kết thúc các kết nối theo lệnh từ PA.
-    \item \textbf{Policy Information Point (PIP) -- Điểm cung cấp thông tin chính sách:} các nguồn thành phần hỗ trợ cấp telemetry và ngữ cảnh (định danh, phân tích bảo mật, tình báo mối đe dọa) cho PDP để PE ra quyết định liên tục.
-\end{itemize}
+\subsection{Policy Engine (PE) -- Bộ xử lý chính sách}
+Chịu trách nhiệm ra quyết định cuối cùng về việc cấp, từ chối hoặc thu hồi quyền truy cập đối với tài nguyên. PE sử dụng thuật toán tin cậy (trust algorithm) để đánh giá rủi ro của từng yêu cầu.
 
-\subsection{Thuật toán tin cậy}
-\label{subsec:trust_algorithm}
+\subsection{Policy Administrator (PA) -- Bộ điều phối chính sách}
+Đóng vai trò thực thi quyết định của PE bằng cách gửi mệnh lệnh đến PEP để thiết lập hoặc ngắt luồng giao tiếp giữa chủ thể và tài nguyên.
 
-Để hiểu cách \textbf{Policy Engine ra quyết định} với tập đầu vào do PIP cấp, NIST SP 800-207 đặt tên cho tiến trình đó là \textbf{trust algorithm (TA)} và phân loại các biến thể theo hai trục độc lập \parencite{nist800207}:
+\subsection{Policy Enforcement Point (PEP) -- Điểm thực thi chính sách}
+Nằm trực tiếp trên đường truyền dữ liệu, có nhiệm vụ bảo vệ vùng tin cậy chứa tài nguyên, đồng thời kích hoạt, giám sát và kết thúc các kết nối theo mệnh lệnh từ PA.
+
+\subsection{Policy Information Point (PIP) -- Điểm cung cấp thông tin chính sách}
+Bao gồm các hệ thống hỗ trợ cung cấp phép đo từ xa và dữ liệu ngữ cảnh (như định danh, phân tích bảo mật, tình báo mối đe dọa) cho PDP, giúp PE có cơ sở để cập nhật quyết định liên tục.
+
+\subsubsection{Cơ chế ra quyết định (Thuật toán tin cậy)}
+\label{subsubsec:trust_algorithm}
+
+Trong cấu trúc trên, Bộ xử lý chính sách (PE) đóng vai trò trung tâm phân tích. Tiến trình đánh giá và ra quyết định của PE dựa trên dữ liệu đầu vào từ PIP được chuẩn NIST SP 800-207 định nghĩa là \textit{thuật toán tin cậy} (trust algorithm - TA). Các biến thể của thuật toán này được phân loại dựa trên hai phương diện độc lập \parencite{nist800207}:
 
 \begin{table}[H]
 \centering
-\caption{Các hướng tiếp cận phổ biến của \textit{trust algorithm} trong Zero Trust}
+\renewcommand{\arraystretch}{1.4} 
+\caption{Phân loại các phương pháp tiếp cận của thuật toán tin cậy trong kiến trúc Zero Trust}
 \label{tab:trust_algorithm}
-\begin{tabularx}{\textwidth}{|p{3.8cm}|X|}
+\begin{tabularx}{\textwidth}{|p{4cm}|X|}
 \hline
-\textbf{Trục phân loại} & \textbf{Hai hướng tiếp cận tiêu biểu} \\
+\textbf{Phương diện phân loại} & \textbf{Các hướng tiếp cận tiêu biểu} \\
 \hline
 
-\textbf{Tiêu chí ra quyết định}
-&
-\textit{Dựa trên chính sách/thuộc tính:}
-quyết định truy cập được đưa ra khi chủ thể thỏa mãn một tập điều kiện định nghĩa trước (rule-based hoặc attribute-based).
-
-\textit{Dựa trên điểm số/rủi ro:}
-Policy Engine tính toán một giá trị đánh giá tin cậy hoặc rủi ro từ nhiều tín hiệu ngữ cảnh có trọng số (ví dụ: danh tính, trạng thái thiết bị, hành vi, vị trí, threat intelligence) rồi so sánh với ngưỡng chính sách để cho phép hoặc từ chối truy cập.
-\\
+\textbf{Cơ sở ra quyết định}
+& 
+\textbf{1. Dựa trên chính sách/thuộc tính:} Quyết định cấp quyền được thực hiện khi chủ thể thỏa mãn một tập hợp các quy tắc hoặc điều kiện đã được cấu hình từ trước. \newline
+\textbf{2. Dựa trên điểm số/rủi ro:} PE tính toán điểm tin cậy hoặc mức độ rủi ro dựa trên trọng số của nhiều yếu tố ngữ cảnh (như định danh, trạng thái thiết bị, hành vi, tình báo an ninh). Quyết định truy cập được đưa ra bằng cách so sánh điểm số này với ngưỡng quy định. \\
 \hline
 
 \textbf{Mức độ sử dụng ngữ cảnh}
-&
-\textit{Đánh giá độc lập theo từng yêu cầu:}
-mỗi yêu cầu được xử lý như một sự kiện riêng lẻ với ít hoặc không sử dụng dữ liệu lịch sử.
-
-\textit{Đánh giá liên tục theo ngữ cảnh:}
-quyết định truy cập được cập nhật động dựa trên lịch sử phiên, hành vi gần đây, thay đổi trạng thái bảo mật hoặc tín hiệu rủi ro mới phát sinh, phục vụ cơ chế đánh giá lại trong suốt vòng đời phiên truy cập.
-\\
+& 
+\textbf{1. Đánh giá độc lập:} Mỗi yêu cầu truy cập được xử lý như một sự kiện rời rạc. Thuật toán không (hoặc rất ít) xem xét đến lịch sử dữ liệu của các phiên trước đó. \newline
+\textbf{2. Đánh giá liên tục:} Quyết định truy cập được đánh giá và cập nhật động trong suốt vòng đời của phiên. Hệ thống liên tục theo dõi lịch sử hành vi, sự thay đổi trạng thái bảo mật hoặc các tín hiệu rủi ro mới để duy trì hoặc thu hồi đặc quyền. \\
 \hline
 
 \end{tabularx}
 \end{table}
 
-\subsection{Các hướng tiếp cận triển khai ZTA}
+
+
+\subsection{Các hướng tiếp cận triển khai kiến trúc Zero Trust}
 \label{subsec:zta_deployment_models}
 
-Khi đã xác định được mô hình logic, tổ chức có thể chọn các \textit{hướng triển khai} khác nhau. NIST SP 800-207 và SP 1800-35 liệt kê bốn hướng tiếp cận phổ biến~\parencite{nist800207,nist_sp_1800_35}:
+Tùy thuộc vào đặc thù hạ tầng, các tổ chức có thể lựa chọn các phương pháp khác nhau để hiện thực hóa mô hình logic của kiến trúc Zero Trust. Hai tài liệu tiêu chuẩn NIST SP 800-207 và SP 1800-35 phân loại bốn hướng tiếp cận triển khai phổ biến như sau \parencite{nist800207,nist_sp_1800_35}:
 
-\begin{itemize}
-    \item \textbf{Enhanced Identity Governance (EIG) -- Quản trị Danh tính Nâng cao:} lấy \textit{danh tính} làm trung tâm. Mọi quyết định dựa trên ``chủ thể là ai'' và ``thuộc tính gì''.
-    \item \textbf{Phân đoạn Vi mô:} lấy \textit{mạng} làm trung tâm. Chia mạng thành các phân đoạn cực nhỏ bao quanh từng tài nguyên để ngăn chặn di chuyển ngang.
-    \item \textbf{Software Defined Perimeter (SDP) -- Chu vi Định nghĩa bằng Phần mềm:} lấy \textit{ứng dụng} làm trung tâm. Tài nguyên bị ẩn hoàn toàn cho đến khi chủ thể được xác thực và uỷ quyền.
-    \item \textbf{Secure Access Service Edge (SASE):} lấy \textit{biên} làm trung tâm. Hợp nhất chức năng PEP với các dịch vụ bảo mật được cung cấp qua đám mây tại điểm gần người dùng.
+\begin{itemize}[itemsep=6pt, parsep=0pt]
+    \item \textbf{Quản trị danh tính nâng cao:} Lấy định danh làm trung tâm. Quyết định truy cập hoàn toàn phụ thuộc vào việc xác minh chủ thể là ai và có các thuộc tính gì, thay vì dựa vào thiết bị hay vị trí mạng.
+    
+    \item \textbf{Phân đoạn vi mô:} Lấy mạng làm trung tâm. Phương pháp này chia nhỏ hệ thống thành các vùng mạng độc lập, bao bọc lấy từng tài nguyên riêng lẻ nhằm cô lập rủi ro và chặn đứng các hành vi di chuyển ngang.
+    
+    \item \textbf{Chu vi định nghĩa bằng phần mềm:} Lấy ứng dụng làm trung tâm. Hạ tầng và tài nguyên được ẩn giấu hoàn toàn khỏi môi trường mạng, chỉ hiển thị và cho phép thiết lập kết nối sau khi chủ thể đã được hệ thống xác thực và ủy quyền hợp lệ.
+    
+    \item \textbf{Dịch vụ biên truy cập an toàn:} Lấy mạng biên làm trung tâm. Hướng đi này hợp nhất điểm thực thi chính sách với các nền tảng bảo mật đám mây, đưa hệ thống kiểm soát đến vị trí gần với thiết bị của người dùng nhất có thể.
 \end{itemize}
 
-Bốn hướng này không loại trừ lẫn nhau. Một thiết kế tối ưu thường là sự giao thoa của EIG, Phân đoạn Vi mô và SDP.
+Trên thực tế, bốn hướng tiếp cận này không loại trừ lẫn nhau. Do bề mặt tấn công của các hệ thống công nghệ thông tin hiện đại trải rộng trên nhiều tầng (từ điểm truy cập mạng, dịch vụ ứng dụng đến danh tính người dùng), việc chỉ áp dụng một phương pháp đơn lẻ là không đủ để bảo vệ toàn diện. Một thiết kế kiến trúc Zero Trust tối ưu luôn đòi hỏi sự giao thoa và phối hợp của nhiều phương pháp. 
+
+Đặc biệt, đối với môi trường tính toán phân tán và vi dịch vụ (Microservices) trên nền tảng đám mây như phạm vi nghiên cứu của đồ án này, việc kết hợp giữa \textbf{Phân đoạn vi mô} để kiểm soát luồng dữ liệu nội bộ và \textbf{Quản trị danh tính nâng cao} để cấp quyền cho từng tác nhân (workload) là giải pháp bắt buộc. Sự kết hợp này sẽ được phân tích sâu hơn và lấy làm cơ sở để thiết kế mô hình hệ thống thực nghiệm ở Chương 2 và Chương 3.
 
 %==============================================================================
 % 1.3  CÁC KHÁI NIỆM MỞ RỘNG CỦA ZERO TRUST

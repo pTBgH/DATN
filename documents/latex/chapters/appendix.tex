@@ -11,7 +11,7 @@ Hệ thống được tổ chức thành các phân vùng độc lập ở cấp
 \subsection{Cổng giao tiếp Kong}
 Cổng giao tiếp Kong đóng vai trò là điểm kiểm soát duy nhất cho luồng dữ liệu đi vào hệ thống từ mạng ngoài (hướng Bắc-Nam).
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Cổng giao tiếp vận hành ở chế độ khai báo không dùng cơ sở dữ liệu (DB-less mode) thông qua tệp cấu hình nguồn \texttt{kong.yml}. Cổng thực hiện đối chiếu mã thông báo định danh JWT từ trường tiêu đề \texttt{Authorization} trong yêu cầu HTTP của người dùng bằng khóa công khai tương ứng. Hệ thống tích hợp một trình cắm tiền chức năng (pre-function plugin) viết bằng ngôn ngữ Lua để giải mã mã thông báo JWT và gửi yêu cầu xác thực đến dịch vụ chính sách OPA nhằm quyết định cho phép hoặc từ chối truy cập trước khi chuyển tiếp yêu cầu đến các vi dịch vụ đích.
+    \item \textbf{Cơ chế hoạt động}: Cổng giao tiếp vận hành ở chế độ khai báo không dùng cơ sở dữ liệu (DB-less mode) thông qua tệp cấu hình nguồn \texttt{kong.yml}. Cổng thực hiện đối chiếu mã thông báo định danh JWT từ trường tiêu đề \texttt{Authorization} trong yêu cầu HTTP của người dùng bằng khóa công khai tương ứng. Hệ thống tích hợp một trình cắm tiền chức năng (pre-function plugin) viết bằng ngôn ngữ Lua để giải mã mã thông báo JWT và gửi yêu cầu xác thực đến dịch vụ chính sách OPA nhằm quyết định cho phép hoặc từ chối truy cập trước khi chuyển tiếp yêu cầu đến các Microservices đích.
     \item \textbf{Cấu hình định tuyến và trình cắm Lua}: Đoạn cấu hình khai báo dịch vụ nghiệp vụ và trình cắm tiền chức năng được mô tả như sau:
 \begin{minted}[fontsize=\footnotesize]{yaml}
 # Trích từ cấu hình nguồn infras/kong/kong.yml
@@ -117,7 +117,7 @@ Server: kong/3.6
 \subsection{Dịch vụ xác thực Keycloak}
 Keycloak đóng vai trò là trung tâm định danh người dùng cuối, chịu trách nhiệm quản lý thông tin tài khoản của nhà tuyển dụng và ứng viên.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Keycloak thực hiện xác thực người dùng dựa trên vùng quản lý định danh (realm) được cấu hình. Sau khi xác thực thành công, Keycloak thực hiện ký số mã thông báo truy cập (JWT) bằng khóa riêng tư. Khóa công khai dùng để xác minh chữ ký được cung cấp qua điểm cuối JWKS, cho phép cổng giao tiếp Kong và các vi dịch vụ tải về để đối chiếu cục bộ.
+    \item \textbf{Cơ chế hoạt động}: Keycloak thực hiện xác thực người dùng dựa trên vùng quản lý định danh (realm) được cấu hình. Sau khi xác thực thành công, Keycloak thực hiện ký số mã thông báo truy cập (JWT) bằng khóa riêng tư. Khóa công khai dùng để xác minh chữ ký được cung cấp qua điểm cuối JWKS, cho phép cổng giao tiếp Kong và các Microservices tải về để đối chiếu cục bộ.
     \item \textbf{Kết quả lấy mã thông báo truy cập}: Quản trị viên hoặc ứng dụng khách có thể lấy mã thông báo truy cập bằng giao thức OpenID Connect qua luồng mật khẩu:
 \begin{minted}[fontsize=\footnotesize]{bash}
 # Gửi yêu cầu lấy mã thông báo truy cập JWT từ Keycloak
@@ -191,7 +191,7 @@ spec:
   dnsNameTemplates:
     - "{{ index .PodMeta.Labels \"app\" }}.{{ .PodMeta.Namespace }}.svc.cluster.local"
 \end{minted}
-    \item \textbf{Kết quả chạy lệnh minh họa}: Kiểm tra danh sách các thực thể vi dịch vụ được đăng ký trên Máy chủ SPIRE (SPIRE Server):
+    \item \textbf{Kết quả chạy lệnh minh họa}: Kiểm tra danh sách các thực thể Microservices được đăng ký trên Máy chủ SPIRE (SPIRE Server):
 \begin{minted}[fontsize=\footnotesize]{bash}
 $ kubectl exec -n spire spire-server-0 -c spire-server \
   -- /opt/spire/bin/spire-server entry show
@@ -209,8 +209,8 @@ Selectors     : k8s:pod-label:app:identity-service
 \subsection{Hệ thống quản lý thông tin mật Vault}
 Vault quản lý các thông tin cấu hình nhạy cảm và cấp phát tài khoản cơ sở dữ liệu động với thời hạn ngắn.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi vi dịch vụ nghiệp vụ (như \texttt{identity-service}) khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực tối đa là 3600 giây (1 giờ).
-    \item \textbf{Cấu hình chính sách Vault}: Đoạn mã cấu hình quyền hạn cho phép vi dịch vụ nghiệp vụ đọc thông tin tài khoản động:
+    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi Microservices nghiệp vụ (như \texttt{identity-service}) khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực tối đa là 3600 giây (1 giờ).
+    \item \textbf{Cấu hình chính sách Vault}: Đoạn mã cấu hình quyền hạn cho phép Microservices nghiệp vụ đọc thông tin tài khoản động:
 \begin{minted}[fontsize=\footnotesize]{text}
 # Vault Policy: identity-service-policy
 path "database/creds/identity-service" {
@@ -356,8 +356,8 @@ spec:
 \end{minted}
 \end{itemize}
 
-\subsection{Các vi dịch vụ nghiệp vụ}
-Các vi dịch vụ nghiệp vụ được cấu hình chạy song song với các container phụ trợ trong cùng một Pod để hỗ trợ cập nhật thông tin bảo mật tự động.
+\subsection{Các Microservices nghiệp vụ}
+Các Microservices nghiệp vụ được cấu hình chạy song song với các container phụ trợ trong cùng một Pod để hỗ trợ cập nhật thông tin bảo mật tự động.
 \begin{itemize}
     \item \textbf{Cơ chế hoạt động}: Khi \texttt{vault-agent} lấy và ghi tài khoản MySQL mới vào tệp \texttt{.env} trên phân vùng bộ nhớ tạm (tmpfs), tiến trình phụ \texttt{env-watcher} sẽ phát hiện sự thay đổi nội dung tệp tin bằng mã băm MD5 và gửi yêu cầu HTTP POST nội bộ tới container \texttt{app} để cập nhật cấu hình hệ thống tức thì. Nếu yêu cầu HTTP thất bại, tiến trình sẽ gửi tín hiệu \texttt{SIGUSR2} tới tiến trình \texttt{php-fpm} master trong Pod để khởi động lại máy chủ ứng dụng một cách an toàn.
     \item \textbf{Đoạn mã giám sát cấu hình}:
@@ -469,7 +469,7 @@ Khi các nút trong cụm Kubernetes đã ở trạng thái sẵn sàng, quá tr
 \begin{enumerate}
     \item Triển khai các dịch vụ nghiệp vụ và gán nhãn bắt buộc:
 \begin{minted}[fontsize=\footnotesize]{bash}
-# Triển khai 7 vi dịch vụ nghiệp vụ vào không gian tên job7189-apps
+# Triển khai 7 Microservices nghiệp vụ vào không gian tên job7189-apps
 $ bash 03-deploy-microservices.sh
 
 # Khởi tạo cơ sở dữ liệu ban đầu cho các dịch vụ
@@ -622,7 +622,7 @@ All tested APIs are functioning properly without 500 errors!
 \end{itemize}
 
 \subsection{Giám sát luồng mạng qua giao diện trực quan}
-Để phân tích luồng dữ liệu hoặc xử lý sự cố kết nối giữa các vi dịch vụ, quản trị viên sử dụng giao diện đồ họa của Hubble theo các bước sau:
+Để phân tích luồng dữ liệu hoặc xử lý sự cố kết nối giữa các Microservices, quản trị viên sử dụng giao diện đồ họa của Hubble theo các bước sau:
 \begin{enumerate}
     \item Kích hoạt chuyển tiếp cổng (port-forward) từ máy trạm đến dịch vụ Hubble UI trong cụm:
 \begin{minted}[fontsize=\footnotesize]{bash}
@@ -630,5 +630,5 @@ $ KUBECONFIG=/home/ptb/.kube/config-job7189 \
   kubectl port-forward -n kube-system svc/hubble-ui 12000:80
 \end{minted}
     \item Mở trình duyệt web và truy cập địa chỉ \texttt{http://localhost:12000}.
-    \item Chọn không gian tên \texttt{job7189-apps} ở góc trên bên trái để quan sát sơ đồ kết nối thời gian thực giữa các vi dịch vụ nghiệp vụ. Các kết nối bị chặn bởi chính sách Cilium sẽ hiển thị màu đỏ (dropped), các luồng hợp lệ sẽ hiển thị màu xanh (forwarded), giúp dễ dàng định vị lỗi cấu hình chính sách.
+    \item Chọn không gian tên \texttt{job7189-apps} ở góc trên bên trái để quan sát sơ đồ kết nối thời gian thực giữa các Microservices nghiệp vụ. Các kết nối bị chặn bởi chính sách Cilium sẽ hiển thị màu đỏ (dropped), các luồng hợp lệ sẽ hiển thị màu xanh (forwarded), giúp dễ dàng định vị lỗi cấu hình chính sách.
 \end{enumerate}

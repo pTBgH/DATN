@@ -90,6 +90,11 @@ data:
     WEIGHT_LABEL = int(os.environ.get("PDP_WEIGHT_LABEL", "30"))
     WEIGHT_CRITICAL_CVE = int(os.environ.get("PDP_WEIGHT_CRITICAL", "50"))
     WEIGHT_HIGH_CVE = int(os.environ.get("PDP_WEIGHT_HIGH", "20"))
+    # Tier sensitivity: a posture problem on a more critical tier costs more.
+    # Only bites when the pod ALREADY has a posture issue (missing label or
+    # CVE), so a clean pod keeps score 100 regardless of tier (safe rollout).
+    WEIGHT_TIER = int(os.environ.get("PDP_WEIGHT_TIER", "15"))
+    TIER_FACTOR = {"T0": 1.0, "T1": 0.8, "T2": 0.5, "T3": 0.2}
 
     # Score-bucket thresholds
     BUCKET_HIGH_THRESHOLD = int(os.environ.get("PDP_BUCKET_HIGH", "80"))
@@ -257,12 +262,19 @@ data:
         has_critical = 1 if critical_cve > 0 else 0
         has_high = 1 if high_cve > 0 else 0
 
+        tier = labels.get("zta.job7189/tier", "")
+        posture_hit = bool(missing) or has_critical or has_high
+        tier_penalty = (
+            round(WEIGHT_TIER * TIER_FACTOR.get(tier, 0.5)) if posture_hit else 0
+        )
+
         score = max(
             0,
             100
             - round(WEIGHT_LABEL * missing_ratio)
             - WEIGHT_CRITICAL_CVE * has_critical
-            - WEIGHT_HIGH_CVE * has_high,
+            - WEIGHT_HIGH_CVE * has_high
+            - tier_penalty,
         )
 
         if score >= BUCKET_HIGH_THRESHOLD:

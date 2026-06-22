@@ -10,8 +10,11 @@ Watches Pod label changes in 7 ZTA namespaces and:
      hardening (xem knowledge-base/19-label-schema.md).
   2. Reads VulnerabilityReport CRs from Trivy Operator to assess image
      CVE posture (criticalCount, highCount).
-  3. Computes weighted trust score from 2 inputs:
-     score = max(0, 100 - 30*(missing_labels/6) - 50*has_critical - 20*has_high)
+  3. Computes weighted trust score from 3 inputs (labels, CVE, tier):
+     score = max(0, 100 - 30*(missing_labels/6) - 50*has_critical
+                  - 20*has_high - tier_penalty)
+     where tier_penalty = round(15 * TIER_FACTOR[tier]) only when the pod
+     already has a posture issue (missing label or CVE).
   4. Patches pods with label `zta.job7189/score-bucket=high|medium|low` so
      Cilium CNP and Gatekeeper can enforce based on trust level.
   5. Emits structured audit log to stdout (Filebeat → Elasticsearch).
@@ -69,6 +72,14 @@ METRICS_RECONCILE_PERIOD = int(os.environ.get("RECONCILE_PERIOD", "60"))
 WEIGHT_LABEL = int(os.environ.get("PDP_WEIGHT_LABEL", "30"))
 WEIGHT_CRITICAL_CVE = int(os.environ.get("PDP_WEIGHT_CRITICAL", "50"))
 WEIGHT_HIGH_CVE = int(os.environ.get("PDP_WEIGHT_HIGH", "20"))
+# Tier sensitivity: a posture problem on a more critical tier costs more.
+# This penalty only applies when the pod ALREADY has a posture issue
+# (missing label or CVE); a fully-compliant pod keeps score 100 regardless
+# of tier. That property makes enabling this weight a safe rollout: no
+# currently-clean pod changes bucket, but the moment a critical-tier pod
+# acquires a CVE/drift it drops faster than a low-tier one.
+WEIGHT_TIER = int(os.environ.get("PDP_WEIGHT_TIER", "15"))
+TIER_FACTOR = {"T0": 1.0, "T1": 0.8, "T2": 0.5, "T3": 0.2}
 
 # Score-bucket thresholds
 BUCKET_HIGH_THRESHOLD = int(os.environ.get("PDP_BUCKET_HIGH", "80"))
@@ -236,12 +247,19 @@ def compute_score(
     has_critical = 1 if critical_cve > 0 else 0
     has_high = 1 if high_cve > 0 else 0
 
+    tier = labels.get("zta.job7189/tier", "")
+    posture_hit = bool(missing) or has_critical or has_high
+    tier_penalty = (
+        round(WEIGHT_TIER * TIER_FACTOR.get(tier, 0.5)) if posture_hit else 0
+    )
+
     score = max(
         0,
         100
         - round(WEIGHT_LABEL * missing_ratio)
         - WEIGHT_CRITICAL_CVE * has_critical
-        - WEIGHT_HIGH_CVE * has_high,
+        - WEIGHT_HIGH_CVE * has_high
+        - tier_penalty,
     )
 
     if score >= BUCKET_HIGH_THRESHOLD:

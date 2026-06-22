@@ -118,17 +118,428 @@ Triển khai bám sát năm thành phần chức năng (TC1–TC5) đã đề xu
 % 3.5 KIỂM CHỨNG THỰC NGHIỆM
 %==============================================================================
 \section{Kiểm chứng thực nghiệm các kịch bản tấn công}
+\label{sec:c3_scenarios}
 
-% [CHÈN C3 CŨ VÀO ĐÂY: Dán toàn bộ Kịch bản 1 đến Kịch bản 6 của bạn vào đây. Giữ đúng thứ tự KB1 = Tetragon, KB2 = Vault... kèm theo các block code/log thực tế. Nhớ bổ sung log Exit Code 137 cho Tetragon như đã thống nhất.]
+Phần này kiểm chứng kiến trúc Zero Trust thông qua các kịch bản mô phỏng tấn công dựa trên ma trận MITRE ATT\&CK for Containers. Mỗi kịch bản đối chiếu một kỹ thuật tấn công cụ thể với cơ chế phòng thủ tương ứng trong hệ thống \texttt{job7189}, sử dụng nhật ký và cấu hình trích xuất trực tiếp từ cụm thực nghiệm.
+
+Để bảo đảm tính trung thực khoa học, mỗi kịch bản được trình bày theo nguyên tắc \textbf{minh bạch hóa trạng thái}, tách rõ hai mức:
+
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} những gì cụm thực sự thực thi tại thời điểm báo cáo, kèm cấu hình và nhật ký thực tế.
+    \item \textbf{Định hướng thiết kế \texttt{[C]}:} những cơ chế tự động hóa nâng cao (tự động cô lập, tự phục hồi GitOps, phát hiện ngữ cảnh) hiện dừng ở mức thiết kế. Trong phạm vi nguyên mẫu (PoC), các cơ chế này được giữ ở mức thiết kế lý thuyết nhằm bảo đảm không gián đoạn dịch vụ hợp lệ; việc tự động hóa toàn trình sẽ được mở rộng trong tương lai.
+\end{itemize}
+
+Bảng tổng hợp độ phủ kỹ thuật và mức minh chứng được trình bày ở Mục~\ref{subsec:c3_mitre} (Bảng~\ref{tab:c3_mitre_summary}).
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 1: Xâm nhập qua API Gateway và token bị đánh cắp}
+\label{subsec:c3_kb1}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng kiểm soát truy cập tại biên (Bắc--Nam) đối với token truy cập, và xác định ranh giới giữa cơ chế đã hiện thực với cơ chế phát hiện ngữ cảnh ở mức thiết kế.
+
+\textbf{Kịch bản tấn công (T1078 --- Valid Accounts):} Một JWT hợp lệ bị giả lập đánh cắp và được sử dụng lại từ một địa chỉ IP bất thường nhằm truy cập API nghiệp vụ.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Kong Gateway thực thi plugin xác thực JWT tại biên: mọi yêu cầu thiếu token, sai chữ ký hoặc hết hạn đều bị từ chối với mã \texttt{HTTP 401} trước khi chạm tới dịch vụ nghiệp vụ. Kết hợp với token đời sống ngắn do Keycloak cấp, cửa sổ tái sử dụng token bị đánh cắp được thu hẹp.
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Một JWT \emph{hợp lệ và còn hạn} bị đánh cắp hiện vẫn vượt qua được khâu kiểm tra chữ ký tại Kong. Cơ chế phát hiện theo ngữ cảnh (Impossible-Travel: đối chiếu vị trí địa lý với lịch sử đăng nhập) và thu hồi phiên động được \emph{thiết kế} để lấp khoảng trống này thông qua OPA, nhưng trong phạm vi PoC chưa được hiện thực end-to-end. Phần này được trình bày như định hướng, không kèm nhật ký vận hành để tránh mô tả vượt quá năng lực thực tế.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=18mm and 18mm,
+  font=\sffamily,
+  atk/.style={draw=red!50, rounded corners=3pt, fill=red!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.2cm},
+  des/.style={draw=orange!70!black, dashed, rounded corners=3pt, fill=orange!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.8cm},
+  sys/.style={draw=blue!50, rounded corners=3pt, fill=blue!6, thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.2cm},
+  blk/.style={draw=red!70!black, rounded corners=3pt, fill=red!15, very thick,
+    minimum height=12mm, inner sep=6pt, align=center, text width=3.8cm},
+  flow/.style={->, >=stealth, thick},
+]
+\node[atk] (req1) {Thiếu/sai chữ ký\\hoặc hết hạn};
+\node[blk, right=of req1] (kong1) {Kong JWT plugin\\$\rightarrow$ \textbf{HTTP 401} \texttt{[A]}};
+
+\node[atk, below=of req1] (req2) {JWT hợp lệ bị\\đánh cắp (T1078)};
+\node[sys, right=of req2] (kong2) {Kong: chữ ký hợp lệ\\$\rightarrow$ cho qua};
+\node[des, right=of kong2] (opa) {OPA Impossible-Travel\\$\rightarrow$ Drop/Buộc MFA\\\texttt{[C] thiết kế}};
+
+\draw[flow, red!60] (req1) -- (kong1);
+\draw[flow, red!60] (req2) -- (kong2);
+\draw[flow, dashed, orange!70!black] (kong2) -- (opa);
+\end{tikzpicture}
+\caption{Kịch bản 1: Kong cưỡng chế xác thực JWT tại biên \texttt{[A]}; phát hiện ngữ cảnh Impossible-Travel ở mức thiết kế \texttt{[C]}}
+\label{fig:c3_kb1}
+\end{figure}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Yêu cầu thiếu token bị Kong từ chối ngay tại biên
+$ curl -sS -m 10 -w '\nHTTP %{http_code}\n' \
+      http://10.105.206.111:80/api/v1/jobs
+{"message":"Unauthorized"}
+HTTP 401
+\end{minted}
+\caption{Kong từ chối yêu cầu không có JWT hợp lệ tại biên (cơ chế đã kiểm chứng)}
+\label{lst:c3_kb1}
+\end{listing}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 2: Thực thi mã từ xa và giám sát tiến trình bằng eBPF}
+\label{subsec:c3_kb2}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng phát hiện hành vi sinh shell trái phép trong container nghiệp vụ tại lớp nhân (kernel).
+
+\textbf{Kịch bản tấn công (T1190 $\rightarrow$ T1059 --- Exploit Public-Facing App $\rightarrow$ Command Interpreter):} Mô phỏng lỗ hổng thực thi mã từ xa buộc tiến trình ứng dụng sinh shell hệ thống qua \texttt{/bin/sh}.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Tetragon (v1.7.0) hook syscall \texttt{execve} tại kernel space và phân tích phả hệ tiến trình. Cần phân biệt rõ hai mức hành động trong \texttt{TracingPolicyNamespaced} đang chạy thật trên cụm: các công cụ tấn công mạng (\texttt{nc}, \texttt{ncat}, \texttt{nmap}, \texttt{socat}) bị \texttt{Sigkill} (ngắt tại nhân, exit code 137); còn \texttt{/bin/sh}, \texttt{/bin/bash}, \texttt{curl}, \texttt{wget} chỉ ở chế độ \texttt{Post} (ghi nhận kiểm toán). Lý do hạ \texttt{/bin/sh} xuống \texttt{Post} là để tránh giết nhầm các luồng khởi tạo hợp lệ (vault-agent-init, kubelet probe \texttt{sh -c}) vốn sinh shell trong giai đoạn khởi động.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{yaml}
+# TracingPolicyNamespaced: block-suspicious-exec (job7189-apps) — trích thực tế
+selectors:
+- matchArgs:   # Công cụ tấn công: ngắt ngay tại nhân
+  - {index: 0, operator: "Equal",
+     values: ["/usr/bin/nc","/bin/nc","/usr/bin/ncat",
+              "/usr/bin/nmap","/usr/bin/socat","/bin/socat"]}
+  matchActions: [{action: Sigkill}]
+- matchArgs:   # Shell/tiện ích: chỉ kiểm toán (Post) để không giết nhầm init
+  - {index: 0, operator: "Equal",
+     values: ["/bin/sh","/bin/bash","/usr/bin/curl","/usr/bin/wget"]}
+  matchActions: [{action: Post}]
+\end{minted}
+\caption{Chính sách Tetragon thực tế: Sigkill cho công cụ tấn công, Post (kiểm toán) cho shell}
+\label{lst:c3_kb2_policy}
+\end{listing}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl logs ds/tetragon -n kube-system -c export-stdout \
+    | grep "execve" | grep "/bin/sh"
+{"process_exec":{"process":{"pid":1324,"uid":0,"cwd":"/var/www/html",
+"binary":"/bin/sh","arguments":"-c id; uname -a","flags":"execve root"},
+"parent":{"binary":"/usr/local/sbin/php-fpm"}}}
+\end{minted}
+\caption{Tetragon ghi nhận tiến trình cha php-fpm sinh \texttt{/bin/sh} (chế độ Post --- kiểm toán)}
+\label{lst:c3_kb2_log}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Để ngắt cả shell trái phép mà không ảnh hưởng luồng khởi tạo, có thể bổ sung mệnh đề \texttt{matchBinaries} (danh sách cha hợp lệ: php-fpm, dumb-init, vault\dots) kết hợp \texttt{action: Sigkill} --- khung này đã được phác thảo sẵn (dạng comment) trong chính sách nhưng chưa kích hoạt để bảo đảm ổn định dịch vụ.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 3: Đánh cắp thông tin xác thực động}
+\label{subsec:c3_kb3}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá hiệu quả của cơ chế cấp phát bí mật động (dynamic secrets) trong việc hạn chế giá trị của thông tin xác thực bị đánh cắp.
+
+\textbf{Kịch bản tấn công (T1552.001 --- Credentials in Files):} Tiến trình đọc tệp chứa thông tin kết nối CSDL từ bên trong Pod nghiệp vụ sau khi container bị chiếm quyền.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Vault Agent sidecar cấp phát thông tin xác thực động (username ngẫu nhiên, TTL ngắn) và render vào RAM Disk (\texttt{tmpfs}), được xoay vòng (renew) định kỳ. Bí mật bị đọc trộm chỉ có giá trị trong vài phút, sau đó tự hết hạn. Đồng thời chính sách default-deny của Cilium hạn chế khả năng tái sử dụng từ Pod không hợp lệ.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- \
+    sh -c 'head -2 /vault/secrets/.env.db'
+DB_USERNAME="v-kubernetes-job-servic-8KVZKNMr"   # username sinh động
+DB_PASSWORD="HxJ2IY-szRKLr0QNKhiD"
+
+$ kubectl -n job7189-apps logs deploy/job-service -c vault-agent \
+    --tail=5 | grep 'rendered'
+2026-05-28T08:09:59Z [INFO] agent: (runner) rendered "(dynamic)" => "/vault/secrets/.env.db"
+\end{minted}
+\caption{Vault Agent cấp username sinh động và xoay vòng bí mật trên tmpfs (đã kiểm chứng)}
+\label{lst:c3_kb3}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Việc \emph{tự động hạ điểm tin cậy và cô lập Pod} khi phát hiện hành vi đọc trộm bí mật thuộc vòng lặp PDP, hiện ở mức thiết kế (xem Mục~\ref{subsec:c3_kb10} và Bảng~\ref{tab:enforcement_level}).
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 4: Giả mạo danh tính mạng nội bộ}
+\label{subsec:c3_kb4}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng phát hiện lưu lượng giả mạo IP nguồn trong mạng nội bộ Kubernetes.
+
+\textbf{Kịch bản tấn công (T1036 --- Masquerading):} Container bị chiếm quyền tạo Raw Socket gửi gói tin mang IP nguồn giả mạo nhằm vượt phân đoạn mạng để truy cập MySQL nội bộ.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Cilium xác thực Security Identity dựa trên ánh xạ Pod--veth--IP trong \texttt{cilium\_ipcache}. Gói tin có IP nguồn không khớp định danh thực của Pod bị loại bỏ tại kernel; Hubble ghi nhận trạng thái \texttt{Policy denied DROPPED}. Đồng thời Egress default-deny chặn việc tải công cụ tấn công từ Internet.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+# Cài công cụ tấn công thất bại do Egress bị chặn
+$ kubectl -n job7189-apps exec deploy/hiring-service -c app -- apt-get update
+  Cannot initiate the connection to deb.debian.org:80 - connect (101)
+[exit=124]  # Connection timed out
+
+# Hubble tại Node đích ghi nhận gói SYN giả mạo bị DROP tại kernel
+$ kubectl -n kube-system exec $TARGET_CILIUM -- hubble observe --verdict DROPPED
+... job7189-apps/hiring-service-...:40592 (ID:13257) <>
+    data/mysql-...:3306 (ID:28370) Policy denied DROPPED (TCP Flags: SYN)
+\end{minted}
+\caption{Cilium phát hiện lệch pha danh tính và Egress default-deny chặn tải công cụ (đã kiểm chứng)}
+\label{lst:c3_kb4}
+\end{listing}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 5: Trích xuất dữ liệu qua Egress và DNS}
+\label{subsec:c3_kb5}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng kiểm soát lưu lượng Egress và chặn kết nối tới hạ tầng điều khiển (C2) theo tên miền.
+
+\textbf{Kịch bản tấn công (T1048 / T1071 --- Exfiltration over Alternative Protocol):} Pod nghiệp vụ thử gửi dữ liệu ra ngoài qua HTTP trực tiếp và truy vấn tên miền độc hại.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Do Cilium 1.19 \textbf{không hỗ trợ} \texttt{egressDeny.toFQDNs} (chỉ có chiều cho phép \texttt{egress.toFQDNs}), hệ thống chặn tên miền độc hại bằng \textbf{CoreDNS sinkhole}: plugin \texttt{hosts} của CoreDNS trả về \texttt{0.0.0.0} cho mọi FQDN nằm trong danh sách đen URLhaus, áp dụng toàn cụm bất kể namespace truy vấn. Ở tầng L3/L4, chính sách Egress default-deny của Cilium chặn mọi kết nối ra ngoài không được khai báo tường minh; Hubble xác nhận gói tin bị DROP tại kernel.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+# Corefile (kube-system) — cơ chế sinkhole thực tế thay cho Cilium FQDN deny
+hosts /etc/coredns/sinkhole/hosts.txt { fallthrough; reload 30s }
+# CronJob threat-intel-refresh ghi các dòng "0.0.0.0 <fqdn-doc-hai>"
+# vào ConfigMap coredns-sinkhole mỗi giờ (nguồn URLhaus).
+\end{minted}
+\caption{CoreDNS sinkhole: chặn FQDN độc hại tại thời điểm phân giải DNS (toàn cụm)}
+\label{lst:c3_kb5_coredns}
+\end{listing}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- \
+    curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' http://1.1.1.1
+curl: (28) Connection timed out after 8001 milliseconds  # Egress default-deny
+$ kubectl -n kube-system exec $TARGET_CILIUM -- hubble observe --verdict DROPPED
+... job7189-apps/job-service-...:34660 <> 1.1.1.1:80 (world) Policy denied DROPPED
+\end{minted}
+\caption{Kết nối Egress ngoài danh sách cho phép bị Cilium DROP tại kernel (đã kiểm chứng)}
+\label{lst:c3_kb5_egress}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Phân tích hành vi truy vấn DNS bất thường (tần suất, entropy tên miền) để phát hiện DNS tunneling và tự động cô lập Pod là hướng mở rộng, chưa hiện thực trong PoC.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 6: Chặn kết nối đến IP độc hại (Threat Intelligence)}
+\label{subsec:c3_kb6}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá kiến trúc tích hợp Threat Intelligence để chặn kết nối tới hạ tầng độc hại theo địa chỉ IP.
+
+\textbf{Kịch bản tấn công (T1071 --- Application Layer Protocol / C2):} Pod nghiệp vụ thử kết nối trực tiếp tới một địa chỉ IP thuộc danh sách đen.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]} (một phần):} Kiến trúc đã được triển khai đầy đủ ở tầng hạ tầng: \texttt{CiliumClusterwideNetworkPolicy} và \texttt{CiliumCIDRGroup} (\texttt{threat-intel-firehol}) đã được tạo và xác thực bởi Cilium; CronJob \texttt{threat-intel-refresh} hoạt động. Kết nối tới IP ngoài whitelist bị chặn bởi Egress default-deny. \textbf{Trung thực ghi nhận:} trong chu kỳ thử nghiệm, trường \texttt{externalCIDRs} của CIDRGroup vẫn rỗng (\texttt{[]}) do feed FireHOL/URLhaus chưa đồng bộ hoàn chỉnh --- nghĩa là việc chặn quan sát được đến từ \emph{default-deny}, chưa phải từ deny-list theo Threat Intel.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl get ciliumcidrgroup threat-intel-firehol -o yaml | grep -A1 externalCIDRs
+  externalCIDRs: []   # <-- feed chưa đồng bộ trong chu kỳ thử nghiệm
+
+$ kubectl -n job7189-apps run egress-probe --image=curlimages/curl:8.10.1 \
+    --restart=Never --rm -i -q --command -- \
+    curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' http://203.0.113.50/
+curl: (28) Connection timed out  # bị chặn bởi Egress default-deny (không phải CIDR denylist)
+\end{minted}
+\caption{Trạng thái CIDRGroup rỗng và kết nối bị chặn bởi default-deny --- ghi nhận trung thực mức một phần}
+\label{lst:c3_kb6}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Hoàn thiện pipeline đồng bộ feed (cache nội bộ + kiểm tra trạng thái đồng bộ trong vòng CI) để CIDRGroup được nạp tự động và chặn theo đúng danh sách Threat Intel.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 7: Thỏa hiệp chuỗi cung ứng}
+\label{subsec:c3_kb7}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng kiểm soát image và ngăn workload chưa được xác thực nguồn gốc.
+
+\textbf{Kịch bản tấn công (T1610 / T1525 --- Deploy/Implant Container Image):} Triển khai Pod sử dụng image không tham chiếu qua digest (dùng tag tùy ý).
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Webhook \texttt{policy.sigstore.dev} cưỡng chế yêu cầu image phải tham chiếu qua \texttt{digest sha256} --- đây là chốt cứng đang \texttt{deny} thực sự: mọi image dùng tag bị từ chối ngay tại cổng nạp.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl apply -f unsigned-attacker.yaml
+Error from server (BadRequest): admission webhook "policy.sigstore.dev"
+  denied the request: validation failed: invalid value:
+  ghcr.io/job7189/identity-service:malicious-tag must be an image digest
+[exit=1]
+$ kubectl get clusterimagepolicy
+NAME                        AGE
+zta-job7189-apps-signed     20d
+zta-keyless-trust-job7189   20d
+\end{minted}
+\caption{Cổng nạp từ chối image không dùng digest sha256 (digest-pin --- đã kiểm chứng)}
+\label{lst:c3_kb7}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Kiểm tra \emph{chữ ký số} đầy đủ của image (Cosign) hiện ở chế độ \texttt{mode=warn} (cảnh báo, chưa \texttt{enforce}) do cần toàn bộ pipeline CI/CD ký số trên registry nội bộ. Việc chuyển sang \texttt{enforce} là bước kế tiếp; hiện chốt cứng dựa vào digest-pin.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 8: Trinh sát mạng nội bộ}
+\label{subsec:c3_kb8}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng hạn chế trinh sát mạng (network discovery) và tước đặc quyền hệ điều hành của container.
+
+\textbf{Kịch bản tấn công (T1046 --- Network Service Discovery):} Container bị chiếm quyền dò tìm dịch vụ nội bộ và truy vấn Kubernetes API Server.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Pod bị tước toàn bộ Linux Capabilities (\texttt{CapEff=0}) và chính sách default-deny của Cilium chặn mọi kết nối không khai báo tường minh --- kể cả tới API Server (chặn ở tầng mạng trước cả RBAC).
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- \
+    cat /proc/1/status | grep CapEff
+CapEff: 0000000000000000        # không còn capability nào
+
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- \
+    curl -s --connect-timeout 2 http://hiring-service:80/health
+command terminated with exit code 28   # TIMEOUT — CNP default-deny chặn
+\end{minted}
+\caption{Pod không còn capability và mọi hướng trinh sát đều bị CNP default-deny chặn (đã kiểm chứng)}
+\label{lst:c3_kb8}
+\end{listing}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 9: Khai thác Kubelet API và thoát khỏi container}
+\label{subsec:c3_kb9}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng bảo vệ Host Node và chặn hành vi thoát container (container escape).
+
+\textbf{Kịch bản tấn công (T1611 / T1068 --- Escape to Host / Privilege Escalation):} Container thử kết nối Kubelet API (cổng 10250) và gọi syscall đặc quyền \texttt{unshare}.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Cilium chặn Egress tới IP mức Host; Seccomp \texttt{RuntimeDefault} chặn syscall nhạy cảm --- \texttt{unshare} trả về \texttt{Operation not permitted}.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- \
+    curl -sS --connect-timeout 2 http://100.114.68.15:10250
+curl: (28) Failed to connect ... port 10250 after 2002 ms  # eBPF chặn tới Host IP
+
+$ kubectl -n job7189-apps exec deploy/job-service -c app -- unshare -m
+unshare: unshare failed: Operation not permitted   # Seccomp chặn syscall
+\end{minted}
+\caption{Kubelet API bị eBPF chặn và syscall \texttt{unshare} bị Seccomp từ chối (đã kiểm chứng)}
+\label{lst:c3_kb9}
+\end{listing}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 10: Sửa đổi trái phép chính sách mạng}
+\label{subsec:c3_kb10}
+%--------------------------------------------------------------
+
+\textbf{Mục tiêu:} Đánh giá khả năng chống thay đổi trái phép cấu hình bảo mật và cơ chế khôi phục trạng thái.
+
+\textbf{Kịch bản tấn công (T1562.001 --- Impair Defenses / Disable or Modify Tools):} Tài khoản bị lạm dụng xóa chính sách mạng default-deny.
+
+\textbf{Cơ chế đã kiểm chứng \texttt{[A]}:} Toàn bộ cấu hình bảo mật được lưu dưới dạng mã (Infrastructure-as-Code) trong kho lưu trữ; hành vi thay đổi được ghi nhận qua Kubernetes Audit Log. Khôi phục được kiểm chứng bằng cách áp lại manifest IaC --- xác nhận chính sách tái lập chính xác.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{bash}
+$ kubectl delete cnp default-deny-all -n job7189-apps    # tài khoản đủ RBAC
+ciliumnetworkpolicy.cilium.io "default-deny-all" deleted
+
+$ kubectl apply -f infras/k8s-yaml/cilium-policies/00-default-deny.yaml
+ciliumnetworkpolicy.cilium.io/default-deny-all configured   # khôi phục từ IaC
+\end{minted}
+\caption{Xóa chính sách (đủ RBAC) và khôi phục thủ công từ manifest IaC (đã kiểm chứng)}
+\label{lst:c3_kb10}
+\end{listing}
+
+\textbf{Định hướng thiết kế \texttt{[C]}:} Cơ chế \emph{tự phục hồi GitOps} (ArgoCD/FluxCD phát hiện drift và tự động áp lại chính sách đã ký số) được thiết kế theo nguyên tắc Anti-Policy-Drift, nhưng \textbf{chưa} được triển khai vào cụm trong phạm vi luận văn (chưa cài ArgoCD/FluxCD). Trong PoC, việc khôi phục được thực hiện thủ công như minh chứng ở trên.
 
 %==============================================================================
 % 3.6 ĐÁNH GIÁ TỔNG HỢP VÀ HẠN CHẾ
 %==============================================================================
 \section{Đánh giá tổng hợp và hạn chế}
 
-Đồ án kiểm chứng 6 kịch bản tấn công-phòng thủ toàn trình (KB1–KB6) với nhật ký thực tế, bao phủ 10 kỹ thuật MITRE ATT\&CK for Containers. Bảng \ref{tab:c3_mitre_summary} liệt kê tổng hợp 17 kỹ thuật tấn công, bao gồm 10 kỹ thuật đã kiểm chứng thực tế và 7 kỹ thuật ở mức độ định hướng thiết kế, nhằm đánh giá độ phủ phòng thủ toàn diện của kiến trúc chứ không chỉ giới hạn ở phần đã chạy.
+Đồ án kiểm chứng 10 kịch bản tấn công--phòng thủ (KB1–KB10, Mục~\ref{sec:c3_scenarios}) với cấu hình và nhật ký thực tế. Bảng~\ref{tab:c3_scenario_map} tóm tắt ánh xạ kịch bản $\rightarrow$ thành phần chức năng (TC1–TC5) cùng mức minh chứng tương ứng. Cần phân biệt rõ ba mức trong cột \textit{Mức minh chứng}: \texttt{[A]} là cơ chế đã kiểm chứng có nhật ký thực tế; \textit{Một phần} là cơ chế đã triển khai nhưng chưa hoạt động đầy đủ trong chu kỳ thử nghiệm; \texttt{[C]} là cơ chế còn ở mức định hướng thiết kế.
 
-% [CHÈN C3 CŨ VÀO ĐÂY: Dán Bảng 17 dòng MITRE vào đây. Nhớ có cột 'Mức minh chứng' (Đã kiểm chứng [A] / Một phần / Thiết kế)]
+\begin{table}[H]
+\centering
+\caption{Ánh xạ kịch bản kiểm chứng vào thành phần chức năng và mức minh chứng}
+\label{tab:c3_scenario_map}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{|c|X|c|p{3.0cm}|}
+\hline
+\textbf{KB} & \textbf{Cơ chế phòng thủ chính} & \textbf{TC} & \textbf{Mức minh chứng} \\
+\hline
+KB1  & Kong xác thực JWT tại biên & TC1/TC4 & \texttt{[A]} (Impossible-Travel \texttt{[C]}) \\
+\hline
+KB2  & Tetragon eBPF giám sát \texttt{execve} & TC4 & \texttt{[A]} (Post/audit) \\
+\hline
+KB3  & Vault Agent --- bí mật động JIT & TC3 & \texttt{[A]} \\
+\hline
+KB4  & Cilium Security Identity (ipcache) & TC4 & \texttt{[A]} \\
+\hline
+KB5  & CoreDNS sinkhole + Egress default-deny & TC2/TC4 & \texttt{[A]} \\
+\hline
+KB6  & Threat-Intel CIDRGroup + CCNP & TC2/TC4 & Một phần \\
+\hline
+KB7  & Digest-pin (sigstore admission) & TC2 & \texttt{[A]} (Cosign \texttt{warn} \texttt{[C]}) \\
+\hline
+KB8  & CNP default-deny + tước Capabilities & TC4 & \texttt{[A]} \\
+\hline
+KB9  & Seccomp RuntimeDefault + Egress eBPF & TC4 & \texttt{[A]} \\
+\hline
+KB10 & IaC + Audit Log (khôi phục thủ công) & TC5 & \texttt{[A]} (GitOps self-heal \texttt{[C]}) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Tổng hợp độ phủ kỹ thuật MITRE ATT\&CK}
+\label{subsec:c3_mitre}
+
+Bảng~\ref{tab:c3_mitre_summary} tổng hợp 17 kỹ thuật MITRE ATT\&CK for Containers nằm trong phạm vi phòng thủ của kiến trúc: 10 kỹ thuật đã kiểm chứng thực tế (hoặc một phần) và 7 kỹ thuật ở mức định hướng thiết kế. Việc liệt kê cả phần thiết kế nhằm đánh giá độ phủ phòng thủ toàn diện của kiến trúc, đồng thời chỉ rõ ranh giới giữa phần đã hiện thực và phần mở rộng tương lai.
+
+\begin{table}[H]
+\centering
+\caption{Tổng hợp độ phủ kỹ thuật MITRE ATT\&CK for Containers và mức minh chứng}
+\label{tab:c3_mitre_summary}
+\renewcommand{\arraystretch}{1.25}
+\footnotesize
+\begin{tabularx}{\textwidth}{|l|X|l|c|}
+\hline
+\textbf{Mã ATT\&CK} & \textbf{Kỹ thuật} & \textbf{Cơ chế phòng thủ} & \textbf{Mức} \\
+\hline
+T1078        & Valid Accounts                     & Kong JWT (biên)            & \texttt{[A]} \\
+\hline
+T1190        & Exploit Public-Facing Application  & Kong + Tetragon            & Một phần \\
+\hline
+T1059        & Command/Scripting Interpreter      & Tetragon (Post)            & \texttt{[A]} \\
+\hline
+T1552.001    & Credentials in Files               & Vault JIT (tmpfs, TTL)     & \texttt{[A]} \\
+\hline
+T1036        & Masquerading (IP spoofing)         & Cilium ipcache identity    & \texttt{[A]} \\
+\hline
+T1048        & Exfiltration over Alt. Protocol    & CoreDNS sinkhole + default-deny & \texttt{[A]} \\
+\hline
+T1071        & Application Layer Protocol (C2)    & Egress default-deny / CIDRGroup & Một phần \\
+\hline
+T1046        & Network Service Discovery          & CNP default-deny           & \texttt{[A]} \\
+\hline
+T1610/T1525  & Deploy/Implant Container Image     & Digest-pin (admission)     & \texttt{[A]} \\
+\hline
+T1611        & Escape to Host                     & Seccomp RuntimeDefault     & \texttt{[A]} \\
+\hline
+T1068        & Privilege Escalation (\texttt{unshare}) & Seccomp + tước Capabilities & \texttt{[A]} \\
+\hline
+T1562.001    & Impair Defenses (xóa NetworkPolicy)& IaC + Audit Log            & Một phần \\
+\hline
+T1557        & Adversary-in-the-Middle            & OPA Impossible-Travel      & \texttt{[C]} \\
+\hline
+T1071.004    & DNS (tunneling)                    & Phân tích hành vi DNS      & \texttt{[C]} \\
+\hline
+T1496        & Resource Hijacking                 & PDP hạ điểm $\rightarrow$ cô lập & \texttt{[C]} \\
+\hline
+T1556        & Modify Authentication Process      & Thu hồi phiên động (CAEP)  & \texttt{[C]} \\
+\hline
+T1078.004    & Cloud Accounts (chữ ký image đầy đủ)& Cosign \texttt{enforce}    & \texttt{[C]} \\
+\hline
+\end{tabularx}
+\end{table}
 
 \subsection{Mức độ cưỡng chế thực tế của hệ thống}
 

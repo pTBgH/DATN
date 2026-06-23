@@ -1,0 +1,56 @@
+# =============================================================================
+# Trust-Score response matrix (F08) — graduated East-West restriction by bucket.
+#
+# Design intent (from roadmap F08): when a pod's trust score drops, TIGHTEN
+# East-West (calls to sensitive internal namespaces) while KEEPING North-South
+# (it can still serve users via ingress). These use `egressDeny`, which takes
+# precedence over any allow policy in Cilium, so they layer on top of the
+# existing per-namespace allow policies WITHOUT triggering default-deny.
+#
+# Today no pod is labelled medium/low (all `high`), so applying these is INERT
+# until the PDP demotes a pod. The existing namespaced CNP
+# vault/cnp-block-low-trust-to-vault already blocks low->vault on the ingress
+# side; these add the egress side + the `medium` tier + more sensitive
+# namespaces.
+#
+# Selector form uses k8s:io.kubernetes.pod.namespace (the form proven to match
+# on this cluster — see the threat-intel DNS fix).
+# =============================================================================
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: ccnp-medium-trust-restrict-ew
+  labels:
+    zta.job7189/control: trust-matrix
+spec:
+  description: "score-bucket=medium: deny egress to Vault (sensitive E-W)"
+  endpointSelector:
+    matchLabels:
+      zta.job7189/score-bucket: medium
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: ccnp-low-trust-isolate-ew
+  labels:
+    zta.job7189/control: trust-matrix
+spec:
+  description: "score-bucket=low: deny egress to all sensitive namespaces (Vault/Data/Management); North-South ingress preserved"
+  endpointSelector:
+    matchLabels:
+      zta.job7189/score-bucket: low
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: vault
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: management

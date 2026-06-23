@@ -33,15 +33,16 @@ status() {
   need_kubectl
   local ns="${1:?usage: $0 status <ns>}"
   printf '%-32s %-24s %s\n' DEPLOYMENT CONTAINER readOnlyRootFS
-  "$KUBECTL" -n "$ns" get deploy -o json 2>/dev/null | python3 - "$ns" <<'PY'
+  "$KUBECTL" -n "$ns" get deploy -o json 2>/dev/null | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 for item in d.get("items",[]):
     name=item["metadata"]["name"]
     for c in item["spec"]["template"]["spec"].get("containers",[]):
         ro=(c.get("securityContext") or {}).get("readOnlyRootFilesystem","<unset>")
-        print(f'{name:<32} {c["name"]:<24} {ro}')
-PY
+        cname=c["name"]
+        print(f"{name:<32} {cname:<24} {ro}")
+'
 }
 
 _build_patch() {

@@ -4,23 +4,29 @@
 %======================================================================
 \documentclass[12pt, a4paper, oneside]{report}
 
-% Cấu hình cmap để PDF xuất ra mịn mượt và tìm kiếm được tiếng Việt
-\usepackage{cmap}
-
 % Hỗ trợ gõ tiếng Việt và hiển thị đúng
 \usepackage[utf8]{vietnam}
 \usepackage[T5]{fontenc}
 \usepackage{textcomp}
 
-% Thiết lập font chữ Times New Roman sử dụng bộ font newtx (mượt hơn mathptmx)
-\usepackage{newtxtext}
-\usepackage{newtxmath}
-\usepackage{microtype} % Tối ưu hóa khoảng cách và căn lề chữ mượt mà hơn 
+% Thiết lập font chữ Times New Roman hoặc tương đương
+\usepackage{mathptmx} 
+
+% \usepackage{cmap}
+% \usepackage{newtxtext}
+% \usepackage{newtxmath}
+% \usepackage{microtype}
+
+
 
 %======================================================================
 % 2. CANH LỀ VÀ LAYOUT TRANG
 %======================================================================
 \usepackage[top=3cm, bottom=3cm, left=3.5cm, right=2cm, heightrounded, headheight=15pt]{geometry}
+
+\setlength{\parindent}{0.8cm}
+\setlength{\parskip}{6pt}
+
 
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -33,18 +39,6 @@
 \usepackage{setspace}
 \onehalfspacing
 \usepackage{indentfirst}
-\setlength{\parindent}{1.27cm} % Chỉnh độ rộng thụt lề đầu dòng (chuẩn Word là 1.27cm = 0.5 inch)
-\setlength{\parskip}{6pt}      % Chỉnh khoảng cách giữa các đoạn văn (như thầy nhận xét: "giữa các đoạn phải giãn ra")
-
-
-\usepackage{tocloft}
-\usepackage{tocloft}
-
-% Thay đổi phông chữ của tên chương trong mục lục thành chữ thường (không in đậm)
-\renewcommand{\cftchapfont}{\normalfont}
-
-% Thay đổi phông chữ của số trang của chương thành chữ thường (không in đậm)
-\renewcommand{\cftchappagefont}{\normalfont}
 
 %======================================================================
 % 3. CÁC GÓI TOÁN HỌC
@@ -103,8 +97,7 @@
     framesep=2mm,     
     baselinestretch=1.2,
     fontsize=\small,  
-    linenos,
-    breaklines        % Tự động xuống dòng khi các đoạn code quá dài
+    linenos           
 }
 
 % Định dạng lại tiêu đề chương, mục
@@ -114,8 +107,17 @@
 \titlespacing*{\chapter}{0pt}{50pt}{40pt}
 
 %======================================================================
-% 7. TÀI LIỆU THAM KHẢO VÀ HYPERLINK (PHẢI NẰM CUỐI CÙNG)
-%======================================================================
+\usepackage{url}        
+\usepackage[
+    colorlinks=true,      
+    linkcolor=black,      
+    citecolor=black,      
+    urlcolor=black,       
+    bookmarks=true,
+    pdfencoding=auto,
+    unicode
+]{hyperref}
+
 \usepackage{csquotes}
 % Trích dẫn theo chuẩn APA (author-year). Dùng biblatex-apa: cài kèm
 % TeX Live Full (FROM texlive/texlive:latest đã có sẵn). \parencite cho
@@ -130,14 +132,3 @@
 ]{biblatex}
 \DeclareLanguageMapping{english}{english-apa}
 \addbibresource{bibliography.bib}
-
-\usepackage{url}        
-\usepackage[
-    colorlinks=true,      
-    linkcolor=black,      
-    citecolor=black,      
-    urlcolor=black,       
-    bookmarks=true,
-    pdfencoding=auto,
-    unicode
-]{hyperref}

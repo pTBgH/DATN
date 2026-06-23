@@ -1,0 +1,54 @@
+# =============================================================================
+# FIX: allow-pdp-controller-egress — L4 Bypass DNS Proxy Fallback
+#
+# ROOT CAUSE: Same as allow-threat-intel-egress — Cilium's L7 DNS proxy
+# (Envoy) encounters a UDP checksum offloading / kernel redirect bug, causing
+# all intercepted UDP DNS queries to time out.
+#
+# SOLUTION: Remove `rules.dns` from DNS egress (L4-only), replace `toFQDNs`
+# with `toEntities: [world]` on port 443.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-pdp-controller-egress
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: zta-pdp
+  egress:
+  # K8s API access
+  - toEntities: [kube-apiserver, host, remote-node]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  - toCIDR: ["10.96.0.0/12", "172.18.0.0/16"]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+      - {port: "6443", protocol: TCP}
+  # DNS (L4-only to bypass Cilium L7 Envoy Proxy UDP checksum bug)
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - {port: "53", protocol: UDP}
+      - {port: "53", protocol: TCP}
+  # PyPI + external HTTPS (replaces toFQDNs to avoid L7 DNS dependency)
+  - toEntities: [world]
+    toPorts:
+    - ports:
+      - {port: "443", protocol: TCP}
+  ingress:
+  # Allow Prometheus scrape
+  - fromEndpoints:
+    - matchLabels:
+        app: prometheus
+        k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: monitoring
+    toPorts:
+    - ports:
+      - {port: "9100", protocol: TCP}

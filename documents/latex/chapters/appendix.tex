@@ -490,8 +490,8 @@ $ bash 10-deploy-tetragon.sh
 
 \subsection{Xác minh trạng thái an ninh của hệ thống}
 Để kiểm tra tính tuân thủ của cụm đối với kiến trúc Zero Trust và phát hiện các sai lệch cấu hình giữa các thành phần, quản trị viên có thể sử dụng các công cụ đối chiếu tự động sau:
-\begin{itemize}
-    \item \textbf{Đối chiếu cơ sở dữ liệu tri thức} (\texttt{zta-kb-reconcile.sh}):
+
+\subsubsection{Đối chiếu cơ sở dữ liệu tri thức (\texttt{zta-kb-reconcile.sh})}
 \begin{minted}[fontsize=\footnotesize]{bash}
 $ bash scripts/zta-kb-reconcile.sh
 \end{minted}
@@ -501,31 +501,31 @@ $ bash scripts/zta-kb-reconcile.sh
 ### SECTION 21 — STATIC: KB → repo file refs
 ==============================================================================
      · Kiểm tra các file mà KB trỏ tới có thật trong repo không
-     ✅ PASS  repo file tồn tại: infras/kong/kong.yml
-     ✅ PASS  repo file tồn tại: infras/k8s-yaml/11-vault.yaml
-     ✅ PASS  repo file tồn tại: infras/k8s-yaml/02-keycloak.yaml
+     [OK] PASS  repo file tồn tại: infras/kong/kong.yml
+     [OK] PASS  repo file tồn tại: infras/k8s-yaml/11-vault.yaml
+     [OK] PASS  repo file tồn tại: infras/k8s-yaml/02-keycloak.yaml
      ...
 ==============================================================================
 ### SECTION 22 — KB internal consistency / drift
 ==============================================================================
      · KB dir: /home/ptb/projects/DATN/knowledge-base
      · Số chương numbered NN-*.md hiện có: 38
-     ✅ PASS  KB có ~38 chương (README ghi 32)
-     ⚠️  WARN  Chỉ có 0 incident report (README ghi 3)
-     🔀 DRIFT knowledge-base/00 + knowledge-base/08 (Kind 1CP+3W) vs snapshot 40...
+     [OK] PASS  KB có ~38 chương (README ghi 32)
+     [WARN] WARN  Chỉ có 0 incident report (README ghi 3)
+     [DRIFT] DRIFT knowledge-base/00 + knowledge-base/08 (Kind 1CP+3W) vs snapshot 40...
 
 ==============================================================================
   TỔNG KẾT ĐỐI CHIẾU
 ==============================================================================
-   ✅ PASS :  183
-   ❌ FAIL :    0
-   ⚠️  WARN :   12
-   ⏭️  SKIP :    0
-  ───────────────
+   [OK] PASS :  183
+   [FAIL] FAIL :    0
+   [WARN] WARN :   12
+   [SKIP] SKIP :    0
+  ---------------
   TOTAL  :  195 checks trong 75s
 \end{minted}
     
-    \item \textbf{Kiểm tra chính sách và lỗ hổng mạng} (\texttt{zta-audit-and-remediate.sh}):
+\subsubsection{Kiểm tra chính sách và lỗ hổng mạng (\texttt{zta-audit-and-remediate.sh})}
 \begin{minted}[fontsize=\footnotesize]{bash}
 $ KUBECONFIG=/home/ptb/.kube/config-job7189 \
   bash scripts/zta-audit-and-remediate.sh
@@ -560,7 +560,7 @@ workspace-service-redis-65cf6d9fd-bgt5l: high
 [23:46:54]   Trivy operator namespace(s): security-cdm
 [23:46:54]   VulnerabilityReports present: 25
 [23:46:55] === TASK 5: oauth2-proxy policy labels (12-security.yaml) ===
-[23:46:55]   OK: 12-security.yaml contains legacy labels (accepted per 47-next-tasks.md §1/§5)
+[23:46:55]   OK: 12-security.yaml contains legacy labels (accepted per 47-next-tasks.md Section 1/Section 5)
 [23:46:55] === TASK 6: CNP coverage per namespace ===
 [23:46:55]   OK: Namespace 'data': 9 CNP(s)
 [23:46:55]   OK: Namespace 'monitoring': 14 CNP(s)
@@ -577,7 +577,7 @@ workspace-service-redis-65cf6d9fd-bgt5l: high
 [23:46:59] All audited items healthy.
 \end{minted}
     
-    \item \textbf{Kiểm thử kết nối API} (\texttt{test_api.py}):
+    \subsubsection{Kiểm thử kết nối API (\texttt{test\_api.py})}
 \begin{minted}[fontsize=\footnotesize]{bash}
 $ python3 test_api.py
 \end{minted}
@@ -619,7 +619,6 @@ GET /api/admin/categories/sectors                            | Status Code: 502 
 All tested APIs are functioning properly without 500 errors!
 \end{minted}
     \textit{Ghi chú: Phản hồi mã lỗi 502 ở các đường dẫn quản trị phát sinh do một số dịch vụ chưa được tải dữ liệu hoặc tạm thời ngắt kết nối để tối ưu hóa tài nguyên thử nghiệm. Tuy nhiên, kết quả này cho thấy cổng bảo mật vẫn chặn các truy cập không hợp lệ đúng theo thiết kế và không phát sinh lỗi hệ thống (mã lỗi 500).}
-\end{itemize}
 
 \subsection{Giám sát luồng mạng qua giao diện trực quan}
 Để phân tích luồng dữ liệu hoặc xử lý sự cố kết nối giữa các Microservices, quản trị viên sử dụng giao diện đồ họa của Hubble theo các bước sau:

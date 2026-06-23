@@ -1,0 +1,150 @@
+# =============================================================================
+# Impossible-Travel detector — SHADOW / AUDIT-ONLY (F10).
+#
+# This is the first, NON-ENFORCING phase of the design. It reads Keycloak login
+# events via the Admin REST API and emits a structured audit line whenever the
+# same user logs in from two different source IPs within a short window
+# ("impossible travel" heuristic). It does NOT block logins and does NOT revoke
+# sessions (CAEP) — that enforcement phase stays [Design] until this shadow run
+# is validated against real traffic with an acceptable false-positive rate.
+#
+# Prereqs you must provide:
+#   * Secret `keycloak-admin` in ns `security` with keys:
+#       KC_URL    (e.g. https://keycloak.<ns>.svc.cluster.local:8443)
+#       KC_REALM  (e.g. job7189)
+#       KC_USER   (admin username)
+#       KC_PASS   (admin password)
+#   * Egress from ns security to Keycloak (the CNP below covers DNS + Keycloak).
+# =============================================================================
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: impossible-travel-analyzer
+  namespace: security
+data:
+  analyzer.py: |
+    """Shadow impossible-travel detector. Audit-only; no enforcement."""
+    import json, os, sys, time, urllib.request, urllib.parse, ssl
+    KC_URL = os.environ["KC_URL"].rstrip("/")
+    REALM = os.environ.get("KC_REALM", "master")
+    USER = os.environ["KC_USER"]
+    PASS = os.environ["KC_PASS"]
+    WINDOW = int(os.environ.get("WINDOW_SECONDS", "3600"))
+    MAX_EVENTS = int(os.environ.get("MAX_EVENTS", "2000"))
+    CTX = ssl.create_default_context()
+    if os.environ.get("KC_INSECURE", "false").lower() == "true":
+        CTX.check_hostname = False; CTX.verify_mode = ssl.CERT_NONE
+
+    def _emit(event, **f):
+        rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+               "comp": "impossible-travel", "event": event, **f}
+        sys.stdout.write(json.dumps(rec, separators=(",", ":")) + "\n"); sys.stdout.flush()
+
+    def _post(url, data):
+        req = urllib.request.Request(url, data=urllib.parse.urlencode(data).encode(),
+                                     headers={"Content-Type": "application/x-www-form-urlencoded"})
+        return json.load(urllib.request.urlopen(req, context=CTX, timeout=20))
+
+    def _get(url, token):
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        return json.load(urllib.request.urlopen(req, context=CTX, timeout=20))
+
+    def main():
+        tok = _post(f"{KC_URL}/realms/master/protocol/openid-connect/token",
+                    {"grant_type": "password", "client_id": "admin-cli",
+                     "username": USER, "password": PASS})["access_token"]
+        events = _get(f"{KC_URL}/admin/realms/{REALM}/events?type=LOGIN&max={MAX_EVENTS}", tok)
+        by_user = {}
+        for e in events:
+            uid = e.get("userId") or e.get("details", {}).get("username")
+            if not uid:
+                continue
+            by_user.setdefault(uid, []).append((int(e.get("time", 0)) // 1000, e.get("ipAddress", "")))
+        flagged = 0
+        for uid, logins in by_user.items():
+            logins.sort()
+            for (t0, ip0), (t1, ip1) in zip(logins, logins[1:]):
+                if ip0 and ip1 and ip0 != ip1 and (t1 - t0) <= WINDOW:
+                    flagged += 1
+                    _emit("impossible-travel-suspected", user=uid, ip_from=ip0,
+                          ip_to=ip1, delta_seconds=t1 - t0, action="audit-only")
+        _emit("scan-complete", users=len(by_user), flagged=flagged, window_seconds=WINDOW)
+
+    if __name__ == "__main__":
+        try:
+            main()
+        except Exception as exc:  # noqa: BLE001
+            _emit("scan-error", error=str(exc)); sys.exit(0)  # never crash-loop in shadow
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: impossible-travel-shadow
+  namespace: security
+  labels:
+    zta.job7189/control: impossible-travel
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: impossible-travel-shadow
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+          - name: analyzer
+            image: python:3.11-slim
+            command: ["python", "/app/analyzer.py"]
+            envFrom:
+            - secretRef: {name: keycloak-admin}
+            volumeMounts:
+            - {name: code, mountPath: /app}
+            securityContext:
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+              capabilities: {drop: ["ALL"]}
+          volumes:
+          - name: code
+            configMap: {name: impossible-travel-analyzer}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-impossible-travel-egress
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: impossible-travel-shadow
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - {port: "53", protocol: UDP}
+      - {port: "53", protocol: TCP}
+      rules:
+        dns:
+        - matchPattern: "*"
+  # Keycloak (adjust the target namespace label if Keycloak lives elsewhere).
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: data
+    toPorts:
+    - ports:
+      - {port: "8443", protocol: TCP}
+      - {port: "8080", protocol: TCP}

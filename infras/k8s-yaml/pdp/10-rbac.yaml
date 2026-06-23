@@ -22,7 +22,7 @@ metadata:
 rules:
 # Watch pods + patch annotations/labels across all ZTA namespaces
 - apiGroups: [""]
-  resources: ["pods"]
+  resources: ["pods", "configmaps"]
   verbs: ["get", "list", "watch", "patch"]
 # Read VulnerabilityReport CRs from Trivy Operator (CDM / PIP 4)
 - apiGroups: ["aquasecurity.github.io"]

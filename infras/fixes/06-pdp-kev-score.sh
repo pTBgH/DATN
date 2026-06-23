@@ -89,7 +89,7 @@ status() {
   else
     warn "controller deployed WITHOUT KEV code — run: $0 apply"
   fi
-  local n; n="$("$KUBECTL" -n "$NS" get cm "$KEV_CM" -o jsonpath="{.data.$KEV_KEY}" 2>/dev/null | grep -c 'CVE-' || true)"
+  local n; n="$("$KUBECTL" -n "$NS" get cm "$KEV_CM" -o jsonpath="{.data.kev\.txt}" 2>/dev/null | grep -c 'CVE-' || true)"
   log "kev-catalog CVE count: ${n:-0}"
   log "PDP_WEIGHT_KEV on deployment: '$(_weight_now)' (empty/0 = inert)"
 }

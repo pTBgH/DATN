@@ -238,8 +238,56 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 Để bảo đảm tính trung thực khoa học, mỗi kịch bản được phân định rõ giữa \textbf{Cơ chế hiện tại} (những gì hệ thống thực sự thực thi tại thời điểm báo cáo) và \textbf{Định hướng mở rộng} (những cơ chế tự động hóa nâng cao hiện được giữ ở mức thiết kế lý thuyết nhằm bảo đảm không gián đoạn dịch vụ).
 
 %--------------------------------------------------------------
-\subsection{Kịch bản 1: Xâm nhập qua cổng giao tiếp và đánh cắp mã thông báo}
+\subsection{Kịch bản 1: Trinh sát mạng nội bộ}
 \label{subsec:c3_kb1}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1046):} Thực thể bị chiếm quyền dò tìm dịch vụ nội bộ và truy vấn máy chủ điều khiển trung tâm \parencite{mitre_t1046}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Thực thể bị tước toàn bộ đặc quyền hệ điều hành và chính sách từ chối mặc định chặn mọi kết nối không khai báo tường minh, bao gồm cả kết nối tới máy chủ điều khiển.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết nối hợp lệ nội bộ) ---
+# 1. Thử kết nối TCP từ pod identity-service đến Redis trong cùng namespace
+ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(fsockopen('identity-service-redis', 6379, \$errno, \$errstr, 2));"
+resource(4) of type (stream)
+
+# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Quét cổng máy chủ API Server) ---
+# 2. Thử truy cập API Server điều khiển của Kubernetes (kubernetes.default:443) từ pod nghiệp vụ
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -k -I -m 3 https://kubernetes.default.svc.cluster.local
+curl: (28) Connection timed out after 3002 milliseconds
+
+# 3. Truy xuất nhật ký chặn (DROPPED) của Hubble từ Cilium Agent để minh chứng việc chặn eBPF đối với hành vi trinh sát điều khiển
+ptb@baosrc:~/projects/DATN$ CILIUM_POD=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
+ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "default/kubernetes" | tail -n 1
+Jun 24 07:04:12.793: job7189-apps/identity-service-657f64c7d5-2p9jj:46452 (ID:32062) -> default/kubernetes:443 (ID:52762) Policy denied DROPPED (TCP Flags: SYN)
+\end{minted}
+\caption{Lệnh mô phỏng trinh sát mạng và log DROPPED thực tế từ Hubble}
+\label{lst:c3_kb1}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Chạy trong môi trường sandbox của Pod.
+        \item \textit{Kubernetes API Server:} Điểm điều khiển trung tâm của cụm (\texttt{kubernetes.default.svc.cluster.local}).
+        \item \textit{Cilium CNI (eBPF):} Bộ lọc mạng Linux kernel.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Khi một container bị kiểm soát, tin tặc thường quét mạng nội bộ để tìm API Server nhằm đánh cắp thông tin hạ tầng hoặc leo thang quyền lực. Hệ thống áp dụng chính sách cô lập mặc định, cấm các Pod nghiệp vụ thông thường giao tiếp với API Server.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Ở luồng hợp lệ (mục 1), Pod thực hiện kết nối tới Redis nội bộ thành công.
+        \item Ở luồng bị chặn (mục 2), Pod gửi yêu cầu kết nối tới API Server của Kubernetes trên cổng \texttt{443}. Gói tin bị chặn và trả về lỗi timeout.
+        \item Log Hubble (mục 3) ghi nhận gói tin TCP SYN từ Pod nghiệp vụ tới API Server (\texttt{default/kubernetes:443}) đã bị từ chối và drop bởi tường lửa eBPF (\texttt{Policy denied DROPPED}), chứng minh kẻ tấn công hoàn toàn bị cô lập trong Pod nghiệp vụ và không thể thu thập thông tin về hạ tầng cụm.
+    \end{itemize}
+\end{itemize}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 2: Xâm nhập qua cổng giao tiếp và đánh cắp mã thông báo}
+\label{subsec:c3_kb2}
 %--------------------------------------------------------------
 
 \textbf{Kịch bản tấn công (T1078):} Một mã thông báo hợp lệ bị đánh cắp và được sử dụng lại từ một địa chỉ IP bất thường nhằm truy cập API nghiệp vụ \parencite{mitre_t1078}.
@@ -286,7 +334,7 @@ X-Kong-Request-Id: 3f966322cb0aca455cd2c246b85b295b
 {"user":"anonymous","reason":"OPA denied user-authz","azp":"","message":"forbidden"}
 \end{minted}
 \caption{Lệnh gửi yêu cầu và phản hồi thực tế từ Kong Gateway khi có và không có mã thông báo hợp lệ}
-\label{lst:c3_kb1}
+\label{lst:c3_kb2}
 \end{listing}
 
 \textbf{Giải thích chi tiết kịch bản:}
@@ -309,8 +357,8 @@ X-Kong-Request-Id: 3f966322cb0aca455cd2c246b85b295b
 \textbf{Định hướng mở rộng:} Một mã thông báo hợp lệ và còn hạn bị đánh cắp hiện vẫn vượt qua được khâu kiểm tra chữ ký tại Kong. Cơ chế phát hiện theo ngữ cảnh (đối chiếu vị trí địa lý với lịch sử đăng nhập) và thu hồi phiên động được thiết kế để lấp khoảng trống này thông qua OPA, nhưng trong phạm vi nguyên mẫu chưa được tự động hóa hoàn toàn.
 
 %--------------------------------------------------------------
-\subsection{Kịch bản 2: Thực thi mã từ xa và giám sát tiến trình}
-\label{subsec:c3_kb2}
+\subsection{Kịch bản 3: Thực thi mã từ xa và giám sát tiến trình}
+\label{subsec:c3_kb3}
 %--------------------------------------------------------------
 
 \textbf{Kịch bản tấn công (T1190, T1609):} Mô phỏng lỗ hổng thực thi mã từ xa buộc tiến trình ứng dụng sinh shell hệ thống qua \texttt{/bin/sh} \parencite{mitre_t1190,mitre_t1609}.
@@ -346,7 +394,7 @@ spec:
       - action: Post
 \end{minted}
 \caption{Chính sách Tetragon rút gọn áp dụng hành động Sigkill và Post}
-\label{lst:c3_kb2_policy}
+\label{lst:c3_kb3_policy}
 \end{listing}
 
 \begin{listing}[H]
@@ -367,7 +415,7 @@ ptb@baosrc:~/projects/DATN$ kubectl -n kube-system logs -l app.kubernetes.io/nam
 {"process_kprobe":{"process":{"exec_id":"NzE4OXNydjAyOjEwNDkwOTA2MDc1Mzc4NTo3NjU4NTg=","pid":765858,"uid":0,"cwd":"/","binary":"/bin/nc","arguments":"-h","flags":"exec","start_time":"2026-06-24T06:21:49.03061266Z","auid":4294967295,"pod":{"namespace":"job7189-apps","name":"tetragon-test","container":{"id":"containerd://a19e59d...","name":"tetragon-test","image":{"id":"sha256:d8b7470659...","name":"docker.io/library/busybox:1.37.0"}},"pod_labels":{"app":"tetragon-test"}}},"function_name":"sys_execve","args":[{"string_arg":"/bin/nc"}],"action":"SIGKILL"},"time":"2026-06-24T06:21:49.030611299Z"}
 \end{minted}
 \caption{Lệnh kiểm tra thời gian chạy và nhật ký JSON thực tế từ Tetragon}
-\label{lst:c3_kb2_log}
+\label{lst:c3_kb3_log}
 \end{listing}
 
 \textbf{Giải thích chi tiết kịch bản:}
@@ -390,241 +438,8 @@ ptb@baosrc:~/projects/DATN$ kubectl -n kube-system logs -l app.kubernetes.io/nam
 \textbf{Định hướng mở rộng:} Để ngắt cả shell trái phép mà không ảnh hưởng luồng khởi tạo, hệ thống cần bổ sung danh sách tiến trình cha hợp lệ kết hợp hành động \texttt{SIGKILL}. Khung chính sách này đã được phác thảo nhưng chưa kích hoạt để bảo đảm ổn định dịch vụ.
 
 %--------------------------------------------------------------
-\subsection{Kịch bản 3: Đánh cắp thông tin xác thực tĩnh}
-\label{subsec:c3_kb3}
-%--------------------------------------------------------------
-
-\textbf{Kịch bản tấn công (T1552):} Tiến trình đọc tệp chứa thông tin kết nối cơ sở dữ liệu từ bên trong thực thể nghiệp vụ sau khi bị chiếm quyền \parencite{mitre_t1552}.
-
-\textbf{Cơ chế phòng thủ hiện tại:} Vault Agent cấp phát thông tin xác thực động (tên người dùng ngẫu nhiên, thời gian sống ngắn) và ghi vào bộ nhớ ảo. Bí mật bị đọc trộm chỉ có giá trị trong vài phút, sau đó tự hết hạn. Đồng thời chính sách mạng từ chối mặc định hạn chế khả năng tái sử dụng từ thực thể không hợp lệ.
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
-# --- THỜI ĐIỂM 1: XÁC THỰC LẦN ĐẦU VÀ KIỂM TRA KẾT NỐI ---
-ptb@baosrc:~/projects/DATN$ date
-Sun Jun 7 10:14:23 PM +07 2026
-
-ptb@baosrc:~/projects/DATN$ kubectl exec -it deployment/identity-service -n job7189-apps -c app -- sh
-# cat /app-secrets/.env
-APP_KEY="base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo="
-DB_USERNAME="v-jwt-spiffe-identity-s-UXodNYY0"
-DB_PASSWORD="SZHSkYxzSBx-M13ANvh0"
-LEASE_ID="database/creds/identity-service/AmGTHZtAwmVTwbMFcM3giz24"
-
-# php artisan tinker --execute="DB::connection()->getPdo(); echo '=== KET NOI MYSQL THANH CONG !!! ===';"
-=== KET NOI MYSQL THANH CONG !!! ===
-# exit
-
-# --- THỜI ĐIỂM 2: XOAY VÒNG MẬT KHẨU TỰ ĐỘNG VÀ XÁC THỰC LẠI ---
-ptb@baosrc:~/projects/DATN$ date
-Sun Jun 7 11:11:18 PM +07 2026
-
-ptb@baosrc:~/projects/DATN$ kubectl exec -it deployment/identity-service -n job7189-apps -c app -- sh
-# cat /app-secrets/.env
-APP_KEY="base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo="
-DB_USERNAME="v-jwt-spiffe-identity-s-y8LPe6ek"
-DB_PASSWORD="wkoy0vU08SW27-IfFbMB"
-LEASE_ID="database/creds/identity-service/w03PPNjWHfQXjjc9VjkOE6OI"
-
-# php artisan tinker --execute="DB::connection()->getPdo(); echo '=== KET NOI MYSQL THANH CONG !!! ===';"
-=== KET NOI MYSQL THANH CONG !!! ===
-# exit
-\end{minted}
-\caption{Minh chứng thực tế về cơ chế tự động xoay vòng tài khoản/mật khẩu động của Vault và kết nối cơ sở dữ liệu thành công}
-\label{lst:c3_kb3}
-\end{listing}
-
-\textbf{Giải thích chi tiết kịch bản:}
-\begin{itemize}[itemsep=4pt, parsep=0pt]
-    \item \textbf{Các thành phần tham gia:}
-    \begin{itemize}
-        \item \textit{Vault Server:} Quản trị tập trung và tích hợp Database Engine để sinh tài khoản động cho MySQL.
-        \item \textit{Vault Agent Sidecar:} Container phụ chạy song song trong Pod của \texttt{identity-service}, tự động xác thực với Vault Server thông qua định danh SPIFFE/SVID để lấy thông tin kết nối.
-        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Sử dụng tài khoản động được tiêm để kết nối tới MySQL.
-    \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Thay vì lưu thông tin xác thực tĩnh (dễ bị rò rỉ), hệ thống sử dụng cơ chế Dynamic Secrets. Mỗi Pod nghiệp vụ khởi động sẽ được cấp một tài khoản MySQL duy nhất có thời gian sống giới hạn (TTL). Vault Agent tự động làm mới (renew) và xoay vòng tài khoản trước khi hết hạn. Khi Pod bị xóa, tài khoản cũng tự động bị thu hồi trên MySQL.
-    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
-    \begin{itemize}
-        \item Tại Thời điểm 1, Vault cấp tài khoản \texttt{v-jwt-spiffe-identity-s-UXodNYY0} ghi vào tệp \texttt{/app-secrets/.env} trên phân vùng bộ nhớ tạm \texttt{tmpfs}. Ứng dụng thực hiện kết nối cơ sở dữ liệu thành công (\texttt{=== KET NOI MYSQL THANH CONG !!! ===}).
-        \item Tại Thời điểm 2 (sau hơn 50 phút), Vault Agent tự động xoay vòng tài khoản cũ thành tài khoản mới \texttt{v-jwt-spiffe-identity-s-y8LPe6ek} với mật khẩu khác hoàn toàn và mã hợp đồng thuê khóa \texttt{LEASE\_ID} mới. Kết nối đến MySQL vẫn tiếp tục hoạt động trơn tru mà không cần khởi động lại Pod.
-        \item Nếu kẻ tấn công xâm nhập Pod và lấy cắp mật khẩu, mật khẩu này cũng nhanh chóng vô hiệu khi hết hạn, đồng thời chính sách phân đoạn mạng chặn việc lạm dụng tài khoản này từ bên ngoài Pod.
-    \end{itemize}
-\end{itemize}
-
-\textbf{Định hướng mở rộng:} Việc tự động hạ điểm tin cậy và cô lập thực thể khi phát hiện hành vi đọc trộm bí mật thuộc vòng lặp của bộ điều khiển chính sách, hiện ở mức thiết kế lý thuyết.
-
-%--------------------------------------------------------------
-\subsection{Kịch bản 4: Giả mạo danh tính mạng nội bộ}
+\subsection{Kịch bản 4: Thỏa hiệp chuỗi cung ứng}
 \label{subsec:c3_kb4}
-%--------------------------------------------------------------
-
-\textbf{Kịch bản tấn công (T1036):} Thực thể bị chiếm quyền tạo kết nối gửi gói tin mang IP nguồn giả mạo nhằm vượt phân đoạn mạng để truy cập cơ sở dữ liệu \parencite{mitre_t1036}.
-
-\textbf{Cơ chế phòng thủ hiện tại:} Cilium xác thực định danh dựa trên ánh xạ thực thể và địa chỉ IP. Gói tin có IP nguồn không khớp định danh thực bị loại bỏ tại nhân hệ điều hành; hệ thống giám sát ghi nhận trạng thái từ chối. Đồng thời chính sách mạng chặn việc tải công cụ tấn công từ Internet.
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
-# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết kết nối hợp lệ từ dịch vụ được ủy quyền) ---
-# 1. Thực hiện kết nối cơ sở dữ liệu MySQL từ pod identity-service (được cho phép bởi chính sách)
-ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(fsockopen('mysql.data.svc.cluster.local', 3306, \$errno, \$errstr, 2));"
-resource(4) of type (stream)
-
-# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Kết nối trái phép) ---
-# 2. Khởi chạy pod giả lập tấn công (không mang nhãn được ủy quyền) và cố kết nối tới MySQL
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps run lateral-attacker --image=busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 --restart=Never --labels='app=attacker,zta.test/role=attacker' --command -- nc -zvw3 mysql.data.svc.cluster.local 3306
-nc: mysql.data.svc.cluster.local (10.105.152.128:3306): Connection timed out
-
-# Dọn dẹp pod sau khi hoàn thành kiểm thử
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps delete pod lateral-attacker --force
-
-# 3. Xem nhật ký chặn kết nối (DROPPED) của Hubble từ Cilium Agent để minh chứng việc chặn ở nhân hệ điều hành (eBPF)
-ptb@baosrc:~/projects/DATN$ CILIUM_POD=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "lateral-attacker"
-Jun 24 06:22:58.261: job7189-apps/lateral-attacker:41356 (ID:16335) -> mysql.data.svc.cluster.local:3306 (ID:28795) policy-verdict:L3-L4 TRAFFIC_DIRECTION_EGRESS DENIED (TCP Flags: SYN)
-Jun 24 06:22:58.261: job7189-apps/lateral-attacker:41356 (ID:16335) -> mysql.data.svc.cluster.local:3306 (ID:28795) Policy denied DROPPED (TCP Flags: SYN)
-\end{minted}
-\caption{Lệnh mô phỏng truy cập nội bộ trái phép và log DROPPED thực tế từ Hubble}
-\label{lst:c3_kb4}
-\end{listing}
-
-\textbf{Giải thích chi tiết kịch bản:}
-\begin{itemize}[itemsep=4pt, parsep=0pt]
-    \item \textbf{Các thành phần tham gia:}
-    \begin{itemize}
-        \item \textit{Vi dịch vụ hợp lệ (identity-service):} Mang nhãn (labels) nghiệp vụ được ủy quyền kết nối tới cơ sở dữ liệu MySQL.
-        \item \textit{Pod giả lập tấn công (lateral-attacker):} Pod mang nhãn tự do do hacker khởi chạy để dò quét cổng.
-        \item \textit{Cilium CNI (eBPF):} Tầng mạng của Kubernetes, chịu trách nhiệm gán định danh bảo mật và thực thi chính sách mạng trực tiếp trong nhân Linux.
-        \item \textit{Hubble:} Công cụ quan sát luồng mạng eBPF của Cilium.
-    \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Áp dụng triết lý "Không bao giờ tin tưởng, luôn luôn xác minh". Hệ thống áp dụng chính sách chặn mặc định (\texttt{default-deny-all}). Chính sách mạng của Cilium sử dụng định danh số nguyên (Security ID) dựa trên nhãn Kubernetes để kiểm soát truy cập L3/L4 thay vì dùng IP tĩnh, giúp loại bỏ hoàn toàn nguy cơ giả mạo IP nguồn trong cụm.
-    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
-    \begin{itemize}
-        \item Ở luồng hợp lệ (mục 1), Pod \texttt{identity-service} mở kết nối socket TCP tới dịch vụ MySQL thành công và nhận về tài nguyên kết nối hợp lệ.
-        \item Ở luồng tấn công (mục 2), Pod \texttt{lateral-attacker} không có nhãn nghiệp vụ hợp lệ thử kết nối tới MySQL bằng lệnh \texttt{nc}. Gói tin TCP SYN lập tức bị chặn đứng và loại bỏ lặng lẽ tại nhân Linux, lệnh trả về lỗi \texttt{Connection timed out}.
-        \item Log Hubble (mục 3) ghi nhận chi tiết: lưu lượng từ \texttt{lateral-attacker} (Security ID \texttt{16335}) gửi đến \texttt{mysql} (Security ID \texttt{28795}) bị từ chối ở chiều Egress bởi chính sách mạng (\texttt{policy-verdict:L3-L4 TRAFFIC\_DIRECTION\_EGRESS DENIED}) và drop gói tin TCP SYN.
-    \end{itemize}
-\end{itemize}
-
-%--------------------------------------------------------------
-\subsection{Kịch bản 5: Trích xuất dữ liệu ra ngoài}
-\label{subsec:c3_kb5}
-%--------------------------------------------------------------
-
-\textbf{Kịch bản tấn công (T1048, T1071):} Thực thể nghiệp vụ thử gửi dữ liệu ra ngoài qua HTTP trực tiếp và truy vấn tên miền độc hại \parencite{mitre_t1048,mitre_t1071}.
-
-\textbf{Cơ chế phòng thủ hiện tại:} Do phiên bản Cilium hiện tại không hỗ trợ chặn luồng ra theo tên miền, hệ thống chặn tên miền độc hại bằng cơ chế CoreDNS sinkhole (trả về IP \texttt{0.0.0.0} cho mọi tên miền trong danh sách đen). Ở tầng mạng, chính sách từ chối mặc định chặn mọi kết nối ra ngoài không được khai báo tường minh.
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize]{text}
-CoreDNS sinkhole dùng ConfigMap coredns-sinkhole trong namespace kube-system.
-Trường data.hosts.txt được cập nhật bởi CronJob threat-intel-refresh:
-
-0.0.0.0 verification-claude-cdn.beer
-0.0.0.0 electri.billregulator.com
-
-CoreDNS đọc tệp hosts này và trả 0.0.0.0 cho tên miền nằm trong danh sách.
-\end{minted}
-\caption{Cấu hình logic thực tế của CoreDNS sinkhole chặn phân giải tên miền}
-\label{lst:c3_kb5_coredns}
-\end{listing}
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
-# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Phân giải tên miền hợp lệ) ---
-# 1. Thực hiện phân giải tên miền hợp lệ bên ngoài để kiểm tra DNS Egress được phép
-ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(gethostbyname('google.com'));"
-string(14) "142.250.71.174"
-
-# --- THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED - Phân giải domain độc hại bị Sinkhole) ---
-# 2. Thử phân giải tên miền độc hại trong danh sách đen của CoreDNS (chuyển hướng về 0.0.0.0)
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(gethostbyname('verification-claude-cdn.beer'));"
-string(7) "0.0.0.0"
-
-# --- THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED - Chặn kết nối TCP Egress trực tiếp) ---
-# 3. Thử kết nối TCP HTTP ra ngoài Internet để kiểm thử chính sách Default Deny Egress
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 https://www.google.com
-curl: (28) Connection timed out after 3000 milliseconds
-\end{minted}
-\caption{Lệnh và kết quả thực tế kiểm tra DNS Sinkhole và chặn Egress}
-\label{lst:c3_kb5_egress}
-\end{listing}
-
-\textbf{Giải thích chi tiết kịch bản:}
-\begin{itemize}[itemsep=4pt, parsep=0pt]
-    \item \textbf{Các thành phần tham gia:}
-    \begin{itemize}
-        \item \textit{Vi dịch vụ nội bộ (identity-service):} Thực thể cần thực hiện phân giải tên miền.
-        \item \textit{CoreDNS Server:} Dịch vụ phân giải DNS nội bộ của cụm.
-        \item \textit{ConfigMap coredns-sinkhole:} Chứa danh sách các tên miền độc hại từ Threat Intelligence.
-        \item \textit{Cilium Network Policy:} Chính sách chặn toàn bộ kết nối ra ngoài Internet ngoại trừ cổng DNS (53).
-    \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Kẻ tấn công khi chiếm được Pod thường cố tải thêm mã độc hoặc xuất dữ liệu ra ngoài qua Internet. Do đó, hệ thống áp dụng hai lớp bảo vệ: chặn phân giải DNS đối với tên miền độc hại (Sinkhole), và chặn toàn bộ các kết nối TCP/UDP hướng ngoại trực tiếp ra Internet ở mức L4 để vô hiệu hóa các địa chỉ IP độc hại tĩnh.
-    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
-    \begin{itemize}
-        \item Ở luồng hợp lệ (mục 1), Pod phân giải tên miền hợp lệ \texttt{google.com} bình thường và nhận về IP thực của Google.
-        \item Ở luồng chặn DNS (mục 2), Pod phân giải tên miền độc hại \texttt{verification-claude-cdn.beer}. CoreDNS đối chiếu với danh sách đen và trả về ngay lập tức IP giả \texttt{0.0.0.0}, triệt tiêu khả năng kết nối tới máy chủ điều khiển C2 của mã độc.
-        \item Ở luồng chặn TCP (mục 3), dù đã phân giải IP của Google thành công, Pod thử kết nối HTTP trực tiếp ra Internet bằng \texttt{curl} nhưng bị chặn bởi chính sách Egress cấm mặc định, lệnh trả về lỗi timeout.
-    \end{itemize}
-\end{itemize}
-
-\textbf{Định hướng mở rộng:} Phân tích hành vi truy vấn DNS bất thường để phát hiện kỹ thuật thiết lập đường hầm và tự động cô lập thực thể là hướng mở rộng chưa hiện thực trong nguyên mẫu này.
-
-%--------------------------------------------------------------
-\subsection{Kịch bản 6: Chặn kết nối đến IP độc hại}
-\label{subsec:c3_kb6}
-%--------------------------------------------------------------
-
-\textbf{Kịch bản tấn công (T1071):} Thực thể nghiệp vụ thử kết nối trực tiếp tới một địa chỉ IP thuộc danh sách đen \parencite{mitre_t1071}.
-
-\textbf{Cơ chế phòng thủ hiện tại:} Kiến trúc đã được triển khai đầy đủ và tích hợp thành công danh sách IP độc hại từ FireHOL Level 1. Khi thực thể thử kết nối trực tiếp đến một IP độc hại (ví dụ: \texttt{192.251.231.1}), kết nối bị chặn ngay lập tức tại tầng eBPF thông qua chính sách \texttt{cnp-threat-intel-egress-deny}.
-
-\begin{listing}[H]
-\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
-# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết nối IP nội bộ hợp lệ) ---
-# 1. Thử kết nối TCP đến một IP dịch vụ nội bộ (ví dụ Redis service port 6379)
-ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 http://identity-service-redis:6379
-curl: (52) Empty reply from server
-
-# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Kết nối IP thuộc denylist) ---
-# 2. Thử kết nối TCP trực tiếp đến địa chỉ IP độc hại trong danh sách chặn FireHOL
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 http://192.251.231.1
-curl: (28) Connection timed out after 3000 milliseconds
-
-# 3. Truy xuất nhật ký chặn eBPF của Hubble từ Cilium Agent để minh chứng kết nối bị chặn do denylist
-ptb@baosrc:~/projects/DATN$ CILIUM_POD=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "192.251.231.1" | tail -n 1
-Jun 24 07:03:27.766: job7189-apps/identity-service-657f64c7d5-2p9jj:35316 (ID:32062) <> 192.251.231.1:80 (ID:16777217) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
-\end{minted}
-\caption{Lệnh mô phỏng kết nối tới IP độc hại và log DROPPED thực tế từ Hubble}
-\label{lst:c3_kb6}
-\end{listing}
-
-\textbf{Giải thích chi tiết kịch bản:}
-\begin{itemize}[itemsep=4pt, parsep=0pt]
-    \item \textbf{Các thành phần tham gia:}
-    \begin{itemize}
-        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Thực thể thực hiện cuộc gọi mạng.
-        \item \textit{Tường lửa mạng Cilium:} Can thiệp lọc gói tin trực tiếp ở kernel Linux.
-        \item \textit{Tình báo đe dọa FireHOL Level 1:} Danh sách các dải IP độc hại công cộng được cập nhật định kỳ.
-        \item \textit{Chính sách cnp-threat-intel-egress-deny:} Chính sách CiliumNetworkPolicy nạp danh sách các IP cấm.
-    \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Hacker có thể tránh bộ lọc DNS Sinkhole bằng cách gọi trực tiếp đến địa chỉ IP tĩnh độc hại. Do đó, hệ thống tích hợp danh sách IP độc hại từ FireHOL để nạp trực tiếp vào luật chặn L3/L4 của cụm.
-    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
-    \begin{itemize}
-        \item Ở luồng hợp lệ (mục 1), Pod kết nối tới dịch vụ Redis nội bộ thành công và nhận phản hồi rỗng từ Redis, chứng minh lưu lượng nghiệp vụ thông thường vẫn hoạt động bình thường.
-        \item Ở luồng bị chặn (mục 2), Pod cố kết nối đến IP độc hại \texttt{192.251.231.1} nằm trong danh sách chặn FireHOL. Kết nối bị drop ngay lập tức tại tầng eBPF và trả về lỗi timeout.
-        \item Log Hubble (mục 3) ghi nhận rõ ràng gói tin TCP SYN từ Pod nghiệp vụ đến IP đích \texttt{192.251.231.1} đã bị cấm truy cập bởi tường lửa eBPF (\texttt{policy-verdict:none TRAFFIC\_DIRECTION\_UNKNOWN DENIED}).
-    \end{itemize}
-\end{itemize}
-
-\textbf{Định hướng mở rộng:} Hoàn thiện quy trình đồng bộ dữ liệu để danh sách IP được nạp tự động và chặn chính xác theo tình báo đe dọa.
-
-%--------------------------------------------------------------
-\subsection{Kịch bản 7: Thỏa hiệp chuỗi cung ứng}
-\label{subsec:c3_kb7}
 %--------------------------------------------------------------
 
 \textbf{Kịch bản tấn công (T1610, T1525):} Triển khai ứng dụng sử dụng image không tham chiếu qua mã băm mà dùng tag tùy ý \parencite{mitre_t1610}.
@@ -669,7 +484,7 @@ status:
     namespace: security
 \end{minted}
 \caption{Nhật ký vi phạm thực tế của Gatekeeper đối với các image không ghim mã băm sha256 và chữ ký số xác thực}
-\label{lst:c3_kb7}
+\label{lst:c3_kb4}
 \end{listing}
 
 \textbf{Giải thích chi tiết kịch bản:}
@@ -692,52 +507,237 @@ status:
 \textbf{Định hướng mở rộng:} Việc kiểm tra chữ ký số đầy đủ của image hiện ở chế độ cảnh báo do cần hoàn thiện quy trình ký số trên kho lưu trữ nội bộ. Việc chuyển sang cưỡng chế chặn là bước kế tiếp.
 
 %--------------------------------------------------------------
-\subsection{Kịch bản 8: Trinh sát mạng nội bộ}
-\label{subsec:c3_kb8}
+\subsection{Kịch bản 5: Giả mạo danh tính mạng nội bộ}
+\label{subsec:c3_kb5}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1046):} Thực thể bị chiếm quyền dò tìm dịch vụ nội bộ và truy vấn máy chủ điều khiển trung tâm \parencite{mitre_t1046}.
+\textbf{Kịch bản tấn công (T1036):} Thực thể bị chiếm quyền tạo kết nối gửi gói tin mang IP nguồn giả mạo nhằm vượt phân đoạn mạng để truy cập cơ sở dữ liệu \parencite{mitre_t1036}.
 
-\textbf{Cơ chế phòng thủ hiện tại:} Thực thể bị tước toàn bộ đặc quyền hệ điều hành và chính sách từ chối mặc định chặn mọi kết nối không khai báo tường minh, bao gồm cả kết nối tới máy chủ điều khiển.
+\textbf{Cơ chế phòng thủ hiện tại:} Cilium xác thực định danh dựa trên ánh xạ thực thể và địa chỉ IP. Gói tin có IP nguồn không khớp định danh thực bị loại bỏ tại nhân hệ điều hành; hệ thống giám sát ghi nhận trạng thái từ chối. Đồng thời chính sách mạng chặn việc tải công cụ tấn công từ Internet.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize,breaklines]{bash}
-# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết nối hợp lệ nội bộ) ---
-# 1. Thử kết nối TCP từ pod identity-service đến Redis trong cùng namespace
+# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết kết nối hợp lệ từ dịch vụ được ủy quyền) ---
+# 1. Thực hiện kết nối cơ sở dữ liệu MySQL từ pod identity-service (được cho phép bởi chính sách)
 ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(fsockopen('identity-service-redis', 6379, \$errno, \$errstr, 2));"
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(fsockopen('mysql.data.svc.cluster.local', 3306, \$errno, \$errstr, 2));"
 resource(4) of type (stream)
 
-# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Quét cổng máy chủ API Server) ---
-# 2. Thử truy cập API Server điều khiển của Kubernetes (kubernetes.default:443) từ pod nghiệp vụ
-ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -k -I -m 3 https://kubernetes.default.svc.cluster.local
-curl: (28) Connection timed out after 3002 milliseconds
+# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Kết nối trái phép) ---
+# 2. Khởi chạy pod giả lập tấn công (không mang nhãn được ủy quyền) và cố kết nối tới MySQL
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps run lateral-attacker --image=busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 --restart=Never --labels='app=attacker,zta.test/role=attacker' --command -- nc -zvw3 mysql.data.svc.cluster.local 3306
+nc: mysql.data.svc.cluster.local (10.105.152.128:3306): Connection timed out
 
-# 3. Truy xuất nhật ký chặn (DROPPED) của Hubble từ Cilium Agent để minh chứng việc chặn eBPF đối với hành vi trinh sát điều khiển
+# Dọn dẹp pod sau khi hoàn thành kiểm thử
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps delete pod lateral-attacker --force
+
+# 3. Xem nhật ký chặn kết nối (DROPPED) của Hubble từ Cilium Agent để minh chứng việc chặn ở nhân hệ điều hành (eBPF)
 ptb@baosrc:~/projects/DATN$ CILIUM_POD=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
-ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "default/kubernetes" | tail -n 1
-Jun 24 07:04:12.793: job7189-apps/identity-service-657f64c7d5-2p9jj:46452 (ID:32062) -> default/kubernetes:443 (ID:52762) Policy denied DROPPED (TCP Flags: SYN)
+ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "lateral-attacker"
+Jun 24 06:22:58.261: job7189-apps/lateral-attacker:41356 (ID:16335) -> mysql.data.svc.cluster.local:3306 (ID:28795) policy-verdict:L3-L4 TRAFFIC_DIRECTION_EGRESS DENIED (TCP Flags: SYN)
+Jun 24 06:22:58.261: job7189-apps/lateral-attacker:41356 (ID:16335) -> mysql.data.svc.cluster.local:3306 (ID:28795) Policy denied DROPPED (TCP Flags: SYN)
 \end{minted}
-\caption{Lệnh mô phỏng trinh sát mạng và log DROPPED thực tế từ Hubble}
-\label{lst:c3_kb8}
+\caption{Lệnh mô phỏng truy cập nội bộ trái phép và log DROPPED thực tế từ Hubble}
+\label{lst:c3_kb5}
 \end{listing}
 
 \textbf{Giải thích chi tiết kịch bản:}
 \begin{itemize}[itemsep=4pt, parsep=0pt]
     \item \textbf{Các thành phần tham gia:}
     \begin{itemize}
-        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Chạy trong môi trường sandbox của Pod.
-        \item \textit{Kubernetes API Server:} Điểm điều khiển trung tâm của cụm (\texttt{kubernetes.default.svc.cluster.local}).
-        \item \textit{Cilium CNI (eBPF):} Bộ lọc mạng Linux kernel.
+        \item \textit{Vi dịch vụ hợp lệ (identity-service):} Mang nhãn (labels) nghiệp vụ được ủy quyền kết nối tới cơ sở dữ liệu MySQL.
+        \item \textit{Pod giả lập tấn công (lateral-attacker):} Pod mang nhãn tự do do hacker khởi chạy để dò quét cổng.
+        \item \textit{Cilium CNI (eBPF):} Tầng mạng của Kubernetes, chịu trách nhiệm gán định danh bảo mật và thực thi chính sách mạng trực tiếp trong nhân Linux.
+        \item \textit{Hubble:} Công cụ quan sát luồng mạng eBPF của Cilium.
     \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Khi một container bị kiểm soát, tin tặc thường quét mạng nội bộ để tìm API Server nhằm đánh cắp thông tin hạ tầng hoặc leo thang quyền lực. Hệ thống áp dụng chính sách cô lập mặc định, cấm các Pod nghiệp vụ thông thường giao tiếp với API Server.
+    \item \textbf{Tại sao cấu hình như thế:} Áp dụng triết lý "Không bao giờ tin tưởng, luôn luôn xác minh". Hệ thống áp dụng chính sách chặn mặc định (\texttt{default-deny-all}). Chính sách mạng của Cilium sử dụng định danh số nguyên (Security ID) dựa trên nhãn Kubernetes để kiểm soát truy cập L3/L4 thay vì dùng IP tĩnh, giúp loại bỏ hoàn toàn nguy cơ giả mạo IP nguồn trong cụm.
     \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
     \begin{itemize}
-        \item Ở luồng hợp lệ (mục 1), Pod thực hiện kết nối tới Redis nội bộ thành công.
-        \item Ở luồng bị chặn (mục 2), Pod gửi yêu cầu kết nối tới API Server của Kubernetes trên cổng \texttt{443}. Gói tin bị chặn và trả về lỗi timeout.
-        \item Log Hubble (mục 3) ghi nhận gói tin TCP SYN từ Pod nghiệp vụ tới API Server (\texttt{default/kubernetes:443}) đã bị từ chối và drop bởi tường lửa eBPF (\texttt{Policy denied DROPPED}), chứng minh kẻ tấn công hoàn toàn bị cô lập trong Pod nghiệp vụ và không thể thu thập thông tin về hạ tầng cụm.
+        \item Ở luồng hợp lệ (mục 1), Pod \texttt{identity-service} mở kết nối socket TCP tới dịch vụ MySQL thành công và nhận về tài nguyên kết nối hợp lệ.
+        \item Ở luồng tấn công (mục 2), Pod \texttt{lateral-attacker} không có nhãn nghiệp vụ hợp lệ thử kết nối tới MySQL bằng lệnh \texttt{nc}. Gói tin TCP SYN lập tức bị chặn đứng và loại bỏ lặng lẽ tại nhân Linux, lệnh trả về lỗi \texttt{Connection timed out}.
+        \item Log Hubble (mục 3) ghi nhận chi tiết: lưu lượng từ \texttt{lateral-attacker} (Security ID \texttt{16335}) gửi đến \texttt{mysql} (Security ID \texttt{28795}) bị từ chối ở chiều Egress bởi chính sách mạng (\texttt{policy-verdict:L3-L4 TRAFFIC\_DIRECTION\_EGRESS DENIED}) và drop gói tin TCP SYN.
     \end{itemize}
 \end{itemize}
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 6: Đánh cắp thông tin xác thực tĩnh}
+\label{subsec:c3_kb6}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1552):} Tiến trình đọc tệp chứa thông tin kết nối cơ sở dữ liệu từ bên trong thực thể nghiệp vụ sau khi bị chiếm quyền \parencite{mitre_t1552}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Vault Agent cấp phát thông tin xác thực động (tên người dùng ngẫu nhiên, thời gian sống ngắn) và ghi vào bộ nhớ ảo. Bí mật bị đọc trộm chỉ có giá trị trong vài phút, sau đó tự hết hạn. Đồng thời chính sách mạng từ chối mặc định hạn chế khả năng tái sử dụng từ thực thể không hợp lệ.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# --- THỜI ĐIỂM 1: XÁC THỰC LẦN ĐẦU VÀ KIỂM TRA KẾT NỐI ---
+ptb@baosrc:~/projects/DATN$ date
+Sun Jun 7 10:14:23 PM +07 2026
+
+ptb@baosrc:~/projects/DATN$ kubectl exec -it deployment/identity-service -n job7189-apps -c app -- sh
+# cat /app-secrets/.env
+APP_KEY="base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo="
+DB_USERNAME="v-jwt-spiffe-identity-s-UXodNYY0"
+DB_PASSWORD="SZHSkYxzSBx-M13ANvh0"
+LEASE_ID="database/creds/identity-service/AmGTHZtAwmVTwbMFcM3giz24"
+
+# php artisan tinker --execute="DB::connection()->getPdo(); echo '=== KET NOI MYSQL THANH CONG !!! ===';"
+=== KET NOI MYSQL THANH CONG !!! ===
+# exit
+
+# --- THỜI ĐIỂM 2: XOAY VÒNG MẬT KHẨU TỰ ĐỘNG VÀ XÁC THỰC LẠI ---
+ptb@baosrc:~/projects/DATN$ date
+Sun Jun 7 11:11:18 PM +07 2026
+
+ptb@baosrc:~/projects/DATN$ kubectl exec -it deployment/identity-service -n job7189-apps -c app -- sh
+# cat /app-secrets/.env
+APP_KEY="base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo="
+DB_USERNAME="v-jwt-spiffe-identity-s-y8LPe6ek"
+DB_PASSWORD="wkoy0vU08SW27-IfFbMB"
+LEASE_ID="database/creds/identity-service/w03PPNjWHfQXjjc9VjkOE6OI"
+
+# php artisan tinker --execute="DB::connection()->getPdo(); echo '=== KET NOI MYSQL THANH CONG !!! ===';"
+=== KET NOI MYSQL THANH CONG !!! ===
+# exit
+\end{minted}
+\caption{Minh chứng thực tế về cơ chế tự động xoay vòng tài khoản/mật khẩu động của Vault và kết nối cơ sở dữ liệu thành công}
+\label{lst:c3_kb6}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vault Server:} Quản trị tập trung và tích hợp Database Engine để sinh tài khoản động cho MySQL.
+        \item \textit{Vault Agent Sidecar:} Container phụ chạy song song trong Pod của \texttt{identity-service}, tự động xác thực với Vault Server thông qua định danh SPIFFE/SVID để lấy thông tin kết nối.
+        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Sử dụng tài khoản động được tiêm để kết nối tới MySQL.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Thay vì lưu thông tin xác thực tĩnh (dễ bị rò rỉ), hệ thống sử dụng cơ chế Dynamic Secrets. Mỗi Pod nghiệp vụ khởi động sẽ được cấp một tài khoản MySQL duy nhất có thời gian sống giới hạn (TTL). Vault Agent tự động làm mới (renew) và xoay vòng tài khoản trước khi hết hạn. Khi Pod bị xóa, tài khoản cũng tự động bị thu hồi trên MySQL.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Tại Thời điểm 1, Vault cấp tài khoản \texttt{v-jwt-spiffe-identity-s-UXodNYY0} ghi vào tệp \texttt{/app-secrets/.env} trên phân vùng bộ nhớ tạm \texttt{tmpfs}. Ứng dụng thực hiện kết nối cơ sở dữ liệu thành công (\texttt{=== KET NOI MYSQL THANH CONG !!! ===}).
+        \item Tại Thời điểm 2 (sau hơn 50 phút), Vault Agent tự động xoay vòng tài khoản cũ thành tài khoản mới \texttt{v-jwt-spiffe-identity-s-y8LPe6ek} với mật khẩu khác hoàn toàn và mã hợp đồng thuê khóa \texttt{LEASE\_ID} mới. Kết nối đến MySQL vẫn tiếp tục hoạt động trơn tru mà không cần khởi động lại Pod.
+        \item Nếu kẻ tấn công xâm nhập Pod và lấy cắp mật khẩu, mật khẩu này cũng nhanh chóng vô hiệu khi hết hạn, đồng thời chính sách phân đoạn mạng chặn việc lạm dụng tài khoản này từ bên ngoài Pod.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Việc tự động hạ điểm tin cậy và cô lập thực thể khi phát hiện hành vi đọc trộm bí mật thuộc vòng lặp của bộ điều khiển chính sách, hiện ở mức thiết kế lý thuyết.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 7: Chặn kết nối đến IP độc hại}
+\label{subsec:c3_kb7}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1071):} Thực thể nghiệp vụ thử kết nối trực tiếp tới một địa chỉ IP thuộc danh sách đen \parencite{mitre_t1071}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Kiến trúc đã được triển khai đầy đủ và tích hợp thành công danh sách IP độc hại từ FireHOL Level 1. Khi thực thể thử kết nối trực tiếp đến một IP độc hại (ví dụ: \texttt{192.251.231.1}), kết nối bị chặn ngay lập tức tại tầng eBPF thông qua chính sách \texttt{cnp-threat-intel-egress-deny}.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Kết nối IP nội bộ hợp lệ) ---
+# 1. Thử kết nối TCP đến một IP dịch vụ nội bộ (ví dụ Redis service port 6379)
+ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 http://identity-service-redis:6379
+curl: (52) Empty reply from server
+
+# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Kết nối IP thuộc denylist) ---
+# 2. Thử kết nối TCP trực tiếp đến địa chỉ IP độc hại trong danh sách chặn FireHOL
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 http://192.251.231.1
+curl: (28) Connection timed out after 3000 milliseconds
+
+# 3. Truy xuất nhật ký chặn eBPF của Hubble từ Cilium Agent để minh chứng kết nối bị chặn do denylist
+ptb@baosrc:~/projects/DATN$ CILIUM_POD=$(kubectl -n kube-system get pod -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
+ptb@baosrc:~/projects/DATN$ kubectl -n kube-system exec "$CILIUM_POD" -c cilium-agent -- hubble observe --last 100 --verdict DROPPED -o compact | grep "192.251.231.1" | tail -n 1
+Jun 24 07:03:27.766: job7189-apps/identity-service-657f64c7d5-2p9jj:35316 (ID:32062) <> 192.251.231.1:80 (ID:16777217) policy-verdict:none TRAFFIC_DIRECTION_UNKNOWN DENIED (TCP Flags: SYN)
+\end{minted}
+\caption{Lệnh mô phỏng kết nối tới IP độc hại và log DROPPED thực tế từ Hubble}
+\label{lst:c3_kb7}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vi dịch vụ nghiệp vụ (identity-service):} Thực thể thực hiện cuộc gọi mạng.
+        \item \textit{Tường lửa mạng Cilium:} Can thiệp lọc gói tin trực tiếp ở kernel Linux.
+        \item \textit{Tình báo đe dọa FireHOL Level 1:} Danh sách các dải IP độc hại công cộng được cập nhật định kỳ.
+        \item \textit{Chính sách cnp-threat-intel-egress-deny:} Chính sách CiliumNetworkPolicy nạp danh sách các IP cấm.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Hacker có thể tránh bộ lọc DNS Sinkhole bằng cách gọi trực tiếp đến địa chỉ IP tĩnh độc hại. Do đó, hệ thống tích hợp danh sách IP độc hại từ FireHOL để nạp trực tiếp vào luật chặn L3/L4 của cụm.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Ở luồng hợp lệ (mục 1), Pod kết nối tới dịch vụ Redis nội bộ thành công và nhận phản hồi rỗng từ Redis, chứng minh lưu lượng nghiệp vụ thông thường vẫn hoạt động bình thường.
+        \item Ở luồng bị chặn (mục 2), Pod cố kết nối đến IP độc hại \texttt{192.251.231.1} nằm trong danh sách chặn FireHOL. Kết nối bị drop ngay lập tức tại tầng eBPF và trả về lỗi timeout.
+        \item Log Hubble (mục 3) ghi nhận rõ ràng gói tin TCP SYN từ Pod nghiệp vụ đến IP đích \texttt{192.251.231.1} đã bị cấm truy cập bởi tường lửa eBPF (\texttt{policy-verdict:none TRAFFIC\_DIRECTION\_UNKNOWN DENIED}).
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Hoàn thiện quy trình đồng bộ dữ liệu để danh sách IP được nạp tự động và chặn chính xác theo tình báo đe dọa.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 8: Trích xuất dữ liệu ra ngoài}
+\label{subsec:c3_kb8}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1048, T1071):} Thực thể nghiệp vụ thử gửi dữ liệu ra ngoài qua HTTP trực tiếp và truy vấn tên miền độc hại \parencite{mitre_t1048,mitre_t1071}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Do phiên bản Cilium hiện tại không hỗ trợ chặn luồng ra theo tên miền, hệ thống chặn tên miền độc hại bằng cơ chế CoreDNS sinkhole (trả về IP \texttt{0.0.0.0} cho mọi tên miền trong danh sách đen). Ở tầng mạng, chính sách từ chối mặc định chặn mọi kết nối ra ngoài không được khai báo tường minh.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize]{text}
+CoreDNS sinkhole dùng ConfigMap coredns-sinkhole trong namespace kube-system.
+Trường data.hosts.txt được cập nhật bởi CronJob threat-intel-refresh:
+
+0.0.0.0 verification-claude-cdn.beer
+0.0.0.0 electri.billregulator.com
+
+CoreDNS đọc tệp hosts này và trả 0.0.0.0 cho tên miền nằm trong danh sách.
+\end{minted}
+\caption{Cấu hình logic thực tế của CoreDNS sinkhole chặn phân giải tên miền}
+\label{lst:c3_kb8_coredns}
+\end{listing}
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# --- THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED - Phân giải tên miền hợp lệ) ---
+# 1. Thực hiện phân giải tên miền hợp lệ bên ngoài để kiểm tra DNS Egress được phép
+ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service -o jsonpath='{.items[0].metadata.name}')
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(gethostbyname('google.com'));"
+string(14) "142.250.71.174"
+
+# --- THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED - Phân giải domain độc hại bị Sinkhole) ---
+# 2. Thử phân giải tên miền độc hại trong danh sách đen của CoreDNS (chuyển hướng về 0.0.0.0)
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- php -r "var_dump(gethostbyname('verification-claude-cdn.beer'));"
+string(7) "0.0.0.0"
+
+# --- THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED - Chặn kết nối TCP Egress trực tiếp) ---
+# 3. Thử kết nối TCP HTTP ra ngoài Internet để kiểm thử chính sách Default Deny Egress
+ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- curl -I -m 3 https://www.google.com
+curl: (28) Connection timed out after 3000 milliseconds
+\end{minted}
+\caption{Lệnh và kết quả thực tế kiểm tra DNS Sinkhole và chặn Egress}
+\label{lst:c3_kb8_egress}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vi dịch vụ nội bộ (identity-service):} Thực thể cần thực hiện phân giải tên miền.
+        \item \textit{CoreDNS Server:} Dịch vụ phân giải DNS nội bộ của cụm.
+        \item \textit{ConfigMap coredns-sinkhole:} Chứa danh sách các tên miền độc hại từ Threat Intelligence.
+        \item \textit{Cilium Network Policy:} Chính sách chặn toàn bộ kết nối ra ngoài Internet ngoại trừ cổng DNS (53).
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Kẻ tấn công khi chiếm được Pod thường cố tải thêm mã độc hoặc xuất dữ liệu ra ngoài qua Internet. Do đó, hệ thống áp dụng hai lớp bảo vệ: chặn phân giải DNS đối với tên miền độc hại (Sinkhole), và chặn toàn bộ các kết nối TCP/UDP hướng ngoại trực tiếp ra Internet ở mức L4 để vô hiệu hóa các địa chỉ IP độc hại tĩnh.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Ở luồng hợp lệ (mục 1), Pod phân giải tên miền hợp lệ \texttt{google.com} bình thường và nhận về IP thực của Google.
+        \item Ở luồng chặn DNS (mục 2), Pod phân giải tên miền độc hại \texttt{verification-claude-cdn.beer}. CoreDNS đối chiếu với danh sách đen và trả về ngay lập tức IP giả \texttt{0.0.0.0}, triệt tiêu khả năng kết nối tới máy chủ điều khiển C2 của mã độc.
+        \item Ở luồng chặn TCP (mục 3), dù đã phân giải IP của Google thành công, Pod thử kết nối HTTP trực tiếp ra Internet bằng \texttt{curl} nhưng bị chặn bởi chính sách Egress cấm mặc định, lệnh trả về lỗi timeout.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Phân tích hành vi truy vấn DNS bất thường để phát hiện kỹ thuật thiết lập đường hầm và tự động cô lập thực thể là hướng mở rộng chưa hiện thực trong nguyên mẫu này.
 
 %--------------------------------------------------------------
 \subsection{Kịch bản 9: Khai thác giao diện điều khiển}
@@ -1063,21 +1063,21 @@ Jun 24 05:43:02.124: zta-demo/probe-low:38492 -> vault/vault-0:8200 policy-deny 
 \hline
 \textbf{Kịch bản} & \textbf{Cơ chế phòng thủ chính} & \textbf{Thành phần} & \textbf{Trạng thái kiểm chứng} \\
 \hline
-1  & Xác thực JWT tại biên & Thành phần 1, 4 & Hiện tại (Ngữ cảnh: Mở rộng) \\
+1  & Từ chối mặc định + tước quyền & Thành phần 4 & Hiện tại \\
 \hline
-2  & Giám sát \texttt{execve} & Thành phần 4 & Hiện tại (Chế độ kiểm toán) \\
+2  & Xác thực JWT tại biên & Thành phần 1, 4 & Hiện tại (Ngữ cảnh: Mở rộng) \\
 \hline
-3  & Bí mật động JIT & Thành phần 3, 4 & Hiện tại \\
+3  & Giám sát \texttt{execve} & Thành phần 4 & Hiện tại (Chế độ kiểm toán) \\
 \hline
-4  & Xác thực định danh nội bộ & Thành phần 4 & Hiện tại \\
+4  & Cổng nạp yêu cầu mã băm & Thành phần 2 & Hiện tại (Chữ ký: Mở rộng) \\
 \hline
-5  & CoreDNS sinkhole + Chặn Egress & Thành phần 2, 4 & Hiện tại \\
+5  & Xác thực định danh nội bộ & Thành phần 4 & Hiện tại \\
 \hline
-6  & Nhóm IP tình báo đe dọa & Thành phần 2, 4 & Hiện tại \\
+6  & Bí mật động JIT & Thành phần 3, 4 & Hiện tại \\
 \hline
-7  & Cổng nạp yêu cầu mã băm & Thành phần 2 & Hiện tại (Chữ ký: Mở rộng) \\
+7  & Nhóm IP tình báo đe dọa & Thành phần 2, 4 & Hiện tại \\
 \hline
-8  & Từ chối mặc định + tước quyền & Thành phần 4 & Hiện tại \\
+8  & CoreDNS sinkhole + Chặn Egress & Thành phần 2, 4 & Hiện tại \\
 \hline
 9  & Seccomp + Chặn Egress & Thành phần 4 & Hiện tại \\
 \hline

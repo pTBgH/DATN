@@ -1,0 +1,29 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"annotations":{},"name":"default-deny-all","namespace":"job7189-apps"},"spec":{"egress":[{"toEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}],"endpointSelector":{"matchLabels":{}},"ingress":[{"fromEndpoints":[{"matchLabels":{"cilium.zta/marker":"umbrella-deny"}}]}]}}
+  creationTimestamp: "2026-06-04T03:10:04Z"
+  generation: 2
+  name: default-deny-all
+  namespace: job7189-apps
+  resourceVersion: "3005457"
+  uid: 3668ae20-9336-4678-b8f2-9cb100333b42
+spec:
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+  endpointSelector:
+    matchLabels: {}
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        cilium.zta/marker: umbrella-deny
+status:
+  conditions:
+  - lastTransitionTime: "2026-06-04T03:10:04Z"
+    message: Policy validation succeeded
+    status: "True"
+    type: Valid

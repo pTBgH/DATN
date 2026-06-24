@@ -18,67 +18,59 @@ Do đó, trước khi xây dựng kiến trúc Zero Trust cho hệ thống Micro
 \subsection{Thách thức định danh và quản lý thông tin xác thực}
 %------------------------------------------------------------------------------
 
-Điểm cần nhấn mạnh là định danh trong hệ thống Microservices phải gắn với \textit{thực thể đang giao tiếp}, không chỉ gắn với địa chỉ IP, subnet hoặc vị trí mạng \parencite{nist800204b_abac_microservices,spiffe_spec}.
+Tuy nhiên, khác với mô hình truyền thống dựa trên biên mạng, định danh trong hệ thống Microservices phải gắn với \textit{thực thể đang giao tiếp} --- không chỉ dựa vào địa chỉ IP, subnet hay vị trí mạng \parencite{nist800204b_abac_microservices,spiffe_spec}.
 
-Trong kiến trúc Microservices, mỗi dịch vụ cần xác thực danh tính của các dịch vụ khác trước khi trao đổi dữ liệu hoặc truy cập tài nguyên. Quá trình này làm phát sinh số lượng lớn thông tin xác thực như khóa API, chứng chỉ số, mật khẩu dịch vụ hoặc mã truy cập tạm thời. Khi quy mô hệ thống tăng lên, việc quản lý các thông tin này trở nên phức tạp và dễ dẫn đến tình trạng \textit{phân tán bí mật} trên nhiều thành phần khác nhau.
+Trong kiến trúc Microservices, mỗi dịch vụ cần xác thực danh tính của dịch vụ khác trước khi trao đổi dữ liệu hoặc truy cập tài nguyên. Điều này phát sinh số lượng lớn thông tin xác thực như khóa API, chứng chỉ số, mật khẩu dịch vụ hoặc mã truy cập tạm thời. Khi quy mô hệ thống tăng lên, việc quản lý các thông tin này trở nên phức tạp và dễ dẫn đến tình trạng \textit{phân tán bí mật} trên nhiều thành phần khác nhau.
 
-Một thực tiễn phổ biến nhưng tiềm ẩn nhiều rủi ro là lưu trữ trực tiếp thông tin xác thực trong mã nguồn, tệp cấu hình hoặc biến môi trường. MITRE ATT\&CK xếp hành vi thu thập thông tin xác thực từ tệp và biến môi trường vào nhóm kỹ thuật Credentials from Container and Resource Discovery \parencite{mitre_t1552,mitre_containers}. Nếu một thành phần bị xâm phạm, tác nhân tấn công có thể thu thập các thông tin này để mở rộng phạm vi truy cập sang các dịch vụ khác trong hệ thống. Vì vậy, trong môi trường Microservices, một bí mật bị lộ hiếm khi chỉ là sự cố cục bộ; nó có thể kéo theo toàn bộ chuỗi phụ thuộc giữa các dịch vụ.
+Một thực tiễn phổ biến nhưng tiềm ẩn nhiều rủi ro là lưu trữ trực tiếp thông tin xác thực trong mã nguồn, tệp cấu hình hoặc biến môi trường. MITRE ATT\&CK xếp hành vi thu thập thông tin xác thực từ tệp và biến môi trường vào nhóm kỹ thuật Credentials from Container and Resource Discovery \parencite{mitre_t1552,mitre_containers}. Nếu một thành phần bị xâm phạm, kẻ tấn công có thể thu thập các thông tin này để mở rộng phạm vi truy cập sang các dịch vụ khác. Nói cách khác, trong môi trường Microservices, một bí mật bị lộ hiếm khi chỉ là sự cố cục bộ; nó có thể kéo theo toàn bộ chuỗi phụ thuộc giữa các dịch vụ.
 
-Bên cạnh đó, các hệ thống quản lý bí mật tập trung cũng phải đối mặt với bài toán \textit{Secret Zero} \parencite{vault_docs}. Đây là vấn đề xác thực ban đầu đối với chính hệ thống quản lý bí mật. Nếu thông tin xác thực gốc dùng để truy cập kho bí mật bị lộ hoặc bị đánh cắp, toàn bộ cơ chế bảo vệ phía sau có thể bị vô hiệu hóa.
+Ngoài ra, các hệ thống quản lý bí mật tập trung cũng phải đối mặt với bài toán \textit{Secret Zero} \parencite{vault_docs} --- vấn đề xác thực ban đầu đối với chính hệ thống quản lý bí mật. Nếu thông tin xác thực gốc để truy cập kho bí mật bị lộ, toàn bộ cơ chế bảo vệ phía sau có thể bị vô hiệu hóa.
 
-Những thách thức này cho thấy hệ thống cần một cơ chế định danh độc lập với địa chỉ mạng, đồng thời hỗ trợ cấp phát, luân chuyển và thu hồi thông tin xác thực một cách tự động trong suốt vòng đời hoạt động của thực thể \parencite{spiffe_spec,vault_docs,machine_identity_report}.
+Vì vậy, hệ thống cần một cơ chế định danh độc lập với địa chỉ mạng, đồng thời có khả năng cấp phát, xoay vòng và thu hồi thông tin xác thực một cách tự động trong suốt vòng đời hoạt động của thực thể \parencite{spiffe_spec,vault_docs,machine_identity_report}.
 
 %------------------------------------------------------------------------------
 \subsection{Thách thức từ môi trường điều phối Kubernetes}
 %------------------------------------------------------------------------------
 
-Điểm cần nhấn mạnh là Kubernetes làm hạ tầng trở nên động hơn rất nhiều: Pod có thể được tạo mới, thay thế hoặc di chuyển giữa các Node chỉ trong thời gian ngắn. Vì vậy, chính sách bảo mật cần bám theo \textit{định danh và thuộc tính của workload}, không bám cứng vào vị trí triển khai \parencite{k8s_pod_lifecycle,nist800204b_abac_microservices}.
+Kubernetes mang lại khả năng tự động triển khai, mở rộng và phục hồi ứng dụng, nhưng chính những đặc tính này cũng đặt ra nhiều yêu cầu bảo mật mới mà môi trường truyền thống chưa có tiền lệ \parencite{kubernetes_docs,rice2019kubernetes}.
 
-Kubernetes cung cấp khả năng tự động triển khai, mở rộng và phục hồi ứng dụng, tuy nhiên các đặc tính này đồng thời tạo ra nhiều yêu cầu bảo mật mới so với môi trường triển khai truyền thống \parencite{kubernetes_docs,rice2019kubernetes}.
+Về mặt hạ tầng, các Pod được tạo mới, thay thế hoặc thu hồi liên tục trong quá trình vận hành. Tính chất ngắn hạn này khiến địa chỉ IP và vị trí thực thi của các khối lượng công việc thay đổi thường xuyên \parencite{k8s_pod_lifecycle}. Do đó, việc sử dụng địa chỉ mạng như một thuộc tính nhận dạng trở nên kém hiệu quả, đặc biệt trong các cơ chế kiểm soát truy cập hay thực thi chính sách bảo mật. Nói ngắn lại, \textit{IP là thuộc tính vận hành}, không phải căn cứ đủ mạnh để đại diện cho danh tính bảo mật của workload.
 
-Trước hết, các Pod được tạo mới, thay thế hoặc thu hồi liên tục trong quá trình vận hành. Tính chất ngắn hạn này khiến địa chỉ IP và vị trí thực thi của các khối lượng công việc thay đổi thường xuyên \parencite{k8s_pod_lifecycle}. Do đó, việc sử dụng địa chỉ mạng như một thuộc tính nhận dạng trở nên kém hiệu quả, đặc biệt trong các cơ chế kiểm soát truy cập hoặc thực thi chính sách bảo mật. Nói cách khác, \textit{IP là thuộc tính vận hành}, không phải căn cứ đủ mạnh để đại diện cho danh tính bảo mật của workload.
+Kubernetes sử dụng cơ chế phân quyền RBAC để kiểm soát quyền truy cập vào tài nguyên của cụm. Việc cấu hình quyền hạn không phù hợp cho người dùng, ServiceAccount hoặc thành phần tự động hóa có thể tạo điều kiện cho kẻ tấn công mở rộng phạm vi kiểm soát sau khi xâm nhập thành công \parencite{kubernetes_docs}. MITRE ATT\&CK mô tả các hành vi như thực thi lệnh qua API điều phối, triển khai container hoặc vượt thoát container như những kỹ thuật đáng chú ý trong môi trường Kubernetes \parencite{mitre_t1609,mitre_t1610,mitre_t1611}. Các quyền có mức ảnh hưởng cao như tạo Pod đặc quyền, gắn ServiceAccount hoặc thao tác với tài nguyên điều phối vì vậy có thể trở thành con đường \textbf{leo thang đặc quyền trong cụm}.
 
-Bên cạnh đó, Kubernetes sử dụng cơ chế phân quyền dựa trên RBAC để kiểm soát quyền truy cập vào tài nguyên của cụm. Việc cấu hình quyền hạn không phù hợp cho người dùng, ServiceAccount hoặc thành phần tự động hóa có thể tạo điều kiện cho tác nhân tấn công mở rộng phạm vi kiểm soát sau khi xâm nhập thành công \parencite{kubernetes_docs}. MITRE ATT\&CK mô tả các hành vi như thực thi lệnh qua API điều phối, triển khai container hoặc vượt thoát container như những kỹ thuật đáng chú ý trong môi trường Kubernetes \parencite{mitre_t1609,mitre_t1610,mitre_t1611}. Các quyền có mức ảnh hưởng cao như tạo Pod đặc quyền, gắn ServiceAccount hoặc thao tác với tài nguyên điều phối vì vậy có thể trở thành con đường \textbf{leo thang đặc quyền trong cụm}.
-
-Những đặc điểm trên đặt ra yêu cầu phải tách biệt khái niệm định danh khỏi thông tin hạ tầng động, đồng thời áp dụng cơ chế ủy quyền tập trung và nhất quán trên toàn bộ môi trường điều phối \parencite{nist800204b_abac_microservices,nist_abac}.
+Các đặc điểm trên cho thấy chính sách bảo mật cần được gắn theo định danh và thuộc tính của workload, thay vì được định nghĩa cứng theo vị trí hạ tầng. Điều này đặt ra yêu cầu về cơ chế ủy quyền tập trung, nhất quán trên toàn bộ môi trường điều phối \parencite{nist800204b_abac_microservices,nist_abac}.
 
 %------------------------------------------------------------------------------
 \subsection{Thách thức bảo mật mạng nội bộ}
 %------------------------------------------------------------------------------
 
-Điểm cần nhấn mạnh là lưu lượng nội bộ không đồng nghĩa với lưu lượng đáng tin cậy. Khi một dịch vụ bị chiếm quyền, chính các kết nối nội bộ hợp lệ có thể bị lợi dụng để dò quét, thu thập dữ liệu và di chuyển ngang \parencite{nist800204_microservices,mitre_t1046,mitre_t1021}.
+Khác với kiến trúc nguyên khối, phần lớn các tương tác trong hệ thống Microservices diễn ra qua mạng nội bộ giữa các dịch vụ. Điều này làm gia tăng đáng kể lưu lượng \textit{East-West} và biến mạng nội bộ thành một trong những bề mặt tấn công quan trọng nhất của hệ thống \parencite{nist800204_microservices}. Lưu lượng nội bộ vì thế không thể được coi là đương nhiên an toàn chỉ vì đi trong cùng một cụm.
 
-Khác với kiến trúc nguyên khối, phần lớn các tương tác trong hệ thống Microservices được thực hiện thông qua mạng nội bộ giữa các dịch vụ. Điều này làm gia tăng đáng kể lưu lượng \textit{East-West} và biến mạng nội bộ thành một trong những bề mặt tấn công quan trọng nhất của hệ thống \parencite{nist800204_microservices}.
+Khi một dịch vụ bị chiếm quyền, kẻ tấn công có thể lợi dụng các kết nối hợp lệ đã tồn tại để trinh sát, thu thập thông tin hoặc di chuyển ngang sang các thành phần khác \parencite{mitre_t1046,mitre_t1021}. Mức độ rủi ro càng tăng khi các dịch vụ \textit{mặc định tin cậy lẫn nhau} chỉ vì cùng nằm trong một cụm Kubernetes.
 
-Trong trường hợp một dịch vụ bị thỏa hiệp, tác nhân tấn công có thể lợi dụng các kết nối hợp lệ đã tồn tại để thực hiện trinh sát, thu thập thông tin hoặc di chuyển ngang sang các thành phần khác. Các kỹ thuật dò quét dịch vụ và di chuyển ngang như Network Service Discovery và Remote Services được MITRE ghi nhận là những hành vi phổ biến trong giai đoạn hậu khai thác \parencite{mitre_t1046,mitre_t1021}. Mức độ rủi ro càng gia tăng khi các dịch vụ \textit{mặc định tin cậy lẫn nhau} chỉ vì cùng nằm trong một cụm Kubernetes hoặc cùng thuộc một vùng mạng.
+Mã hóa toàn bộ lưu lượng nội bộ bằng xác thực hai chiều (mTLS) là một bước cần thiết \parencite{nist800204a_service_mesh,nist800204b_abac_microservices}, nhưng chưa đủ. Mã hóa chỉ bảo vệ kênh truyền; nó không trả lời được câu hỏi dịch vụ nào được phép gọi dịch vụ nào, theo phương thức nào và trong ngữ cảnh nào.
 
-Một giải pháp thường được áp dụng là mã hóa toàn bộ lưu lượng nội bộ bằng cơ chế xác thực hai chiều \parencite{nist800204a_service_mesh,nist800204b_abac_microservices}. Tuy nhiên, mã hóa chỉ bảo vệ kênh truyền; nó không tự trả lời câu hỏi dịch vụ nào được phép gọi dịch vụ nào, với phương thức nào và trong ngữ cảnh nào. Do đó, hệ thống cần đạt được sự cân bằng giữa yêu cầu bảo mật, khả năng mở rộng và hiệu năng vận hành.
-
-Những thách thức này cho thấy việc bảo vệ mạng nội bộ không chỉ dừng ở mã hóa lưu lượng mà còn đòi hỏi khả năng xác thực danh tính, thực thi chính sách truy cập và kiểm soát giao tiếp giữa các thực thể ở mức chi tiết.
+Bảo vệ mạng nội bộ trong Microservices vì vậy đòi hỏi thêm khả năng xác thực danh tính, thực thi chính sách truy cập và kiểm soát giao tiếp giữa các thực thể ở mức chi tiết.
 
 %------------------------------------------------------------------------------
 \subsection{Thách thức giám sát và bảo vệ tại thời gian chạy}
 %------------------------------------------------------------------------------
 
-Điểm cần nhấn mạnh là an toàn trước triển khai chưa đủ để bảo vệ hệ thống lúc đang chạy. Một image có thể vượt qua bước quét ban đầu nhưng vẫn sinh hành vi bất thường khi ứng dụng xử lý dữ liệu thật \parencite{nist800204c_devsecops_microservices,tetragon_docs}.
+Các biện pháp bảo mật truyền thống như kiểm tra mã nguồn, quét lỗ hổng hay đánh giá cấu hình chủ yếu được thực hiện trước khi hệ thống đi vào vận hành. Tuy nhiên, một container image có thể vượt qua bước quét ban đầu mà vẫn sinh ra hành vi bất thường khi xử lý dữ liệu thực tế \parencite{nist800204c_devsecops_microservices,tetragon_docs}. Các biện pháp tĩnh này không đủ khả năng phát hiện những hành vi chỉ xuất hiện trong quá trình thực thi.
 
-Các biện pháp bảo mật truyền thống như kiểm tra mã nguồn, quét lỗ hổng hoặc đánh giá cấu hình chủ yếu được thực hiện trước khi hệ thống đi vào vận hành. Mặc dù giúp giảm thiểu nhiều nguy cơ bảo mật, các biện pháp này không đủ khả năng phát hiện những hành vi phát sinh trong quá trình thực thi.
+Kẻ tấn công có thể khai thác các lỗ hổng chưa được công bố, thực thi mã độc trong bộ nhớ hoặc dùng các lời gọi hệ thống bất thường để vượt qua cơ chế bảo vệ. Các hoạt động này thường không để lại dấu hiệu trên mã nguồn hay container image đã kiểm tra. Đây là lý do các cơ chế quan sát runtime --- theo dõi tiến trình và syscall --- trở thành lớp phòng vệ quan trọng trong môi trường container \parencite{tetragon_docs}.
 
-Trong thực tế, tác nhân tấn công có thể khai thác các lỗ hổng chưa được công bố, thực thi mã độc trực tiếp trong bộ nhớ hoặc sử dụng các lời gọi hệ thống bất thường để vượt qua các cơ chế bảo vệ hiện có. Các hoạt động này thường không để lại dấu hiệu rõ ràng trên mã nguồn hoặc container image đã được kiểm tra trước đó. Đây là lý do các cơ chế quan sát runtime dựa trên sự kiện hệ thống, ví dụ theo dõi tiến trình và syscall, trở thành lớp phòng vệ quan trọng trong môi trường container \parencite{tetragon_docs}.
+Ngoài ra, các container trên cùng một nút tính toán chia sẻ nhân hệ điều hành. Lỗ hổng tại lớp runtime hay nhân hệ điều hành có thể bị khai thác để thực hiện \textbf{vượt thoát container} và chiếm quyền kiểm soát máy chủ bên dưới \parencite{cve_2024_21626,cve_2022_0847,mitre_t1611}.
 
-Bên cạnh đó, các container trên cùng một nút tính toán chia sẻ chung nhân hệ điều hành. Những lỗ hổng tại lớp runtime hoặc nhân hệ điều hành có thể bị khai thác để thực hiện các kỹ thuật \textbf{vượt thoát container} và chiếm quyền kiểm soát máy chủ lưu trữ \parencite{cve_2024_21626,cve_2022_0847,mitre_t1611}.
-
-Do đó, hệ thống cần khả năng quan sát liên tục đối với các hoạt động diễn ra tại thời điểm chạy, bao gồm hành vi tiến trình, tương tác mạng và các lời gọi hệ thống quan trọng. Dữ liệu quan sát được phải có khả năng hỗ trợ phát hiện bất thường và cung cấp ngữ cảnh cho quá trình ra quyết định bảo mật \parencite{nist800137,nist800204c_devsecops_microservices,hubble_docs,tetragon_docs}.
+Hệ thống vì thế cần khả năng quan sát liên tục các hoạt động tại thời điểm chạy, gồm hành vi tiến trình, tương tác mạng và các lời gọi hệ thống. Dữ liệu thu được phải hỗ trợ phát hiện bất thường và cung cấp ngữ cảnh cho quá trình ra quyết định bảo mật \parencite{nist800137,nist800204c_devsecops_microservices,hubble_docs,tetragon_docs}.
 
 %------------------------------------------------------------------------------
 \subsection{Thách thức từ chuỗi cung ứng phần mềm}
 %------------------------------------------------------------------------------
 
-Điểm cần nhấn mạnh là workload không chỉ cần chạy được, mà còn phải chứng minh được nguồn gốc và tính toàn vẹn trước khi được phép đi vào cluster \parencite{cncf_swp,newman2022sigstore,sigstore_docs}.
+Việc mỗi workload được xây dựng từ nhiều thành phần phần mềm khác nhau --- hệ điều hành nền, thư viện phụ thuộc, container image, gói mã nguồn từ bên thứ ba --- khiến \textit{chuỗi cung ứng phần mềm} trở thành mục tiêu hấp dẫn đối với kẻ tấn công. Nếu một workload không chứng minh được nguồn gốc và tính toàn vẹn, cả hệ thống đang chạy tiềm ẩn rủi ro mà không biết \parencite{cncf_swp,newman2022sigstore,sigstore_docs}.
 
-Mỗi workload triển khai trong Kubernetes thường được xây dựng từ nhiều thành phần phần mềm khác nhau như hệ điều hành nền, thư viện phụ thuộc, container image và các gói mã nguồn từ bên thứ ba. Điều này khiến \textit{chuỗi cung ứng phần mềm} trở thành mục tiêu đối với tác nhân tấn công.
-
-Một container image chứa mã độc, thư viện bị cài cắm hoặc được phát hành từ nguồn không đáng tin cậy có thể đưa mã thực thi độc hại trực tiếp vào môi trường sản xuất mà không cần khai thác bất kỳ lỗ hổng nào trên hệ thống đang vận hành. MITRE ATT\&CK mô tả kỹ thuật Deploy Container như một cách đưa container độc hại vào môi trường mục tiêu \parencite{mitre_t1610}. Bên cạnh đó, các cơ chế ký số và xác minh nguồn gốc artifact như Sigstore cho thấy nhu cầu ngày càng rõ ràng của việc gắn bằng chứng toàn vẹn vào quy trình phát hành phần mềm \parencite{newman2022sigstore,sigstore_docs}.
+Một container image chứa mã độc, thư viện bị cài cắm hoặc được phát hành từ nguồn không đáng tin cậy có thể đưa mã thực thi độc hại trực tiếp vào môi trường sản xuất mà không cần khai thác bất kỳ lỗ hổng nào trên hệ thống đang vận hành. MITRE ATT\&CK mô tả kỹ thuật Deploy Container như một cách đưa container độc hại vào môi trường mục tiêu \parencite{mitre_t1610}. Thực tiễn này cho thấy nhu cầu gắn bằng chứng toàn vẹn vào từng artifact trong quy trình phát hành phần mềm, mà Sigstore là một ví dụ tiêu biểu \parencite{newman2022sigstore,sigstore_docs}.
 
 Do đó, ngoài việc kiểm tra lỗ hổng bảo mật, hệ thống cần có khả năng xác thực \textbf{nguồn gốc}, \textbf{tính toàn vẹn} và \textbf{trạng thái phê duyệt} của các thành phần trước khi cho phép triển khai vào môi trường vận hành.
 

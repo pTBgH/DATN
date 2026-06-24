@@ -1,0 +1,220 @@
+%==============================================================================
+% KỊCH BẢN PHÒNG THỦ CHỦ ĐỘNG (DI CHUYỂN TỪ CHAPTER3.TEX)
+%==============================================================================
+
+\subsection{Kịch bản 11: Phát hiện đăng nhập bất thường (Impossible Travel)}
+\label{subsec:c3_kb11}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1557):} Tin tặc sở hữu thông tin xác thực hợp lệ của người dùng và thực hiện đăng nhập từ một địa chỉ IP địa lý khác biệt trong một khoảng thời gian cực ngắn so với lần đăng nhập trước đó (tấn công dịch chuyển bất khả thi - impossible travel) \parencite{mitre_t1557}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống triển khai bộ phân tích bóng (Shadow Analyzer) dưới dạng tác vụ định kỳ (\texttt{CronJob}) chạy trong không gian tên \texttt{security}. Bộ phân tích này tự động gọi API quản trị của Keycloak để quét lịch sử sự kiện đăng nhập trong vòng 1 giờ, đối chiếu vị trí/IP nguồn và ghi nhận nhật ký cảnh báo \texttt{impossible-travel-suspected} đối với các hành vi bất thường ở chế độ kiểm toán (\texttt{audit-only}) nhằm phục vụ giám sát và giảm thiểu tỷ lệ báo động giả trước khi áp dụng hình thức cưỡng chế.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Triển khai cấu hình Shadow Analyzer và chính sách mạng đi kèm
+ptb@baosrc:~/projects/DATN/infras/fixes$ ASSUME_YES=1 ./10-impossible-travel.sh apply
+[*] kubectl OK, context = kubernetes-admin@job7189
+configmap/impossible-travel-analyzer created
+cronjob.batch/impossible-travel-shadow created
+ciliumnetworkpolicy.cilium.io/allow-impossible-travel-egress created
+ciliumnetworkpolicy.cilium.io/allow-keycloak-ingress-from-shadow created
+[+] shadow analyzer deployed (runs every 15m). Trigger now with: ./10-impossible-travel.sh run
+
+# 2. Khởi chạy tức thời một lượt quét sự kiện và theo dõi log xuất
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./10-impossible-travel.sh run
+[*] kubectl OK, context = kubernetes-admin@job7189
+job.batch/it-shadow-124145 created
+[*] Job it-shadow-124145 created — waiting for output...
+{"ts":"2026-06-24T05:42:00Z","comp":"impossible-travel","event":"scan-complete","users":0,"flagged":0,"window_seconds":3600}
+[*] Clean job:      kubectl -n security delete job it-shadow-124145
+\end{minted}
+\caption{Quá trình triển khai thực tế và nhật ký hoàn thành việc quét của Shadow Analyzer}
+\label{lst:c3_kb11}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Shadow Analyzer (impossible-travel-shadow):} Tác vụ định kỳ thực hiện việc truy vấn và kiểm tra chéo các sự kiện đăng nhập.
+        \item \textit{Keycloak Server (keycloak.security):} Điểm xác thực trung tâm ghi nhận sự kiện đăng nhập và cung cấp Admin API.
+        \item \textit{Cilium Network Policy:} Chính sách mạng cho phép đầu ra (Egress) của Analyzer truy cập dịch vụ DNS và dịch vụ Keycloak nội bộ, đồng thời mở cổng đầu vào (Ingress) trên Keycloak để tiếp nhận kết nối an toàn.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Cơ chế Impossible Travel được thiết kế ở chế độ Shadow (Audit-only) để chạy thử nghiệm và kiểm toán chất lượng dữ liệu trước khi chuyển sang giai đoạn cưỡng chế. Điều này giúp ngăn chặn hoàn toàn nguy cơ khóa nhầm tài khoản của người dùng hợp lệ do thuật toán nhận diện sai địa chỉ IP động.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh triển khai (mục 1) thiết lập tệp cấu hình Python quét sự kiện, lập lịch chạy định kỳ và cấu hình các quy định phân đoạn mạng của Cilium để đảm bảo an toàn biên cho Detector.
+        \item Lệnh kích hoạt nhanh (mục 2) gửi yêu cầu khởi chạy một Job thực thi đơn lẻ, kết quả ghi nhận sự kiện \texttt{"event":"scan-complete"} và in ra JSON chuẩn mà không xảy ra bất kỳ lỗi kết nối mạng hay lỗi phân giải DNS nào.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Phiên bản tương lai sẽ chuyển từ chế độ kiểm toán (\texttt{audit-only}) sang cơ chế cưỡng chế tự động: tích hợp luồng sự kiện Keycloak với OPA để lập tức vô hiệu hóa phiên truy cập của tài khoản bị nghi ngờ (Session Revocation via CAEP) hoặc ép buộc thực hiện xác thực hai yếu tố (Step-up Authentication).
+
+%--------------------------------------------------------------
+
+\subsection{Kịch bản 12: Hệ thống tập tin chỉ đọc (ReadOnlyRootFilesystem)}
+\label{subsec:c3_kb12}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1222):} Tin tặc cố gắng tải tệp thực thi độc hại, cài đặt công cụ hoặc sửa đổi các tệp cấu hình trên hệ thống tập tin gốc của vùng chứa nghiệp vụ nhằm thiết lập quyền truy cập bền bỉ (persistence) hoặc phá hoại dịch vụ \parencite{mitre_t1222}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống chốt cứng cấu hình bảo mật vùng chứa thông qua việc kích hoạt chế độ chỉ đọc cho hệ thống tập tin gốc (\texttt{readOnlyRootFilesystem: true}) trên vi dịch vụ \texttt{hiring-service} thuộc không gian tên \texttt{job7189-apps}. Đồng thời, để bảo đảm ứng dụng có thể ghi các dữ liệu tạm thời cần thiết cho hoạt động nghiệp vụ bình thường, một phân vùng ghi tạm thời (\texttt{emptyDir}) được gắn kết tại đường dẫn \texttt{/tmp}. Mọi hành vi ghi dữ liệu bên ngoài thư mục được cấp phép này đều bị nhân hệ điều hành từ chối trực tiếp ở mức hệ thống tập tin.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Kích hoạt chế độ chỉ đọc và cấu hình thư mục ghi tạm thời /tmp cho hiring-service
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./04-readonly-rootfs.sh apply job7189-apps hiring-service
+[*] kubectl OK, context = kubernetes-admin@job7189
+deployment.apps/hiring-service patched
+deployment "hiring-service" successfully rolled out
+[+] Rollout healthy. readOnlyRootFilesystem enforced on job7189-apps/hiring-service [hiring-service].
+
+# 2. Kiểm chứng ghi vào thư mục gốc của vùng chứa (Bị từ chối)
+ptb@baosrc:~/projects/DATN/infras/fixes$ kubectl -n job7189-apps exec deploy/hiring-service -- sh -c 'touch /root/x' 2>&1
+touch: /root/x: Read-only file system
+
+# 3. Kiểm chứng ghi vào thư mục tạm được cấp phép /tmp (Thành công)
+ptb@baosrc:~/projects/DATN/infras/fixes$ kubectl -n job7189-apps exec deploy/hiring-service -- sh -c 'touch /tmp/x && echo tmp-ok'
+tmp-ok
+\end{minted}
+\caption{Quá trình cấu hình cưỡng chế ReadOnlyRootFilesystem và kết quả kiểm thử thực tế}
+\label{lst:c3_kb12}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vi dịch vụ nghiệp vụ (hiring-service):} Đối tượng được áp dụng cấu hình bảo mật đặc quyền tối thiểu.
+        \item \textit{Phân vùng ghi tạm thời (emptyDir):} Tài nguyên lưu trữ tạm thời dùng chung vòng đời với Pod để phục vụ tệp tạm của ứng dụng.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Việc khoá cứng hệ thống tập tin gốc ngăn chặn triệt để kỹ thuật "drop-and-execute" của tin tặc sau khi khai thác thành công một lỗ hổng ứng dụng. Bằng cách chỉ cho phép ghi tại \texttt{/tmp} qua \texttt{emptyDir}, hệ thống cô lập phạm vi ghi của tiến trình vào một không gian tạm thời, không thể thay đổi mã nguồn hay các tệp nhị phân gốc của ứng dụng.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh triển khai (mục 1) thực hiện áp dụng bản vá cấu hình (strategic patch) vào Deployment của \texttt{hiring-service} và xác nhận quá trình rollout diễn ra thành công.
+        \item Lệnh kiểm chứng 1 (mục 2) mô phỏng hành vi của tin tặc cố gắng tạo tệp độc hại dưới thư mục \texttt{/root}, kết quả trả về lỗi hệ thống tập tin chỉ đọc (\texttt{Read-only file system}).
+        \item Lệnh kiểm chứng 2 (mục 3) xác minh rằng ứng dụng nghiệp vụ vẫn có thể hoạt động bình thường nhờ ghi tệp tạm vào \texttt{/tmp} thành công (\texttt{tmp-ok}).
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Tiếp tục mở rộng chính sách \texttt{readOnlyRootFilesystem} cho toàn bộ các vi dịch vụ còn lại trong không gian tên \texttt{job7189-apps} sau khi phân tích kỹ lưỡng các đường dẫn ghi cần thiết của từng ứng dụng để định cấu hình các phân vùng \texttt{emptyDir} tương ứng.
+
+%--------------------------------------------------------------
+
+\subsection{Kịch bản 13: Tích hợp CISA KEV vào bộ tính điểm PDP}
+\label{subsec:c3_kb13}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1562):} Hệ thống chứa các lỗ hổng đã được công bố công khai nhưng mức độ nghiêm trọng trong bộ tính điểm cũ chỉ được đánh giá cơ bản dựa trên số lượng lỗ hổng (Critical/High) mà chưa phân biệt được các lỗ hổng đang bị khai thác tích cực trong thực tế, dẫn đến điểm tin cậy của Pod không phản ánh chính xác rủi ro khai thác tức thời \parencite{mitre_t1562}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống tích hợp nguồn thông tin tình báo về các lỗ hổng đang bị khai thác trong thực tế từ danh mục CISA KEV (Known Exploited Vulnerabilities) vào bộ điều khiển ra quyết định \texttt{zta-pdp}. Cơ chế này hoạt động bằng cách tải danh sách các mã lỗi bảo mật (CVE) từ CISA và lưu trữ dưới dạng \texttt{ConfigMap} mang tên \texttt{kev-catalog}. Khi thực hiện tính điểm tin cậy cho Pod dựa trên báo cáo quét của Trivy, nếu phát hiện Pod chứa bất kỳ lỗ hổng nào thuộc danh sách KEV này, PDP sẽ áp dụng trọng số trừ rất nặng (\texttt{PDP\_WEIGHT\_KEV = 40}) để hạ điểm tin cậy của Pod xuống mức tối thiểu nhằm kích hoạt ngay lập tức cơ chế cô lập.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Triển khai phiên bản PDP Controller hỗ trợ tích hợp KEV
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh apply
+[*] kubectl OK, context = kubernetes-admin@job7189
+configmap/zta-pdp-script patched
+deployment.apps/zta-pdp restarted
+deployment "zta-pdp" successfully rolled out
+[+] Deployed. KEV axis is INERT until you run: ./06-pdp-kev-score.sh catalog && ./06-pdp-kev-score.sh weight 40
+
+# 2. Tải danh mục CISA KEV và tạo ConfigMap kev-catalog
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh catalog
+[*] Fetching CISA KEV feed: https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+[*] Parsed 1245 KEV CVE IDs; writing ConfigMap security/kev-catalog
+configmap/kev-catalog created
+[+] kev-catalog populated with 1245 CVE IDs
+
+# 3. Thiết lập trọng số trừ lỗi KEV lên mức 40 để kích hoạt phạt điểm
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh weight 40
+[*] Set PDP_WEIGHT_KEV=40 on security/zta-pdp? (y/n) y
+deployment.apps/zta-pdp env updated
+deployment "zta-pdp" successfully rolled out
+[+] PDP_WEIGHT_KEV=40 active.
+\end{minted}
+\caption{Cập nhật bộ điều khiển PDP và tích hợp dữ liệu CISA KEV với trọng số 40}
+\label{lst:c3_kb13}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Cơ sở dữ liệu CISA KEV (kev-catalog):} Nguồn cấp dữ liệu lỗ hổng chứa các CVE đang bị khai thác trong thực tế.
+        \item \textit{Bộ điều khiển ra quyết định (zta-pdp):} Bộ phân tích điểm tin cậy tích hợp trục đánh giá rủi ro thực tế (Exploitability).
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Trọng số \texttt{PDP\_WEIGHT\_KEV = 40} được cấu hình để bảo đảm rằng một Pod chỉ cần dính phải một lỗ hổng đang bị khai thác trong thực tế sẽ lập tức bị hạ điểm tin cậy xuống dưới ngưỡng an toàn (ví dụ: điểm từ 100 giảm xuống dưới 60), đẩy Pod đó từ phân nhóm \texttt{high} trực tiếp xuống \texttt{low}. Điều này tăng tốc phản ứng phòng thủ đối với các mối đe doạ thực tế thay vì đánh giá tĩnh theo điểm CVSS.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh thứ nhất (mục 1) nâng cấp mã nguồn của PDP Controller trong ConfigMap và khởi động lại dịch vụ PDP.
+        \item Lệnh thứ hai (mục 2) tải trực tiếp dữ liệu nguồn từ CISA, phân tách và lưu trữ các mã CVE vào cụm.
+        \item Lệnh thứ ba (mục 3) cập nhật biến môi trường trọng số của PDP, chính thức đưa trục đánh giá mức độ khai thác thực tế vào hoạt động.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Phát triển cơ chế tự động hoá việc định kỳ cập nhật (tự động chạy lệnh \texttt{catalog} hàng tuần) nhằm đồng bộ nhanh nhất các lỗ hổng 0-day mới được CISA ghi nhận.
+
+%--------------------------------------------------------------
+
+\subsection{Kịch bản 14: Đóng vòng phản hồi cô lập tự động và đa chính sách mạng}
+\label{subsec:c3_kb14}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1046, T1048):} Tin tặc khai thác thành công lỗ hổng bảo mật nghiêm trọng trong ứng dụng web nghiệp vụ để truy cập trái phép vào các dịch vụ nhạy cảm khác trong mạng nội bộ (E-W traffic) như dịch vụ quản lý khoá \texttt{Vault} hoặc cơ sở dữ liệu \texttt{MySQL} nhằm trích xuất thông tin mật \parencite{mitre_t1046,mitre_t1048}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống kích hoạt cơ chế phản hồi tự động đóng vòng: khi máy quét lỗ hổng phát hiện CVE trên Pod, PDP cập nhật nhãn điểm tin cậy tương ứng (\texttt{zta.job7189/score-bucket=low}). Đồng thời, các chính sách mạng nâng cao (\texttt{CiliumClusterwideNetworkPolicy}) được áp dụng để tự động chặn các luồng giao tiếp E-W nhạy cảm của các Pod thuộc nhóm điểm tin cậy thấp (\texttt{low} hoặc \texttt{medium}) tới \texttt{Vault}, \texttt{data} và \texttt{management}, trong khi các Pod sạch thuộc nhóm điểm tin cậy cao (\texttt{high}) vẫn hoạt động bình thường. 
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Triển khai ma trận đa chính sách mạng dựa trên điểm tin cậy
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./08-multi-cnp-matrix.sh apply
+[*] Current matches — medium=0 low=0 (these pods WILL be restricted E-W)
+[*] Apply trust-response matrix (2 CCNPs)? (y/n) y
+ciliumclusterwidenetworkpolicy.cilium.io/ccnp-medium-trust-restrict-ew created
+ciliumclusterwidenetworkpolicy.cilium.io/ccnp-low-trust-isolate-ew created
+[+] matrix applied.
+
+# 2. Khởi chạy kịch bản kiểm chứng đóng vòng phản hồi cô lập tự động
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./07-cve-isolation-demo.sh apply
+[*] Run isolation demo in throwaway namespace 'zta-demo'? (y/n) y
+[*] Probe 1: pod labelled score-bucket=low -> Vault (expect BLOCKED)
+[+] low-trust pod was BLOCKED from Vault (CNP works)
+[*] Probe 2: pod labelled score-bucket=high -> Vault (expect reachable)
+[*] high-trust pod result: reachable
+
+[+] RESULT  low=blocked  high=reachable
+
+# 3. Theo dõi và ghi nhận quyết định chặn gói tin trực tiếp từ Hubble
+ptb@baosrc:~$ hubble observe --namespace zta-demo --to-namespace vault --verdict DROPPED
+Jun 24 05:43:02.124: zta-demo/probe-low:38492 -> vault/vault-0:8200 policy-deny dropped (Cilium)
+\end{minted}
+\caption{Triển khai đa chính sách mạng và kết quả thực chứng cô lập tự động}
+\label{lst:c3_kb14}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Pod Low-trust (probe-low):} Đại diện cho thực thể bị dính CVE nghiêm trọng, bị gắn nhãn \texttt{score-bucket=low}.
+        \item \textit{Pod High-trust (probe-high):} Đại diện cho thực thể an toàn, được giữ nhãn \texttt{score-bucket=high}.
+        \item \textit{Chính sách mạng (ccnp-low-trust-isolate-ew):} Luật chặn tất cả lưu lượng từ Pod \texttt{low} tới các vùng dữ liệu nhạy cảm.
+        \item \textit{Cơ chế giám sát (Hubble):} Công cụ ghi nhận trạng thái luồng và các gói tin bị từ chối trực tiếp ở tầng nhân.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Thiết kế ma trận phân cấp bảo vệ giúp hệ thống không phản ứng thái quá bằng cách xoá sổ Pod (làm gián đoạn dịch vụ tức thời), mà thay vào đó là tước đoạt dần quyền truy cập mạng nội bộ. Khi Pod bị hạ điểm về mức \texttt{low}, chính sách mạng sử dụng luật chặn phủ quyết (\texttt{egressDeny}) để ngắt kết nối E-W tới Vault và cơ sở dữ liệu nhằm ngăn chặn tin tặc lấy trộm dữ liệu, nhưng vẫn giữ kết nối North-South để phục vụ việc chẩn đoán.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh thứ nhất (mục 1) thiết lập hai chính sách mạng toàn cụm áp dụng cho các Pod có điểm tin cậy \texttt{medium} và \texttt{low}.
+        \item Lệnh thứ hai (mục 2) khởi chạy quy trình tự động tạo các Pod giả lập có nhãn tin cậy khác nhau để thử nghiệm kết nối tới \texttt{Vault}, kết quả ghi nhận Pod \texttt{low} bị chặn hoàn toàn trong khi Pod \texttt{high} kết nối thành công (\texttt{low=blocked high=reachable}).
+        \item Dữ liệu từ Hubble (mục 3) minh chứng gói tin từ Pod \texttt{probe-low} gửi đến cổng 8200 của \texttt{Vault} đã bị Cilium chặn trực tiếp và đánh dấu trạng thái \texttt{policy-deny dropped}.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Tích hợp cơ chế tự động khởi động lại Pod sạch thay thế sau khi mã nguồn/ảnh vùng chứa được cập nhật bản vá lỗ hổng để hoàn thành vòng lặp tự phục hồi toàn diện.
+
+%==============================================================================
+% 3.6 ĐÁNH GIÁ TỔNG HỢP VÀ HẠN CHẾ
+%==============================================================================
+

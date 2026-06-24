@@ -137,14 +137,30 @@ spec:
     - ports:
       - {port: "53", protocol: UDP}
       - {port: "53", protocol: TCP}
-      rules:
-        dns:
-        - matchPattern: "*"
   # Keycloak (adjust the target namespace label if Keycloak lives elsewhere).
   - toEndpoints:
     - matchLabels:
-        k8s:io.kubernetes.pod.namespace: data
+        k8s:io.kubernetes.pod.namespace: security
     toPorts:
     - ports:
       - {port: "8443", protocol: TCP}
       - {port: "8080", protocol: TCP}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-keycloak-ingress-from-shadow
+  namespace: security
+spec:
+  endpointSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: impossible-travel-shadow
+        k8s:io.kubernetes.pod.namespace: security
+    toPorts:
+    - ports:
+      - {port: "8080", protocol: TCP}
+

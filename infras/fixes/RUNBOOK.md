@@ -135,16 +135,6 @@ pod sạch vẫn `high`; pod có CVE thuộc KEV tụt bucket sâu hơn pod CVE 
 `hubble observe --verdict DROPPED` thấy E-W tới vault/data/management bị cắt; pod high không đổi.
 **Revert:** `./08-multi-cnp-matrix.sh revert` (xoá 2 CCNP).
 
-## Bước 9 — F09: GitOps tự phục hồi (ArgoCD)  (RỦI RO CAO)
-```bash
-./09-argocd-gitops.sh install                 # cài ArgoCD bản ghim (v2.13.3) vào ns argocd
-./09-argocd-gitops.sh apply                   # Application: selfHeal=true, prune=FALSE, path hẹp
-```
-**Check:** xoá thủ công 1 CNP trong `infras/k8s-yaml/cilium-policies/namespaces` trên cụm →
-ArgoCD tự apply lại sau vài phút. `./09-argocd-gitops.sh status` xem sync/health.
-**Revert:** `./09-argocd-gitops.sh revert` (xoá Application) hoặc `uninstall` (gỡ hẳn ArgoCD).
-Bắt đầu `prune=false` + path hẹp; mở rộng sau khi quan sát ổn.
-
 ## Bước 10 — F10: Impossible-Travel — SHADOW/AUDIT (RỦI RO THẤP khi shadow)
 ```bash
 # tạo secret keycloak-admin trước (script in sẵn lệnh nếu thiếu):
@@ -169,7 +159,6 @@ vẫn [Thiết kế], cố ý chưa bật để không khoá nhầm người dù
 ## Thứ tự revert (nếu cần lùi toàn bộ — ngược lại lúc apply)
 ```bash
 ./10-impossible-travel.sh revert
-./09-argocd-gitops.sh revert          # hoặc uninstall để gỡ hẳn ArgoCD
 ./08-multi-cnp-matrix.sh revert
 ./07-cve-isolation-demo.sh revert
 ./06-pdp-kev-score.sh revert

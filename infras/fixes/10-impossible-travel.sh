@@ -36,10 +36,10 @@ _print_secret_help() {
   warn "Secret $NS/$SECRET missing. Create it (fill in real values):"
   cat <<EOF
   kubectl -n $NS create secret generic $SECRET \\
-    --from-literal=KC_URL=https://keycloak.data.svc.cluster.local:8443 \\
+    --from-literal=KC_URL=http://keycloak.security.svc.cluster.local:8080 \\
     --from-literal=KC_REALM=job7189 \\
-    --from-literal=KC_USER=<admin-user> \\
-    --from-literal=KC_PASS=<admin-pass> \\
+    --from-literal=KC_USER=admin \\
+    --from-literal=KC_PASS=LgdtGSpKEAiBsOYz \\
     --from-literal=KC_INSECURE=true
 EOF
 }

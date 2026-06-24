@@ -170,15 +170,24 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb1}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1078):} Một mã thông báo hợp lệ bị đánh cắp và được sử dụng lại từ một địa chỉ IP bất thường nhằm truy cập API nghiệp vụ.
+\textbf{Kịch bản tấn công (T1078):} Một mã thông báo hợp lệ bị đánh cắp và được sử dụng lại từ một địa chỉ IP bất thường nhằm truy cập API nghiệp vụ \parencite{mitre_t1078}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Kong Gateway thực thi kiểm tra tại biên. Mọi yêu cầu thiếu mã thông báo, sai chữ ký hoặc hết hạn đều bị từ chối với mã lỗi \texttt{HTTP 401} trước khi chạm tới dịch vụ nghiệp vụ. Kết hợp với thời gian sống ngắn do Keycloak cấp, cửa sổ tái sử dụng mã thông báo bị đánh cắp được thu hẹp.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG KONG TỪ CHỐI JWT VÀO ĐÂY]
+# Mô phỏng phần đã kiểm chứng hiện tại: thiếu JWT hoặc JWT sai định dạng.
+# Không dùng output giả; sau khi chạy, dán mã HTTP thực tế vào báo cáo.
+kubectl -n gateway port-forward svc/kong-gateway 18080:80
+
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+  http://127.0.0.1:18080/api/recruiters/profile
+
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
+  -H "Authorization: Bearer not-a-real-jwt" \
+  http://127.0.0.1:18080/api/recruiters/profile
 \end{minted}
-\caption{Kong từ chối yêu cầu không có mã thông báo hợp lệ tại biên}
+\caption{Lệnh mô phỏng Kong từ chối yêu cầu không có mã thông báo hợp lệ tại biên}
 \label{lst:c3_kb1}
 \end{listing}
 
@@ -189,23 +198,56 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb2}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1190, T1609):} Mô phỏng lỗ hổng thực thi mã từ xa buộc tiến trình ứng dụng sinh shell hệ thống qua \texttt{/bin/sh}.
+\textbf{Kịch bản tấn công (T1190, T1609):} Mô phỏng lỗ hổng thực thi mã từ xa buộc tiến trình ứng dụng sinh shell hệ thống qua \texttt{/bin/sh} \parencite{mitre_t1190,mitre_t1609}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Tetragon giám sát lời gọi hệ thống \texttt{execve} tại cấp độ nhân hệ điều hành. Trong cấu hình hiện tại, các công cụ tấn công mạng bị ngắt ngay lập tức bằng tín hiệu \texttt{SIGKILL} (mã thoát 137). Đối với các lệnh shell cơ bản, hệ thống chỉ ở chế độ ghi nhận kiểm toán để tránh ngắt nhầm các luồng khởi tạo hợp lệ của ứng dụng.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{yaml}
-# [CHÚ Ý: BẠN DÁN YAML CẤU HÌNH TETRAGON VÀO ĐÂY]
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: block-suspicious-exec
+  namespace: job7189-apps
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    args:
+    - index: 0
+      type: "string"
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values: ["/usr/bin/nc", "/bin/nc", "/usr/bin/ncat", "/usr/bin/nmap"]
+      matchActions:
+      - action: Sigkill
+    - matchArgs:
+      - index: 0
+        operator: "Equal"
+        values: ["/bin/sh", "/bin/bash", "/usr/bin/curl", "/usr/bin/wget"]
+      matchActions:
+      - action: Post
 \end{minted}
-\caption{Chính sách Tetragon thực tế áp dụng hành động Sigkill và Post}
+\caption{Chính sách Tetragon rút gọn áp dụng hành động Sigkill và Post}
 \label{lst:c3_kb2_policy}
 \end{listing}
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG TETRAGON TRẢ VỀ EXIT CODE 137 VÀO ĐÂY]
+# Mô phỏng shell audit: hành vi được ghi nhận, không nhất thiết bị kill.
+ID_POD=$(kubectl -n job7189-apps get pod -l app=identity-service \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n job7189-apps exec "$ID_POD" -c app -- \
+  /bin/sh -c 'id; uname -a; cat /etc/passwd | head -3'
+
+# Mô phỏng công cụ tấn công trong danh sách Sigkill.
+# Sau khi chạy, lấy log thật từ Tetragon, không tự ghi kết quả.
+kubectl -n kube-system logs ds/tetragon -c export-stdout --tail=1000 \
+  | grep -E 'block-suspicious-exec|/usr/bin/nc|/usr/bin/nmap|/bin/sh'
 \end{minted}
-\caption{Tetragon ngắt tiến trình shell trái phép}
+\caption{Lệnh mô phỏng hành vi runtime và thu thập log Tetragon}
 \label{lst:c3_kb2_log}
 \end{listing}
 
@@ -216,15 +258,25 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb3}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1552):} Tiến trình đọc tệp chứa thông tin kết nối cơ sở dữ liệu từ bên trong thực thể nghiệp vụ sau khi bị chiếm quyền.
+\textbf{Kịch bản tấn công (T1552):} Tiến trình đọc tệp chứa thông tin kết nối cơ sở dữ liệu từ bên trong thực thể nghiệp vụ sau khi bị chiếm quyền \parencite{mitre_t1552}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Vault Agent cấp phát thông tin xác thực động (tên người dùng ngẫu nhiên, thời gian sống ngắn) và ghi vào bộ nhớ ảo. Bí mật bị đọc trộm chỉ có giá trị trong vài phút, sau đó tự hết hạn. Đồng thời chính sách mạng từ chối mặc định hạn chế khả năng tái sử dụng từ thực thể không hợp lệ.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG VAULT CẤP USERNAME ĐỘNG VÀO ĐÂY]
+JOB_POD=$(kubectl -n job7189-apps get pod -l app=job-service \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Chỉ hiển thị mẫu tên user động, che mật khẩu.
+kubectl -n job7189-apps exec "$JOB_POD" -c app -- sh -c \
+  'head -3 /vault/secrets/.env.db 2>/dev/null \
+   | sed s/DB_PASSWORD=.*/DB_PASSWORD=***REDACTED***/'
+
+# Bằng chứng Vault Agent render và renew bí mật động.
+kubectl -n job7189-apps logs "$JOB_POD" -c vault-agent --tail=50 \
+  | grep -E 'rendered|renewal|renewed' | tail -10
 \end{minted}
-\caption{Vault Agent cấp thông tin xác thực động và xoay vòng trên bộ nhớ ảo}
+\caption{Lệnh mô phỏng đọc bí mật và thu thập bằng chứng Vault Agent cấp thông tin xác thực động}
 \label{lst:c3_kb3}
 \end{listing}
 
@@ -235,15 +287,25 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb4}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1036):} Thực thể bị chiếm quyền tạo kết nối gửi gói tin mang IP nguồn giả mạo nhằm vượt phân đoạn mạng để truy cập cơ sở dữ liệu.
+\textbf{Kịch bản tấn công (T1036):} Thực thể bị chiếm quyền tạo kết nối gửi gói tin mang IP nguồn giả mạo nhằm vượt phân đoạn mạng để truy cập cơ sở dữ liệu \parencite{mitre_t1036}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Cilium xác thực định danh dựa trên ánh xạ thực thể và địa chỉ IP. Gói tin có IP nguồn không khớp định danh thực bị loại bỏ tại nhân hệ điều hành; hệ thống giám sát ghi nhận trạng thái từ chối. Đồng thời chính sách mạng chặn việc tải công cụ tấn công từ Internet.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG HUBBLE CHẶN IP GIẢ MẠO VÀO ĐÂY]
+# Mô phỏng truy cập trái phép từ một pod không nằm trong allow-list.
+SIM_ID=$(date +%Y%m%d-%H%M%S)
+kubectl -n job7189-apps run "lateral-attacker-$SIM_ID" \
+  --image=busybox:1.37.0 --restart=Never --rm -i --quiet \
+  --labels='zta.test/role=attacker' --command -- \
+  sh -c 'nc -zvw5 mysql.data.svc.cluster.local 3306'
+
+# Thu thập bằng chứng drop từ Hubble.
+kubectl -n kube-system exec deploy/hubble-relay -- \
+  hubble observe --since 2m --verdict DROPPED \
+  --from-namespace job7189-apps -o compact
 \end{minted}
-\caption{Cilium phát hiện lệch pha định danh và chặn gói tin giả mạo}
+\caption{Lệnh mô phỏng truy cập nội bộ trái phép và thu thập Hubble drop}
 \label{lst:c3_kb4}
 \end{listing}
 
@@ -252,23 +314,41 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb5}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1048, T1071):} Thực thể nghiệp vụ thử gửi dữ liệu ra ngoài qua HTTP trực tiếp và truy vấn tên miền độc hại.
+\textbf{Kịch bản tấn công (T1048, T1071):} Thực thể nghiệp vụ thử gửi dữ liệu ra ngoài qua HTTP trực tiếp và truy vấn tên miền độc hại \parencite{mitre_t1048,mitre_t1071}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Do phiên bản Cilium hiện tại không hỗ trợ chặn luồng ra theo tên miền, hệ thống chặn tên miền độc hại bằng cơ chế CoreDNS sinkhole (trả về IP \texttt{0.0.0.0} cho mọi tên miền trong danh sách đen). Ở tầng mạng, chính sách từ chối mặc định chặn mọi kết nối ra ngoài không được khai báo tường minh.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{text}
-# [CHÚ Ý: BẠN DÁN CẤU HÌNH COREDNS VÀO ĐÂY]
+CoreDNS sinkhole dùng ConfigMap coredns-sinkhole trong namespace kube-system.
+Trường data.hosts.txt được cập nhật bởi CronJob threat-intel-refresh:
+
+0.0.0.0 <malicious-domain.example>
+
+CoreDNS đọc tệp hosts này và trả 0.0.0.0 cho tên miền nằm trong danh sách.
 \end{minted}
-\caption{Cấu hình CoreDNS sinkhole chặn phân giải tên miền}
+\caption{Cấu hình logic của CoreDNS sinkhole chặn phân giải tên miền}
 \label{lst:c3_kb5_coredns}
 \end{listing}
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG EGRESS TIMEOUT VÀO ĐÂY]
+APP_POD=$(kubectl -n job7189-apps get pod -l app=identity-service \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Mô phỏng truy vấn DNS tới tên miền đã có trong sinkhole.
+kubectl -n job7189-apps exec "$APP_POD" -c app -- \
+  nslookup <malicious-domain.example>
+
+# Mô phỏng egress HTTP trực tiếp ra Internet.
+kubectl -n job7189-apps exec "$APP_POD" -c app -- \
+  curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code}\n' http://example.com/
+
+kubectl -n kube-system exec deploy/hubble-relay -- \
+  hubble observe --since 2m --verdict DROPPED \
+  --from-namespace job7189-apps -o compact
 \end{minted}
-\caption{Kết nối ra ngoài bị chặn bởi chính sách từ chối mặc định}
+\caption{Lệnh mô phỏng egress và thu thập bằng chứng bị chặn}
 \label{lst:c3_kb5_egress}
 \end{listing}
 
@@ -279,13 +359,19 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb6}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1071):} Thực thể nghiệp vụ thử kết nối trực tiếp tới một địa chỉ IP thuộc danh sách đen.
+\textbf{Kịch bản tấn công (T1071):} Thực thể nghiệp vụ thử kết nối trực tiếp tới một địa chỉ IP thuộc danh sách đen \parencite{mitre_t1071}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Kiến trúc đã được triển khai đầy đủ ở tầng hạ tầng. Tuy nhiên, ghi nhận trung thực trong chu kỳ thử nghiệm: danh sách IP độc hại vẫn rỗng do nguồn cấp dữ liệu chưa đồng bộ hoàn chỉnh. Việc chặn kết nối quan sát được đến từ chính sách từ chối mặc định, chưa phải từ danh sách tình báo đe dọa.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG TRẠNG THÁI CIDRGROUP RỖNG VÀO ĐÂY]
+# Kiểm tra policy intent và dữ liệu CIDR thực tế.
+kubectl get ccnp cnp-threat-intel-egress-deny -o yaml
+kubectl get ciliumcidrgroup threat-intel-firehol -o yaml
+
+# Nếu spec.externalCIDRs rỗng, ghi nhận đây là hạn chế dữ liệu,
+# không kết luận là threat-intel đã chặn thành công.
+kubectl -n security-cdm get cm threat-intel-blocklist -o yaml
 \end{minted}
 \caption{Trạng thái danh sách IP rỗng và kết nối bị chặn bởi chính sách từ chối mặc định}
 \label{lst:c3_kb6}
@@ -298,15 +384,31 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb7}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1610, T1525):} Triển khai ứng dụng sử dụng image không tham chiếu qua mã băm mà dùng tag tùy ý.
+\textbf{Kịch bản tấn công (T1610, T1525):} Triển khai ứng dụng sử dụng image không tham chiếu qua mã băm mà dùng tag tùy ý \parencite{mitre_t1610}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Cổng nạp cưỡng chế yêu cầu image phải tham chiếu qua mã băm sha256. Mọi image dùng tag bị từ chối ngay lập tức.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG CỔNG NẠP TỪ CHỐI IMAGE VÀO ĐÂY]
+cat <<'EOF' >/tmp/unsigned-attacker.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsigned-attacker
+  namespace: job7189-apps
+spec:
+  restartPolicy: Never
+  containers:
+  - name: c
+    image: ghcr.io/job7189/identity-service:malicious-tag
+    command: ["sh", "-c", "sleep 30"]
+EOF
+
+kubectl apply -f /tmp/unsigned-attacker.yaml
+kubectl -n job7189-apps describe pod unsigned-attacker
+kubectl -n job7189-apps delete pod unsigned-attacker --ignore-not-found
 \end{minted}
-\caption{Cổng nạp từ chối image không sử dụng mã băm}
+\caption{Lệnh mô phỏng triển khai image không ghim digest và thu thập cảnh báo admission}
 \label{lst:c3_kb7}
 \end{listing}
 
@@ -317,15 +419,26 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb8}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1046):} Thực thể bị chiếm quyền dò tìm dịch vụ nội bộ và truy vấn máy chủ điều khiển trung tâm.
+\textbf{Kịch bản tấn công (T1046):} Thực thể bị chiếm quyền dò tìm dịch vụ nội bộ và truy vấn máy chủ điều khiển trung tâm \parencite{mitre_t1046}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Thực thể bị tước toàn bộ đặc quyền hệ điều hành và chính sách từ chối mặc định chặn mọi kết nối không khai báo tường minh, bao gồm cả kết nối tới máy chủ điều khiển.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG TƯỚC CAPABILITY VÀ CNP CHẶN VÀO ĐÂY]
+SIM_ID=$(date +%Y%m%d-%H%M%S)
+kubectl -n job7189-apps run "recon-$SIM_ID" \
+  --image=busybox:1.37.0 --restart=Never --rm -i --quiet \
+  --command -- sh -c '
+    id
+    nc -zvw3 identity-service.job7189-apps.svc.cluster.local 80
+    nc -zvw3 kubernetes.default.svc.cluster.local 443
+  '
+
+kubectl -n kube-system exec deploy/hubble-relay -- \
+  hubble observe --since 2m --verdict DROPPED \
+  --from-namespace job7189-apps -o compact
 \end{minted}
-\caption{Thực thể bị tước đặc quyền và bị chặn trinh sát mạng}
+\caption{Lệnh mô phỏng trinh sát mạng và thu thập bằng chứng bị chặn}
 \label{lst:c3_kb8}
 \end{listing}
 
@@ -334,15 +447,24 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb9}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1611, T1068):} Thực thể thử kết nối giao diện điều khiển nội bộ (Kubelet API) và gọi lệnh hệ thống đặc quyền \texttt{unshare}.
+\textbf{Kịch bản tấn công (T1611, T1068):} Thực thể thử kết nối giao diện điều khiển nội bộ (Kubelet API) và gọi lệnh hệ thống đặc quyền \texttt{unshare} \parencite{mitre_t1611}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Hệ thống mạng chặn luồng truy cập tới IP của máy chủ vật lý; cơ chế Seccomp chặn lời gọi hệ thống nhạy cảm, lệnh \texttt{unshare} trả về lỗi không được phép.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG KUBELET API BỊ CHẶN VÀO ĐÂY]
+APP_POD=$(kubectl -n job7189-apps get pod -l app=identity-service \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Mô phỏng truy cập Kubelet API trên node nội bộ.
+kubectl -n job7189-apps exec "$APP_POD" -c app -- \
+  curl -k -m 6 https://<node-internal-ip>:10250/pods
+
+# Mô phỏng syscall/namespace operation nhạy cảm.
+kubectl -n job7189-apps exec "$APP_POD" -c app -- \
+  unshare --mount --uts --ipc --net --pid --fork /bin/sh
 \end{minted}
-\caption{Giao diện điều khiển bị chặn và lời gọi hệ thống bị từ chối}
+\caption{Lệnh mô phỏng truy cập Kubelet API và thao tác namespace đặc quyền}
 \label{lst:c3_kb9}
 \end{listing}
 
@@ -351,15 +473,25 @@ Phần này kiểm chứng kiến trúc thông qua các kịch bản mô phỏng
 \label{subsec:c3_kb10}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1562):} Tài khoản bị lạm dụng xóa chính sách mạng từ chối mặc định.
+\textbf{Kịch bản tấn công (T1562):} Tài khoản bị lạm dụng xóa chính sách mạng từ chối mặc định \parencite{mitre_t1562}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Toàn bộ cấu hình bảo mật được lưu dưới dạng mã; hành vi thay đổi được ghi nhận qua nhật ký kiểm toán. Khôi phục được kiểm chứng bằng cách áp dụng lại tệp cấu hình mã nguồn theo cách thủ công.
 
 \begin{listing}[H]
 \begin{minted}[fontsize=\footnotesize]{bash}
-# [CHÚ Ý: BẠN DÁN LOG XÓA CHÍNH SÁCH VÀ KHÔI PHỤC VÀO ĐÂY]
+# Kiểm tra trước quyền xóa, tránh phá hệ thống khi chưa chủ động thử nghiệm.
+kubectl auth can-i delete ciliumnetworkpolicy/default-deny-all \
+  -n job7189-apps
+
+# Nếu thực hiện mô phỏng thật, phải lưu manifest trước khi xóa.
+kubectl -n job7189-apps get cnp default-deny-all -o yaml \
+  >/tmp/default-deny-all.backup.yaml
+
+kubectl -n job7189-apps delete cnp default-deny-all
+kubectl apply -f /tmp/default-deny-all.backup.yaml
+kubectl -n job7189-apps get cnp default-deny-all
 \end{minted}
-\caption{Xóa chính sách mạng và khôi phục thủ công từ mã nguồn}
+\caption{Lệnh mô phỏng xóa chính sách mạng và khôi phục từ manifest đã lưu}
 \label{lst:c3_kb10}
 \end{listing}
 

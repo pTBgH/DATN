@@ -6,7 +6,7 @@
 %==============================================================================
 \section{Từ bảo mật vành đai đến Zero Trust}
 
-\subsection{Hạn chế của mô hình bảo mật dựa trên chu vi}
+\subsection{Hạn chế của mô hình bảo mật vành đai}
 
 Trong nhiều thập kỷ, an ninh mạng truyền thống được xây dựng theo mô hình \textbf{phòng thủ dựa trên chu vi}. Mô hình này thiết lập ranh giới giữa mạng nội bộ và bên ngoài thông qua tường lửa, VPN và hệ thống IDS/IPS. Đặc trưng của mô hình này là cấp quyền truy cập chủ yếu dựa trên vị trí mạng \parencite{kindervag2010build,jericho2004}. 
 
@@ -41,32 +41,27 @@ Nói một cách ngắn gọn, Zero Trust là một triết lý và hệ tư tư
 %     \item \textbf{Mọi truy cập đều phải được xác thực và uỷ quyền} một cách rõ ràng trên cơ sở \textit{từng yêu cầu}, không được phụ thuộc vào vị trí mạng của chủ thể.
 % \end{enumerate}
 
-\subsection{So sánh kiến trúc Zero Trust với mô hình dựa trên chu vi}
+\subsection{So sánh mô hình Zero Trust với bảo mật vành đai}
 
-Để làm rõ lý do tại sao ZTA là sự lựa chọn tất yếu cho môi trường công nghệ thông tin hiện đại, Bảng~\ref{tab:zta_vs_perimeter} so sánh sự khác biệt về triết lý và phương pháp tiếp cận kỹ thuật giữa hai mô hình:
-
-\subsection{So sánh kiến trúc Zero Trust với mô hình dựa trên chu vi}
-
-Bảng~\ref{tab:zta_vs_perimeter} trình bày tóm tắt sự khác biệt về phương pháp tiếp cận kỹ thuật và quản lý rủi ro giữa mô hình bảo mật mạng truyền thống và kiến trúc Zero Trust.
-
+Bảng~\ref{tab:zta_vs_perimeter} làm rõ sự khác biệt về triết lý và phương pháp tiếp cận kỹ thuật giữa hai mô hình:
 \begin{table}[H]
 \centering
 \renewcommand{\arraystretch}{1.3}
-\caption{So sánh mô hình bảo mật truyền thống và kiến trúc Zero Trust}
-\label{tab:zta_vs_perimeter}
+\caption{So sánh bảo mật vành đai và mô hình Zero Trust}
+\label{tab:zta_vs_perimeter_corrected}
 \begin{tabularx}{\textwidth}{|p{3.5cm}|X|X|}
 \hline
-\textbf{Tiêu chí} & \textbf{Bảo mật truyền thống} & \textbf{Kiến trúc Zero Trust} \\
+\textbf{Tiêu chí} & \textbf{Bảo mật vành đai} & \textbf{Zero Trust} \\
 \hline
 \textbf{Cơ sở tin cậy} & Xác thực một lần tại biên mạng. Mức độ tin cậy phụ thuộc vào dải mạng (IP, subnet). & Không phụ thuộc vị trí mạng. Đánh giá độ tin cậy liên tục dựa trên ngữ cảnh từ các nguồn dữ liệu. \\
 \hline
-\textbf{Mức độ kiểm soát} & Tập trung tại ranh giới mạng, chia hệ thống thành các vùng mạng có quy mô lớn. & Phân chia mạng ở mức độ chi tiết, áp dụng kiểm soát trực tiếp tại từng tài nguyên hoặc ứng dụng. \\
+\textbf{Mức độ kiểm soát} & Tập trung tại ranh giới mạng, chia hệ thống thành các vùng mạng có quy mô lớn. & Phân chia mạng ở mức độ siêu vi mô (Micro-segmentation), áp dụng kiểm soát trực tiếp tại từng tài nguyên hoặc ứng dụng. \\
 \hline
-\textbf{Kiểm soát di chuyển ngang} & Dựa vào các quy tắc mạng tĩnh. Khó phát hiện hành vi dò quét và di chuyển khi tác nhân đã lọt vào mạng nội bộ. & Áp dụng nguyên tắc từ chối mặc định. Truy cập chỉ được phép thông qua xác thực định danh mật mã học và tuân thủ nguyên tắc đặc quyền tối thiểu. \\
+\textbf{Kiểm soát di chuyển ngang} & Dựa vào các quy tắc mạng tĩnh. Khó phát hiện hành vi dò quét và di chuyển khi tác nhân đã lọt vào mạng nội bộ. & Áp dụng nguyên tắc từ chối mặc định. Truy cập được quyết định dựa trên xác thực định danh và kiểm tra ngữ cảnh theo nguyên tắc đặc quyền tối thiểu. \\
 \hline
-\textbf{Quản lý thông tin xác thực} & Sử dụng thông tin xác thực tĩnh, có thời gian sống dài hoặc vô hạn. & Cấp phát thông tin xác thực động  với thời gian sống ngắn, được thu hồi tự động. \\
+\textbf{Quản lý thông tin xác thực} & Sử dụng thông tin xác thực có thời hạn cố định (như session, token) và thường yêu cầu xác thực lại thủ công khi hết hạn. & Cấp phát hoặc kiểm tra thông tin xác thực động với thời gian sống ngắn, có cơ chế tự động gia hạn hoặc thu hồi dựa trên rủi ro. \\
 \hline
-\textbf{Khả năng giám sát} & Dữ liệu giám sát chủ yếu thu thập từ lưu lượng tại các thiết bị mạng biên (tường lửa, router). & Thu thập nhật ký và số liệu toàn diện tại mọi điểm kiểm soát để phục vụ cơ chế phản hồi an ninh. \\
+\textbf{Khả năng giám sát} & Dữ liệu giám sát chủ yếu thu thập từ lưu lượng tại các thiết bị mạng biên (tường lửa, router). & Thu thập và phân tích nhật ký liên tục tại mọi điểm kiểm soát để phục vụ cơ chế ra quyết định cấp quyền theo thời gian thực. \\
 \hline
 \end{tabularx}
 \end{table}

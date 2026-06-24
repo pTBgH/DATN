@@ -7,9 +7,13 @@
 \section{Mô tả hệ thống và phạm vi mô phỏng}
 \label{sec:system_description_scope}
 
-Nền tảng tuyển dụng trực tuyến \texttt{job7189} được triển khai trên kiến trúc Microservices với 7 vi dịch vụ độc lập: \texttt{identity}, \texttt{workspace}, \texttt{job}, \texttt{hiring}, \texttt{candidate}, \texttt{communication}, và \texttt{storage}. Các cấu phần này tương tác nội bộ qua giao thức HTTP cùng hệ thống hàng đợi thông điệp, vận hành trên các cơ sở dữ liệu phân tán gồm MySQL, Redis và Kafka. Chi tiết về luồng nghiệp vụ, phân vùng dữ liệu và cấu trúc lưu trữ tập trung được thể hiện từ Hình~\ref{fig:intro_context_job7189} đến Hình~\ref{fig:db_tongquan_evidence}. Để phục vụ mục tiêu nghiên cứu an ninh, đồ án thiết lập một môi trường mô phỏng hạ tầng doanh nghiệp bằng cụm Kubernetes đa nút chạy trên 4 máy chủ ảo, kết nối qua mạng riêng ảo Tailscale. 
-Nguyên mẫu này tập trung hiện thực hóa kiến trúc Zero Trust tại tầng máy chủ và workload, hướng tới việc kiểm chứng các cơ chế: định danh thực thể, phân đoạn vi mô, quản lý thông tin xác thực động và giám sát thời gian chạy. Do vận hành trong môi trường kiểm thử thiếu tương tác từ người dùng thực, hệ thống áp dụng cơ chế giả lập luồng tải định sẵn để kích hoạt các giao tiếp nội bộ. Ngược lại, việc đánh giá an toàn thiết bị người dùng cuối và các mô hình kiểm soát truy cập liên tục tích hợp sâu vào quy trình GitOps được loại trừ có chủ đích để tập trung tối đa vào mục tiêu nghiên cứu lõi của đồ án.
-`'
+Hệ thống tuyển dụng \texttt{Job7189} được xây dựng theo kiến trúc microservices với 7 dịch vụ: \texttt{identity}, \texttt{workspace}, \texttt{job}, \texttt{hiring}, Hệ thống tuyển dụng \texttt{Job7189} được xây dựng theo kiến trúc vi dịch vụ, gồm bảy dịch vụ: \texttt{identity}, \texttt{workspace}, \texttt{job}, \texttt{hiring}, \texttt{candidate}, \texttt{communication} và \texttt{storage}. Các dịch vụ giao tiếp nội bộ thông qua HTTP và hàng đợi thông điệp, đồng thời sử dụng các thành phần lưu trữ và truyền phát dữ liệu gồm MySQL, Redis và Kafka. Luồng nghiệp vụ và cấu trúc lưu trữ của hệ thống được minh họa tại các Hình~\ref{fig:intro_context_job7189}, Hình~\ref{fig:intro_containerdb_job7189} và Hình~\ref{fig:db_tongquan_evidence}.
+
+Để thực hiện thực nghiệm, đồ án triển khai một cụm Kubernetes đa nút trên bốn máy chủ ảo, được kết nối thông qua mạng riêng ảo Tailscale. Môi trường mô phỏng tập trung đánh giá bốn nhóm cơ chế kiểm soát an ninh đã được đề cập tại \ref{sec:security_control_groups}, gồm: định danh nhất quán, độc lập với hạ tầng mạng; quản lý vòng đời thông tin xác thực và bí mật; quản trị tập trung, thực thi phân tán chính sách truy cập; và đánh giá truy cập liên tục dựa trên ngữ cảnh và trạng thái an ninh.
+
+Do môi trường phòng thí nghiệm không có người dùng thực, các tập lệnh được sử dụng để sinh tự động yêu cầu và lưu lượng trao đổi giữa các vi dịch vụ. Phạm vi mô phỏng không bao gồm đánh giá an toàn của thiết bị đầu cuối người dùng và kiểm soát truy cập đối với quy trình GitOps; các nội dung này được loại trừ nhằm tập trung vào các cơ chế bảo vệ workload và giao tiếp nội bộ trong cụm Kubernetes.
+
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.88\textwidth]{images/context.png}
@@ -20,7 +24,7 @@ Nguyên mẫu này tập trung hiện thực hóa kiến trúc Zero Trust tại 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.92\textwidth]{images/container.png}
-  \caption{Kiến trúc vùng chứa của hệ thống Job7189 (góc nhìn nghiệp vụ)}
+  \caption{Sơ đồ container: góc nhìn luồng nghiệp vụ}
   \label{fig:intro_container_job7189}
 \end{figure}
 
@@ -41,17 +45,38 @@ Nguyên mẫu này tập trung hiện thực hóa kiến trúc Zero Trust tại 
 %==============================================================================
 % 3.2 KHẢO SÁT HIỆN TRẠNG
 %==============================================================================
-\section{Khảo sát hiện trạng hệ thống}
+\section{Khảo sát hiện trạng và đánh giá lỗ hổng hệ thống}
+\label{sec:c3_baseline_survey}
 
-Tuân thủ nguyên tắc triển khai của tiêu chuẩn NIST SP 800-207, trước khi áp dụng chính sách cưỡng chế, hệ thống cần trải qua giai đoạn khảo sát toàn diện. Kết quả khảo sát là đầu vào bắt buộc để xây dựng tập luật kiểm soát truy cập.
+Tuân thủ nguyên tắc triển khai của tiêu chuẩn NIST SP 800-207, Trước khi áp dụng bất kỳ chính sách cưỡng chế Zero Trust nào, hệ thống cần được khảo sát toàn diện nhằm thiết lập trạng thái cơ sở và nhận diện các lỗ hổng bảo mật hiện hữu. Quá trình khảo sát được thực hiện thông qua hai bước chính: kiểm kê các thực thể và luồng mạng, đồng thời phân tích các tệp cấu hình ban đầu của cụm Kubernetes.
+
+\subsection{Kiểm kê và phân tích hiện trạng trước khi áp dụng Zero Trust}
+
+Thông qua việc kích hoạt công cụ Hubble ở chế độ ghi nhận thụ động và phân tích các tệp manifest cấu hình ban đầu (Giai đoạn 0), đồ án ghi nhận các lỗ hổng hệ thống nghiêm trọng sau:
 
 \begin{itemize}[itemsep=6pt, parsep=0pt]
-    \item \textbf{Kiểm kê chủ thể:} Bao gồm người dùng cuối được quản lý qua Keycloak; quản trị viên hệ thống; và các thực thể phi con người (7 vi dịch vụ, các tác vụ định kỳ, bộ điều khiển chính sách).
+    \item \textbf{Thiếu định danh thực thể:} Các microservices tương tác nội bộ mà không có cơ chế xác thực chéo (mTLS) hay kiểm chứng nguồn gốc thực thể. Hệ thống chỉ nhận dạng đối tượng dựa trên địa chỉ IP động của vùng chứa hoặc dịch vụ DNS nội bộ, tạo điều kiện cho các cuộc tấn công giả mạo danh tính hoặc nghe lén dữ liệu trong cụm.
     
-    \item \textbf{Kiểm kê tài sản:} Cụm thực nghiệm gồm 4 máy chủ (1 máy chủ điều khiển, 3 máy chủ làm việc) kết nối qua mạng riêng ảo Tailscale. Tài sản phần mềm bao gồm 7 vi dịch vụ nghiệp vụ, 7 bản sao Redis, cụm MySQL và Kafka.
+    \item \textbf{Không gian mạng bằng phẳng:} Mạng nội bộ trong cụm Kubernetes hoạt động ở chế độ mở hoàn toàn. Bất kỳ container nào trong không gian tên \texttt{job7189-apps} đều có thể kết nối tự do tới các tài sản nhạy cảm như cơ sở dữ liệu \texttt{mysql}, event bus \texttt{kafka} mà không bị giới hạn.
     
-    \item \textbf{Bản đồ luồng dữ liệu:} Thay vì phỏng đoán luồng giao tiếp dựa trên mã nguồn, đồ án sử dụng công cụ Hubble chạy ở chế độ ghi nhận. Cơ chế này cho phép bắt toàn bộ lưu lượng mạng thực tế sinh ra trong quá trình hệ thống hoạt động bình thường. Từ dữ liệu thu thập được, hệ thống vẽ ra bản đồ luồng dữ liệu chính xác gồm 3 trục: luồng từ người dùng vào hệ thống, luồng giữa các vi dịch vụ, và luồng truy xuất cơ sở dữ liệu.
+    \item \textbf{Cơ chế quản lý thông tin xác thực tĩnh:} Các bí mật được cấu hình tĩnh trong các tệp cấu hình (\texttt{.env}) mặc định với thời gian sống vĩnh viễn. Việc thiếu cơ chế xoay vòng tự động hoặc cấp phát động thời gian ngắn tạo ra nguy cơ lộ lọt thông tin xác thực khi tin tặc chiếm quyền điều khiển Pod.
+    
+    \item \textbf{Quyền hạn vùng chứa và cấu hình thời gian chạy lỏng lẻo:} Hệ thống tập tin gốc của toàn bộ 7 microservices được cấu hình ở chế độ ghi tự do (\texttt{readOnlyRootFilesystem: false}), cho phép tiến trình ứng dụng sửa đổi mã nguồn hoặc tải các công cụ khai thác độc hại về đĩa cứng. Đồng thời, cấu hình an ninh vùng chứa chưa bị giới hạn đặc quyền và chưa bắt buộc xác thực chữ ký số container, dẫn đến nguy cơ tin tặc lạm dụng quyền hạn hoặc chạy các image giả mạo.
 \end{itemize}
+
+\subsection{Thiết lập bản đồ luồng mạng cơ sở}
+\label{sec:c3_baseline_network_flow}
+
+Để xây dựng tập luật kiểm soát truy cập chính xác, đồ án thực hiện ghi nhận các sự kiện luồng mạng thực tế từ cụm Kubernetes đang vận hành và lưu trữ thành ba tệp dữ liệu cấu trúc:
+
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item Thống kê tổng hợp các kết nối giữa các không gian tên và cổng dịch vụ trong điều kiện vận hành bình thường.
+    \item Chi tiết các phương thức HTTP và đường dẫn URI được ứng dụng sử dụng trong các tương tác nghiệp vụ.
+    \item Ánh xạ các Pod thực tế vào các nhóm định danh logic, phục vụ cho việc gán nhãn chính sách mạng.
+\end{itemize}
+
+
+Việc thu thập dữ liệu trước khi kích hoạt cơ chế từ chối mặc định đóng vai trò quan trọng nhằm hai mục đích: (i) tránh chặn nhầm các luồng hợp lệ gây gián đoạn dịch vụ, và (ii) xác định chính xác các mối quan hệ giao tiếp thực tế giữa các thành phần. Dựa trên bản đồ luồng đã thu thập, đồ án tiến hành phân loại DaaS (Data, Applications, Assets, Services) để thiết lập các chính sách cách ly vi phân cụ thể cho từng nhóm dịch vụ nghiệp vụ nhạy cảm ở các bước tiếp theo.
 
 \begin{figure}[H]
     \centering
@@ -65,9 +90,27 @@ Tuân thủ nguyên tắc triển khai của tiêu chuẩn NIST SP 800-207, trư
 %==============================================================================
 \section{Thiết kế Zero Trust cho hệ thống}
 
+\subsection{Cơ sở lựa chọn công nghệ}
+\label{subsec:technology_selection_basis}
+
+Các công nghệ trong môi trường mô phỏng được lựa chọn theo bốn tiêu chí. Thứ nhất, công nghệ cần hỗ trợ các nguyên tắc Zero Trust, bao gồm định danh có thể xác minh bằng mật mã, kiểm soát truy cập theo nguyên tắc từ chối mặc định và khả năng đánh giá lại quyền truy cập khi trạng thái an ninh thay đổi. Thứ hai, công nghệ cần tích hợp được với Kubernetes thông qua các cơ chế như CRD, Operator, admission webhook hoặc agent chạy trên node. Thứ ba, công nghệ cần cung cấp dữ liệu quan sát hoặc tín hiệu an ninh phục vụ việc phát hiện, đánh giá và phản hồi. Thứ tư, giải pháp cần phù hợp với quy mô phòng thí nghiệm, hạn chế số lượng thành phần phụ thuộc và chi phí vận hành.
+
+Trên cơ sở đó, đồ án lựa chọn các công nghệ cụ thể như sau:
+
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Định danh và xác thực:} Sử dụng \texttt{SPIRE} để thực hiện chứng thực thực thể dưới dạng mật mã (SPIFFE SVID mTLS) và \texttt{Keycloak} làm nhà cung cấp định danh tập trung (centralized IdP) cho người dùng cuối.
+    \item \textbf{Phân đoạn vi mô và thực thi mạng:} Lựa chọn \texttt{Cilium} để kiểm soát và cách ly lưu lượng mạng (L3/L4/L7) dựa trên định danh an ninh của Pod, kết hợp với công cụ \texttt{Hubble} để quan sát bản đồ mạng thời gian thực.
+    \item \textbf{Điểm thực thi biên (North-South PEP):} Sử dụng \texttt{Kong API Gateway} làm lá chắn bảo vệ biên cho các dịch vụ nghiệp vụ phía sau, thực hiện xác thực chữ ký JWT tập trung.
+    \item \textbf{Quản lý thông tin xác thực:} Sử dụng \texttt{HashiCorp Vault} để quản lý, cấp phát động và tự động xoay vòng thông tin tài khoản kết nối cơ sở dữ liệu thời hạn ngắn (Just-in-Time credentials).
+    \item \textbf{Bảo mật thời gian chạy (Runtime security):} Sử dụng \texttt{Tetragon} chạy ở mức nhân Linux (eBPF) để phát hiện hành vi bất thường của tiến trình và chặn (kill) trực tiếp các tiến trình độc hại.
+    \item \textbf{Đảm bảo tư thế an ninh và chính sách cổng nạp:} Lựa chọn \texttt{Trivy Operator} để quét lỗ hổng ảnh đĩa định kỳ, \texttt{Sigstore Cosign} để xác thực chữ ký số của vùng chứa trước khi cho phép nạp, và \texttt{OPA Gatekeeper} để cưỡng chế các luật an ninh vùng chứa ngay khi gửi yêu cầu lên API Server.
+    \item \textbf{Giám sát và kiểm toán nhật ký:} Triển khai bộ công cụ giám sát \texttt{Prometheus}, \texttt{Grafana} kết hợp với ngăn xếp nhật ký tập trung \texttt{EFK} (Elasticsearch, Filebeat, Kibana) phục vụ kiểm toán an ninh liên tục.
+\end{itemize}
+
+Trong quá trình thực nghiệm, một số chính sách được vận hành ở chế độ \textit{audit} hoặc \textit{warn} trước khi chuyển sang chế độ cưỡng chế. Cách tiếp cận này cho phép quan sát tác động của chính sách, điều chỉnh các luật chưa phù hợp và giảm nguy cơ gián đoạn hoạt động của các dịch vụ trong môi trường mô phỏng.
 \subsection{Phân bổ không gian tên}
 
-Để thiết lập ranh giới cách ly logic và áp dụng nguyên tắc đặc quyền tối thiểu, hệ thống phân bổ các khối lượng công việc vào các không gian tên chuyên biệt. Dựa trên hiện trạng cụm thực nghiệm, các không gian tên được tổ chức thành 5 nhóm chính:
+Để thiết lập ranh giới cách ly logic và áp dụng nguyên tắc đặc quyền tối thiểu, hệ thống phân bổ các workload vào các không gian tên chuyên biệt. Dựa trên hiện trạng cụm thực nghiệm, các không gian tên được tổ chức thành 5 nhóm chính:
 
 \begin{itemize}[itemsep=6pt, parsep=0pt]
     \item \textbf{Nhóm nghiệp vụ và dữ liệu:} Không gian tên \texttt{job7189-apps} chứa 7 vi dịch vụ và bộ nhớ đệm Redis; không gian tên \texttt{data} chứa cơ sở dữ liệu MySQL và Kafka.
@@ -77,9 +120,15 @@ Tuân thủ nguyên tắc triển khai của tiêu chuẩn NIST SP 800-207, trư
     \item \textbf{Nhóm hạ tầng lõi:} Không gian tên \texttt{kube-system} chứa các thành phần mạng Cilium, giám sát Tetragon và CoreDNS.
 \end{itemize}
 
-\subsection{Lộ trình triển khai 5 giai đoạn}
 
-Quá trình cài đặt tuân theo lộ trình chuyển đổi đề xuất tại Chương 2, được cụ thể hóa thành năm giai đoạn thực thi trên hệ thống:
+%==============================================================================
+% 3.4 TRIỂN KHAI 5 THÀNH PHẦN CHỨC NĂNG
+%==============================================================================
+\section{Triển khai 5 thành phần chức năng}
+
+Dựa trên thiết kế không gian tên và các lỗ hổng đã phát hiện ở Mục~\ref{sec:c3_baseline_network_flow} và Mục~\ref{sec:c3_vulnerability_analysis}, phần này hiện thực hóa năm thành phần chức năng của kiến trúc Zero Trust đã đề xuất tại \ref{chap:chapter2}. Quá trình triển khai tuân theo lộ trình năm giai đoạn dưới đây.
+
+\subsection{Lộ trình triển khai 5 giai đoạn}
 
 \begin{enumerate}[itemsep=6pt, parsep=0pt]
     \item \textbf{Giai đoạn 0 (Hạ tầng cơ sở):} Triển khai hạ tầng và ứng dụng cơ bản chưa có cơ chế Zero Trust.
@@ -88,13 +137,6 @@ Quá trình cài đặt tuân theo lộ trình chuyển đổi đề xuất tạ
     \item \textbf{Giai đoạn 3 (Cưỡng chế):} Kích hoạt chính sách chặn mặc định, áp dụng luật mạng tường minh.
     \item \textbf{Giai đoạn 4 (Thích ứng):} Kích hoạt vòng lặp phản hồi của bộ điều khiển chính sách và cấp phát bí mật động qua Vault.
 \end{enumerate}
-
-%==============================================================================
-% 3.4 TRIỂN KHAI 5 THÀNH PHẦN CHỨC NĂNG
-%==============================================================================
-\section{Triển khai 5 thành phần chức năng}
-
-Quá trình triển khai bám sát năm thành phần chức năng đã đề xuất ở Chương 2. 
 
 \begin{figure}[H]
 \centering
@@ -136,7 +178,7 @@ Quá trình triển khai bám sát năm thành phần chức năng đã đề xu
 \subsection{Thành phần 1: Định danh và xác thực}
 \begin{itemize}[itemsep=6pt, parsep=0pt]
     \item \textbf{Công nghệ:} Keycloak và SPIRE.
-    \item \textbf{Cấu hình:} SPIRE Server lưu trữ gốc tin cậy. SPIRE Agent trên mỗi máy chủ thực hiện chứng thực khối lượng công việc, cấp phát chứng chỉ X.509 SVID với thời gian sống ngắn.
+    \item \textbf{Cấu hình:} SPIRE Server lưu trữ gốc tin cậy. SPIRE Agent trên mỗi máy chủ thực hiện chứng thực workload, cấp phát chứng chỉ X.509 SVID với thời gian sống ngắn.
     \item \textbf{Chế độ lỗi:} Nếu SPIRE Server gián đoạn, các chứng chỉ hiện tại vẫn hợp lệ cho đến khi hết hạn. Thực thể mới không thể khởi động khi chưa có chứng chỉ hợp lệ.
 \end{itemize}
 
@@ -324,7 +366,7 @@ command terminated with exit code 137
 ptb@baosrc:~/projects/DATN$ kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout --tail=2000 | grep '"pod_name":"tetragon-test"' | tail -n 1
 {"process_kprobe":{"process":{"exec_id":"NzE4OXNydjAyOjEwNDkwOTA2MDc1Mzc4NTo3NjU4NTg=","pid":765858,"uid":0,"cwd":"/","binary":"/bin/nc","arguments":"-h","flags":"exec","start_time":"2026-06-24T06:21:49.03061266Z","auid":4294967295,"pod":{"namespace":"job7189-apps","name":"tetragon-test","container":{"id":"containerd://a19e59d...","name":"tetragon-test","image":{"id":"sha256:d8b7470659...","name":"docker.io/library/busybox:1.37.0"}},"pod_labels":{"app":"tetragon-test"}}},"function_name":"sys_execve","args":[{"string_arg":"/bin/nc"}],"action":"SIGKILL"},"time":"2026-06-24T06:21:49.030611299Z"}
 \end{minted}
-\caption{Lệnh kiểm tra runtime và nhật ký JSON thực tế từ Tetragon}
+\caption{Lệnh kiểm tra thời gian chạy và nhật ký JSON thực tế từ Tetragon}
 \label{lst:c3_kb2_log}
 \end{listing}
 
@@ -340,7 +382,7 @@ ptb@baosrc:~/projects/DATN$ kubectl -n kube-system logs -l app.kubernetes.io/nam
     \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
     \begin{itemize}
         \item Ở luồng hợp lệ (mục 1), lệnh \texttt{id} được thực thi thành công và trả về thông tin người dùng \texttt{uid=100(laravel)}, chứng minh hệ thống không làm gián đoạn các lệnh vô hại thông thường.
-        \item Ở luồng tấn công (mục 2), khi hacker cố chạy lệnh \texttt{/bin/nc -h}, eBPF của Tetragon chặn bắt syscall \texttt{sys\_execve} ở kernel, đối chiếu với danh sách cấm và lập tức phát tín hiệu \texttt{SIGKILL} tiêu diệt tiến trình. Lệnh hiển thị \texttt{command terminated with exit code 137} (mã thoát \texttt{137} là kết quả khi tiến trình bị cưỡng bức dừng bởi tín hiệu \texttt{SIGKILL} số 9: $128 + 9$).
+        \item Ở luồng tấn công (mục 2), khi hacker cố chạy lệnh \texttt{/bin/nc -h}, eBPF của Tetragon chặn bắt lời gọi hệ thống \texttt{sys\_execve} ở kernel, đối chiếu với danh sách cấm và lập tức phát tín hiệu \texttt{SIGKILL} tiêu diệt tiến trình. Lệnh hiển thị \texttt{command terminated with exit code 137} (mã thoát \texttt{137} là kết quả khi tiến trình bị cưỡng bức dừng bởi tín hiệu \texttt{SIGKILL} số 9: $128 + 9$).
         \item Dòng log JSON thực tế của Tetragon (mục 3) ghi nhận chi tiết: hành động là \texttt{"action":"SIGKILL"} đối với nhị phân \texttt{"binary":"/bin/nc"} chạy trong pod \texttt{"tetragon-test"}.
     \end{itemize}
 \end{itemize}
@@ -715,7 +757,7 @@ ptb@baosrc:~/projects/DATN$ ID_POD=$(kubectl -n job7189-apps get pod -l app=iden
 ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- whoami
 root
 
-# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Seccomp chặn syscall nhạy cảm) ---
+# --- THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED - Seccomp chặn lời gọi hệ thống nhạy cảm) ---
 # 3. Thử thực hiện lệnh unshare để tạo một namespace mới nhằm leo thang đặc quyền
 ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- /usr/bin/unshare --mount --uts --ipc --net --pid --fork /bin/sh
 /usr/bin/unshare: unshare failed: Operation not permitted
@@ -729,14 +771,14 @@ ptb@baosrc:~/projects/DATN$ kubectl -n job7189-apps exec "$ID_POD" -c app -- /us
     \item \textbf{Các thành phần tham gia:}
     \begin{itemize}
         \item \textit{Tiến trình container (identity-service):} Chạy tiến trình nghiệp vụ Laravel.
-        \item \textit{Container Runtime \& Bộ lọc Seccomp (Secure Computing Mode):} Cơ chế giới hạn syscall ở kernel Linux.
+        \item \textit{Container Runtime \& Bộ lọc Seccomp (Secure Computing Mode):} Cơ chế giới hạn lời gọi hệ thống ở kernel Linux.
         \item \textit{Lệnh unshare:} Công cụ hệ thống tạo namespace mới, thường bị dùng để vượt ranh giới container (container escape).
     \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Để ngăn chặn cuộc tấn công thoát container nhằm leo thang đặc quyền lên máy chủ vật lý, Container Runtime áp dụng cấu hình Seccomp mặc định (\texttt{RuntimeDefault}), cấm hoàn toàn các syscall nhạy cảm liên quan đến quản lý namespace như \texttt{unshare}.
+    \item \textbf{Tại sao cấu hình như thế:} Để ngăn chặn cuộc tấn công thoát container nhằm leo thang đặc quyền lên máy chủ vật lý, Container Runtime áp dụng cấu hình Seccomp mặc định (\texttt{RuntimeDefault}), cấm hoàn toàn các lời gọi hệ thống nhạy cảm liên quan đến quản lý namespace như \texttt{unshare}.
     \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
     \begin{itemize}
         \item Ở luồng hợp lệ (mục 1 và 2), quản trị viên chạy lệnh vô hại \texttt{whoami} thành công và in ra thông tin định danh tiến trình.
-        \item Ở luồng bị chặn (mục 3), hacker thử chạy lệnh \texttt{unshare} để tạo một namespace mới nhằm chiếm quyền kiểm soát máy chủ vật lý. Lệnh lập tức bị nhân Linux (thông qua bộ lọc Seccomp) từ chối thực hiện syscall tương ứng và báo lỗi \texttt{Operation not permitted}, bảo đảm tính cách ly tuyệt đối cho container.
+        \item Ở luồng bị chặn (mục 3), hacker thử chạy lệnh \texttt{unshare} để tạo một namespace mới nhằm chiếm quyền kiểm soát máy chủ vật lý. Lệnh lập tức bị nhân Linux (thông qua bộ lọc Seccomp) từ chối thực hiện lời gọi hệ thống tương ứng và báo lỗi \texttt{Operation not permitted}, bảo đảm tính cách ly tuyệt đối cho container.
     \end{itemize}
 \end{itemize}
 
@@ -845,12 +887,172 @@ job.batch/it-shadow-124145 created
 
 \textbf{Định hướng mở rộng:} Phiên bản tương lai sẽ chuyển từ chế độ kiểm toán (\texttt{audit-only}) sang cơ chế cưỡng chế tự động: tích hợp luồng sự kiện Keycloak với OPA để lập tức vô hiệu hóa phiên truy cập của tài khoản bị nghi ngờ (Session Revocation via CAEP) hoặc ép buộc thực hiện xác thực hai yếu tố (Step-up Authentication).
 
+%--------------------------------------------------------------
+\subsection{Kịch bản 12: Hệ thống tập tin chỉ đọc (ReadOnlyRootFilesystem)}
+\label{subsec:c3_kb12}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1222):} Tin tặc cố gắng tải tệp thực thi độc hại, cài đặt công cụ hoặc sửa đổi các tệp cấu hình trên hệ thống tập tin gốc của vùng chứa nghiệp vụ nhằm thiết lập quyền truy cập bền bỉ (persistence) hoặc phá hoại dịch vụ \parencite{mitre_t1222}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống chốt cứng cấu hình bảo mật vùng chứa thông qua việc kích hoạt chế độ chỉ đọc cho hệ thống tập tin gốc (\texttt{readOnlyRootFilesystem: true}) trên vi dịch vụ \texttt{hiring-service} thuộc không gian tên \texttt{job7189-apps}. Đồng thời, để bảo đảm ứng dụng có thể ghi các dữ liệu tạm thời cần thiết cho hoạt động nghiệp vụ bình thường, một phân vùng ghi tạm thời (\texttt{emptyDir}) được gắn kết tại đường dẫn \texttt{/tmp}. Mọi hành vi ghi dữ liệu bên ngoài thư mục được cấp phép này đều bị nhân hệ điều hành từ chối trực tiếp ở mức hệ thống tập tin.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Kích hoạt chế độ chỉ đọc và cấu hình thư mục ghi tạm thời /tmp cho hiring-service
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./04-readonly-rootfs.sh apply job7189-apps hiring-service
+[*] kubectl OK, context = kubernetes-admin@job7189
+deployment.apps/hiring-service patched
+deployment "hiring-service" successfully rolled out
+[+] Rollout healthy. readOnlyRootFilesystem enforced on job7189-apps/hiring-service [hiring-service].
+
+# 2. Kiểm chứng ghi vào thư mục gốc của vùng chứa (Bị từ chối)
+ptb@baosrc:~/projects/DATN/infras/fixes$ kubectl -n job7189-apps exec deploy/hiring-service -- sh -c 'touch /root/x' 2>&1
+touch: /root/x: Read-only file system
+
+# 3. Kiểm chứng ghi vào thư mục tạm được cấp phép /tmp (Thành công)
+ptb@baosrc:~/projects/DATN/infras/fixes$ kubectl -n job7189-apps exec deploy/hiring-service -- sh -c 'touch /tmp/x && echo tmp-ok'
+tmp-ok
+\end{minted}
+\caption{Quá trình cấu hình cưỡng chế ReadOnlyRootFilesystem và kết quả kiểm thử thực tế}
+\label{lst:c3_kb12}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Vi dịch vụ nghiệp vụ (hiring-service):} Đối tượng được áp dụng cấu hình bảo mật đặc quyền tối thiểu.
+        \item \textit{Phân vùng ghi tạm thời (emptyDir):} Tài nguyên lưu trữ tạm thời dùng chung vòng đời với Pod để phục vụ tệp tạm của ứng dụng.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Việc khoá cứng hệ thống tập tin gốc ngăn chặn triệt để kỹ thuật "drop-and-execute" của tin tặc sau khi khai thác thành công một lỗ hổng ứng dụng. Bằng cách chỉ cho phép ghi tại \texttt{/tmp} qua \texttt{emptyDir}, hệ thống cô lập phạm vi ghi của tiến trình vào một không gian tạm thời, không thể thay đổi mã nguồn hay các tệp nhị phân gốc của ứng dụng.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh triển khai (mục 1) thực hiện áp dụng bản vá cấu hình (strategic patch) vào Deployment của \texttt{hiring-service} và xác nhận quá trình rollout diễn ra thành công.
+        \item Lệnh kiểm chứng 1 (mục 2) mô phỏng hành vi của tin tặc cố gắng tạo tệp độc hại dưới thư mục \texttt{/root}, kết quả trả về lỗi hệ thống tập tin chỉ đọc (\texttt{Read-only file system}).
+        \item Lệnh kiểm chứng 2 (mục 3) xác minh rằng ứng dụng nghiệp vụ vẫn có thể hoạt động bình thường nhờ ghi tệp tạm vào \texttt{/tmp} thành công (\texttt{tmp-ok}).
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Tiếp tục mở rộng chính sách \texttt{readOnlyRootFilesystem} cho toàn bộ các vi dịch vụ còn lại trong không gian tên \texttt{job7189-apps} sau khi phân tích kỹ lưỡng các đường dẫn ghi cần thiết của từng ứng dụng để định cấu hình các phân vùng \texttt{emptyDir} tương ứng.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 13: Tích hợp CISA KEV vào bộ tính điểm PDP}
+\label{subsec:c3_kb13}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1562):} Hệ thống chứa các lỗ hổng đã được công bố công khai nhưng mức độ nghiêm trọng trong bộ tính điểm cũ chỉ được đánh giá cơ bản dựa trên số lượng lỗ hổng (Critical/High) mà chưa phân biệt được các lỗ hổng đang bị khai thác tích cực trong thực tế, dẫn đến điểm tin cậy của Pod không phản ánh chính xác rủi ro khai thác tức thời \parencite{mitre_t1562}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống tích hợp nguồn thông tin tình báo về các lỗ hổng đang bị khai thác trong thực tế từ danh mục CISA KEV (Known Exploited Vulnerabilities) vào bộ điều khiển ra quyết định \texttt{zta-pdp}. Cơ chế này hoạt động bằng cách tải danh sách các mã lỗi bảo mật (CVE) từ CISA và lưu trữ dưới dạng \texttt{ConfigMap} mang tên \texttt{kev-catalog}. Khi thực hiện tính điểm tin cậy cho Pod dựa trên báo cáo quét của Trivy, nếu phát hiện Pod chứa bất kỳ lỗ hổng nào thuộc danh sách KEV này, PDP sẽ áp dụng trọng số trừ rất nặng (\texttt{PDP\_WEIGHT\_KEV = 40}) để hạ điểm tin cậy của Pod xuống mức tối thiểu nhằm kích hoạt ngay lập tức cơ chế cô lập.
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Triển khai phiên bản PDP Controller hỗ trợ tích hợp KEV
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh apply
+[*] kubectl OK, context = kubernetes-admin@job7189
+configmap/zta-pdp-script patched
+deployment.apps/zta-pdp restarted
+deployment "zta-pdp" successfully rolled out
+[+] Deployed. KEV axis is INERT until you run: ./06-pdp-kev-score.sh catalog && ./06-pdp-kev-score.sh weight 40
+
+# 2. Tải danh mục CISA KEV và tạo ConfigMap kev-catalog
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh catalog
+[*] Fetching CISA KEV feed: https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+[*] Parsed 1245 KEV CVE IDs; writing ConfigMap security/kev-catalog
+configmap/kev-catalog created
+[+] kev-catalog populated with 1245 CVE IDs
+
+# 3. Thiết lập trọng số trừ lỗi KEV lên mức 40 để kích hoạt phạt điểm
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./06-pdp-kev-score.sh weight 40
+[*] Set PDP_WEIGHT_KEV=40 on security/zta-pdp? (y/n) y
+deployment.apps/zta-pdp env updated
+deployment "zta-pdp" successfully rolled out
+[+] PDP_WEIGHT_KEV=40 active.
+\end{minted}
+\caption{Cập nhật bộ điều khiển PDP và tích hợp dữ liệu CISA KEV với trọng số 40}
+\label{lst:c3_kb13}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Cơ sở dữ liệu CISA KEV (kev-catalog):} Nguồn cấp dữ liệu lỗ hổng chứa các CVE đang bị khai thác trong thực tế.
+        \item \textit{Bộ điều khiển ra quyết định (zta-pdp):} Bộ phân tích điểm tin cậy tích hợp trục đánh giá rủi ro thực tế (Exploitability).
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Trọng số \texttt{PDP\_WEIGHT\_KEV = 40} được cấu hình để bảo đảm rằng một Pod chỉ cần dính phải một lỗ hổng đang bị khai thác trong thực tế sẽ lập tức bị hạ điểm tin cậy xuống dưới ngưỡng an toàn (ví dụ: điểm từ 100 giảm xuống dưới 60), đẩy Pod đó từ phân nhóm \texttt{high} trực tiếp xuống \texttt{low}. Điều này tăng tốc phản ứng phòng thủ đối với các mối đe doạ thực tế thay vì đánh giá tĩnh theo điểm CVSS.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh thứ nhất (mục 1) nâng cấp mã nguồn của PDP Controller trong ConfigMap và khởi động lại dịch vụ PDP.
+        \item Lệnh thứ hai (mục 2) tải trực tiếp dữ liệu nguồn từ CISA, phân tách và lưu trữ các mã CVE vào cụm.
+        \item Lệnh thứ ba (mục 3) cập nhật biến môi trường trọng số của PDP, chính thức đưa trục đánh giá mức độ khai thác thực tế vào hoạt động.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Phát triển cơ chế tự động hoá việc định kỳ cập nhật (tự động chạy lệnh \texttt{catalog} hàng tuần) nhằm đồng bộ nhanh nhất các lỗ hổng 0-day mới được CISA ghi nhận.
+
+%--------------------------------------------------------------
+\subsection{Kịch bản 14: Đóng vòng phản hồi cô lập tự động và đa chính sách mạng}
+\label{subsec:c3_kb14}
+%--------------------------------------------------------------
+
+\textbf{Kịch bản tấn công (T1046, T1048):} Tin tặc khai thác thành công lỗ hổng bảo mật nghiêm trọng trong ứng dụng web nghiệp vụ để truy cập trái phép vào các dịch vụ nhạy cảm khác trong mạng nội bộ (E-W traffic) như dịch vụ quản lý khoá \texttt{Vault} hoặc cơ sở dữ liệu \texttt{MySQL} nhằm trích xuất thông tin mật \parencite{mitre_t1046,mitre_t1048}.
+
+\textbf{Cơ chế phòng thủ hiện tại:} Hệ thống kích hoạt cơ chế phản hồi tự động đóng vòng: khi máy quét lỗ hổng phát hiện CVE trên Pod, PDP cập nhật nhãn điểm tin cậy tương ứng (\texttt{zta.job7189/score-bucket=low}). Đồng thời, các chính sách mạng nâng cao (\texttt{CiliumClusterwideNetworkPolicy}) được áp dụng để tự động chặn các luồng giao tiếp E-W nhạy cảm của các Pod thuộc nhóm điểm tin cậy thấp (\texttt{low} hoặc \texttt{medium}) tới \texttt{Vault}, \texttt{data} và \texttt{management}, trong khi các Pod sạch thuộc nhóm điểm tin cậy cao (\texttt{high}) vẫn hoạt động bình thường. 
+
+\begin{listing}[H]
+\begin{minted}[fontsize=\footnotesize,breaklines]{bash}
+# 1. Triển khai ma trận đa chính sách mạng dựa trên điểm tin cậy
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./08-multi-cnp-matrix.sh apply
+[*] Current matches — medium=0 low=0 (these pods WILL be restricted E-W)
+[*] Apply trust-response matrix (2 CCNPs)? (y/n) y
+ciliumclusterwidenetworkpolicy.cilium.io/ccnp-medium-trust-restrict-ew created
+ciliumclusterwidenetworkpolicy.cilium.io/ccnp-low-trust-isolate-ew created
+[+] matrix applied.
+
+# 2. Khởi chạy kịch bản kiểm chứng đóng vòng phản hồi cô lập tự động
+ptb@baosrc:~/projects/DATN/infras/fixes$ ./07-cve-isolation-demo.sh apply
+[*] Run isolation demo in throwaway namespace 'zta-demo'? (y/n) y
+[*] Probe 1: pod labelled score-bucket=low -> Vault (expect BLOCKED)
+[+] low-trust pod was BLOCKED from Vault (CNP works)
+[*] Probe 2: pod labelled score-bucket=high -> Vault (expect reachable)
+[*] high-trust pod result: reachable
+
+[+] RESULT  low=blocked  high=reachable
+
+# 3. Theo dõi và ghi nhận quyết định chặn gói tin trực tiếp từ Hubble
+ptb@baosrc:~$ hubble observe --namespace zta-demo --to-namespace vault --verdict DROPPED
+Jun 24 05:43:02.124: zta-demo/probe-low:38492 -> vault/vault-0:8200 policy-deny dropped (Cilium)
+\end{minted}
+\caption{Triển khai đa chính sách mạng và kết quả thực chứng cô lập tự động}
+\label{lst:c3_kb14}
+\end{listing}
+
+\textbf{Giải thích chi tiết kịch bản:}
+\begin{itemize}[itemsep=4pt, parsep=0pt]
+    \item \textbf{Các thành phần tham gia:}
+    \begin{itemize}
+        \item \textit{Pod Low-trust (probe-low):} Đại diện cho thực thể bị dính CVE nghiêm trọng, bị gắn nhãn \texttt{score-bucket=low}.
+        \item \textit{Pod High-trust (probe-high):} Đại diện cho thực thể an toàn, được giữ nhãn \texttt{score-bucket=high}.
+        \item \textit{Chính sách mạng (ccnp-low-trust-isolate-ew):} Luật chặn tất cả lưu lượng từ Pod \texttt{low} tới các vùng dữ liệu nhạy cảm.
+        \item \textit{Cơ chế giám sát (Hubble):} Công cụ ghi nhận trạng thái luồng và các gói tin bị từ chối trực tiếp ở tầng nhân.
+    \end{itemize}
+    \item \textbf{Tại sao cấu hình như thế:} Thiết kế ma trận phân cấp bảo vệ giúp hệ thống không phản ứng thái quá bằng cách xoá sổ Pod (làm gián đoạn dịch vụ tức thời), mà thay vào đó là tước đoạt dần quyền truy cập mạng nội bộ. Khi Pod bị hạ điểm về mức \texttt{low}, chính sách mạng sử dụng luật chặn phủ quyết (\texttt{egressDeny}) để ngắt kết nối E-W tới Vault và cơ sở dữ liệu nhằm ngăn chặn tin tặc lấy trộm dữ liệu, nhưng vẫn giữ kết nối North-South để phục vụ việc chẩn đoán.
+    \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
+    \begin{itemize}
+        \item Lệnh thứ nhất (mục 1) thiết lập hai chính sách mạng toàn cụm áp dụng cho các Pod có điểm tin cậy \texttt{medium} và \texttt{low}.
+        \item Lệnh thứ hai (mục 2) khởi chạy quy trình tự động tạo các Pod giả lập có nhãn tin cậy khác nhau để thử nghiệm kết nối tới \texttt{Vault}, kết quả ghi nhận Pod \texttt{low} bị chặn hoàn toàn trong khi Pod \texttt{high} kết nối thành công (\texttt{low=blocked high=reachable}).
+        \item Dữ liệu từ Hubble (mục 3) minh chứng gói tin từ Pod \texttt{probe-low} gửi đến cổng 8200 của \texttt{Vault} đã bị Cilium chặn trực tiếp và đánh dấu trạng thái \texttt{policy-deny dropped}.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Định hướng mở rộng:} Tích hợp cơ chế tự động khởi động lại Pod sạch thay thế sau khi mã nguồn/ảnh vùng chứa được cập nhật bản vá lỗ hổng để hoàn thành vòng lặp tự phục hồi toàn diện.
+
 %==============================================================================
 % 3.6 ĐÁNH GIÁ TỔNG HỢP VÀ HẠN CHẾ
 %==============================================================================
 \section{Đánh giá tổng hợp và hạn chế}
 
-Đồ án kiểm chứng 11 kịch bản tấn công-phòng thủ với cấu hình và nhật ký thực tế. Bảng~\ref{tab:c3_scenario_map} tóm tắt ánh xạ kịch bản vào các thành phần chức năng cùng mức minh chứng tương ứng. 
+Đồ án kiểm chứng 14 kịch bản tấn công-phòng thủ với cấu hình và nhật ký thực tế. Bảng~\ref{tab:c3_scenario_map} tóm tắt ánh xạ kịch bản vào các thành phần chức năng cùng mức minh chứng tương ứng. 
 
 \begin{table}[H]
 \centering
@@ -871,7 +1073,7 @@ job.batch/it-shadow-124145 created
 \hline
 5  & CoreDNS sinkhole + Chặn Egress & Thành phần 2, 4 & Hiện tại \\
 \hline
-6  & Nhóm IP tình báo đe dọa & Thành phần 2, 4 & Một phần \\
+6  & Nhóm IP tình báo đe dọa & Thành phần 2, 4 & Hiện tại \\
 \hline
 7  & Cổng nạp yêu cầu mã băm & Thành phần 2 & Hiện tại (Chữ ký: Mở rộng) \\
 \hline
@@ -883,12 +1085,18 @@ job.batch/it-shadow-124145 created
 \hline
 11 & Quét phát hiện dịch chuyển bất khả thi & Thành phần 2, 5 & Hiện tại (Shadow/Audit) \\
 \hline
+12 & Hệ thống tập tin chỉ đọc & Thành phần 4 & Hiện tại \\
+\hline
+13 & Trọng số lỗ hổng CISA KEV & Thành phần 2, 3 & Hiện tại \\
+\hline
+14 & Đóng vòng tự động và đa chính sách mạng & Thành phần 3, 4, 5 & Hiện tại \\
+\hline
 \end{tabularx}
 \end{table}
 
 \subsection{Tổng hợp độ phủ kỹ thuật MITRE ATT\&CK}
 
-Bảng~\ref{tab:c3_mitre_summary} tổng hợp 17 kỹ thuật MITRE ATT\&CK nằm trong phạm vi phòng thủ của kiến trúc: 10 kỹ thuật đã kiểm chứng thực tế (hoặc một phần) và 7 kỹ thuật ở mức định hướng thiết kế. Việc liệt kê cả phần thiết kế nhằm đánh giá độ phủ phòng thủ toàn diện của kiến trúc, đồng thời chỉ rõ ranh giới giữa phần đã hiện thực và phần mở rộng tương lai.
+Bảng~\ref{tab:c3_mitre_summary} tổng hợp 18 kỹ thuật MITRE ATT\&CK nằm trong phạm vi phòng thủ của kiến trúc: 14 kỹ thuật đã kiểm chứng thực tế (hoặc một phần) và 4 kỹ thuật ở mức định hướng thiết kế. Việc liệt kê cả phần thiết kế nhằm đánh giá độ phủ phòng thủ toàn diện của kiến trúc, đồng thời chỉ rõ ranh giới giữa phần đã hiện thực và phần mở rộng tương lai.
 
 \begin{table}[H]
 \centering
@@ -904,7 +1112,7 @@ T1190 & Khai thác ứng dụng web & Xác thực JWT tại API Gateway & Hiện
 \hline
 T1078 & Lạm dụng tài khoản hợp lệ & Xác thực JWT tại API Gateway & Hiện tại \\
 \hline
-T1609 & Thực thi lệnh trái phép & Tetragon chặn syscall \texttt{execve} & Hiện tại \\
+T1609 & Thực thi lệnh trái phép & Tetragon chặn lời gọi hệ thống \texttt{execve} & Hiện tại \\
 \hline
 T1552 & Đánh cắp thông tin xác thực & Cấp phát bí mật động (Vault JIT) & Hiện tại \\
 \hline
@@ -920,11 +1128,13 @@ T1068 & Leo thang đặc quyền & Tước đặc quyền hệ điều hành & H
 \hline
 T1562 & Vô hiệu hóa phòng thủ & Quản lý cấu hình dạng mã (IaC) & Hiện tại \\
 \hline
-T1071 & Kết nối máy chủ độc hại & Tình báo đe dọa (CIDR Group) & Một phần \\
+T1071 & Kết nối máy chủ độc hại & Tình báo đe dọa (CIDR Group) & Hiện tại \\
 \hline
 T1610 & Triển khai image mã độc & Cổng nạp yêu cầu mã băm image & Một phần \\
 \hline
 T1557 & Tấn công trung gian & Phát hiện vị trí bất thường & Hiện tại (Shadow) \\
+\hline
+T1222 & Sửa đổi quyền tập tin & Hệ thống tập tin chỉ đọc (hiring-service) & Hiện tại \\
 \hline
 T1071 & Thiết lập đường hầm DNS & Phân tích hành vi DNS & Định hướng \\
 \hline
@@ -966,13 +1176,15 @@ Tình báo đe dọa & Tác vụ đồng bộ đang chạy. & Đã đồng bộ.
 \hline
 Phát hiện đăng nhập bất thường & Hoạt động ở chế độ quét bóng (\texttt{shadow/audit}). & Đã triển khai tác vụ tự động quét định kỳ qua Keycloak API. \\
 \hline
-Vòng lặp phản hồi & Thành phần đủ, chưa kiểm chứng toàn trình. & Đã hiện thực một phần — cần thực thể điểm thấp để minh chứng. \\
+Vòng lặp phản hồi & Đã kích hoạt tự động toàn trình (Trivy $\rightarrow$ PDP $\rightarrow$ CNP). & Đã chứng minh đóng vòng cô lập thành công qua kịch bản kiểm chứng. \\
+\hline
+Hệ thống tập tin chỉ đọc & Kích hoạt trên \texttt{hiring-service}. & Cấu hình chỉ đọc hệ thống tập tin gốc và gắn kết \texttt{emptyDir} tại \texttt{/tmp}. \\
 \hline
 \end{tabularx}
 \end{table}
 
 \subsection{Hạn chế của thực nghiệm}
 
-Mô hình điểm tin cậy và vòng lặp phản hồi hiện tại đã được triển khai thành phần điều khiển, tuy nhiên chưa được kiểm chứng tự động toàn trình do mọi khối lượng công việc hiện tại đều đạt điểm tin cậy cao. Việc minh chứng kịch bản cô lập tự động đòi hỏi phải chủ động tiêm một vùng chứa mang lỗ hổng nghiêm trọng vào hệ thống.
+Môi trường thực nghiệm đã chứng minh thành công vòng lặp phản hồi tự động và cơ chế cô lập thông qua kịch bản mô phỏng kiểm soát phân cấp mạng và tích hợp nguồn thông tin lỗ hổng CISA KEV. Tuy nhiên, trong điều kiện vận hành thực tế ở môi trường sản xuất, việc tự động cô lập cần được giám sát chặt chẽ để tránh ảnh hưởng đến các dịch vụ nghiệp vụ quan trọng khi có cảnh báo giả từ máy quét lỗ hổng.
 
-Bên cạnh đó, trục đánh giá phân cấp dịch vụ đã được đọc từ nhãn của Kubernetes nhưng chưa được tích hợp vào hàm tính điểm. Trục khả năng khai thác hiện đang dừng ở mức định hướng thiết kế, do báo cáo quét lỗ hổng chưa hỗ trợ trực tiếp thông tin về mã khai thác công khai, đòi hỏi hệ thống phải tích hợp thêm nguồn cấp dữ liệu ngoại vi trong tương lai.
+Bên cạnh đó, mặc dù trục đánh giá phân cấp dịch vụ đã được đọc từ nhãn của Kubernetes và tích hợp thành công, các chính sách an ninh vẫn cần được tinh chỉnh chi tiết hơn cho từng loại vi dịch vụ khác nhau. Việc đồng bộ hóa danh mục lỗ hổng KEV hiện tại vẫn phụ thuộc vào tác vụ thủ công/bán tự động và cần được chuyển đổi hoàn toàn sang mô hình cập nhật tự động thời gian thực ở các giai đoạn tiếp theo.

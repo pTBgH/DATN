@@ -1,0 +1,23 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM LUỒNG TẤN CÔNG (GIẢ LẬP XÓA TRÁI PHÉP) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 1. Kiểm tra quyền xóa chính sách mạng của tài khoản đang chạy để giả lập tấn công}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }auth\PYG{+w}{ }can\PYGZhy{}i\PYG{+w}{ }delete\PYG{+w}{ }ciliumnetworkpolicy\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps
+yes
+
+\PYG{c+c1}{\PYGZsh{} 2. Sao lưu manifest gốc trước khi thực hiện giả lập xóa cấu hình}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }get\PYG{+w}{ }cnp\PYG{+w}{ }default\PYGZhy{}deny\PYGZhy{}all\PYG{+w}{ }\PYGZhy{}o\PYG{+w}{ }yaml\PYG{+w}{ }\PYGZgt{}\PYG{+w}{ }scratch/default\PYGZhy{}deny\PYGZhy{}all.backup.yaml
+
+\PYG{c+c1}{\PYGZsh{} 3. Xóa chính sách mạng default\PYGZhy{}deny\PYGZhy{}all}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }delete\PYG{+w}{ }cnp\PYG{+w}{ }default\PYGZhy{}deny\PYGZhy{}all
+ciliumnetworkpolicy.cilium.io\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}default\PYGZhy{}deny\PYGZhy{}all\PYGZdq{}}\PYG{+w}{ }deleted
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} LUỒNG TỰ PHỤC HỒI (RECONCILE VỀ TRẠNG THÁI AN TOÀN TỪ IaC) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 4. Áp dụng lại manifest chính sách mạng từ IaC nguồn}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }apply\PYG{+w}{ }\PYGZhy{}f\PYG{+w}{ }scratch/default\PYGZhy{}deny\PYGZhy{}all.backup.yaml
+ciliumnetworkpolicy.cilium.io/default\PYGZhy{}deny\PYGZhy{}all\PYG{+w}{ }created
+
+\PYG{c+c1}{\PYGZsh{} 5. Kiểm tra trạng thái phục hồi của chính sách để xác nhận hoạt động bình thường}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }get\PYG{+w}{ }cnp\PYG{+w}{ }default\PYGZhy{}deny\PYGZhy{}all
+NAME\PYG{+w}{               }AGE\PYG{+w}{   }VALID
+default\PYGZhy{}deny\PYGZhy{}all\PYG{+w}{   }1s\PYG{+w}{    }True
+\end{MintedVerbatim}

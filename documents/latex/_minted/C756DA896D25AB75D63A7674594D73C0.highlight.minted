@@ -1,0 +1,9 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+CoreDNS sinkhole dùng ConfigMap coredns\PYGZhy{}sinkhole trong namespace kube\PYGZhy{}system.
+Trường data.hosts.txt được cập nhật bởi CronJob threat\PYGZhy{}intel\PYGZhy{}refresh:
+
+0.0.0.0 verification\PYGZhy{}claude\PYGZhy{}cdn.beer
+0.0.0.0 electri.billregulator.com
+
+CoreDNS đọc tệp hosts này và trả 0.0.0.0 cho tên miền nằm trong danh sách.
+\end{MintedVerbatim}

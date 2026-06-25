@@ -1,0 +1,28 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+==============================================================================
+\PYGZsh{}\PYGZsh{}\PYGZsh{} SECTION 21 — STATIC: KB → repo file refs
+==============================================================================
+     · Kiểm tra các file mà KB trỏ tới có thật trong repo không
+     [OK] PASS  repo file tồn tại: infras/kong/kong.yml
+     [OK] PASS  repo file tồn tại: infras/k8s\PYGZhy{}yaml/11\PYGZhy{}vault.yaml
+     [OK] PASS  repo file tồn tại: infras/k8s\PYGZhy{}yaml/02\PYGZhy{}keycloak.yaml
+     ...
+==============================================================================
+\PYGZsh{}\PYGZsh{}\PYGZsh{} SECTION 22 — KB internal consistency / drift
+==============================================================================
+     · KB dir: /home/ptb/projects/DATN/knowledge\PYGZhy{}base
+     · Số chương numbered NN\PYGZhy{}*.md hiện có: 38
+     [OK] PASS  KB có \PYGZti{}38 chương (README ghi 32)
+     [WARN] WARN  Chỉ có 0 incident report (README ghi 3)
+     [DRIFT] DRIFT knowledge\PYGZhy{}base/00 + knowledge\PYGZhy{}base/08 (Kind 1CP+3W) vs snapshot 40...
+
+==============================================================================
+  TỔNG KẾT ĐỐI CHIẾU
+==============================================================================
+   [OK] PASS :  183
+   [FAIL] FAIL :    0
+   [WARN] WARN :   12
+   [SKIP] SKIP :    0
+  \PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}
+  TOTAL  :  195 checks trong 75s
+\end{MintedVerbatim}

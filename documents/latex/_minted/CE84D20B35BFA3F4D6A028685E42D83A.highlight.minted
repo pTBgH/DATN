@@ -1,0 +1,7 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Áp dụng các chính sách chặn mặc định và cho phép có chọn lọc của Cilium}
+\PYGZdl{}\PYG{+w}{ }bash\PYG{+w}{ }infras/k8s\PYGZhy{}yaml/cilium\PYGZhy{}policies/apply\PYGZhy{}zta\PYGZhy{}microsegmentation.sh
+
+\PYG{c+c1}{\PYGZsh{} Triển khai Tetragon để kiểm soát hành vi tiến trình thời gian thực}
+\PYGZdl{}\PYG{+w}{ }bash\PYG{+w}{ }\PYG{l+m}{10}\PYGZhy{}deploy\PYGZhy{}tetragon.sh
+\end{MintedVerbatim}

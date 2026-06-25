@@ -1,0 +1,21 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Gửi yêu cầu lấy mã thông báo truy cập JWT từ Keycloak}
+\PYGZdl{}\PYG{+w}{ }curl\PYG{+w}{ }\PYGZhy{}s\PYG{+w}{ }\PYGZhy{}X\PYG{+w}{ }POST\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}http://100.108.231.127:30000/realms/job7189/protocol/openid\PYGZhy{}connect/token\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}H\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}Content\PYGZhy{}Type: application/x\PYGZhy{}www\PYGZhy{}form\PYGZhy{}urlencoded\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}d\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}grant\PYGZus{}type=password\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}d\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}client\PYGZus{}id=recruiter\PYGZhy{}app\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}d\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}username=recruiter1\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}d\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}password=recruiter1\PYGZdq{}}\PYG{+w}{ }\PYG{p}{|}\PYG{+w}{ }jq
+
+\PYG{c+c1}{\PYGZsh{} Kết quả phản hồi chứa mã thông báo truy cập:}
+\PYG{o}{\PYGZob{}}
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}access\PYGZus{}token\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ4Nk...\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}expires\PYGZus{}in\PYGZdq{}}:\PYG{+w}{ }\PYG{l+m}{300},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}refresh\PYGZus{}expires\PYGZus{}in\PYGZdq{}}:\PYG{+w}{ }\PYG{l+m}{1800},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}refresh\PYGZus{}token\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}eyJhbGciOiJSUzI1NiIsInR5c...\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}token\PYGZus{}type\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}Bearer\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}not\PYGZhy{}before\PYGZhy{}policy\PYGZdq{}}:\PYG{+w}{ }\PYG{l+m}{0},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}session\PYGZus{}state\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}a3d7b489\PYGZhy{}0112\PYGZhy{}4211\PYGZhy{}9a74\PYGZhy{}0fc03bf6ab18\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}scope\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}openid profile email\PYGZdq{}}
+\PYG{o}{\PYGZcb{}}
+\end{MintedVerbatim}

@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }\PYG{n+nv}{KUBECONFIG}\PYG{o}{=}/home/ptb/.kube/config\PYGZhy{}job7189\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }kubectl\PYG{+w}{ }port\PYGZhy{}forward\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }kube\PYGZhy{}system\PYG{+w}{ }svc/hubble\PYGZhy{}ui\PYG{+w}{ }\PYG{l+m}{12000}:80
+\end{MintedVerbatim}

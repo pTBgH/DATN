@@ -1,0 +1,15 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+[watch\PYGZhy{}env] vault creds rotated; syncing /app\PYGZhy{}secrets/.env \PYGZhy{}\PYGZgt{} /var/www/.env
+[watch\PYGZhy{}env] reloading web/worker (NOT watch\PYGZhy{}env): laravel\PYGZhy{}service:nginx laravel\PYGZhy{}service:php8\PYGZhy{}fpm laravel\PYGZhy{}service:laravel\PYGZhy{}queue\PYGZus{}00
+2026\PYGZhy{}06\PYGZhy{}13 15:55:02,361 INFO waiting for nginx to stop
+2026\PYGZhy{}06\PYGZhy{}13 15:55:02,433 INFO stopped: nginx (exit status 0)
+2026\PYGZhy{}06\PYGZhy{}13 15:55:02,440 INFO waiting for php8\PYGZhy{}fpm to stop
+[13\PYGZhy{}Jun\PYGZhy{}2026 15:55:02] NOTICE: Terminating ...
+[13\PYGZhy{}Jun\PYGZhy{}2026 15:55:02] NOTICE: exiting, bye\PYGZhy{}bye!
+2026\PYGZhy{}06\PYGZhy{}13 15:55:02,543 INFO stopped: php8\PYGZhy{}fpm (exit status 0)
+2026\PYGZhy{}06\PYGZhy{}13 15:55:02,661 INFO spawned: \PYGZsq{}nginx\PYGZsq{} with pid 43836
+2026\PYGZhy{}06\PYGZhy{}13 15:55:03,672 INFO spawned: \PYGZsq{}php8\PYGZhy{}fpm\PYGZsq{} with pid 43847
+[13\PYGZhy{}Jun\PYGZhy{}2026 15:55:03] NOTICE: fpm is running, pid 43847
+[13\PYGZhy{}Jun\PYGZhy{}2026 15:55:03] NOTICE: ready to handle connections
+2026\PYGZhy{}06\PYGZhy{}13 15:55:04,846 INFO success: php8\PYGZhy{}fpm entered RUNNING state
+\end{MintedVerbatim}

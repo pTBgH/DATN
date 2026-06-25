@@ -1,0 +1,9 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZsh{} Vault Policy: identity\PYGZhy{}service\PYGZhy{}policy
+path \PYGZdq{}database/creds/identity\PYGZhy{}service\PYGZdq{} \PYGZob{}
+  capabilities = [\PYGZdq{}read\PYGZdq{}]
+\PYGZcb{}
+path \PYGZdq{}secret/data/production/identity\PYGZhy{}service\PYGZdq{} \PYGZob{}
+  capabilities = [\PYGZdq{}read\PYGZdq{}]
+\PYGZcb{}
+\end{MintedVerbatim}

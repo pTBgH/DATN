@@ -1,0 +1,6 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }hubble\PYG{+w}{ }observe\PYG{+w}{ }\PYGZhy{}\PYGZhy{}namespace\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}pod\PYG{+w}{ }identity\PYGZhy{}service
+Jun\PYG{+w}{ }\PYG{l+m}{13}\PYG{+w}{ }\PYG{l+m}{22}:59:09.123:\PYG{+w}{ }identity\PYGZhy{}service\PYGZhy{}657f64c7d5\PYGZhy{}ks7x4:54321\PYG{+w}{ }\PYGZhy{}\PYGZgt{}\PYG{+w}{ }workspace\PYGZhy{}service\PYGZhy{}6c68c569d9\PYGZhy{}4frrg:80\PYG{+w}{ }to\PYGZhy{}proxy\PYG{+w}{ }FORWARDED\PYG{+w}{ }\PYG{o}{(}TCP\PYG{+w}{ }Flags:\PYG{+w}{ }SYN\PYG{o}{)}
+Jun\PYG{+w}{ }\PYG{l+m}{13}\PYG{+w}{ }\PYG{l+m}{22}:59:09.124:\PYG{+w}{ }identity\PYGZhy{}service\PYGZhy{}657f64c7d5\PYGZhy{}ks7x4:54321\PYG{+w}{ }\PYGZhy{}\PYGZgt{}\PYG{+w}{ }workspace\PYGZhy{}service\PYGZhy{}6c68c569d9\PYGZhy{}4frrg:80\PYG{+w}{ }http\PYGZhy{}request\PYG{+w}{ }FORWARDED\PYG{+w}{ }\PYG{o}{(}GET\PYG{+w}{ }http://workspace\PYGZhy{}service/api/internal/workspaces/by\PYGZhy{}user/019ea7d7\PYG{o}{)}
+\end{MintedVerbatim}

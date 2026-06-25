@@ -1,0 +1,13 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED \PYGZhy{} Tiến trình hoạt động bình thường) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 1. Tìm tên pod identity\PYGZhy{}service thực tế đang hoạt động}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }\PYG{n+nv}{ID\PYGZus{}POD}\PYG{o}{=}\PYG{k}{\PYGZdl{}(}kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }get\PYG{+w}{ }pod\PYG{+w}{ }\PYGZhy{}l\PYG{+w}{ }\PYG{n+nv}{app}\PYG{o}{=}identity\PYGZhy{}service\PYG{+w}{ }\PYGZhy{}o\PYG{+w}{ }\PYG{n+nv}{jsonpath}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}\PYGZob{}.items[0].metadata.name\PYGZcb{}\PYGZsq{}}\PYG{k}{)}
+\PYG{c+c1}{\PYGZsh{} 2. Thực thi một lệnh bình thường không đòi hỏi đặc quyền hệ điều hành}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}}\PYG{n+nv}{\PYGZdl{}ID\PYGZus{}POD}\PYG{l+s+s2}{\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }whoami
+root
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED \PYGZhy{} Seccomp chặn lời gọi hệ thống nhạy cảm) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 3. Thử thực hiện lệnh unshare để tạo một namespace mới nhằm leo thang đặc quyền}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}}\PYG{n+nv}{\PYGZdl{}ID\PYGZus{}POD}\PYG{l+s+s2}{\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }/usr/bin/unshare\PYG{+w}{ }\PYGZhy{}\PYGZhy{}mount\PYG{+w}{ }\PYGZhy{}\PYGZhy{}uts\PYG{+w}{ }\PYGZhy{}\PYGZhy{}ipc\PYG{+w}{ }\PYGZhy{}\PYGZhy{}net\PYG{+w}{ }\PYGZhy{}\PYGZhy{}pid\PYG{+w}{ }\PYGZhy{}\PYGZhy{}fork\PYG{+w}{ }/bin/sh
+/usr/bin/unshare:\PYG{+w}{ }unshare\PYG{+w}{ }failed:\PYG{+w}{ }Operation\PYG{+w}{ }not\PYG{+w}{ }permitted
+\end{MintedVerbatim}

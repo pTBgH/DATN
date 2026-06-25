@@ -1,0 +1,19 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }get\PYG{+w}{ }pods\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}o\PYG{+w}{ }\PYG{n+nv}{jsonpath}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}\PYGZob{}range .items[*]\PYGZcb{}\PYGZob{}.metadata.name\PYGZcb{}: \PYGZob{}.metadata.labels.zta\PYGZbs{}.job7189/score\PYGZhy{}bucket\PYGZcb{}\PYGZob{}\PYGZdq{}\PYGZbs{}n\PYGZdq{}\PYGZcb{}\PYGZob{}end\PYGZcb{}\PYGZsq{}}
+candidate\PYGZhy{}service\PYGZhy{}7ffc7b57b7\PYGZhy{}22shz:\PYG{+w}{ }high
+candidate\PYGZhy{}service\PYGZhy{}7ffc7b57b7\PYGZhy{}v4j7w:\PYG{+w}{ }high
+candidate\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}5b484c7f88\PYGZhy{}mcj7q:\PYG{+w}{ }high
+communication\PYGZhy{}service\PYGZhy{}6dc7d6dd46\PYGZhy{}f8mv4:\PYG{+w}{ }low
+communication\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}fc6645965\PYGZhy{}hhrkn:\PYG{+w}{ }high
+hiring\PYGZhy{}service\PYGZhy{}85c57cc589\PYGZhy{}m9zs6:\PYG{+w}{ }high
+hiring\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}6585c68cb9\PYGZhy{}87q8b:\PYG{+w}{ }high
+identity\PYGZhy{}service\PYGZhy{}657f64c7d5\PYGZhy{}ks7x4:\PYG{+w}{ }high
+identity\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}569fb4c444\PYGZhy{}mgngz:\PYG{+w}{ }high
+job\PYGZhy{}service\PYGZhy{}7755d94d47\PYGZhy{}gbftq:\PYG{+w}{ }high
+job\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}5b987\PYGZhy{}qmjvw:\PYG{+w}{ }high
+storage\PYGZhy{}service\PYGZhy{}7c5db66b7\PYGZhy{}nsjk4:\PYG{+w}{ }low
+storage\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}78cb79b765\PYGZhy{}6zkfm:\PYG{+w}{ }high
+workspace\PYGZhy{}service\PYGZhy{}6c68c569d9\PYGZhy{}4frrg:\PYG{+w}{ }high
+workspace\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}65cf6d9fd\PYGZhy{}bgt5l:\PYG{+w}{ }high
+\end{MintedVerbatim}

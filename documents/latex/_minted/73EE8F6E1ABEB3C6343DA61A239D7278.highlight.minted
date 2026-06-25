@@ -1,0 +1,22 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Trường hợp không gửi mã thông báo JWT (Kong chặn trực tiếp tại route):}
+\PYGZdl{}\PYG{+w}{ }curl\PYG{+w}{ }\PYGZhy{}i\PYG{+w}{ }\PYGZhy{}H\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}Host: api.job7189.local\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }http://100.108.231.127:30000/api/recruiters/profile
+HTTP/1.1\PYG{+w}{ }\PYG{l+m}{401}\PYG{+w}{ }Unauthorized
+Content\PYGZhy{}Type:\PYG{+w}{ }application/json
+Connection:\PYG{+w}{ }keep\PYGZhy{}alive
+Server:\PYG{+w}{ }kong/3.6
+
+\PYG{o}{\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}message\PYGZdq{}}:\PYG{l+s+s2}{\PYGZdq{}Unauthorized\PYGZdq{}}\PYG{o}{\PYGZcb{}}
+
+\PYG{c+c1}{\PYGZsh{} Trường hợp gửi mã thông báo hợp lệ nhưng bị chính sách OPA từ chối truy cập:}
+\PYGZdl{}\PYG{+w}{ }curl\PYG{+w}{ }\PYGZhy{}i\PYG{+w}{ }\PYGZhy{}H\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}Host: api.job7189.local\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}H\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}Authorization: Bearer \PYGZlt{}valid\PYGZus{}jwt\PYGZgt{}\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }http://100.108.231.127:30000/api/admin/users
+HTTP/1.1\PYG{+w}{ }\PYG{l+m}{403}\PYG{+w}{ }Forbidden
+Content\PYGZhy{}Type:\PYG{+w}{ }application/json
+Connection:\PYG{+w}{ }keep\PYGZhy{}alive
+Server:\PYG{+w}{ }kong/3.6
+
+\PYG{o}{\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}message\PYGZdq{}}:\PYG{l+s+s2}{\PYGZdq{}forbidden\PYGZdq{}},\PYG{l+s+s2}{\PYGZdq{}reason\PYGZdq{}}:\PYG{l+s+s2}{\PYGZdq{}OPA denied user\PYGZhy{}authz\PYGZdq{}},\PYG{l+s+s2}{\PYGZdq{}user\PYGZdq{}}:\PYG{l+s+s2}{\PYGZdq{}recruiter1\PYGZdq{}}\PYG{o}{\PYGZcb{}}
+\end{MintedVerbatim}

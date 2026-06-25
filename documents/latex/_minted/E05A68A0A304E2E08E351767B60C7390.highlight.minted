@@ -1,0 +1,17 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED \PYGZhy{} Phân giải tên miền hợp lệ) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 1. Thực hiện phân giải tên miền hợp lệ bên ngoài để kiểm tra DNS Egress được phép}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }\PYG{n+nv}{ID\PYGZus{}POD}\PYG{o}{=}\PYG{k}{\PYGZdl{}(}kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }get\PYG{+w}{ }pod\PYG{+w}{ }\PYGZhy{}l\PYG{+w}{ }\PYG{n+nv}{app}\PYG{o}{=}identity\PYGZhy{}service\PYG{+w}{ }\PYGZhy{}o\PYG{+w}{ }\PYG{n+nv}{jsonpath}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}\PYGZob{}.items[0].metadata.name\PYGZcb{}\PYGZsq{}}\PYG{k}{)}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}}\PYG{n+nv}{\PYGZdl{}ID\PYGZus{}POD}\PYG{l+s+s2}{\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }php\PYG{+w}{ }\PYGZhy{}r\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}var\PYGZus{}dump(gethostbyname(\PYGZsq{}google.com\PYGZsq{}));\PYGZdq{}}
+string\PYG{o}{(}\PYG{l+m}{14}\PYG{o}{)}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}142.250.71.174\PYGZdq{}}
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED \PYGZhy{} Phân giải domain độc hại bị Sinkhole) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 2. Thử phân giải tên miền độc hại trong danh sách đen của CoreDNS (chuyển hướng về 0.0.0.0)}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}}\PYG{n+nv}{\PYGZdl{}ID\PYGZus{}POD}\PYG{l+s+s2}{\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }php\PYG{+w}{ }\PYGZhy{}r\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}var\PYGZus{}dump(gethostbyname(\PYGZsq{}verification\PYGZhy{}claude\PYGZhy{}cdn.beer\PYGZsq{}));\PYGZdq{}}
+string\PYG{o}{(}\PYG{l+m}{7}\PYG{o}{)}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}0.0.0.0\PYGZdq{}}
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP KHÔNG HỢP LỆ (BLOCKED \PYGZhy{} Chặn kết nối TCP Egress trực tiếp) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 3. Thử kết nối TCP HTTP ra ngoài Internet để kiểm thử chính sách Default Deny Egress}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}}\PYG{n+nv}{\PYGZdl{}ID\PYGZus{}POD}\PYG{l+s+s2}{\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }curl\PYG{+w}{ }\PYGZhy{}I\PYG{+w}{ }\PYGZhy{}m\PYG{+w}{ }\PYG{l+m}{3}\PYG{+w}{ }https://www.google.com
+curl:\PYG{+w}{ }\PYG{o}{(}\PYG{l+m}{28}\PYG{o}{)}\PYG{+w}{ }Connection\PYG{+w}{ }timed\PYG{+w}{ }out\PYG{+w}{ }after\PYG{+w}{ }\PYG{l+m}{3000}\PYG{+w}{ }milliseconds
+\end{MintedVerbatim}

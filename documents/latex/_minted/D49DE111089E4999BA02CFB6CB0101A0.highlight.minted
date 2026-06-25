@@ -1,0 +1,8 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }get\PYG{+w}{ }vulnerabilityreports\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps
+NAME\PYG{+w}{                                                     }REPOSITORY\PYG{+w}{                     }TAG\PYG{+w}{      }STATUS
+db\PYGZhy{}mysql\PYGZhy{}0\PYGZhy{}mysql\PYG{+w}{                                         }mysql\PYG{+w}{                          }\PYG{l+m}{8}.0.33\PYG{+w}{   }Critical
+replicaset\PYGZhy{}candidate\PYGZhy{}service\PYGZhy{}7ffc7b57b7\PYGZhy{}app\PYG{+w}{              }candidate\PYGZhy{}service\PYG{+w}{              }v1.0.0\PYG{+w}{   }Low
+replicaset\PYGZhy{}identity\PYGZhy{}service\PYGZhy{}657f64c7d5\PYGZhy{}app\PYG{+w}{               }identity\PYGZhy{}service\PYG{+w}{               }v1.0.0\PYG{+w}{   }Low
+replicaset\PYGZhy{}job\PYGZhy{}service\PYGZhy{}7755d94d47\PYGZhy{}app\PYG{+w}{                     }job\PYGZhy{}service\PYG{+w}{                    }v1.0.0\PYG{+w}{   }Low
+\end{MintedVerbatim}

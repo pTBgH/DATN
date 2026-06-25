@@ -336,7 +336,7 @@ Sơ đồ cấu trúc logic năm thành phần trên được thiết kế tươ
 % LUỒNG XỬ LÝ REQUEST — cuối mục 2.2
 %------------------------------------------------------------------------------
 
-\subsection{Cơ chế vận hành và Luồng tương tác giữa các thành phần}
+\subsection{Cơ chế vận hành và luồng tương tác giữa các thành phần}
 \label{subsec:request_flow}
 
 Năm thành phần trong kiến trúc đề xuất không phối hợp theo mô hình tuần tự chặn (blocking) cho từng yêu cầu truy cập, điều vốn gây nghẽn cổ chai hiệu năng trong môi trường Microservices. Thay vào đó, hệ thống vận hành dựa trên hai luồng xử lý độc lập và bất đồng bộ: \textbf{Vòng lặp đánh giá ngữ cảnh liên tục (Control Plane)} chạy ngầm định kỳ, và \textbf{Thực thi chính sách tại chỗ (Data Plane)} xử lý tức thời khi có yêu cầu nghiệp vụ phát sinh.
@@ -491,11 +491,11 @@ Lộ trình chuyển đổi trong phạm vi nghiên cứu được tiếp cận 
 \hline
 \textbf{Bước} & \textbf{Tiến trình triển khai} & \textbf{Cấp độ trưởng thành} & \textbf{Nguyên tắc thực hiện} \\
 \hline
-1 & Xác định chủ thể & \textit{Crawl} (Sơ khởi) & Nhận diện toàn bộ thực thể cần kiểm soát: người dùng, tài khoản dịch vụ, và các workload tự động. \\
+1 & Xác định chủ thể & \textit{Crawl} (Sơ khai) & Nhận diện toàn bộ thực thể cần kiểm soát: người dùng, tài khoản dịch vụ, và các workload tự động. \\
 \hline
-2 & Xác định tài sản & \textit{Crawl} (Sơ khởi) & Thống kê toàn diện hệ thống workload, ứng dụng và dữ liệu nền tảng làm cơ sở thiết lập vùng bảo mật. \\
+2 & Xác định tài sản & \textit{Crawl} (Sơ khai) & Thống kê toàn diện hệ thống workload, ứng dụng và dữ liệu nền tảng làm cơ sở thiết lập vùng bảo mật. \\
 \hline
-3 & Xác định luồng dữ liệu & \textit{Crawl} (Sơ khởi) & Lập bản đồ giao tiếp nội bộ (East-West) và luồng biên (North-South) dựa trên dữ liệu quan sát thời gian thực. \\
+3 & Xác định luồng dữ liệu & \textit{Crawl} (Sơ khai) & Lập bản đồ giao tiếp nội bộ (East-West) và luồng biên (North-South) dựa trên dữ liệu quan sát thời gian thực. \\
 \hline
 4 & Xây dựng chính sách & \textit{Walk} (Định hình) & Thiết lập quy tắc từ chối mặc định và định nghĩa các luồng giao tiếp được phép tường minh dựa trên thuộc tính. \\
 \hline

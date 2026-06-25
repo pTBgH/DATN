@@ -1,0 +1,16 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }curl\PYG{+w}{ }\PYGZhy{}s\PYG{+w}{ }http://keycloak.security.svc.cluster.local:8080/realms/job7189/protocol/openid\PYGZhy{}connect/certs\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYG{p}{|}\PYG{+w}{ }jq
+\PYG{o}{\PYGZob{}}
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}keys\PYGZdq{}}:\PYG{+w}{ }\PYG{o}{[}
+\PYG{+w}{    }\PYG{o}{\PYGZob{}}
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}kid\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}4x60x9miRRead...\PYGZdq{}},
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}kty\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}RSA\PYGZdq{}},
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}alg\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}RS256\PYGZdq{}},
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}use\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}sig\PYGZdq{}},
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}n\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}u1L7Z2m...\PYGZdq{}},
+\PYG{+w}{      }\PYG{l+s+s2}{\PYGZdq{}e\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}AQAB\PYGZdq{}}
+\PYG{+w}{    }\PYG{o}{\PYGZcb{}}
+\PYG{+w}{  }\PYG{o}{]}
+\PYG{o}{\PYGZcb{}}
+\end{MintedVerbatim}

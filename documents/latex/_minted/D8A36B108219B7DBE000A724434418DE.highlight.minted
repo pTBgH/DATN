@@ -1,0 +1,36 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+Obtaining Access Token...
+Token obtained successfully.
+Testing Identity Profile...
+Testing Metadata and Options...
+Testing Workspaces list...
+Using workspace ID: 019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555 for detail testing
+Testing Public Jobs...
+Testing Jobs in Workspace 019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555...
+No jobs found in this workspace
+Testing Pipelines for Workspace 019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555...
+Testing Conversations...
+Testing Admin endpoints...
+
+==================================================
+                  API TEST SUMMARY
+==================================================
+GET /api/recruiters/profile                                  | Status Code: 200 | PASSED
+GET /api/options/company\PYGZhy{}types                               | Status Code: 200 | PASSED
+GET /api/options/general                                     | Status Code: 200 | PASSED
+GET /api/public/metadata/common                              | Status Code: 200 | PASSED
+GET /api/my\PYGZhy{}workspaces                                       | Status Code: 200 | PASSED
+GET /api/workspaces/019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555     | Status Code: 200 | PASSED
+POST /api/workspaces/019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555/invite\PYGZhy{}code | Status Code: 404 | PASSED
+GET /api/public/jobs                                         | Status Code: 200 | PASSED
+GET /api/workspaces/019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555/jobs | Status Code: 200 | PASSED
+GET /api/workspaces/019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555/pipelines | Status Code: 200 | PASSED
+GET /api/conversations                                       | Status Code: 200 | PASSED
+GET /api/admin/users                                         | Status Code: 404 | PASSED
+GET /api/admin/companies                                     | Status Code: 404 | PASSED
+GET /api/admin/jobs                                          | Status Code: 502 | PASSED*
+GET /api/admin/categories/sectors                            | Status Code: 502 | PASSED*
+
+==================================================
+All tested APIs are functioning properly without 500 errors!
+\end{MintedVerbatim}

@@ -1,0 +1,45 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+[23:46:52] === PRE\PYGZhy{}FLIGHT CHECKS ===
+[23:46:52]   OK: All nodes Ready
+[23:46:53]   OK: No disk pressure
+[23:46:53]   OK: Cilium agents Running
+[23:46:53] === TASK 1: Legacy CNP namespace labels ===
+[23:46:53]   OK: 176 occurrences of legacy \PYGZsq{}io.kubernetes.pod.namespace\PYGZsq{} in live CNPs
+[23:46:54] === TASK 2: PDP Controller ===
+[23:46:54]   OK: PDP controller Running in namespace \PYGZsq{}security\PYGZsq{} (1 pod(s))
+[23:46:54]   Score\PYGZhy{}bucket labels on app pods:
+candidate\PYGZhy{}service\PYGZhy{}7ffc7b57b7\PYGZhy{}22shz: high
+candidate\PYGZhy{}service\PYGZhy{}7ffc7b57b7\PYGZhy{}v4j7w: high
+candidate\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}5b484c7f88\PYGZhy{}mcj7q: high
+communication\PYGZhy{}service\PYGZhy{}6dc7d6dd46\PYGZhy{}f8mv4: low
+communication\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}fc6645965\PYGZhy{}hhrkn: high
+hiring\PYGZhy{}service\PYGZhy{}85c57cc589\PYGZhy{}m9zs6: high
+hiring\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}6585c68cb9\PYGZhy{}87q8b: high
+identity\PYGZhy{}service\PYGZhy{}657f64c7d5\PYGZhy{}ks7x4: high
+identity\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}569fb4c444\PYGZhy{}mgngz: high
+job\PYGZhy{}service\PYGZhy{}7755d94d47\PYGZhy{}gbftq: high
+job\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}5b987\PYGZhy{}qmjvw: high
+storage\PYGZhy{}service\PYGZhy{}7c5db66b7\PYGZhy{}nsjk4: low
+storage\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}78cb79b765\PYGZhy{}6zkfm: high
+workspace\PYGZhy{}service\PYGZhy{}6c68c569d9\PYGZhy{}4frrg: high
+workspace\PYGZhy{}service\PYGZhy{}redis\PYGZhy{}65cf6d9fd\PYGZhy{}bgt5l: high
+[23:46:54] === TASK 3: Trivy Operator ===
+[23:46:54]   Trivy operator namespace(s): security\PYGZhy{}cdm
+[23:46:54]   VulnerabilityReports present: 25
+[23:46:55] === TASK 5: oauth2\PYGZhy{}proxy policy labels (12\PYGZhy{}security.yaml) ===
+[23:46:55]   OK: 12\PYGZhy{}security.yaml contains legacy labels (accepted per 47\PYGZhy{}next\PYGZhy{}tasks.md Section 1/Section 5)
+[23:46:55] === TASK 6: CNP coverage per namespace ===
+[23:46:55]   OK: Namespace \PYGZsq{}data\PYGZsq{}: 9 CNP(s)
+[23:46:55]   OK: Namespace \PYGZsq{}monitoring\PYGZsq{}: 14 CNP(s)
+[23:46:55]   OK: Namespace \PYGZsq{}management\PYGZsq{}: 5 CNP(s)
+[23:46:55]   OK: Namespace \PYGZsq{}vault\PYGZsq{}: 13 CNP(s)
+[23:46:55]   OK: Namespace \PYGZsq{}security\PYGZsq{}: 15 CNP(s)
+[23:46:56]   OK: Namespace \PYGZsq{}job7189\PYGZhy{}apps\PYGZsq{}: 16 CNP(s)
+[23:46:56]   OK: Namespace \PYGZsq{}gateway\PYGZsq{}: 11 CNP(s)
+[23:46:56] === TASK 7: SPIRE workload attestation ===
+[23:46:58]   OK: spire\PYGZhy{}server has 50 registration entries
+[23:46:59]   OK: identity\PYGZhy{}service has SPIFFE socket/certs at /spiffe\PYGZhy{}workload\PYGZhy{}api: api.sock
+[23:46:59] === SUMMARY ===
+[23:46:59] Findings: 0 | Full report: /tmp/zta\PYGZhy{}audit\PYGZhy{}20260613\PYGZhy{}234652.log
+[23:46:59] All audited items healthy.
+\end{MintedVerbatim}

@@ -1,0 +1,31 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / KHÔNG HỢP LỆ (BLOCKED \PYGZhy{} Chặn image chưa ký số) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 2. Thử khởi chạy pod mới với image chưa ký số để kiểm thử Sigstore Policy Controller}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }run\PYG{+w}{ }supply\PYGZhy{}chain\PYGZhy{}test\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{    }\PYGZhy{}\PYGZhy{}image\PYG{o}{=}busybox:1.37.0\PYG{+w}{ }\PYGZhy{}\PYGZhy{}restart\PYG{o}{=}Never
+Error\PYG{+w}{ }from\PYG{+w}{ }server\PYG{+w}{ }\PYG{o}{(}Forbidden\PYG{o}{)}:\PYG{+w}{ }admission\PYG{+w}{ }webhook\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}policy.sigstore.dev\PYGZdq{}}\PYG{+w}{ }denied\PYG{+w}{ }the\PYG{+w}{ }request:
+\PYG{+w}{  }validation\PYG{+w}{ }failed:\PYG{+w}{ }spec.containers\PYG{o}{[}\PYG{l+m}{0}\PYG{o}{]}.image\PYG{+w}{ }signature\PYG{+w}{ }key\PYG{+w}{ }validation\PYG{+w}{ }failed
+\PYG{+w}{  }\PYG{k}{for}\PYG{+w}{ }authority\PYG{+w}{ }zta\PYGZhy{}cosign\PYGZhy{}key
+\PYG{+w}{  }\PYG{k}{for}\PYG{+w}{ }index.docker.io/library/busybox@sha256:9532d8c3...16028:
+\PYG{+w}{  }no\PYG{+w}{ }signatures\PYG{+w}{ }found
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM KIỂM TOÁN CHƯA GHIM MÃ BĂM (AUDIT / DRYRUN VIOLATION) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 3. Kiểm tra nhật ký vi phạm ghim mã băm sha256 của Gatekeeper ở chế độ dryrun}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }get\PYG{+w}{ }k8simagedigestrequired\PYG{+w}{ }image\PYGZhy{}digest\PYGZhy{}required\PYG{+w}{ }\PYGZhy{}o\PYG{+w}{ }yaml
+status:
+\PYG{+w}{  }totalViolations:\PYG{+w}{ }\PYG{l+m}{122}
+\PYG{+w}{  }violations:
+\PYG{+w}{  }\PYGZhy{}\PYG{+w}{ }enforcementAction:\PYG{+w}{ }dryrun
+\PYG{+w}{    }kind:\PYG{+w}{ }Pod
+\PYG{+w}{    }message:\PYG{+w}{ }image\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}openpolicyagent/opa:1.10.1\PYGZdq{}}\PYG{+w}{ }must\PYG{+w}{ }be\PYG{+w}{ }referenced\PYG{+w}{ }by\PYG{+w}{ }sha256\PYG{+w}{ }digest
+\PYG{+w}{      }\PYG{o}{(}e.g.\PYG{+w}{ }openpolicyagent/opa@sha256:...\PYG{o}{)}.\PYG{+w}{ }Pin\PYG{+w}{ }to\PYG{+w}{ }immutable\PYG{+w}{ }digest\PYG{+w}{ }to\PYG{+w}{ }prevent
+\PYG{+w}{      }supply\PYGZhy{}chain\PYG{+w}{ }tampering.
+\PYG{+w}{    }name:\PYG{+w}{ }opa\PYGZhy{}85964769f7\PYGZhy{}xrfrj
+\PYG{+w}{    }namespace:\PYG{+w}{ }security
+\PYG{+w}{  }\PYGZhy{}\PYG{+w}{ }enforcementAction:\PYG{+w}{ }dryrun
+\PYG{+w}{    }kind:\PYG{+w}{ }Pod
+\PYG{+w}{    }message:\PYG{+w}{ }image\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}busybox:1.36\PYGZdq{}}\PYG{+w}{ }must\PYG{+w}{ }be\PYG{+w}{ }referenced\PYG{+w}{ }by\PYG{+w}{ }sha256\PYG{+w}{ }digest
+\PYG{+w}{      }\PYG{o}{(}e.g.\PYG{+w}{ }busybox@sha256:...\PYG{o}{)}.
+\PYG{+w}{    }name:\PYG{+w}{ }keycloak\PYGZhy{}7c84f7f8c\PYGZhy{}k6tsc
+\PYG{+w}{    }namespace:\PYG{+w}{ }security
+\end{MintedVerbatim}

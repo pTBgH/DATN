@@ -1,0 +1,15 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED \PYGZhy{} Triển khai image hợp lệ đã được ký số) \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+\PYG{c+c1}{\PYGZsh{} 1. Truy xuất các annotations chữ ký số trên Deployment đang hoạt động để chứng minh}
+\PYG{c+c1}{\PYGZsh{}    manifest đã được ký và phê duyệt bởi đội ngũ nền tảng}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }get\PYG{+w}{ }deployment\PYG{+w}{ }storage\PYGZhy{}service\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{    }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{    }\PYGZhy{}o\PYG{+w}{ }\PYG{n+nv}{jsonpath}\PYG{o}{=}\PYG{l+s+s1}{\PYGZsq{}\PYGZob{}.spec.template.metadata.annotations\PYGZcb{}\PYGZsq{}}\PYG{+w}{ }\PYG{p}{|}\PYG{+w}{ }jq
+\PYG{o}{\PYGZob{}}
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}image.zta/key\PYGZhy{}id\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}c2d16f60b48d9dd8d014f99a221072e35ebe3100f66fd1bce3cdf3f4e92b4541\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}image.zta/signature\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}TUVZQ0lRRENlendqV1lhWVAyc2Q5VTBkNWplL3JXZnhZdE1TU0NOek5Jy...\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}image.zta/signature\PYGZhy{}algo\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}cosign\PYGZhy{}ecdsa\PYGZhy{}p256\PYGZhy{}sha256\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}image.zta/signed\PYGZhy{}at\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}2026\PYGZhy{}05\PYGZhy{}14T03:22:20Z\PYGZdq{}},
+\PYG{+w}{  }\PYG{l+s+s2}{\PYGZdq{}image.zta/signed\PYGZhy{}by\PYGZdq{}}:\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}zta\PYGZhy{}platform\PYGZhy{}team\PYGZdq{}}
+\PYG{o}{\PYGZcb{}}
+\end{MintedVerbatim}

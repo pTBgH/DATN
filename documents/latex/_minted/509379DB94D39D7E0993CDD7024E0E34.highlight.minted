@@ -1,0 +1,23 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Đăng nhập vào Vault bằng mã thông báo định danh JWT\PYGZhy{}SVID}
+\PYGZdl{}\PYG{+w}{ }vault\PYG{+w}{ }write\PYG{+w}{ }auth/jwt/login\PYG{+w}{ }\PYG{n+nv}{jwt}\PYG{o}{=}@/tmp/jwt\PYGZus{}svid.token\PYG{+w}{ }\PYG{n+nv}{role}\PYG{o}{=}identity\PYGZhy{}service
+Key\PYG{+w}{                  }Value
+\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYG{+w}{                  }\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}
+token\PYG{+w}{                }hvs.CAESIKP\PYGZus{}w8qG4vA4Ld\PYGZus{}XmP...
+token\PYGZus{}accessor\PYG{+w}{       }Z9O3sV3hY45Y1e...
+token\PYGZus{}duration\PYG{+w}{       }20m
+token\PYGZus{}renewable\PYG{+w}{      }\PYG{n+nb}{true}
+token\PYGZus{}policies\PYG{+w}{       }\PYG{o}{[}\PYG{l+s+s2}{\PYGZdq{}default\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}identity\PYGZhy{}service\PYGZdq{}}\PYG{o}{]}
+identity\PYGZus{}policies\PYG{+w}{    }\PYG{o}{[]}
+policies\PYG{+w}{             }\PYG{o}{[}\PYG{l+s+s2}{\PYGZdq{}default\PYGZdq{}}\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}identity\PYGZhy{}service\PYGZdq{}}\PYG{o}{]}
+
+\PYG{c+c1}{\PYGZsh{} Đọc tài khoản cơ sở dữ liệu động từ Vault}
+\PYGZdl{}\PYG{+w}{ }vault\PYG{+w}{ }\PYG{n+nb}{read}\PYG{+w}{ }database/creds/identity\PYGZhy{}service
+Key\PYG{+w}{                }Value
+\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYG{+w}{                }\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}\PYGZhy{}
+lease\PYGZus{}id\PYG{+w}{           }database/creds/identity\PYGZhy{}service/hvs.Pap9ErlQGUCRSyhrZtDue5iq.lease\PYGZhy{}abc123xyz
+lease\PYGZus{}duration\PYG{+w}{     }\PYG{l+m}{3600}
+lease\PYGZus{}renewable\PYG{+w}{    }\PYG{n+nb}{true}
+password\PYG{+w}{           }A1b2C3d4\PYGZus{}E5f6G7
+username\PYG{+w}{           }v\PYGZhy{}token\PYGZhy{}identity\PYGZhy{}service\PYGZhy{}abcdef1234
+\end{MintedVerbatim}

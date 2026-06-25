@@ -1,0 +1,20 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Bước 1: Khởi tạo nút điều khiển chính srv01 (Control Plane)}
+\PYG{c+c1}{\PYGZsh{} Lệnh thực hiện chuẩn bị máy chủ, khởi tạo cụm kubeadm và cài đặt Cilium CNI}
+\PYGZdl{}\PYG{+w}{ }sudo\PYG{+w}{ }\PYGZhy{}E\PYG{+w}{ }bash\PYG{+w}{ }knowledge\PYGZhy{}base/migration/scripts/bootstrap.sh\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}server\PYG{o}{=}\PYG{l+m}{01}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}yes
+
+\PYG{c+c1}{\PYGZsh{} Bước 2: Gia nhập cụm đối với các nút công việc (Worker Nodes)}
+\PYG{c+c1}{\PYGZsh{} Chạy lệnh join tương ứng trên từng nút làm việc (ví dụ srv02, srv03, srv05):}
+\PYG{c+c1}{\PYGZsh{} Trên srv02:}
+\PYGZdl{}\PYG{+w}{ }sudo\PYG{+w}{ }\PYGZhy{}E\PYG{+w}{ }bash\PYG{+w}{ }knowledge\PYGZhy{}base/migration/scripts/bootstrap.sh\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}server\PYG{o}{=}\PYG{l+m}{02}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}yes
+
+\PYG{c+c1}{\PYGZsh{} Trên srv03:}
+\PYGZdl{}\PYG{+w}{ }sudo\PYG{+w}{ }\PYGZhy{}E\PYG{+w}{ }bash\PYG{+w}{ }knowledge\PYGZhy{}base/migration/scripts/bootstrap.sh\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}server\PYG{o}{=}\PYG{l+m}{03}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}yes
+
+\PYG{c+c1}{\PYGZsh{} Trên srv05 (nút chạy Ubuntu 24.04 LTS dành riêng cho cơ sở dữ liệu):}
+\PYGZdl{}\PYG{+w}{ }sudo\PYG{+w}{ }\PYGZhy{}E\PYG{+w}{ }bash\PYG{+w}{ }knowledge\PYGZhy{}base/migration/scripts/bootstrap.sh\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}server\PYG{o}{=}\PYG{l+m}{05}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}yes
+\end{MintedVerbatim}

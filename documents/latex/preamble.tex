@@ -17,6 +17,10 @@
 % \usepackage{newtxmath}
 % \usepackage{microtype}
 
+% Cho phép LaTeX linh hoạt hơn khi ngắt dòng tiếng Việt
+% (tiếng Việt không có hyphenation patterns nên cần emergencystretch)
+\setlength{\emergencystretch}{3em}
+
 
 
 %======================================================================
@@ -97,7 +101,10 @@
     framesep=2mm,     
     baselinestretch=1.2,
     fontsize=\small,  
-    linenos           
+    linenos,
+    breakanywhere,
+    mathescape=false,   % THÊM
+    texcomments=false   % THÊM
 }
 
 % Định dạng lại tiêu đề chương, mục
@@ -117,6 +124,9 @@
     pdfencoding=auto,
     unicode
 ]{hyperref}
+
+\usepackage{xurl}   % thay thế \usepackage{url} ở trên
+
 
 \usepackage{csquotes}
 % Trích dẫn theo chuẩn APA (author-year). Dùng biblatex-apa: cài kèm

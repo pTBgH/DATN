@@ -1,0 +1,76 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Trích từ cấu hình nguồn infras/kong/kong.yml}
+\PYG{n+nt}{services}\PYG{p}{:}
+\PYG{+w}{  }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{name}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{identity\PYGZhy{}service}
+\PYG{+w}{    }\PYG{n+nt}{url}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{http://identity\PYGZhy{}service.job7189\PYGZhy{}apps.svc.cluster.local:80}
+\PYG{+w}{    }\PYG{n+nt}{routes}\PYG{p}{:}
+\PYG{+w}{      }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{name}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{identity\PYGZhy{}profiles}
+\PYG{+w}{        }\PYG{n+nt}{paths}\PYG{p}{:}\PYG{+w}{ }\PYG{p+pIndicator}{[}\PYG{l+s}{\PYGZdq{}/api/recruiters/profile\PYGZdq{}}\PYG{p+pIndicator}{]}
+\PYG{+w}{        }\PYG{n+nt}{strip\PYGZus{}path}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{false}
+\PYG{+w}{        }\PYG{n+nt}{plugins}\PYG{p}{:}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{name}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{jwt}
+\PYG{+w}{            }\PYG{n+nt}{config}\PYG{p}{:}
+\PYG{+w}{              }\PYG{n+nt}{claims\PYGZus{}to\PYGZus{}verify}\PYG{p}{:}\PYG{+w}{ }\PYG{p+pIndicator}{[}\PYG{n+nv}{exp}\PYG{p+pIndicator}{]}
+
+\PYG{n+nt}{plugins}\PYG{p}{:}
+\PYG{+w}{  }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{name}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{pre\PYGZhy{}function}
+\PYG{+w}{    }\PYG{n+nt}{config}\PYG{p}{:}
+\PYG{+w}{      }\PYG{n+nt}{access}\PYG{p}{:}
+\PYG{+w}{        }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{p+pIndicator}{|}
+\PYG{+w}{          }\PYG{n+no}{local cjson   = require(\PYGZdq{}cjson.safe\PYGZdq{})}
+\PYG{+w}{          }\PYG{n+no}{local http    = require(\PYGZdq{}resty.http\PYGZdq{})}
+\PYG{+w}{          }\PYG{n+no}{if kong.request.get\PYGZus{}method() == \PYGZdq{}OPTIONS\PYGZdq{} then return end}
+
+\PYG{+w}{          }\PYG{n+no}{local OPA\PYGZus{}URL     = \PYGZdq{}https://opa.security.svc.cluster.local:8181/v1/data/zta/authz/allow\PYGZdq{}}
+\PYG{+w}{          }\PYG{n+no}{local req\PYGZus{}method  = kong.request.get\PYGZus{}method()}
+\PYG{+w}{          }\PYG{n+no}{local req\PYGZus{}path    = ngx.var.uri or \PYGZdq{}/\PYGZdq{}}
+\PYG{+w}{          }\PYG{n+no}{local auth        = kong.request.get\PYGZus{}header(\PYGZdq{}authorization\PYGZdq{}) or \PYGZdq{}\PYGZdq{}}
+\PYG{+w}{          }\PYG{n+no}{local token       = auth:match(\PYGZdq{}\PYGZca{}[Bb]earer\PYGZpc{}s+(.+)\PYGZdl{}\PYGZdq{}) or \PYGZdq{}\PYGZdq{}}
+
+\PYG{+w}{          }\PYG{n+no}{local function b64url\PYGZus{}decode(s)}
+\PYG{+w}{            }\PYG{n+no}{s = s:gsub(\PYGZdq{}\PYGZhy{}\PYGZdq{}, \PYGZdq{}+\PYGZdq{}):gsub(\PYGZdq{}\PYGZus{}\PYGZdq{}, \PYGZdq{}/\PYGZdq{})}
+\PYG{+w}{            }\PYG{n+no}{local pad = 4 \PYGZhy{} (\PYGZsh{}s \PYGZpc{} 4)}
+\PYG{+w}{            }\PYG{n+no}{if pad \PYGZlt{} 4 then s = s .. string.rep(\PYGZdq{}=\PYGZdq{}, pad) end}
+\PYG{+w}{            }\PYG{n+no}{return ngx.decode\PYGZus{}base64(s)}
+\PYG{+w}{          }\PYG{n+no}{end}
+
+\PYG{+w}{          }\PYG{n+no}{local claims = \PYGZob{}\PYGZcb{}}
+\PYG{+w}{          }\PYG{n+no}{if token \PYGZti{}= \PYGZdq{}\PYGZdq{} then}
+\PYG{+w}{            }\PYG{n+no}{local \PYGZus{}, payload\PYGZus{}b64, \PYGZus{} = token:match(\PYGZdq{}([\PYGZca{}.]+)\PYGZpc{}.([\PYGZca{}.]+)\PYGZpc{}.([\PYGZca{}.]+)\PYGZdq{})}
+\PYG{+w}{            }\PYG{n+no}{if payload\PYGZus{}b64 then}
+\PYG{+w}{              }\PYG{n+no}{local raw = b64url\PYGZus{}decode(payload\PYGZus{}b64)}
+\PYG{+w}{              }\PYG{n+no}{if raw then claims = cjson.decode(raw) or \PYGZob{}\PYGZcb{} end}
+\PYG{+w}{            }\PYG{n+no}{end}
+\PYG{+w}{          }\PYG{n+no}{end}
+
+\PYG{+w}{          }\PYG{n+no}{local segments = \PYGZob{}\PYGZcb{}}
+\PYG{+w}{          }\PYG{n+no}{for seg in req\PYGZus{}path:gmatch(\PYGZdq{}[\PYGZca{}/]+\PYGZdq{}) do table.insert(segments, seg) end}
+
+\PYG{+w}{          }\PYG{n+no}{local opa\PYGZus{}input = \PYGZob{}}
+\PYG{+w}{            }\PYG{n+no}{input = \PYGZob{}}
+\PYG{+w}{              }\PYG{n+no}{method = req\PYGZus{}method,}
+\PYG{+w}{              }\PYG{n+no}{path = req\PYGZus{}path,}
+\PYG{+w}{              }\PYG{n+no}{path\PYGZus{}segments = segments,}
+\PYG{+w}{              }\PYG{n+no}{jwt = claims,}
+\PYG{+w}{            }\PYG{n+no}{\PYGZcb{}}
+\PYG{+w}{          }\PYG{n+no}{\PYGZcb{}}
+
+\PYG{+w}{          }\PYG{n+no}{local httpc = http.new()}
+\PYG{+w}{          }\PYG{n+no}{httpc:set\PYGZus{}timeout(1000)}
+\PYG{+w}{          }\PYG{n+no}{local res, err = httpc:request\PYGZus{}uri(OPA\PYGZus{}URL, \PYGZob{}}
+\PYG{+w}{            }\PYG{n+no}{method = \PYGZdq{}POST\PYGZdq{},}
+\PYG{+w}{            }\PYG{n+no}{body = cjson.encode(opa\PYGZus{}input),}
+\PYG{+w}{            }\PYG{n+no}{headers = \PYGZob{} [\PYGZdq{}Content\PYGZhy{}Type\PYGZdq{}] = \PYGZdq{}application/json\PYGZdq{} \PYGZcb{},}
+\PYG{+w}{            }\PYG{n+no}{ssl\PYGZus{}verify = false,}
+\PYG{+w}{          }\PYG{n+no}{\PYGZcb{})}
+
+\PYG{+w}{          }\PYG{n+no}{if not res or res.status \PYGZti{}= 200 then return end}
+\PYG{+w}{          }\PYG{n+no}{local decoded = cjson.decode(res.body or \PYGZdq{}\PYGZdq{}) or \PYGZob{}\PYGZcb{}}
+\PYG{+w}{          }\PYG{n+no}{if decoded.result \PYGZti{}= true then}
+\PYG{+w}{            }\PYG{n+no}{return kong.response.exit(403, \PYGZob{}}
+\PYG{+w}{              }\PYG{n+no}{message = \PYGZdq{}forbidden\PYGZdq{},}
+\PYG{+w}{              }\PYG{n+no}{reason = \PYGZdq{}OPA denied user\PYGZhy{}authz\PYGZdq{},}
+\PYG{+w}{              }\PYG{n+no}{user = claims.preferred\PYGZus{}username or \PYGZdq{}anonymous\PYGZdq{}}
+\PYG{+w}{            }\PYG{n+no}{\PYGZcb{})}
+\PYG{+w}{          }\PYG{n+no}{end}
+\end{MintedVerbatim}

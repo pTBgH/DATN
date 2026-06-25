@@ -1,0 +1,31 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỜI ĐIỂM 1: XÁC THỰC LẦN ĐẦU VÀ KIỂM TRA KẾT NỐI \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }date
+Sun\PYG{+w}{ }Jun\PYG{+w}{ }\PYG{l+m}{7}\PYG{+w}{ }\PYG{l+m}{10}:14:23\PYG{+w}{ }PM\PYG{+w}{ }+07\PYG{+w}{ }\PYG{l+m}{2026}
+
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYGZhy{}it\PYG{+w}{ }deployment/identity\PYGZhy{}service\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }sh
+\PYG{c+c1}{\PYGZsh{} cat /app\PYGZhy{}secrets/.env}
+\PYG{n+nv}{APP\PYGZus{}KEY}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo=\PYGZdq{}}
+\PYG{n+nv}{DB\PYGZus{}USERNAME}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}v\PYGZhy{}jwt\PYGZhy{}spiffe\PYGZhy{}identity\PYGZhy{}s\PYGZhy{}UXodNYY0\PYGZdq{}}
+\PYG{n+nv}{DB\PYGZus{}PASSWORD}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}SZHSkYxzSBx\PYGZhy{}M13ANvh0\PYGZdq{}}
+\PYG{n+nv}{LEASE\PYGZus{}ID}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}database/creds/identity\PYGZhy{}service/AmGTHZtAwmVTwbMFcM3giz24\PYGZdq{}}
+
+\PYG{c+c1}{\PYGZsh{} php artisan tinker \PYGZhy{}\PYGZhy{}execute=\PYGZdq{}DB::connection()\PYGZhy{}\PYGZgt{}getPdo(); echo \PYGZsq{}=== KET NOI MYSQL THANH CONG !!! ===\PYGZsq{};\PYGZdq{}}
+\PYG{o}{===}\PYG{+w}{ }KET\PYG{+w}{ }NOI\PYG{+w}{ }MYSQL\PYG{+w}{ }THANH\PYG{+w}{ }CONG\PYG{+w}{ }!!!\PYG{+w}{ }\PYG{o}{===}
+\PYG{c+c1}{\PYGZsh{} exit}
+
+\PYG{c+c1}{\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỜI ĐIỂM 2: XOAY VÒNG MẬT KHẨU TỰ ĐỘNG VÀ XÁC THỰC LẠI \PYGZhy{}\PYGZhy{}\PYGZhy{}}
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }date
+Sun\PYG{+w}{ }Jun\PYG{+w}{ }\PYG{l+m}{7}\PYG{+w}{ }\PYG{l+m}{11}:11:18\PYG{+w}{ }PM\PYG{+w}{ }+07\PYG{+w}{ }\PYG{l+m}{2026}
+
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYGZhy{}it\PYG{+w}{ }deployment/identity\PYGZhy{}service\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }job7189\PYGZhy{}apps\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }app\PYG{+w}{ }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }sh
+\PYG{c+c1}{\PYGZsh{} cat /app\PYGZhy{}secrets/.env}
+\PYG{n+nv}{APP\PYGZus{}KEY}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}base64:wPGdH+tHFQjN0T+FR4oOTu/JwuO0eeKWnHKAKyYtmIo=\PYGZdq{}}
+\PYG{n+nv}{DB\PYGZus{}USERNAME}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}v\PYGZhy{}jwt\PYGZhy{}spiffe\PYGZhy{}identity\PYGZhy{}s\PYGZhy{}y8LPe6ek\PYGZdq{}}
+\PYG{n+nv}{DB\PYGZus{}PASSWORD}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}wkoy0vU08SW27\PYGZhy{}IfFbMB\PYGZdq{}}
+\PYG{n+nv}{LEASE\PYGZus{}ID}\PYG{o}{=}\PYG{l+s+s2}{\PYGZdq{}database/creds/identity\PYGZhy{}service/w03PPNjWHfQXjjc9VjkOE6OI\PYGZdq{}}
+
+\PYG{c+c1}{\PYGZsh{} php artisan tinker \PYGZhy{}\PYGZhy{}execute=\PYGZdq{}DB::connection()\PYGZhy{}\PYGZgt{}getPdo(); echo \PYGZsq{}=== KET NOI MYSQL THANH CONG !!! ===\PYGZsq{};\PYGZdq{}}
+\PYG{o}{===}\PYG{+w}{ }KET\PYG{+w}{ }NOI\PYG{+w}{ }MYSQL\PYG{+w}{ }THANH\PYG{+w}{ }CONG\PYG{+w}{ }!!!\PYG{+w}{ }\PYG{o}{===}
+\PYG{c+c1}{\PYGZsh{} exit}
+\end{MintedVerbatim}

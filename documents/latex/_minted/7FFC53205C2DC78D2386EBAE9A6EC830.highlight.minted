@@ -1,0 +1,12 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }kubectl\PYG{+w}{ }\PYG{n+nb}{exec}\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }spire\PYG{+w}{ }spire\PYGZhy{}server\PYGZhy{}0\PYG{+w}{ }\PYGZhy{}c\PYG{+w}{ }spire\PYGZhy{}server\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }\PYGZhy{}\PYGZhy{}\PYG{+w}{ }/opt/spire/bin/spire\PYGZhy{}server\PYG{+w}{ }entry\PYG{+w}{ }show
+Found\PYG{+w}{ }\PYG{l+m}{50}\PYG{+w}{ }entry\PYG{o}{(}s\PYG{o}{)}
+Entry\PYG{+w}{ }ID\PYG{+w}{      }:\PYG{+w}{ }019eb4d9\PYGZhy{}4dd7\PYGZhy{}728e\PYGZhy{}af71\PYGZhy{}09cbcf7fb555
+SPIFFE\PYG{+w}{ }ID\PYG{+w}{     }:\PYG{+w}{ }spiffe://zta.job7189/ns/job7189\PYGZhy{}apps/sa/identity\PYGZhy{}service
+Parent\PYG{+w}{ }ID\PYG{+w}{     }:\PYG{+w}{ }spiffe://zta.job7189/spire/agent/k8s\PYGZus{}psat/7189srv05
+Regis.\PYG{+w}{ }delay\PYG{+w}{  }:\PYG{+w}{ }0s
+Selectors\PYG{+w}{     }:\PYG{+w}{ }k8s:ns:job7189\PYGZhy{}apps
+Selectors\PYG{+w}{     }:\PYG{+w}{ }k8s:sa:identity\PYGZhy{}service
+Selectors\PYG{+w}{     }:\PYG{+w}{ }k8s:pod\PYGZhy{}label:app:identity\PYGZhy{}service
+\end{MintedVerbatim}

@@ -1,0 +1,16 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP HỢP LỆ (PASSED) \PYGZhy{}\PYGZhy{}\PYGZhy{}
+\PYGZsh{} 1. Thực thi một lệnh nghiệp vụ thông thường (id) được phép chạy trong container
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{} ID\PYGZus{}POD=\PYGZdl{}(kubectl \PYGZhy{}n job7189\PYGZhy{}apps get pod \PYGZhy{}l app=identity\PYGZhy{}service \PYGZhy{}o jsonpath=\PYGZsq{}\PYGZob{}.items[0].metadata.name\PYGZcb{}\PYGZsq{})
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{} kubectl \PYGZhy{}n job7189\PYGZhy{}apps exec \PYGZdq{}\PYGZdl{}ID\PYGZus{}POD\PYGZdq{} \PYGZhy{}c app \PYGZhy{}\PYGZhy{} id
+uid=100(laravel) gid=1000(laravel) groups=1000(laravel)
+
+\PYGZsh{} \PYGZhy{}\PYGZhy{}\PYGZhy{} THỬ NGHIỆM TRƯỜNG HỢP TẤN CÔNG / GHI NHẬN KIỂM TOÁN (POST AUDIT) \PYGZhy{}\PYGZhy{}\PYGZhy{}
+\PYGZsh{} 2. Hacker thử khai thác lỗ hổng RCE để chạy shell bên trong vùng chứa identity\PYGZhy{}service
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{} kubectl \PYGZhy{}n job7189\PYGZhy{}apps exec \PYGZdq{}\PYGZdl{}ID\PYGZus{}POD\PYGZdq{} \PYGZhy{}c app \PYGZhy{}\PYGZhy{} /bin/sh \PYGZhy{}c \PYGZdq{}whoami\PYGZdq{}
+laravel
+
+\PYGZsh{} 3. Nhật ký thời gian thực của Tetragon ghi nhận sự kiện thực thi shell phục vụ kiểm toán an ninh
+ptb@baosrc:\PYGZti{}/projects/DATN\PYGZdl{} kubectl \PYGZhy{}n kube\PYGZhy{}system logs \PYGZhy{}l app.kubernetes.io/name=tetragon \PYGZhy{}c export\PYGZhy{}stdout \PYGZhy{}\PYGZhy{}tail=1000 | grep \PYGZsq{}\PYGZdq{}binary\PYGZdq{}:\PYGZdq{}/bin/sh\PYGZdq{}\PYGZsq{} | tail \PYGZhy{}n 1
+\PYGZob{}\PYGZdq{}process\PYGZus{}kprobe\PYGZdq{}:\PYGZob{}\PYGZdq{}process\PYGZdq{}:\PYGZob{}\PYGZdq{}exec\PYGZus{}id\PYGZdq{}:\PYGZdq{}NzE4OXNydjAyOjEwNDkwOTA2MDc1Mzc4NTo3NjU4NTg=\PYGZdq{},\PYGZdq{}pid\PYGZdq{}:765858,\PYGZdq{}uid\PYGZdq{}:100,\PYGZdq{}cwd\PYGZdq{}:\PYGZdq{}/var/www/html\PYGZdq{},\PYGZdq{}binary\PYGZdq{}:\PYGZdq{}/bin/sh\PYGZdq{},\PYGZdq{}arguments\PYGZdq{}:\PYGZdq{}\PYGZhy{}c whoami\PYGZdq{},\PYGZdq{}flags\PYGZdq{}:\PYGZdq{}exec\PYGZdq{},\PYGZdq{}start\PYGZus{}time\PYGZdq{}:\PYGZdq{}2026\PYGZhy{}06\PYGZhy{}24T06:21:49.03061266Z\PYGZdq{},\PYGZdq{}pod\PYGZdq{}:\PYGZob{}\PYGZdq{}namespace\PYGZdq{}:\PYGZdq{}job7189\PYGZhy{}apps\PYGZdq{},\PYGZdq{}name\PYGZdq{}:\PYGZdq{}identity\PYGZhy{}service\PYGZhy{}84bb4c7857\PYGZhy{}ab12d\PYGZdq{},\PYGZdq{}container\PYGZdq{}:\PYGZob{}\PYGZdq{}name\PYGZdq{}:\PYGZdq{}app\PYGZdq{}\PYGZcb{}\PYGZcb{}\PYGZcb{},\PYGZdq{}function\PYGZus{}name\PYGZdq{}:\PYGZdq{}sys\PYGZus{}execve\PYGZdq{},\PYGZdq{}args\PYGZdq{}:[\PYGZob{}\PYGZdq{}string\PYGZus{}arg\PYGZdq{}:\PYGZdq{}/bin/sh\PYGZdq{}\PYGZcb{}],\PYGZdq{}action\PYGZdq{}:\PYGZdq{}POST\PYGZdq{}\PYGZcb{},\PYGZdq{}time\PYGZdq{}:\PYGZdq{}2026\PYGZhy{}06\PYGZhy{}24T06:21:49.030611299Z\PYGZdq{}\PYGZcb{}
+\end{MintedVerbatim}

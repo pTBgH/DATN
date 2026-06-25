@@ -1,0 +1,27 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Trích từ cấu hình nguồn infras/k8s\PYGZhy{}yaml/spire/cluster\PYGZhy{}spiffe\PYGZhy{}ids.yaml}
+\PYG{n+nt}{apiVersion}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{spire.spiffe.io/v1alpha1}
+\PYG{n+nt}{kind}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{ClusterSPIFFEID}
+\PYG{n+nt}{metadata}\PYG{p}{:}
+\PYG{+w}{  }\PYG{n+nt}{name}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{zta\PYGZhy{}default\PYGZhy{}workload\PYGZhy{}identity}
+\PYG{n+nt}{spec}\PYG{p}{:}
+\PYG{+w}{  }\PYG{n+nt}{spiffeIDTemplate}\PYG{p}{:}\PYG{+w}{ }\PYG{l+s}{\PYGZdq{}spiffe://zta.job7189/ns/\PYGZob{}\PYGZob{}}\PYG{n+nv}{ }\PYG{l+s}{.PodMeta.Namespace}\PYG{n+nv}{ }\PYG{l+s}{\PYGZcb{}\PYGZcb{}/sa/\PYGZob{}\PYGZob{}}\PYG{n+nv}{ }\PYG{l+s}{.PodSpec.ServiceAccountName}\PYG{n+nv}{ }\PYG{l+s}{\PYGZcb{}\PYGZcb{}\PYGZdq{}}
+\PYG{+w}{  }\PYG{n+nt}{podSelector}\PYG{p}{:}
+\PYG{+w}{    }\PYG{n+nt}{matchExpressions}\PYG{p}{:}
+\PYG{+w}{      }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{key}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{cilium.zta/role}
+\PYG{+w}{        }\PYG{n+nt}{operator}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{Exists}
+\PYG{+w}{  }\PYG{n+nt}{namespaceSelector}\PYG{p}{:}
+\PYG{+w}{    }\PYG{n+nt}{matchExpressions}\PYG{p}{:}
+\PYG{+w}{      }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{n+nt}{key}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{kubernetes.io/metadata.name}
+\PYG{+w}{        }\PYG{n+nt}{operator}\PYG{p}{:}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{In}
+\PYG{+w}{        }\PYG{n+nt}{values}\PYG{p}{:}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{job7189\PYGZhy{}apps}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{gateway}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{vault}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{security}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{monitoring}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{data}
+\PYG{+w}{          }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+lScalar+lScalarPlain}{management}
+\PYG{+w}{  }\PYG{n+nt}{dnsNameTemplates}\PYG{p}{:}
+\PYG{+w}{    }\PYG{p+pIndicator}{\PYGZhy{}}\PYG{+w}{ }\PYG{l+s}{\PYGZdq{}\PYGZob{}\PYGZob{}}\PYG{n+nv}{ }\PYG{l+s}{index}\PYG{n+nv}{ }\PYG{l+s}{.PodMeta.Labels}\PYG{n+nv}{ }\PYG{l+s}{\PYGZbs{}\PYGZdq{}app\PYGZbs{}\PYGZdq{}}\PYG{n+nv}{ }\PYG{l+s}{\PYGZcb{}\PYGZcb{}.\PYGZob{}\PYGZob{}}\PYG{n+nv}{ }\PYG{l+s}{.PodMeta.Namespace}\PYG{n+nv}{ }\PYG{l+s}{\PYGZcb{}\PYGZcb{}.svc.cluster.local\PYGZdq{}}
+\end{MintedVerbatim}

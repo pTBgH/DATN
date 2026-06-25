@@ -1,0 +1,10 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Triển khai 7 Microservices nghiệp vụ vào không gian tên job7189\PYGZhy{}apps}
+\PYGZdl{}\PYG{+w}{ }bash\PYG{+w}{ }\PYG{l+m}{03}\PYGZhy{}deploy\PYGZhy{}microservices.sh
+
+\PYG{c+c1}{\PYGZsh{} Khởi tạo cơ sở dữ liệu ban đầu cho các dịch vụ}
+\PYGZdl{}\PYG{+w}{ }bash\PYG{+w}{ }\PYG{l+m}{05}\PYGZhy{}seed\PYGZhy{}databases.sh
+
+\PYG{c+c1}{\PYGZsh{} Gán nhãn Zero Trust bắt buộc lên các Pod vừa tạo để áp dụng các chính sách}
+\PYGZdl{}\PYG{+w}{ }bash\PYG{+w}{ }scripts/zta\PYGZhy{}apply\PYGZhy{}workload\PYGZhy{}labels.sh\PYG{+w}{ }\PYGZhy{}\PYGZhy{}apply
+\end{MintedVerbatim}

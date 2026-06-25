@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZdl{}\PYG{+w}{ }\PYG{n+nv}{KUBECONFIG}\PYG{o}{=}/home/ptb/.kube/config\PYGZhy{}job7189\PYG{+w}{ }\PYG{l+s+se}{\PYGZbs{}}
+\PYG{+w}{  }bash\PYG{+w}{ }scripts/zta\PYGZhy{}audit\PYGZhy{}and\PYGZhy{}remediate.sh
+\end{MintedVerbatim}

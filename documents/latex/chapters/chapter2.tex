@@ -237,7 +237,7 @@ Cách phân tách này nhằm giải quyết trực tiếp bốn yêu cầu kỹ
 
 \node[l4] (l4) at (0, 2.5) {
   \textbf{Thành phần 4 — Các điểm thực thi chính sách:}\\[3pt]
-  Kiểm soát biên | Phân đoạn vi mô | Cưỡng chế cổng nạp | Giám sát thời gian chạy};
+  Kiểm soát biên | Microsegmentation | Cưỡng chế cổng nạp | Giám sát thời gian chạy};
 
 \node[l5] (l5) at (0, 0) {
   \textbf{Thành phần 5 — Giám sát quan sát và Phản hồi:}\\[3pt]
@@ -414,18 +414,18 @@ Cách tiếp cận phổ biến nhất trong các hệ thống bảo mật tự 
 Cách này có ưu điểm là đơn giản và dễ triển khai, nhưng dẫn đến ba vấn đề vận hành khi điểm số được dùng trực tiếp làm căn cứ cô lập mạng:
 
 \begin{enumerate}[itemsep=4pt, parsep=0pt]
-    \item \textbf{Bỏ qua khả năng khai thác thực tế:} Mức độ nghiêm trọng (severity) không phản ánh mức độ nguy hiểm tức thời. Một lỗ hổng ở mức cao nhưng chỉ khai thác được cục bộ ít nguy hiểm hơn một lỗ hổng mức trung với mã khai thác công khai và vector tấn công qua mạng. Đánh đồng hai trường hợp này dẫn đến phản hồi không tương xứng với thực tế.
+    \item \textbf{Bỏ qua khả năng khai thác thực tế:} Mức độ nghiêm trọng không phản ánh mức độ nguy hiểm tức thời. Một lỗ hổng ở mức cao nhưng chỉ khai thác được cục bộ ít nguy hiểm hơn một lỗ hổng mức trung với mã khai thác công khai và vector tấn công qua mạng. Đánh đồng hai trường hợp này dẫn đến phản hồi không tương xứng với thực tế.
 
     \item \textbf{Bỏ qua phân cấp dịch vụ:} Hai workload cùng điểm số nhưng khác mức độ quan trọng với nghiệp vụ cần phản hồi khác nhau hoàn toàn. Áp dụng cùng một hành động cho cả dịch vụ định danh và dịch vụ thông báo là không hợp lý.
 
     \item \textbf{Rủi ro tự gây gián đoạn dịch vụ:} Nếu quy tắc "điểm thấp dẫn đến cô lập hoàn toàn" được áp dụng máy móc, một dịch vụ trọng yếu dính lỗ hổng sẽ bị cắt khỏi mạng --- biến rủi ro bảo mật có thể kiểm soát thành gián đoạn dịch vụ chắc chắn.
 \end{enumerate}
 
-\subsubsection{Nguyên lý thiết kế: tách Đánh giá khỏi Phản hồi}
+\subsubsection{Nguyên lý thiết kế: tách đánh giá khỏi hản hồi}
 
 Thiết kế đề xuất tách quá trình đánh giá rủi ro khỏi quyết định hành động thành hai bước rõ ràng bên trong thành phần~3, không thêm thành phần mới:
 
-\textbf{Bước đánh giá (Policy Engine):} Tính mức độ rủi ro theo ba trục độc lập.
+\textbf{Bước đánh giá:} Tính mức độ rủi ro theo ba trục độc lập.
 
 \begin{itemize}[itemsep=3pt, parsep=0pt]
     \item \textbf{Mức độ nghiêm trọng:} Critical / High / Medium dựa trên phân loại CVSS v3.1 \parencite{FIRST2019}.
@@ -433,7 +433,7 @@ Thiết kế đề xuất tách quá trình đánh giá rủi ro khỏi quyết 
     \item \textbf{Phân cấp dịch vụ:} Mức độ quan trọng của workload với nghiệp vụ, từ T0 (hạ tầng) đến T3 (dịch vụ phụ trợ). Tier càng cao thì hành động phản hồi càng ưu tiên duy trì dịch vụ thay vì cô lập.
 \end{itemize}
 
-\textbf{Bước phản hồi (Policy Administrator):} Ánh xạ kết quả đánh giá vào hành động cụ thể theo ma trận dưới đây. Cô lập là lựa chọn cuối cùng, không phải mặc định.
+\textbf{Bước phản hồi:} Ánh xạ kết quả đánh giá vào hành động cụ thể theo ma trận dưới đây. Cô lập là lựa chọn cuối cùng, không phải mặc định.
 
 \begin{table}[H]
 \centering
@@ -459,7 +459,7 @@ Cô lập hoàn toàn lưu lượng mạng. Ngắt quyền truy cập cơ sở d
 \end{tabularx}
 \end{table}
 
-Triết lý của ma trận này là \textit{kiềm chế bán kính ảnh hưởng trong khi duy trì dịch vụ tối đa}. Phân đoạn vi mô cho phép cắt đường di chuyển ngang và chặn truy cập tài nguyên nhạy cảm mà không cần ngắt luồng nghiệp vụ chính. Cô lập toàn phần chỉ được kích hoạt khi dịch vụ không quan trọng, hoặc khi có bằng chứng đang bị khai thác thực sự từ tín hiệu thời gian chạy, hoặc khi có bằng chứng workload đã bị chiếm quyền kiểm soát.
+Triết lý của ma trận này là \textit{kiềm chế bán kính ảnh hưởng trong khi duy trì dịch vụ tối đa}. Microsegmentation cho phép cắt đường di chuyển ngang và chặn truy cập tài nguyên nhạy cảm mà không cần ngắt luồng nghiệp vụ chính. Cô lập toàn phần chỉ được kích hoạt khi dịch vụ không quan trọng, hoặc khi có bằng chứng đang bị khai thác thực sự từ tín hiệu thời gian chạy, hoặc khi có bằng chứng workload đã bị chiếm quyền kiểm soát.
 
 \subsubsection{Rời rạc hóa và tránh dao động chính sách}
 
@@ -474,47 +474,37 @@ Kết quả đánh giá rủi ro được rời rạc hóa thành ba mức để
 Các trọng số trong công thức tính điểm là tham số cấu hình phụ thuộc vào khẩu vị rủi ro của từng môi trường triển khai \parencite{Jeong2025,Bradatsch2023}. Trong phạm vi thực nghiệm, các giá trị được chọn để đảm bảo workload có CVE Critical luôn xuống dưới ngưỡng kích hoạt ma trận phản hồi, bất kể trạng thái các yếu tố khác.
 
 %------------------------------------------------------------------------------
-\subsection{Lộ trình chuyển đổi kiến trúc}
+\subsection{Trình tự triển khai}
 \label{subsec:rollout}
 %------------------------------------------------------------------------------
 
-Kiến trúc Zero Trust không phải là một trạng thái có thể đạt được tức thời trong một lần triển khai. Tiêu chuẩn NIST SP 800-207 khuyến nghị một quy trình dịch chuyển theo từng giai đoạn chiến lược, trong đó hầu hết các tổ chức sẽ vận hành ở chế độ lai (hybrid) giữa cơ chế kiểm soát vành đai truyền thống và mô hình Zero Trust xuyên suốt tiến trình chuyển đổi \parencite{nist800207}. Hướng dẫn thực hành NIST SP 1800-35 cụ thể hóa lộ trình này bằng nguyên tắc tịnh tiến "crawl--walk--run": bắt đầu từ việc định danh và tăng cường khả năng quan sát, sau đó mở rộng sang chế độ cưỡng chế chính sách tuyệt đối khi đã tích lũy đủ dữ liệu cấu hình tin cậy \parencite{nist_sp_1800_35}.
-
-Lộ trình chuyển đổi trong phạm vi nghiên cứu được tiếp cận ở mức phương pháp luận --- làm rõ logic của trình tự thực hiện và các nguyên tắc cốt lõi chi phối từng giai đoạn. Hiện trạng cấu hình thực tế trên hệ thống thực nghiệm sẽ được đối chiếu chi tiết tại Chương~3.
+Triển khai kiến trúc Zero Trust là một quá trình chuyển đổi từng bước, trong đó tổ chức thường duy trì song song hệ thống hiện có và kiến trúc Zero Trust trong thời gian dài trước khi hoàn tất quá trình dịch chuyển. Việc triển khai cần bắt đầu từ các nền tảng cơ bản như quản lý định danh, tăng cường khả năng quan sát tài sản và luồng giao tiếp, sau đó mới tiến tới giai đoạn xây dựng và thực thi chính sách kiểm soát truy cập toàn diện. Cách tiếp cận này xuất phát từ thực tế rằng không thể thiết lập các chính sách chính xác nếu chưa hiểu rõ tài sản, mối quan hệ giao tiếp và hành vi truy cập trong hệ thống. Do đó, giai đoạn đầu của lộ trình tập trung vào việc thu thập dữ liệu, hoàn thiện khả năng quan sát và tạo cơ sở cho việc áp dụng các cơ chế kiểm soát dựa trên thuộc tính. Dựa trên các nguyên tắc này, đồ án đề xuất lộ trình triển khai gồm ba giai đoạn\parencite{nist800207,nist_sp_1800_35}.
 
 \begin{table}[H]
 \centering
-\caption{Tiến trình triển khai thực tế đối chiếu theo các cấp độ trưởng thành của mô hình Zero Trust}
-\label{tab:nist_deployment_path}
+\caption{Trình tự triển khai kiến trúc Zero Trust đề xuất}
+\label{tab:zta_rollout}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabularx}{\textwidth}{|c|p{3.5cm}|p{2.5cm}|X|}
+\begin{tabularx}{\textwidth}{|c|p{2.8cm}|p{3cm}|X|}
 \hline
-\textbf{Bước} & \textbf{Tiến trình triển khai} & \textbf{Cấp độ trưởng thành} & \textbf{Nguyên tắc thực hiện} \\
+\textbf{Giai đoạn} & \textbf{Tên giai đoạn} & \textbf{Triển khai} & \textbf{Mục tiêu} \\
 \hline
-1 & Xác định chủ thể & \textit{Crawl} (Sơ khai) & Nhận diện toàn bộ thực thể cần kiểm soát: người dùng, tài khoản dịch vụ, và các workload tự động. \\
+1 & Định danh và quan sát & Thành phần 1 và 5 & Gắn định danh mật mã học cho mọi thực thể. Thu thập nhật ký luồng giao tiếp có kèm thông tin định danh. Các điểm thực thi chỉ ghi nhận, chưa chặn. Kết thúc giai đoạn này, hệ thống có đủ dữ liệu để biết ai đang gọi ai, theo đường nào. \\
 \hline
-2 & Xác định tài sản & \textit{Crawl} (Sơ khai) & Thống kê toàn diện hệ thống workload, ứng dụng và dữ liệu nền tảng làm cơ sở thiết lập vùng bảo mật. \\
+2 & Xây dựng và kiểm thử chính sách & Thành phần 2, 3 và 4 & Bật đánh giá tư thế bảo mật và động cơ rủi ro. Áp chính sách từ chối mặc định trước tiên trên nhóm dịch vụ phụ trợ, quan sát kết quả, điều chỉnh trước khi mở rộng sang dịch vụ trọng yếu. \\
 \hline
-3 & Xác định luồng dữ liệu & \textit{Crawl} (Sơ khai) & Lập bản đồ giao tiếp nội bộ (East-West) và luồng biên (North-South) dựa trên dữ liệu quan sát thời gian thực. \\
-\hline
-4 & Xây dựng chính sách & \textit{Walk} (Định hình) & Thiết lập quy tắc từ chối mặc định và định nghĩa các luồng giao tiếp được phép tường minh dựa trên thuộc tính. \\
-\hline
-5 & Tích hợp công nghệ & \textit{Walk} (Định hình) & Triển khai các thành phần chức năng PIP, PDP, PEP phù hợp với hạ tầng cloud-native có sẵn. \\
-\hline
-6 & Triển khai thử nghiệm & \textit{Walk} (Định hình) & Vận hành các điểm thực thi ở chế độ ghi nhận dữ liệu kiểm toán (\textit{audit trước, cưỡng chế sau}) để tinh chỉnh chính sách. \\
-\hline
-7 & Mở rộng và tối ưu & \textit{Run} (Nâng cao) & Kích hoạt chế độ chặn hoàn toàn (Block/Enforce); tự động hóa vòng lặp phản hồi thích ứng và đánh giá rủi ro liên tục. \\
+3 & Cưỡng chế và phản hồi thích ứng & Tất cả 5 thành phần & Chuyển toàn bộ điểm thực thi sang chế độ chặn. Đóng vòng phản hồi để chính sách tự cập nhật khi trạng thái bảo mật thay đổi mà không cần can thiệp thủ công. \\
 \hline
 \end{tabularx}
 \end{table}
 
-Ba nguyên tắc cốt lõi chi phối thứ tự triển khai bao gồm:
+Ba nguyên tắc chi phối thứ tự trên:
 
-\textbf{Định danh và quan sát trước, cưỡng chế sau.} Hệ thống không thể thiết lập các quy tắc chính xác nếu thiếu đi bức tranh toàn cảnh về thực tế giao tiếp của mạng lưới Microservices. Thành phần~1 (định danh) và Thành phần~5 (quan sát) bắt buộc phải được triển khai trước nhằm tích lũy dữ liệu nền tảng, làm tiền đề cho Thành phần~4 chuyển dịch sang chế độ chặn một cách an toàn.
+\textbf{Quan sát trước, chặn sau.} Chính sách viết sai sẽ chặn nhầm lưu lượng hợp lệ. Dữ liệu từ Thành phần~1 và~5 là điều kiện cần để Thành phần~4 có thể chuyển sang chế độ chặn mà không gây gián đoạn dịch vụ \parencite{nist800207,nist_sp_1800_35}.
 
-\textbf{Mở rộng tiệm tiến theo phân cấp dịch vụ.} Tiến trình dịch chuyển được khuyến nghị bắt đầu từ các nhóm dịch vụ phụ trợ hoặc các workload có mức độ ảnh hưởng thấp để kiểm chứng độ chính xác của chính sách, sau đó mở rộng dần vào các thành phần lõi của hệ thống. Cách tiếp cận cực đoan --- áp dụng đồng loạt trên toàn hệ thống --- thường dẫn đến rủi ro chặn nhầm lưu lượng hợp lệ (false positive) và làm suy giảm tính sẵn sàng của ứng dụng.
+\textbf{Bắt đầu từ dịch vụ ít quan trọng.} Kiểm thử chính sách trên dịch vụ phụ trợ trước để phát hiện lỗi, sau đó mới mở rộng vào dịch vụ lõi. Làm ngược lại thì một chính sách sai có thể hạ cả hệ thống.
 
-\textbf{Chế độ ghi nhận là một giai đoạn vận hành chủ đích.} Việc cấu hình các điểm thực thi vận hành ở chế độ giám sát và cảnh báo trước khi chuyển sang cưỡng chế là một bước đệm bắt buộc, hoàn toàn không phải là một trạng thái chưa hoàn thiện về mặt kỹ thuật. Cơ chế này cho phép hệ thống tích lũy các bản ghi lưu lượng thực tế, giúp người quản trị nhận diện chính xác các luồng nghiệp vụ đặc thù nhằm tinh chỉnh và tối ưu hóa tập quy tắc chính sách mà không gây rủi ro gián đoạn dịch vụ.
+\textbf{Chế độ ghi nhận không phải là bước tạm thời.} NIST SP~1800-35 xác nhận đây là giai đoạn vận hành có chủ đích \parencite{nist_sp_1800_35}: chạy ở chế độ ghi nhận đủ lâu để thu thập các luồng nghiệp vụ bất thường mà tài liệu hóa thông thường bỏ sót, sau đó mới cưỡng chế.
 
 %==============================================================================
 % KẾT LUẬN CHƯƠNG 2

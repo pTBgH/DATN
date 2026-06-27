@@ -1,0 +1,9 @@
+category,count,notes
+workloads,58,"Deployment/StatefulSet/DaemonSet inventoried"
+business_workloads,16,"Workloads in namespace job7189-apps"
+network_objects,222,"Service/Ingress/PVC/CiliumNetworkPolicy inventoried"
+vault_injected_workloads,8,"Workloads with vault.hashicorp.com/agent-inject=true"
+spire_enabled_workloads,9,"Workloads mounting SPIFFE/SPIRE socket"
+workloads_without_complete_zta_labels,25,"Missing role/tier/data-classification labels"
+workloads_without_readonly_rootfs,48,"At least one container not configured readOnlyRootFilesystem=true"
+workloads_without_run_as_non_root,52,"At least one container not configured runAsNonRoot=true"

@@ -44,7 +44,7 @@ trọng tâm bảo vệ từ ranh giới mạng lưới sang việc kiểm soát
 luồngdữliệuriêngbiệt.
 Thôngquaquátrìnhtriểnkhaithựcnghiệmtrênmộthệthốngvidịchvụcụthể,đồánđã
 chứng minh được tính khả thi và độ hiệu quả của giải pháp đề xuất. Hệ thống thực nghiệm
-đã đáp ứng thành công các nguyên tắc cốt lõi của Zero Trust: thiết lập phân đoạn vi mô triệt
+đã đáp ứng thành công các nguyên tắc cốt lõi của Zero Trust: thiết lập microsegmentation triệt
 để, tự động hóa vòng đời thông tin xác thực và duy trì khả năng giám sát an ninh theo thời
 gian thực để ngăn chặn các kỹ thuật tấn công di chuyển ngang. Kết quả của đồ án cung cấp
 mộtmôhìnhthamchiếuthựctiễntheođúngtriếtlýZeroTrust.
@@ -426,7 +426,7 @@ Hình1.2:MôhìnhTrưởngthànhZeroTrustcủaCISA
 liêntục.
 2. Thiết bị: quản lý, kiểm kê và liên tục xác minh tình trạng tuân thủ, sức khỏe của thiết
 bịtruycập.
-3. Mạng lưới: quản lý luồng lưu lượng động, cô lập tài nguyên qua phân đoạn vi mô và
+3. Mạng lưới: quản lý luồng lưu lượng động, cô lập tài nguyên qua microsegmentation và
 mãhoátoàndiện.
 4. Ứng dụng và Workload: tích hợp bảo mật vào quy trình CI/CD, đánh giá ủy quyền
 liêntụcđốivớiứngdụng.
@@ -673,7 +673,7 @@ sát.
 dọa
 | Thành phần | 3 — Thực | thi chính | sách | đa tầng: |     |     | Vòngphảnhồi |
 | ---------- | -------- | --------- | ---- | -------- | --- | --- | ----------- |
-Kiểm soát biên (North-South) | Phân đoạn vi mô | Xác thực cổng nạp | Giám (Cậpnhậtđiểmtincậy
+Kiểm soát biên (North-South) | Microsegmentation | Xác thực cổng nạp | Giám (Cậpnhậtđiểmtincậy
 vàđiềuchỉnhchínhsách)
 sát Runtime
 | Thành phần  | 4 — Quản      | lý bí mật    | động:   |         |             |            |     |

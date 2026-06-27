@@ -3,13 +3,13 @@
 \chapter*{Kết luận}
 \addcontentsline{toc}{chapter}{Kết luận}
 
-Sau quá trình nghiên cứu và triển khai thực nghiệm đề tài \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''}, đồ án đã hoàn thành các mục tiêu chính: hệ thống hóa cơ sở lý thuyết, đề xuất kiến trúc bảo vệ phù hợp với môi trường Kubernetes và kiểm chứng kiến trúc đó trên hệ thống Job7189.
+Sau quá trình nghiên cứu và triển khai thực nghiệm đề tài \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''}, đồ án đã hoàn thành các mục tiêu chính: hệ thống hóa cơ sở lý thuyết, đề xuất kiến trúc bảo vệ phù hợp với môi trường Kubernetes và thử nghiệm kiến trúc đó trên hệ thống Job7189.
 
 \paragraph{Về mặt lý thuyết:}
 \begin{itemize}
     \item Hệ thống hóa các nguyên lý Zero Trust và kiến trúc tham chiếu theo \textbf{NIST SP 800-207}~\parencite{nist800207,kindervag2010build,gilman2017zero}, gồm mô hình ra quyết định, điểm thực thi chính sách và các nguồn dữ liệu phục vụ đánh giá truy cập.
     \item Phân tích các rủi ro đặc thù của vi dịch vụ trên Kubernetes, gồm lưu lượng nội bộ lớn, vòng đời ngắn của thực thể chạy, quản lý bí mật phân tán, rủi ro hạ tầng dùng chung và nguy cơ từ chuỗi cung ứng phần mềm~\parencite{nist800204_microservices,rice2019kubernetes,machine_identity_report}.
-    \item Đề xuất khung kiến trúc Zero Trust gồm năm thành phần chức năng, ánh xạ từ mô hình tham chiếu của NIST sang các công cụ mã nguồn mở phù hợp với Kubernetes~\parencite{nist800207,kubernetes_docs,cisa_ztmm2023}.
+    \item Đề xuất khung kiến trúc Zero Trust gồm năm thành phần chức năng, triển khai mô hình tham chiếu của NIST bằng các công cụ mã nguồn mở phù hợp với Kubernetes~\parencite{nist800207,kubernetes_docs,cisa_ztmm2023}.
     \item Xây dựng mô hình đe dọa dựa trên MITRE ATT\&CK cho Kubernetes~\parencite{mitre_containers,owasp_api2023}, qua đó xác định các kịch bản tấn công và cơ chế phòng thủ tương ứng.
 \end{itemize}
 
@@ -19,17 +19,18 @@ Sau quá trình nghiên cứu và triển khai thực nghiệm đề tài \textb
     \item Hiện thực hóa quản lý bí mật động bằng HashiCorp Vault~\parencite{vault_docs}: bảy vi dịch vụ nhận thông tin kết nối cơ sở dữ liệu ngắn hạn, được ghi vào bộ nhớ tạm của pod và tự xoay vòng mà không làm gián đoạn ứng dụng~\parencite{nist800207,machine_identity_report}.
     \item Xây dựng cơ chế xác thực tập trung với Keycloak~\parencite{keycloak_docs} và Kong Gateway~\parencite{kong_docs}; các yêu cầu đi vào hệ thống được kiểm tra JWT theo chữ ký RS256 trước khi chuyển tới dịch vụ nghiệp vụ~\parencite{rfc7519_jwt,oidc_core,rfc6749_oauth2}.
     \item Thiết lập lớp quan sát gồm EFK, Prometheus, Grafana và Hubble~\parencite{elk_docs,prometheus_docs,grafana_docs,hubble_docs}; dữ liệu thu được hỗ trợ kiểm toán, quan sát luồng mạng và đối chiếu kết quả của các chính sách an ninh.
-    \item Kiểm chứng 11 kịch bản an ninh theo hướng phân biệt rõ giữa chặn chủ động, ghi nhận, giảm thiểu tác động và khôi phục thủ công. Kết quả cho thấy hệ thống có thể chặn hoặc kiểm soát nhiều hành vi như quét mạng nội bộ, gọi API sai quyền, truy cập cơ sở dữ liệu trái phép, chạy công cụ mạng bị cấm, triển khai container image chưa được phê duyệt và gửi dữ liệu ra ngoài.
+    \item Kiểm chứng 11 kịch bản an ninh theo hướng phân biệt rõ giữa chặn chủ động, ghi nhận, giảm thiểu tác động và khôi phục thủ công. Kết quả cho thấy hệ thống có thể chặn hoặc kiểm soát nhiều hành vi như quét mạng nội bộ, gọi API sai quyền, truy cập cơ sở dữ liệu trái phép, chạy công cụ mạng bị cấm, triển khai container image chưa được phê duyệt và gửi dữ liệu ra bên ngoài trái chính sách.
 \end{itemize}
 
 \paragraph{Hạn chế và hướng phát triển:}
-Hệ thống Job7189 trong đồ án là một nguyên mẫu thực nghiệm trên cụm \texttt{kubeadm} nhiều nút kết nối qua Tailscale~\parencite{kubeadm_docs,tailscale_docs}, chưa phải một kiến trúc Zero Trust hoàn chỉnh cho môi trường sản xuất. Các hạn chế chính gồm:
+Hệ thống Job7189 trong đồ án được dùng như một môi trường mô phỏng trên cụm \texttt{kubeadm} nhiều nút kết nối qua Tailscale~\parencite{kubeadm_docs,tailscale_docs}; mục tiêu là tạo đủ luồng nghiệp vụ và luồng hạ tầng để thử các cơ chế bảo vệ, chưa phải một triển khai Zero Trust hoàn chỉnh cho môi trường sản xuất. Các hạn chế chính gồm:
 \begin{itemize}
     \item Cơ chế tự động phản hồi chưa được kiểm chứng toàn trình. Bộ điều khiển chính sách đã có vai trò tính toán và gán nhãn rủi ro, nhưng kịch bản cô lập tự động khi điểm rủi ro giảm vẫn cần dữ liệu thử nghiệm sát thực tế hơn.
     \item Việc đánh giá thiết bị người dùng nằm ngoài phạm vi đồ án. Hệ thống mới tập trung vào thực thể chạy trong cụm Kubernetes, trong khi NIST SP 800-207 còn yêu cầu đánh giá liên tục trạng thái thiết bị truy cập~\parencite{nist800207,cisa_ztmm2023}.
     \item Hệ thống chưa có cơ chế thu hồi phiên tự động khi phát hiện bất thường sau thời điểm cấp token. Đây là khoảng trống liên quan đến đánh giá truy cập liên tục và cần được bổ sung bằng luồng cảnh báo, đánh giá rủi ro và thu hồi phiên~\parencite{openid_caep,microsoft_aitm}.
+    \item Việc thu hồi bí mật động hiện chủ yếu dựa vào thời gian sống và vòng xoay lease; Vault chưa tự thu hồi ngay theo tín hiệu runtime từ Tetragon. Tương tự, khôi phục chính sách mạng khi bị sửa hoặc xóa vẫn cần thao tác vận hành, chưa có bộ điều khiển tự phục hồi liên tục.
     \item Một số cơ chế vẫn vận hành ở chế độ ghi nhận hoặc cảnh báo để tránh gián đoạn dịch vụ trong phòng thí nghiệm, chẳng hạn một phần kiểm soát khi tiếp nhận tài nguyên Kubernetes và kiểm chứng chữ ký container image. Khi đưa vào môi trường nghiêm ngặt hơn, cần chuyển dần sang chế độ cưỡng chế sau khi đã đủ dữ liệu quan sát.
     \item Cấu hình Vault hiện còn phụ thuộc vào thành phần hỗ trợ trong môi trường thử nghiệm. Khi triển khai thật, cần thay bằng cơ chế lưu trữ và tự mở khóa bền vững hơn, chẳng hạn Raft storage với PersistentVolume hoặc dịch vụ quản lý khóa phù hợp~\parencite{vault_docs}.
 \end{itemize}
 
-Tóm lại, đồ án đã hiện thực hóa được các thành phần cốt lõi của kiến trúc Zero Trust trên một hệ thống vi dịch vụ thực tế: định danh tập trung, phân đoạn mạng vi mô, kiểm soát truy cập theo chính sách, quản lý bí mật động và quan sát tập trung. Kết quả thực nghiệm cho thấy hướng tiếp cận này khả thi trong môi trường phòng thí nghiệm, đồng thời tạo nền tảng để tiếp tục hoàn thiện cơ chế phản hồi tự động, đánh giá rủi ro liên tục và vận hành ở mức cưỡng chế cao hơn.
+Tóm lại, đồ án đã triển khai các thành phần cốt lõi của kiến trúc Zero Trust trên một hệ thống vi dịch vụ mô phỏng: định danh tập trung, phân đoạn mạng vi mô, kiểm soát truy cập theo chính sách, quản lý bí mật động và quan sát tập trung. Kết quả thực nghiệm cho thấy các cơ chế này có thể phối hợp được trong môi trường phòng thí nghiệm, đồng thời gợi ra các hướng tiếp tục hoàn thiện như phản hồi tự động, đánh giá rủi ro liên tục và vận hành ở mức cưỡng chế cao hơn.

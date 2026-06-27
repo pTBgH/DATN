@@ -2,16 +2,26 @@
 \chapter{Hướng dẫn vận hành và cơ chế hoạt động của các dịch vụ}
 \label{ch:appendix}
 
-Phụ lục này mô tả chi tiết cơ chế hoạt động, cấu hình nguồn minh họa và kết quả vận hành thực tế của từng dịch vụ nghiệp vụ cũng như các giải pháp bảo mật trong hệ thống Job7189, đồng thời cung cấp hướng dẫn vận hành chi tiết cho quản trị viên hệ thống.
+Phụ lục này mô tả cơ chế hoạt động, cấu hình nguồn minh họa và kết quả vận hành của các dịch vụ nghiệp vụ cũng như các giải pháp bảo mật trong hệ thống Job7189. Nội dung trong phụ lục tập trung vào cách vận hành và đối chiếu cấu hình, bổ sung cho phần thiết kế và kiểm chứng ở các chương chính.
 
 \section{Cơ chế hoạt động của các dịch vụ}
 
-Hệ thống được tổ chức thành các phân vùng độc lập ở cấp độ không gian tên (namespace) để thiết lập các ranh giới bảo mật nghiêm ngặt. Dưới đây là cơ chế hoạt động, cấu hình minh họa và kết quả vận hành cụ thể của từng dịch vụ.
+Hệ thống được tổ chức thành các phân vùng ở cấp độ không gian tên (namespace) để tạo ranh giới vận hành rõ ràng. Dưới đây là cơ chế hoạt động, cấu hình minh họa và kết quả vận hành của các thành phần chính.
+
+\subsection{Giao diện frontend và Cloudflare Pages}
+Job7189 có hai frontend Next.js: \texttt{atd\_frontend} dành cho ứng viên và \texttt{rct\_frontend} dành cho nhà tuyển dụng, đồng thời phục vụ một số thao tác quản trị. Hai frontend này không được triển khai như tác vụ trong cụm Kubernetes; mã nguồn có cấu hình \texttt{wrangler.toml} để đóng gói bằng \texttt{@cloudflare/next-on-pages} và đưa lên Cloudflare Pages.
+
+Về luồng truy cập, trình duyệt tải giao diện từ Cloudflare Pages. Khi người dùng đăng nhập, frontend gọi API của Keycloak để lấy JWT, sau đó gửi yêu cầu nghiệp vụ tới Kong Gateway. Vì vậy, cụm Kubernetes vẫn là nơi xử lý backend, định danh, dữ liệu và chính sách bảo mật; Cloudflare chủ yếu đảm nhận phần phân phối giao diện.
+
+\begin{minted}[fontsize=\scriptsize,breaklines]{text}
+atd_frontend  -> job7189-atd  -> Cloudflare Pages
+rct_frontend  -> job7189-rct  -> Cloudflare Pages
+\end{minted}
 
 \subsection{Cổng giao tiếp Kong}
-Cổng giao tiếp Kong đóng vai trò là điểm kiểm soát duy nhất cho luồng dữ liệu đi vào hệ thống từ mạng ngoài (hướng Bắc-Nam).
+Cổng giao tiếp Kong đóng vai trò là điểm kiểm soát chính cho các yêu cầu API đi vào backend từ mạng ngoài.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Cổng giao tiếp vận hành ở chế độ khai báo không dùng cơ sở dữ liệu (DB-less mode) thông qua tệp cấu hình nguồn \texttt{kong.yml}. Cổng thực hiện đối chiếu mã thông báo định danh JWT từ trường tiêu đề \texttt{Authorization} trong yêu cầu HTTP của người dùng bằng khóa công khai tương ứng. Hệ thống tích hợp một trình cắm tiền chức năng (pre-function plugin) viết bằng ngôn ngữ Lua để giải mã mã thông báo JWT và gửi yêu cầu xác thực đến dịch vụ chính sách OPA nhằm quyết định cho phép hoặc từ chối truy cập trước khi chuyển tiếp yêu cầu đến các Microservices đích.
+    \item \textbf{Cơ chế hoạt động}: Cổng giao tiếp vận hành ở chế độ khai báo không dùng cơ sở dữ liệu (DB-less mode) thông qua tệp cấu hình nguồn \texttt{kong.yml}. Cổng thực hiện đối chiếu mã thông báo định danh JWT từ trường tiêu đề \texttt{Authorization} trong yêu cầu HTTP của người dùng bằng khóa công khai tương ứng. Hệ thống tích hợp một trình cắm tiền chức năng (pre-function plugin) viết bằng ngôn ngữ Lua để giải mã mã thông báo JWT và gửi yêu cầu xác thực đến dịch vụ chính sách OPA nhằm quyết định cho phép hoặc từ chối truy cập trước khi chuyển tiếp yêu cầu đến các microservices đích.
     \item \textbf{Cấu hình định tuyến và trình cắm Lua}: Đoạn cấu hình khai báo dịch vụ nghiệp vụ và trình cắm tiền chức năng được mô tả như sau:
 \begin{minted}[fontsize=\scriptsize,breaklines]{yaml}
 # Trích từ cấu hình nguồn infras/kong/kong.yml
@@ -89,6 +99,7 @@ plugins:
             })
           end
 \end{minted}
+    \textit{Ghi chú: Trong đoạn cấu hình minh họa, tùy chọn \texttt{ssl\_verify = false} được dùng để đơn giản hóa kết nối nội bộ trong môi trường phòng thí nghiệm. Khi vận hành thật, kết nối từ Kong tới OPA cần bật xác minh chứng chỉ hoặc dùng kênh nội bộ được bảo vệ bằng chứng chỉ tin cậy để tránh nguy cơ bị can thiệp trên đường truyền.}
     \item \textbf{Kết quả chạy lệnh minh họa}: Khi gửi yêu cầu không có mã thông báo hoặc khi mã thông báo bị OPA từ chối:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 # Trường hợp không gửi mã thông báo JWT (Kong chặn trực tiếp tại route):
@@ -117,7 +128,7 @@ Server: kong/3.6
 \subsection{Dịch vụ xác thực Keycloak}
 Keycloak đóng vai trò là trung tâm định danh người dùng cuối, chịu trách nhiệm quản lý thông tin tài khoản của nhà tuyển dụng và ứng viên.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Keycloak thực hiện xác thực người dùng dựa trên vùng quản lý định danh (realm) được cấu hình. Sau khi xác thực thành công, Keycloak thực hiện ký số mã thông báo truy cập (JWT) bằng khóa riêng tư. Khóa công khai dùng để xác minh chữ ký được cung cấp qua điểm cuối JWKS, cho phép cổng giao tiếp Kong và các Microservices tải về để đối chiếu cục bộ.
+    \item \textbf{Cơ chế hoạt động}: Keycloak thực hiện xác thực người dùng dựa trên vùng quản lý định danh (realm) được cấu hình. Sau khi xác thực thành công, Keycloak thực hiện ký số mã thông báo truy cập (JWT) bằng khóa riêng tư. Khóa công khai dùng để xác minh chữ ký được cung cấp qua điểm cuối JWKS, cho phép cổng giao tiếp Kong và các microservices tải về để đối chiếu cục bộ.
     \item \textbf{Kết quả lấy mã thông báo truy cập}: Quản trị viên hoặc ứng dụng khách có thể lấy mã thông báo truy cập bằng giao thức OpenID Connect qua luồng mật khẩu:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 # Gửi yêu cầu lấy mã thông báo truy cập JWT từ Keycloak
@@ -191,7 +202,7 @@ spec:
   dnsNameTemplates:
     - "{{ index .PodMeta.Labels \"app\" }}.{{ .PodMeta.Namespace }}.svc.cluster.local"
 \end{minted}
-    \item \textbf{Kết quả chạy lệnh minh họa}: Kiểm tra danh sách các thực thể Microservices được đăng ký trên Máy chủ SPIRE (SPIRE Server):
+    \item \textbf{Kết quả chạy lệnh minh họa}: Kiểm tra danh sách các thực thể microservices được đăng ký trên Máy chủ SPIRE (SPIRE Server):
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 $ kubectl exec -n spire spire-server-0 -c spire-server \
   -- /opt/spire/bin/spire-server entry show
@@ -209,8 +220,8 @@ Selectors     : k8s:pod-label:app:identity-service
 \subsection{Hệ thống quản lý thông tin mật Vault}
 Vault quản lý các thông tin cấu hình nhạy cảm và cấp phát tài khoản cơ sở dữ liệu động với thời hạn ngắn.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi Microservices nghiệp vụ (như \texttt{identity-service}) khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực tối đa là 3600 giây (1 giờ).
-    \item \textbf{Cấu hình chính sách Vault}: Đoạn mã cấu hình quyền hạn cho phép Microservices nghiệp vụ đọc thông tin tài khoản động:
+    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi microservice nghiệp vụ như \texttt{identity-service} khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực tối đa là 3600 giây (1 giờ).
+    \item \textbf{Cấu hình chính sách Vault}: Đoạn mã cấu hình quyền hạn cho phép microservice nghiệp vụ đọc thông tin tài khoản động:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 # Vault Policy: identity-service-policy
 path "database/creds/identity-service" {
@@ -244,12 +255,13 @@ lease_renewable    true
 password           A1b2C3d4_E5f6G7
 username           v-token-identity-service-abcdef1234
 \end{minted}
+    \textit{Ghi chú: JWT-SVID do SPIRE cấp dựa trên thông tin pod, namespace và service account, sau đó Vault đối chiếu với vai trò tương ứng trước khi cấp bí mật. Cơ chế này làm giảm khả năng pod khác tự nhận vai trò của \texttt{identity-service}; tuy nhiên hiệu quả phụ thuộc vào việc ràng buộc đúng trust domain, audience, policy Vault và quyền truy cập tới Workload API.}
 \end{itemize}
 
 \subsection{Bộ quyết định chính sách PDP}
 Bộ quyết định chính sách PDP thực hiện tính toán điểm tin cậy và cập nhật nhãn phân hạng mức độ tin cậy của các Pod dựa trên kết quả quét lỗ hổng thực tế.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Bộ điều khiển PDP định kỳ quét các báo cáo lỗ hổng thu được từ Trivy Operator để tính toán mức độ an toàn của Pod, từ đó gán nhãn phân hạng tin cậy (\texttt{high}, \texttt{medium}, \texttt{low}) trực tiếp lên Pod tương ứng. Nhãn này được Cilium sử dụng làm thuộc tính định danh để áp dụng các chính sách phân vùng mạng.
+    \item \textbf{Cơ chế hoạt động}: Bộ điều khiển PDP định kỳ quét các báo cáo lỗ hổng thu được từ Trivy Operator để tính toán mức độ an toàn của Pod, từ đó gán nhãn phân hạng tin cậy (\texttt{high}, \texttt{medium}, \texttt{low}) trực tiếp lên Pod tương ứng. Công thức thực nghiệm dùng các trọng số cấu hình qua biến môi trường: thiếu nhãn tối đa trừ 30 điểm, CVE Critical trừ 50 điểm và CVE High trừ 20 điểm. Nhãn này được Cilium sử dụng làm thuộc tính định danh để áp dụng các chính sách phân vùng mạng.
     \item \textbf{Kết quả gán nhãn động}: Xem danh sách các nhãn tin cậy được PDP gán động trên các Pod ứng dụng trong cụm:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 $ kubectl get pods -n job7189-apps \
@@ -290,7 +302,7 @@ replicaset-job-service-7755d94d47-app                     job-service           
 \subsection{Trình quản lý mạng Cilium và Công cụ giám sát thời gian thực Tetragon}
 Cilium và Tetragon thực thi các chính sách an ninh mạng và kiểm soát tiến trình ở cấp độ nhân hệ điều hành nhờ công nghệ eBPF.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Cilium thay thế hoàn toàn các quy tắc IPTables truyền thống của Linux bằng cách đính kèm chương trình eBPF trực tiếp vào các giao diện mạng ảo (veth). Lớp chính sách mạng của Cilium hoạt động ở cả lớp 3/4 (địa chỉ IP và cổng) và lớp 7 (đường dẫn HTTP và phương thức) bằng cách định tuyến luồng dữ liệu qua dịch vụ proxy Envoy tích hợp sẵn. Tetragon đính kèm vào các hàm hệ thống lớp nhân (kprobes/tracepoints) để giám sát các lời gọi hệ thống theo thời gian thực.
+    \item \textbf{Cơ chế hoạt động}: Cilium thay thế phần lớn quy tắc IPTables truyền thống của Linux bằng cách đính kèm chương trình eBPF trực tiếp vào các giao diện mạng ảo (veth). Lớp chính sách mạng của Cilium hoạt động ở lớp 3/4 (địa chỉ IP và cổng), đồng thời có thể kiểm soát lớp 7 (đường dẫn HTTP và phương thức) thông qua dịch vụ proxy Envoy tích hợp sẵn. Tetragon đính kèm vào các hàm hệ thống lớp nhân (kprobes/tracepoints) để giám sát các lời gọi hệ thống theo thời gian thực.
     \item \textbf{Cấu hình minh họa (Cilium Network Policy L7)}: Đoạn cấu hình chính sách mạng cho phép gọi API nội bộ có giới hạn đường dẫn từ \texttt{identity-service} sang \texttt{workspace-service} ở tầng ứng dụng L7:
 \begin{minted}[fontsize=\scriptsize,breaklines]{yaml}
 # Trích từ cấu hình thực tế infras/k8s-yaml/cilium-policies/04-allow-internal-api-strict.yaml
@@ -356,8 +368,8 @@ spec:
 \end{minted}
 \end{itemize}
 
-\subsection{Các Microservices nghiệp vụ}
-Các Microservices nghiệp vụ được cấu hình chạy song song với các container phụ trợ trong cùng một Pod để hỗ trợ cập nhật thông tin bảo mật tự động.
+\subsection{Các microservices nghiệp vụ}
+Các microservices nghiệp vụ được cấu hình chạy song song với các container phụ trợ trong cùng một Pod để hỗ trợ cập nhật thông tin bảo mật tự động.
 \begin{itemize}
     \item \textbf{Cơ chế hoạt động}: Khi \texttt{vault-agent} lấy và ghi tài khoản MySQL mới vào tệp \texttt{.env} trên phân vùng bộ nhớ tạm (tmpfs), tiến trình phụ \texttt{env-watcher} sẽ phát hiện sự thay đổi nội dung tệp tin bằng mã băm MD5 và gửi yêu cầu HTTP POST nội bộ tới container \texttt{app} để cập nhật cấu hình hệ thống tức thì. Nếu yêu cầu HTTP thất bại, tiến trình sẽ gửi tín hiệu \texttt{SIGUSR2} tới tiến trình \texttt{php-fpm} master trong Pod để khởi động lại máy chủ ứng dụng một cách an toàn.
     \item \textbf{Đoạn mã giám sát cấu hình}:
@@ -414,6 +426,9 @@ while true; do
   sleep "$CHECK_INTERVAL"
 done
 \end{minted}
+    \textit{Ghi chú: Mã MD5 trong tiến trình \texttt{env-watcher} chỉ dùng để phát hiện tệp \texttt{.env} đã thay đổi, không dùng để bảo vệ bí mật hay kiểm chứng tính toàn vẹn trước kẻ tấn công. Vì vậy, điểm yếu va chạm của MD5 không phải cơ chế bảo mật chính trong thiết kế này; nếu cần bảo đảm chống giả mạo, phải dùng chữ ký hoặc HMAC với khóa bí mật.}
+    
+    \textit{Ghi chú: Endpoint \texttt{/internal/reload-db} chỉ phục vụ tiến trình phụ trong cùng pod và được bảo vệ bằng \texttt{RELOAD\_TOKEN}. Token này không phải ranh giới bảo mật mạnh nếu container ứng dụng đã bị chiếm quyền, vì kẻ tấn công trong container có thể lạm dụng endpoint để gây reload lặp lại. Trong triển khai chặt chẽ hơn, endpoint nên chỉ lắng nghe trên localhost, giới hạn tần suất gọi và tách quyền giữa container ứng dụng với container phụ trách reload.}
     \item \textbf{Kết quả chạy lệnh minh họa}: Nhật ký hoạt động của Pod ghi nhận quy trình xoay vòng tài khoản thành công mà không gây gián đoạn hệ thống:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 [watch-env] vault creds rotated; syncing /app-secrets/.env -> /var/www/.env
@@ -434,15 +449,15 @@ done
 
 \section{Hướng dẫn vận hành hệ thống}
 
-Phần này hướng dẫn quản trị viên thực hiện các thao tác vận hành cơ bản để khởi tạo, kiểm thử và duy trì hệ thống an ninh Zero Trust.
+Phần này hướng dẫn quản trị viên thực hiện các thao tác vận hành cơ bản để khởi tạo, kiểm thử và duy trì hệ thống an ninh Zero Trust. Đây là hướng dẫn tóm tắt theo môi trường của đồ án, không phải tài liệu tái tạo đầy đủ cho mọi cụm Kubernetes.
 
 \subsection{Khởi tạo và cấu hình hệ thống ban đầu}
-Kiến trúc an ninh Zero Trust này được thiết kế để hoạt động trên các cụm Kubernetes tiêu chuẩn mà không bị giới hạn bởi cấu hình phần cứng hay phiên bản hệ điều hành của các nút. Điều kiện tiên quyết về hạ tầng là các nút (bao gồm nút điều khiển - Control Plane và các nút làm việc - Worker Node) phải đảm bảo kết nối thông suốt ở lớp mạng (Lớp 3) thông qua mạng LAN vật lý, mạng riêng ảo (như Tailscale) hoặc các giải pháp tương đương, đồng thời hỗ trợ cơ chế định tuyến mạng Pod overlay (như giao thức VXLAN của Cilium CNI). Ngoài ra, cụm cần có quyền truy cập đến kho lưu trữ ảnh vùng chứa (Docker Registry) công cộng hoặc máy chủ Registry nội bộ (ví dụ: địa chỉ thực nghiệm \texttt{100.74.189.43:5443}).
+Kiến trúc an ninh Zero Trust này được thiết kế để hoạt động trên các cụm Kubernetes tiêu chuẩn, nhưng các lệnh dưới đây phản ánh cấu trúc cụm thử nghiệm của đồ án. Điều kiện tiên quyết về hạ tầng là các nút (bao gồm nút điều khiển - Control Plane và các nút làm việc - Worker Node) phải đảm bảo kết nối thông suốt ở lớp mạng (Lớp 3) thông qua mạng LAN vật lý, mạng riêng ảo (như Tailscale) hoặc các giải pháp tương đương, đồng thời hỗ trợ cơ chế định tuyến mạng Pod overlay (như giao thức VXLAN của Cilium CNI). Ngoài ra, cụm cần có quyền truy cập đến kho lưu trữ ảnh vùng chứa (Docker Registry) công cộng hoặc máy chủ Registry nội bộ (ví dụ: địa chỉ thực nghiệm \texttt{100.74.189.43:5443}).
 
 Quá trình triển khai cụm phân tán và thiết lập hạ tầng bảo mật ban đầu được thực hiện tuần tự như sau:
 
 \subsubsection{Khởi tạo các nút và liên kết cụm Kubernetes (kubeadm)}
-Trong môi trường thực tế, cụm Kubernetes được xây dựng trên các máy ảo độc lập kết nối qua mạng riêng. Quá trình thiết lập cụm được thực hiện bằng cách chạy tuần tự lệnh khởi tạo trên từng nút từ thư mục gốc của dự án:
+Trong môi trường thực tế, cụm Kubernetes được xây dựng trên các máy ảo độc lập kết nối qua mạng riêng. Các tham số \texttt{--server=01}, \texttt{--server=02}, \texttt{--server=03} và \texttt{--server=05} là mã nút trong cụm thử nghiệm: \texttt{srv01} là nút điều khiển, còn \texttt{srv02}, \texttt{srv03} và \texttt{srv05} là các nút làm việc. Quá trình thiết lập cụm được thực hiện bằng cách chạy tuần tự lệnh khởi tạo trên từng nút từ thư mục gốc của dự án:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 # Bước 1: Khởi tạo nút điều khiển chính srv01 (Control Plane)
 # Lệnh thực hiện chuẩn bị máy chủ, khởi tạo cụm kubeadm và cài đặt Cilium CNI
@@ -469,7 +484,7 @@ Khi các nút trong cụm Kubernetes đã ở trạng thái sẵn sàng, quá tr
 \begin{enumerate}
     \item Triển khai các dịch vụ nghiệp vụ và gán nhãn bắt buộc:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
-# Triển khai 7 Microservices nghiệp vụ vào không gian tên job7189-apps
+# Triển khai 7 microservices nghiệp vụ vào không gian tên job7189-apps
 $ bash 03-deploy-microservices.sh
 
 # Khởi tạo cơ sở dữ liệu ban đầu cho các dịch vụ
@@ -495,7 +510,7 @@ $ bash 10-deploy-tetragon.sh
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 $ bash scripts/zta-kb-reconcile.sh
 \end{minted}
-    Kết quả thực thi thành công xác nhận các thành phần vận hành ổn định và không phát hiện sai lệch nghiêm trọng (\texttt{0 FAIL}):
+    Kết quả thực thi thành công xác nhận các kiểm tra trong phạm vi đối chiếu không phát hiện lỗi nghiêm trọng (\texttt{0 FAIL}):
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 ==============================================================================
 ### SECTION 21 — STATIC: KB → repo file refs
@@ -530,7 +545,7 @@ $ bash scripts/zta-kb-reconcile.sh
 $ KUBECONFIG=/home/ptb/.kube/config-job7189 \
   bash scripts/zta-audit-and-remediate.sh
 \end{minted}
-    Kết quả thực thi xác nhận hệ thống không còn lỗ hổng mạng hoặc sai sót về nhãn định danh trong các chính sách của Cilium:
+    Kết quả thực thi xác nhận các điều kiện mà script kiểm tra đang đạt yêu cầu, bao gồm trạng thái node, Cilium, PDP, Trivy và độ phủ tài nguyên chính sách Cilium. Script này chủ yếu kiểm tra sự tồn tại và trạng thái của tài nguyên, chưa thay thế các phép thử chủ động như gửi gói tin kiểm tra để chứng minh từng luật mạng đang chặn đúng luồng:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 [23:46:52] === PRE-FLIGHT CHECKS ===
 [23:46:52]   OK: All nodes Ready
@@ -581,7 +596,7 @@ workspace-service-redis-65cf6d9fd-bgt5l: high
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 $ python3 test_api.py
 \end{minted}
-    Kết quả kiểm thử cho thấy các đường dẫn API phản hồi chính xác và định tuyến thành công qua cổng NodePort của Kong Gateway:
+    Kết quả kiểm thử cho thấy các đường dẫn API chính phản hồi được qua cổng NodePort của Kong Gateway:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 Obtaining Access Token...
 Token obtained successfully.
@@ -616,12 +631,12 @@ GET /api/admin/jobs                                          | Status Code: 502 
 GET /api/admin/categories/sectors                            | Status Code: 502 | PASSED*
 
 ==================================================
-All tested APIs are functioning properly without 500 errors!
+Core API routes responded without 500 errors.
 \end{minted}
-    \textit{Ghi chú: Phản hồi mã lỗi 502 ở các đường dẫn quản trị phát sinh do một số dịch vụ chưa được tải dữ liệu hoặc tạm thời ngắt kết nối để tối ưu hóa tài nguyên thử nghiệm. Tuy nhiên, kết quả này cho thấy cổng bảo mật vẫn chặn các truy cập không hợp lệ đúng theo thiết kế và không phát sinh lỗi hệ thống (mã lỗi 500).}
+    \textit{Ghi chú: Phản hồi mã lỗi 502 ở một số đường dẫn quản trị cho thấy các chức năng này chưa được kiểm chứng đầy đủ trong lần chạy thử, thường do dữ liệu hoặc dịch vụ phụ trợ chưa sẵn sàng. Vì vậy, kết quả trên chỉ dùng để xác nhận luồng định tuyến và các API chính, không xem 502 là bằng chứng thành công của nghiệp vụ quản trị.}
 
 \subsection{Giám sát luồng mạng qua giao diện trực quan}
-Để phân tích luồng dữ liệu hoặc xử lý sự cố kết nối giữa các Microservices, quản trị viên sử dụng giao diện đồ họa của Hubble theo các bước sau:
+Để phân tích luồng dữ liệu hoặc xử lý sự cố kết nối giữa các microservices, quản trị viên sử dụng giao diện đồ họa của Hubble theo các bước sau:
 \begin{enumerate}
     \item Kích hoạt chuyển tiếp cổng (port-forward) từ máy trạm đến dịch vụ Hubble UI trong cụm:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
@@ -629,5 +644,5 @@ $ KUBECONFIG=/home/ptb/.kube/config-job7189 \
   kubectl port-forward -n kube-system svc/hubble-ui 12000:80
 \end{minted}
     \item Mở trình duyệt web và truy cập địa chỉ \texttt{http://localhost:12000}.
-    \item Chọn không gian tên \texttt{job7189-apps} ở góc trên bên trái để quan sát sơ đồ kết nối thời gian thực giữa các Microservices nghiệp vụ. Các kết nối bị chặn bởi chính sách Cilium sẽ hiển thị màu đỏ (dropped), các luồng hợp lệ sẽ hiển thị màu xanh (forwarded), giúp dễ dàng định vị lỗi cấu hình chính sách.
+    \item Chọn không gian tên \texttt{job7189-apps} ở góc trên bên trái để quan sát sơ đồ kết nối thời gian thực giữa các microservices nghiệp vụ. Các kết nối bị chặn bởi chính sách Cilium sẽ hiển thị màu đỏ (dropped), các luồng hợp lệ sẽ hiển thị màu xanh (forwarded), giúp dễ dàng định vị lỗi cấu hình chính sách.
 \end{enumerate}

@@ -88,6 +88,27 @@
 \usepackage{longtable}  
 \usepackage{array}      
 
+% Quy ước màu bảng:
+% - Concept: bảng nền tảng/so sánh lý thuyết.
+% - Tech: bảng công nghệ, cơ chế bảo vệ, thành phần hệ thống.
+% - Risk: bảng rủi ro, tấn công, mức độ bao phủ phòng thủ.
+% - Deploy: bảng triển khai, thực nghiệm, trạng thái vận hành.
+\definecolor{TableRule}{HTML}{D6DEE8}
+\definecolor{TableConceptHeader}{HTML}{DCEBFF}
+\definecolor{TableConceptStripe}{HTML}{F3F8FF}
+\definecolor{TableTechHeader}{HTML}{DDF3EA}
+\definecolor{TableTechStripe}{HTML}{F2FBF7}
+\definecolor{TableRiskHeader}{HTML}{F9DEDE}
+\definecolor{TableRiskStripe}{HTML}{FFF4F4}
+\definecolor{TableDeployHeader}{HTML}{FCE7CF}
+\definecolor{TableDeployStripe}{HTML}{FFF7ED}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\TableConceptColors}{\arrayrulecolor{TableRule}\rowcolors{2}{TableConceptStripe}{white}}
+\newcommand{\TableTechColors}{\arrayrulecolor{TableRule}\rowcolors{2}{TableTechStripe}{white}}
+\newcommand{\TableRiskColors}{\arrayrulecolor{TableRule}\rowcolors{2}{TableRiskStripe}{white}}
+\newcommand{\TableDeployColors}{\arrayrulecolor{TableRule}\rowcolors{2}{TableDeployStripe}{white}}
+
 %======================================================================
 % 6. ĐỊNH DẠNG CODE & LIST
 %======================================================================

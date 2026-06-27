@@ -39,9 +39,9 @@ job.batch/it-shadow-124145 created
     \begin{itemize}
         \item \textit{Shadow Analyzer (impossible-travel-shadow):} Tác vụ định kỳ thực hiện việc truy vấn và kiểm tra chéo các sự kiện đăng nhập.
         \item \textit{Keycloak Server (keycloak.security):} Điểm xác thực trung tâm ghi nhận sự kiện đăng nhập và cung cấp Admin API.
-        \item \textit{Cilium Network Policy:} Chính sách mạng cho phép đầu ra (Egress) của Analyzer truy cập dịch vụ DNS và dịch vụ Keycloak nội bộ, đồng thời mở cổng đầu vào (Ingress) trên Keycloak để tiếp nhận kết nối an toàn.
+        \item \textit{Cilium Network Policy:} Chính sách mạng cho phép lưu lượng đi ra từ Analyzer tới dịch vụ DNS và dịch vụ Keycloak nội bộ, đồng thời mở lưu lượng đi vào Keycloak để tiếp nhận kết nối an toàn.
     \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Cơ chế Impossible Travel được thiết kế ở chế độ Shadow (Audit-only) để chạy thử nghiệm và kiểm toán chất lượng dữ liệu trước khi chuyển sang giai đoạn cưỡng chế. Điều này giúp ngăn chặn hoàn toàn nguy cơ khóa nhầm tài khoản của người dùng hợp lệ do thuật toán nhận diện sai địa chỉ IP động.
+    \item \textbf{Tại sao cấu hình như thế:} Cơ chế Impossible Travel được thiết kế ở chế độ Shadow (Audit-only) để chạy thử nghiệm và kiểm toán chất lượng dữ liệu trước khi chuyển sang giai đoạn cưỡng chế. Cách vận hành này giúp giảm nguy cơ khóa nhầm tài khoản của người dùng hợp lệ do thuật toán nhận diện sai địa chỉ IP động.
     \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
     \begin{itemize}
         \item Lệnh triển khai (mục 1) thiết lập tệp cấu hình Python quét sự kiện, lập lịch chạy định kỳ và cấu hình các quy định phân đoạn mạng của Cilium để đảm bảo an toàn biên cho Detector.
@@ -106,7 +106,7 @@ tmp-ok
 \label{subsec:c3_kb13}
 %--------------------------------------------------------------
 
-\textbf{Kịch bản tấn công (T1562):} Hệ thống chứa các lỗ hổng đã được công bố công khai nhưng mức độ nghiêm trọng trong bộ tính điểm cũ chỉ được đánh giá cơ bản dựa trên số lượng lỗ hổng (Critical/High) mà chưa phân biệt được các lỗ hổng đang bị khai thác tích cực trong thực tế, dẫn đến điểm tin cậy của Pod không phản ánh chính xác rủi ro khai thác tức thời \parencite{mitre_t1562}.
+\textbf{Kịch bản tấn công (T1562):} Hệ thống chứa các lỗ hổng đã được công bố công khai nhưng mức độ nghiêm trọng trong bộ tính điểm cũ chỉ được đánh giá cơ bản dựa trên số lượng lỗ hổng (Critical/High), chưa phân biệt rõ các lỗ hổng đang bị khai thác tích cực trong thực tế. Vì vậy, điểm tin cậy của Pod có thể chưa phản ánh đúng rủi ro khai thác tức thời \parencite{mitre_t1562}.
 
 \textbf{Cơ chế phòng thủ hiện tại:} Hệ thống tích hợp nguồn thông tin tình báo về các lỗ hổng đang bị khai thác trong thực tế từ danh mục CISA KEV (Known Exploited Vulnerabilities) vào bộ điều khiển ra quyết định \texttt{zta-pdp}. Cơ chế này hoạt động bằng cách tải danh sách các mã lỗi bảo mật (CVE) từ CISA và lưu trữ dưới dạng \texttt{ConfigMap} mang tên \texttt{kev-catalog}. Khi thực hiện tính điểm tin cậy cho Pod dựa trên báo cáo quét của Trivy, nếu phát hiện Pod chứa bất kỳ lỗ hổng nào thuộc danh sách KEV này, PDP sẽ áp dụng trọng số trừ rất nặng (\texttt{PDP\_WEIGHT\_KEV = 40}) để hạ điểm tin cậy của Pod xuống mức tối thiểu nhằm kích hoạt ngay lập tức cơ chế cô lập.
 
@@ -203,11 +203,11 @@ Jun 24 05:43:02.124: zta-demo/probe-low:38492 -> vault/vault-0:8200 policy-deny 
         \item \textit{Chính sách mạng (ccnp-low-trust-isolate-ew):} Luật chặn tất cả lưu lượng từ Pod \texttt{low} tới các vùng dữ liệu nhạy cảm.
         \item \textit{Cơ chế giám sát (Hubble):} Công cụ ghi nhận trạng thái luồng và các gói tin bị từ chối trực tiếp ở tầng nhân.
     \end{itemize}
-    \item \textbf{Tại sao cấu hình như thế:} Thiết kế ma trận phân cấp bảo vệ giúp hệ thống không phản ứng thái quá bằng cách xoá sổ Pod (làm gián đoạn dịch vụ tức thời), mà thay vào đó là tước đoạt dần quyền truy cập mạng nội bộ. Khi Pod bị hạ điểm về mức \texttt{low}, chính sách mạng sử dụng luật chặn phủ quyết (\texttt{egressDeny}) để ngắt kết nối E-W tới Vault và cơ sở dữ liệu nhằm ngăn chặn tin tặc lấy trộm dữ liệu, nhưng vẫn giữ kết nối North-South để phục vụ việc chẩn đoán.
+    \item \textbf{Tại sao cấu hình như thế:} Thiết kế ma trận phân cấp bảo vệ giúp hệ thống không phản ứng thái quá bằng cách xoá sổ Pod (làm gián đoạn dịch vụ tức thời), mà thay vào đó là tước đoạt dần quyền truy cập mạng nội bộ. Khi Pod bị hạ điểm về mức \texttt{low}, chính sách mạng sử dụng luật chặn lưu lượng đi ra \texttt{egressDeny} để ngắt kết nối E-W tới Vault và cơ sở dữ liệu nhằm ngăn chặn tin tặc lấy trộm dữ liệu, nhưng vẫn giữ kết nối North-South để phục vụ việc chẩn đoán.
     \item \textbf{Ý nghĩa hoạt động và kết quả lệnh:} 
     \begin{itemize}
         \item Lệnh thứ nhất (mục 1) thiết lập hai chính sách mạng toàn cụm áp dụng cho các Pod có điểm tin cậy \texttt{medium} và \texttt{low}.
-        \item Lệnh thứ hai (mục 2) khởi chạy quy trình tự động tạo các Pod giả lập có nhãn tin cậy khác nhau để thử nghiệm kết nối tới \texttt{Vault}, kết quả ghi nhận Pod \texttt{low} bị chặn hoàn toàn trong khi Pod \texttt{high} kết nối thành công (\texttt{low=blocked high=reachable}).
+        \item Lệnh thứ hai (mục 2) khởi chạy quy trình tự động tạo các Pod giả lập có nhãn tin cậy khác nhau để thử nghiệm kết nối tới \texttt{Vault}, kết quả ghi nhận Pod \texttt{low} bị chặn kết nối trong khi Pod \texttt{high} kết nối thành công (\texttt{low=blocked high=reachable}).
         \item Dữ liệu từ Hubble (mục 3) minh chứng gói tin từ Pod \texttt{probe-low} gửi đến cổng 8200 của \texttt{Vault} đã bị Cilium chặn trực tiếp và đánh dấu trạng thái \texttt{policy-deny dropped}.
     \end{itemize}
 \end{itemize}
@@ -217,4 +217,3 @@ Jun 24 05:43:02.124: zta-demo/probe-low:38492 -> vault/vault-0:8200 policy-deny 
 %==============================================================================
 % 3.6 ĐÁNH GIÁ TỔNG HỢP VÀ HẠN CHẾ
 %==============================================================================
-

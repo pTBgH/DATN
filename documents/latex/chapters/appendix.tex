@@ -99,7 +99,7 @@ plugins:
             })
           end
 \end{minted}
-    \textit{Ghi chú: Trong đoạn cấu hình minh họa, tùy chọn \texttt{ssl\_verify = false} được dùng để đơn giản hóa kết nối nội bộ trong môi trường phòng thí nghiệm. Khi vận hành thật, kết nối từ Kong tới OPA cần bật xác minh chứng chỉ hoặc dùng kênh nội bộ được bảo vệ bằng chứng chỉ tin cậy để tránh nguy cơ bị can thiệp trên đường truyền.}
+    \textit{Ghi chú: Trong đoạn cấu hình minh họa, tùy chọn \texttt{ssl\_verify = false} được dùng để đơn giản hóa kết nối nội bộ trong môi trường phòng thí nghiệm. Khi vận hành thật, kết nối từ Kong tới OPA cần xác minh chứng chỉ hoặc cơ chế xác thực tương đương để bảo đảm đúng đầu cuối ở tầng TLS.}
     \item \textbf{Kết quả chạy lệnh minh họa}: Khi gửi yêu cầu không có mã thông báo hoặc khi mã thông báo bị OPA từ chối:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 # Trường hợp không gửi mã thông báo JWT (Kong chặn trực tiếp tại route):
@@ -139,12 +139,12 @@ $ curl -s -X POST "http://100.108.231.127:30000/realms/job7189/protocol/openid-c
   -d "username=recruiter1" \
   -d "password=recruiter1" | jq
 
-# Kết quả phản hồi chứa mã thông báo truy cập:
+# Kết quả phản hồi minh họa chứa mã thông báo truy cập:
 {
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ4Nk...",
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJqb2I3MTg5LWRlbW8ta2V5In0.eyJleHAiOjE3MTgyOTg2MDAsImlhdCI6MTcxODI5ODMwMCwiYXV0aF90aW1lIjoxNzE4Mjk4Mjk4LCJqdGkiOiJkZW1vLWFjY2Vzcy10b2tlbi0wMDEiLCJpc3MiOiJodHRwOi8va2V5Y2xvYWsuc2VjdXJpdHkuc3ZjLmNsdXN0ZXIubG9jYWw6ODA4MC9yZWFsbXMvam9iNzE4OSIsImF1ZCI6InJlY3J1aXRlci1hcHAiLCJzdWIiOiIwMTllYjRkOS00ZGQ3LTcyOGUtYWY3MS0wOWNiY2Y3ZmI1NTUiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJyZWNydWl0ZXItYXBwIiwic2Vzc2lvbl9zdGF0ZSI6ImEzZDdiNDg5LTAxMTItNDIxMS05YTc0LTBmYzAzYmY2YWIxOCIsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJyZWNydWl0ZXIxIiwiZW1haWwiOiJyZWNydWl0ZXIxQGpvYjcxODkuY29tIiwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInJlY3J1aXRlciJdfX0.demo-signature-job7189-access-token",
   "expires_in": 300,
   "refresh_expires_in": 1800,
-  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5c...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCIgOiAiUmVmcmVzaCIsImtpZCIgOiAiam9iNzE4OS1kZW1vLXJlZnJlc2gifQ.eyJleHAiOjE3MTgzMDAxMDAsImlhdCI6MTcxODI5ODMwMCwianRpIjoiZGVtby1yZWZyZXNoLXRva2VuLTAwMSIsImlzcyI6Imh0dHA6Ly9rZXljbG9hay5zZWN1cml0eS5zdmMuY2x1c3Rlci5sb2NhbDo4MDgwL3JlYWxtcy9qb2I3MTg5IiwiYXVkIjoiaHR0cDovL2tleWNsb2FrLnNlY3VyaXR5LnN2Yy5jbHVzdGVyLmxvY2FsOjgwODAvcmVhbG1zL2pvYjcxODkiLCJzdWIiOiIwMTllYjRkOS00ZGQ3LTcyOGUtYWY3MS0wOWNiY2Y3ZmI1NTUiLCJzZXNzaW9uX3N0YXRlIjoiYTNkN2I0ODktMDExMi00MjExLTlhNzQtMGZjMDNiZjZhYjE4Iiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCJ9.demo-signature-job7189-refresh-token",
   "token_type": "Bearer",
   "not-before-policy": 0,
   "session_state": "a3d7b489-0112-4211-9a74-0fc03bf6ab18",
@@ -158,11 +158,11 @@ $ curl -s http://keycloak.security.svc.cluster.local:8080/realms/job7189/protoco
 {
   "keys": [
     {
-      "kid": "4x60x9miRRead...",
+      "kid": "job7189-demo-rs256-key-20260613",
       "kty": "RSA",
       "alg": "RS256",
       "use": "sig",
-      "n": "u1L7Z2m...",
+      "n": "u1L7Z2mVvYl9xRjZpTzF2d0ZpS1V0aU9sSm9iNzE4OURlbW9QdWJsaWNLZXlNb2R1bHVzQmFzZTY0VXJsU2FmZVZhbHVlX0tleWNsb2FrX1JTMjU2",
       "e": "AQAB"
     }
   ]
@@ -220,7 +220,7 @@ Selectors     : k8s:pod-label:app:identity-service
 \subsection{Hệ thống quản lý thông tin mật Vault}
 Vault quản lý các thông tin cấu hình nhạy cảm và cấp phát tài khoản cơ sở dữ liệu động với thời hạn ngắn.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi microservice nghiệp vụ như \texttt{identity-service} khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực tối đa là 3600 giây (1 giờ).
+    \item \textbf{Cơ chế hoạt động}: Thay vì sử dụng phương thức xác thực Kubernetes thông thường, hệ thống được cấu hình phương thức xác thực JWT (\texttt{auth/jwt}). Khi microservice nghiệp vụ như \texttt{identity-service} khởi chạy, tiến trình phụ \texttt{spiffe-helper} trong Pod sẽ lấy mã thông báo định danh JWT-SVID từ SPIRE Agent và ghi vào một tệp tin tạm trên bộ nhớ đệm. Tiến trình \texttt{vault-agent} sau đó sử dụng mã thông báo này để đăng nhập vào Vault qua điểm cuối \texttt{auth/jwt/login} với vai trò (\texttt{role}) tương ứng. Sau khi xác thực thành công, Vault Agent tự động lấy và lưu trữ thông tin tài khoản MySQL động được sinh ra với thời hạn hiệu lực ngắn. Trong môi trường mô phỏng, thời hạn này được đặt thấp, khoảng 10--15 phút, để dễ quan sát việc xoay vòng bí mật; giá trị trong kết quả lệnh chỉ thể hiện cấu hình tại thời điểm minh họa.
     \item \textbf{Cấu hình chính sách Vault}: Đoạn mã cấu hình quyền hạn cho phép microservice nghiệp vụ đọc thông tin tài khoản động:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 # Vault Policy: identity-service-policy
@@ -237,8 +237,8 @@ path "secret/data/production/identity-service" {
 $ vault write auth/jwt/login jwt=@/tmp/jwt_svid.token role=identity-service
 Key                  Value
 ---                  -----
-token                hvs.CAESIKP_w8qG4vA4Ld_XmP...
-token_accessor       Z9O3sV3hY45Y1e...
+token                hvs.CAESIGpvYjcxODktaWRlbnRpdHktc2VydmljZS12YXVsdC10b2tlbi1kZW1vLTAwMQ
+token_accessor       Z9O3sV3hY45Y1eJob7189DemoAccessor001
 token_duration       20m
 token_renewable      true
 token_policies       ["default" "identity-service"]
@@ -250,12 +250,12 @@ $ vault read database/creds/identity-service
 Key                Value
 ---                -----
 lease_id           database/creds/identity-service/hvs.Pap9ErlQGUCRSyhrZtDue5iq.lease-abc123xyz
-lease_duration     3600
+lease_duration     900
 lease_renewable    true
 password           A1b2C3d4_E5f6G7
 username           v-token-identity-service-abcdef1234
 \end{minted}
-    \textit{Ghi chú: JWT-SVID do SPIRE cấp dựa trên thông tin pod, namespace và service account, sau đó Vault đối chiếu với vai trò tương ứng trước khi cấp bí mật. Cơ chế này làm giảm khả năng pod khác tự nhận vai trò của \texttt{identity-service}; tuy nhiên hiệu quả phụ thuộc vào việc ràng buộc đúng trust domain, audience, policy Vault và quyền truy cập tới Workload API.}
+    \textit{Ghi chú: JWT-SVID do SPIRE cấp dựa trên thông tin pod, namespace và service account, sau đó Vault đối chiếu với vai trò tương ứng trước khi cấp bí mật. Cơ chế này làm giảm khả năng pod khác tự nhận vai trò của \texttt{identity-service}; tuy nhiên hiệu quả phụ thuộc vào việc ràng buộc đúng trust domain, audience, policy Vault và quyền truy cập tới Workload API. Trong ví dụ này, thời hạn hiệu lực của token Vault dài hơn thời hạn của tài khoản cơ sở dữ liệu động; Vault Agent cần gia hạn token đúng hạn để tránh gián đoạn khi lấy bí mật mới.}
 \end{itemize}
 
 \subsection{Bộ quyết định chính sách PDP}
@@ -266,36 +266,36 @@ Bộ quyết định chính sách PDP thực hiện tính toán điểm tin cậ
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
 $ kubectl get pods -n job7189-apps \
   -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.labels.zta\.job7189/score-bucket}{"\n"}{end}'
-candidate-service-7ffc7b57b7-22shz: high
-candidate-service-7ffc7b57b7-v4j7w: high
-candidate-service-redis-5b484c7f88-mcj7q: high
-communication-service-6dc7d6dd46-f8mv4: low
-communication-service-redis-fc6645965-hhrkn: high
-hiring-service-85c57cc589-m9zs6: high
-hiring-service-redis-6585c68cb9-87q8b: high
-identity-service-657f64c7d5-ks7x4: high
-identity-service-redis-569fb4c444-mgngz: high
-job-service-7755d94d47-gbftq: high
-job-service-redis-5b987-qmjvw: high
-storage-service-7c5db66b7-nsjk4: low
-storage-service-redis-78cb79b765-6zkfm: high
-workspace-service-6c68c569d9-4frrg: high
-workspace-service-redis-65cf6d9fd-bgt5l: high
+candidate-service-7ffc7b57b7-5jfsd: high
+candidate-service-redis-5b484c7f88-5kdcq: high
+communication-service-6dc7d6dd46-w5rlm: high
+communication-service-redis-fc6645965-sfglx: high
+hiring-service-5d45fd8cc5-rjlg6: high
+hiring-service-redis-6585c68cb9-2z5kt: high
+identity-service-657f64c7d5-7l2p6: high
+identity-service-redis-569fb4c444-hvsh5: high
+job-service-7755d94d47-scz5t: high
+job-service-redis-5b987-bgqwm: high
+storage-service-7c5db66b7-mkcvr: high
+storage-service-redis-78cb79b765-r9bdq: high
+workspace-service-6c68c569d9-vws7s: high
+workspace-service-redis-65cf6d9fd-7j5d6: high
 \end{minted}
 \end{itemize}
 
 \subsection{Công cụ quét lỗ hổng Trivy Operator}
-Trivy Operator thực hiện giám sát liên tục các lỗ hổng bảo mật của hình ảnh vùng chứa trong cụm, chạy độc lập trong không gian tên \texttt{security-cdm} để hạn chế quyền hạn truy cập.
+Trivy Operator thực hiện quét lỗ hổng bảo mật của hình ảnh vùng chứa trong cụm, chạy độc lập trong không gian tên \texttt{security-cdm} để hạn chế quyền hạn truy cập.
 \begin{itemize}
-    \item \textbf{Cơ chế hoạt động}: Trivy Operator phát hiện các Pod trong cụm Kubernetes và tự động kích hoạt các tác vụ (Job) quét lỗ hổng bảo mật của hình ảnh vùng chứa tương ứng, sau đó xuất kết quả dưới dạng tài nguyên tùy biến \texttt{VulnerabilityReport}.
+    \item \textbf{Cơ chế hoạt động}: Trivy Operator phát hiện các Pod trong cụm Kubernetes và kích hoạt các tác vụ (Job) quét lỗ hổng bảo mật của hình ảnh vùng chứa tương ứng, sau đó xuất kết quả dưới dạng tài nguyên tùy biến \texttt{VulnerabilityReport}. Tại thời điểm kiểm tra hiện tại, các báo cáo này mới phủ một phần workload trong cụm.
     \item \textbf{Kết quả quét lỗ hổng}: Xem danh sách các báo cáo quét lỗ hổng an ninh được Trivy sinh ra:
 \begin{minted}[fontsize=\scriptsize,breaklines]{bash}
-$ kubectl get vulnerabilityreports -n job7189-apps
-NAME                                                     REPOSITORY                     TAG      STATUS
-db-mysql-0-mysql                                         mysql                          8.0.33   Critical
-replicaset-candidate-service-7ffc7b57b7-app              candidate-service              v1.0.0   Low
-replicaset-identity-service-657f64c7d5-app               identity-service               v1.0.0   Low
-replicaset-job-service-7755d94d47-app                     job-service                    v1.0.0   Low
+$ kubectl get vulnerabilityreports -A
+NAMESPACE      NAME                                           REPOSITORY        TAG       SCANNER
+kube-system    daemonset-cilium-envoy-cilium-envoy            cilium-envoy                Trivy
+kube-system    pod-etcd-7189srv01-etcd                        etcd              3.5.12-0  Trivy
+monitoring     daemonset-filebeat-filebeat                    beats/filebeat    7.17.18   Trivy
+security-cdm   cronjob-threat-intel-refresh-apply-configmap   alpine/k8s        1.29.10   Trivy
+security-cdm   cronjob-threat-intel-refresh-fetch-feeds       curlimages/curl   8.5.0     Trivy
 \end{minted}
 \end{itemize}
 
@@ -362,7 +362,7 @@ spec:
           matchActions:
             - action: Post
 \end{minted}
-    Kết quả ghi nhận sự kiện gọi shell từ tệp nhật ký kiểm toán JSON của Tetragon:
+    Kết quả ghi nhận sự kiện gọi shell từ tệp log kiểm toán JSON của Tetragon:
 \begin{minted}[fontsize=\scriptsize,breaklines]{json}
 {"process":{"exec_id":"Nzk4NzQ6MTA=","pid":79874,"uid":0,"cwd":"/app","binary":"/bin/sh","arguments":"-c whoami"},"type":"process_exec","node_name":"7189srv05","time":"2026-06-13T22:58:12Z","action":"POST"}
 \end{minted}
@@ -429,7 +429,7 @@ done
     \textit{Ghi chú: Mã MD5 trong tiến trình \texttt{env-watcher} chỉ dùng để phát hiện tệp \texttt{.env} đã thay đổi, không dùng để bảo vệ bí mật hay kiểm chứng tính toàn vẹn trước kẻ tấn công. Vì vậy, điểm yếu va chạm của MD5 không phải cơ chế bảo mật chính trong thiết kế này; nếu cần bảo đảm chống giả mạo, phải dùng chữ ký hoặc HMAC với khóa bí mật.}
     
     \textit{Ghi chú: Endpoint \texttt{/internal/reload-db} chỉ phục vụ tiến trình phụ trong cùng pod và được bảo vệ bằng \texttt{RELOAD\_TOKEN}. Token này không phải ranh giới bảo mật mạnh nếu container ứng dụng đã bị chiếm quyền, vì kẻ tấn công trong container có thể lạm dụng endpoint để gây reload lặp lại. Trong triển khai chặt chẽ hơn, endpoint nên chỉ lắng nghe trên localhost, giới hạn tần suất gọi và tách quyền giữa container ứng dụng với container phụ trách reload.}
-    \item \textbf{Kết quả chạy lệnh minh họa}: Nhật ký hoạt động của Pod ghi nhận quy trình xoay vòng tài khoản thành công mà không gây gián đoạn hệ thống:
+    \item \textbf{Kết quả chạy lệnh minh họa}: Log hoạt động của Pod ghi nhận quy trình xoay vòng tài khoản thành công mà không gây gián đoạn hệ thống:
 \begin{minted}[fontsize=\scriptsize,breaklines]{text}
 [watch-env] vault creds rotated; syncing /app-secrets/.env -> /var/www/.env
 [watch-env] reloading web/worker (NOT watch-env): laravel-service:nginx laravel-service:php8-fpm laravel-service:laravel-queue_00
@@ -503,6 +503,57 @@ $ bash 10-deploy-tetragon.sh
 \end{minted}
 \end{enumerate}
 
+\subsection{Cập nhật mã nguồn và bổ sung dịch vụ nghiệp vụ}
+
+Phần này mô tả quy trình vận hành khi cần thay đổi mã nguồn một dịch vụ đang có hoặc thêm một dịch vụ Laravel mới vào hệ thống. Về nguyên tắc, thay đổi mã nguồn không chỉ dừng ở việc dựng lại image; image mới còn phải đi qua registry, chữ ký số, Helm values, lớp định danh, bí mật động, chính sách mạng và các bước kiểm tra sau triển khai.
+
+\subsubsection{Cập nhật mã nguồn của một dịch vụ đang có}
+Với các dịch vụ đã tồn tại như \texttt{identity-service}, \texttt{job-service} hoặc \texttt{communication-service}, quy trình cập nhật được thực hiện theo các bước sau:
+\begin{enumerate}
+    \item Sửa mã nguồn trong thư mục dịch vụ tương ứng, ví dụ \texttt{src/identity\_service/laravel\_back}. Nếu thay đổi có liên quan đến API, cần kiểm tra lại route, request, response và quyền truy cập tương ứng ở Kong hoặc OPA.
+    \item Dựng image mới, đẩy lên registry nội bộ và ký image bằng Cosign. Trong môi trường hiện tại, script \texttt{scripts/build\_and\_deploy.sh} thực hiện các bước này, đồng thời lấy digest của image và ghi lại vào \texttt{image.fullImage} trong tệp values của dịch vụ:
+\begin{minted}[fontsize=\scriptsize,breaklines]{bash}
+$ bash scripts/build_and_deploy.sh identity-service v2.8.22
+\end{minted}
+    \item Helm cập nhật Deployment bằng image mới. Nếu tên release và nhãn \texttt{app} không đổi, các chính sách Cilium, Vault role, SPIFFE ID và luật quan sát hiện có vẫn tiếp tục áp dụng cho pod mới.
+    \item Khi pod mới khởi động, \texttt{spiffe-helper} lấy JWT-SVID từ SPIRE, Vault Agent dùng JWT-SVID để đăng nhập Vault, sau đó lấy tài khoản cơ sở dữ liệu động tại đường dẫn \texttt{database/creds/ten-dich-vu}. Container phụ \texttt{env-loader} ghép các tệp môi trường, còn \texttt{env-watcher} gọi endpoint nội bộ để ứng dụng nạp lại thông tin kết nối khi bí mật đổi.
+    \item Sau khi rollout xong, cần kiểm tra trạng thái pod, endpoint, nhãn tin cậy và kết nối API:
+\begin{minted}[fontsize=\scriptsize,breaklines]{bash}
+$ kubectl rollout status deployment/identity-service -n job7189-apps
+$ kubectl get pod -n job7189-apps -l app=identity-service --show-labels
+$ python3 test_api.py
+\end{minted}
+\end{enumerate}
+
+Cơ chế đi qua của một lần cập nhật có thể tóm tắt như sau: mã nguồn được đóng gói thành image; image được đẩy lên registry và ký; Helm đưa digest mới vào Deployment; Kubernetes tạo pod mới; SPIRE và Vault cấp định danh cùng bí mật ngắn hạn; Cilium, Gatekeeper, Tetragon, Trivy và PDP tiếp tục áp chính sách dựa trên image, nhãn và tín hiệu quan sát của pod.
+
+\subsubsection{Bổ sung một dịch vụ backend mới}
+Khi thêm một dịch vụ mới, cần chuẩn bị đồng thời cả phần ứng dụng và phần chính sách. Nếu chỉ thêm Deployment mà thiếu định danh, bí mật hoặc chính sách mạng, dịch vụ có thể khởi động nhưng không đi qua đầy đủ cơ chế Zero Trust của hệ thống.
+\begin{enumerate}
+    \item Tạo mã nguồn dịch vụ trong \texttt{src/ten\_service/laravel\_back}, bảo đảm có \texttt{Dockerfile.production}, cấu hình Laravel, route kiểm tra sức khỏe và endpoint nội bộ cần thiết nếu dịch vụ dùng cơ chế nạp lại bí mật động.
+    \item Tạo tệp \texttt{k8s-management/values/ten-values.yaml}. Tệp này khai báo \texttt{image.fullImage}, biến môi trường, CSDL tương ứng, Redis nếu cần, host ingress nếu có, cùng các nhãn \texttt{zta.job7189/*} như vai trò, tầng dịch vụ, mức lộ diện và nhóm phụ trách.
+    \item Khai báo CSDL hoặc quyền truy cập dữ liệu cho dịch vụ mới. Nếu dịch vụ dùng MySQL động qua Vault, cần có database role tương ứng với tên release, ví dụ \texttt{database/roles/ten-service}, và chính sách cho phép đọc \texttt{database/creds/ten-service}.
+    \item Bổ sung định danh workload cho SPIRE theo namespace, ServiceAccount và nhãn pod của dịch vụ. Tên ServiceAccount do chart tạo theo tên release, nên cần giữ thống nhất giữa release Helm, Vault role và SPIFFE ID.
+    \item Bổ sung dịch vụ vào quy trình triển khai. Với chart dùng chung \texttt{laravel-app}, mỗi dịch vụ là một release Helm riêng; nếu muốn script tổng \texttt{03-deploy-microservices.sh} quản lý dịch vụ mới, cần thêm tên dịch vụ vào danh sách dịch vụ, danh sách đường dẫn bí mật Vault và cấu hình Helmfile tương ứng.
+    \item Khai báo đường đi qua gateway nếu dịch vụ có API cho frontend hoặc người dùng bên ngoài. Khi đó cần thêm service/route trong \texttt{infras/kong/kong.yml}, cập nhật policy OPA nếu route cần phân quyền, và kiểm tra lại client hoặc role trong Keycloak nếu có quyền mới.
+    \item Khai báo chính sách mạng Cilium theo nguyên tắc chỉ mở luồng cần thiết: ai được gọi dịch vụ mới, dịch vụ mới được gọi backend nào, được truy cập CSDL/Redis/Kafka/MinIO nào, và có cần luồng gửi ra ngoài hay không.
+    \item Triển khai và kiểm tra. Sau khi pod chạy, cần xác nhận Service có endpoint, Vault cấp được bí mật, SPIRE cấp được SVID, Cilium không chặn nhầm luồng hợp lệ, Trivy sinh báo cáo khi quét xong và PDP gán nhãn tin cậy cho pod.
+\end{enumerate}
+
+\subsubsection{Cập nhật frontend trên Cloudflare Pages}
+Hai frontend \texttt{atd\_frontend} và \texttt{rct\_frontend} không chạy trong cụm Kubernetes. Khi thay đổi giao diện hoặc nối thêm API mới, cần cập nhật mã nguồn frontend, biến môi trường public và triển khai lại qua Cloudflare Pages:
+\begin{minted}[fontsize=\scriptsize,breaklines]{bash}
+$ cd atd_frontend
+$ npm run pages:build
+$ npm run pages:deploy
+
+$ cd ../rct_frontend
+$ npm run pages:build
+$ npm run pages:deploy
+\end{minted}
+
+Các biến như \texttt{NEXT\_PUBLIC\_API\_BASE\_URL}, \texttt{NEXT\_PUBLIC\_USE\_MOCK} và cấu hình Keycloak cần được đặt đúng trước khi build vì chúng được đưa vào gói frontend tại thời điểm đóng gói. Sau khi frontend được triển khai, trình duyệt tải giao diện từ Cloudflare Pages, gọi Keycloak để đăng nhập và gửi yêu cầu nghiệp vụ tới Kong Gateway. Vì vậy, nếu thêm API mới cho frontend, phải kiểm tra đồng thời route ở Kong, policy OPA, quyền Keycloak và chính sách Cilium phía backend.
+
 \subsection{Xác minh trạng thái an ninh của hệ thống}
 Để kiểm tra tính tuân thủ của cụm đối với kiến trúc Zero Trust và phát hiện các sai lệch cấu hình giữa các thành phần, quản trị viên có thể sử dụng các công cụ đối chiếu tự động sau:
 
@@ -556,24 +607,23 @@ $ KUBECONFIG=/home/ptb/.kube/config-job7189 \
 [23:46:54] === TASK 2: PDP Controller ===
 [23:46:54]   OK: PDP controller Running in namespace 'security' (1 pod(s))
 [23:46:54]   Score-bucket labels on app pods:
-candidate-service-7ffc7b57b7-22shz: high
-candidate-service-7ffc7b57b7-v4j7w: high
-candidate-service-redis-5b484c7f88-mcj7q: high
-communication-service-6dc7d6dd46-f8mv4: low
-communication-service-redis-fc6645965-hhrkn: high
-hiring-service-85c57cc589-m9zs6: high
-hiring-service-redis-6585c68cb9-87q8b: high
-identity-service-657f64c7d5-ks7x4: high
-identity-service-redis-569fb4c444-mgngz: high
-job-service-7755d94d47-gbftq: high
-job-service-redis-5b987-qmjvw: high
-storage-service-7c5db66b7-nsjk4: low
-storage-service-redis-78cb79b765-6zkfm: high
-workspace-service-6c68c569d9-4frrg: high
-workspace-service-redis-65cf6d9fd-bgt5l: high
+candidate-service-7ffc7b57b7-5jfsd: high
+candidate-service-redis-5b484c7f88-5kdcq: high
+communication-service-6dc7d6dd46-w5rlm: high
+communication-service-redis-fc6645965-sfglx: high
+hiring-service-5d45fd8cc5-rjlg6: high
+hiring-service-redis-6585c68cb9-2z5kt: high
+identity-service-657f64c7d5-7l2p6: high
+identity-service-redis-569fb4c444-hvsh5: high
+job-service-7755d94d47-scz5t: high
+job-service-redis-5b987-bgqwm: high
+storage-service-7c5db66b7-mkcvr: high
+storage-service-redis-78cb79b765-r9bdq: high
+workspace-service-6c68c569d9-vws7s: high
+workspace-service-redis-65cf6d9fd-7j5d6: high
 [23:46:54] === TASK 3: Trivy Operator ===
 [23:46:54]   Trivy operator namespace(s): security-cdm
-[23:46:54]   VulnerabilityReports present: 25
+[23:46:54]   VulnerabilityReports present: 5
 [23:46:55] === TASK 5: oauth2-proxy policy labels (12-security.yaml) ===
 [23:46:55]   OK: 12-security.yaml contains legacy labels (accepted per 47-next-tasks.md Section 1/Section 5)
 [23:46:55] === TASK 6: CNP coverage per namespace ===

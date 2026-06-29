@@ -4,11 +4,11 @@
 \chapter*{Tóm tắt đồ án}
 \addcontentsline{toc}{chapter}{Tóm tắt đồ án}
 
-Đồ án nghiên cứu và triển khai kiến trúc Zero Trust cho hệ thống tuyển dụng Job7189 trên Kubernetes. Mục tiêu là giảm sự tin cậy ngầm định trong mạng nội bộ, hạn chế rủi ro từ bí mật cấu hình tĩnh và kiểm soát hành vi di chuyển ngang khi một thành phần bị xâm phạm.
+Đồ án nghiên cứu cách áp dụng Zero Trust cho hệ thống tuyển dụng Job7189 chạy trên Kubernetes. Trọng tâm của đề tài là giảm sự tin cậy ngầm định trong mạng nội bộ, hạn chế rủi ro từ bí mật cấu hình tĩnh và kiểm soát khả năng di chuyển ngang khi một thành phần bị xâm phạm.
 
-Từ khảo sát hiện trạng và bản đồ luồng mạng, đồ án xây dựng khung bảo vệ gồm định danh, phân đoạn mạng vi mô, kiểm soát truy cập, quản lý bí mật động, giám sát thời gian chạy và quan sát tập trung. Môi trường thử nghiệm sử dụng cụm Kubernetes nhiều nút trên máy chủ ảo, kết nối qua Tailscale, kết hợp các công cụ Cilium, Hubble, Kong Gateway, Keycloak, SPIRE, Vault, Tetragon, Trivy Operator, OPA Gatekeeper, Prometheus, Grafana và EFK.
+Sau khi khảo sát hiện trạng và các luồng giao tiếp chính, đồ án xây dựng một lớp bảo vệ gồm định danh, phân đoạn mạng vi mô, kiểm soát truy cập, bí mật động và quan sát tập trung. Môi trường thử nghiệm là cụm Kubernetes nhiều nút trên máy chủ ảo, kết nối qua Tailscale và sử dụng các công cụ như Cilium, Kong Gateway, Keycloak, SPIRE, Vault, Tetragon, Trivy Operator, OPA Gatekeeper, Prometheus, Grafana và EFK.
 
-Kết quả thử nghiệm cho thấy hệ thống có thể chặn hoặc ghi nhận nhiều hành vi rủi ro: truy cập API sai quyền, quét mạng nội bộ, kết nối cơ sở dữ liệu trái phép, chạy công cụ bị cấm, triển khai container image chưa được phê duyệt và gửi dữ liệu ra bên ngoài trái chính sách. Từ môi trường mô phỏng này, đồ án rút ra các điểm cần mở rộng như tự động hóa phản hồi, bổ sung nguồn tình báo đe dọa và hoàn thiện cơ chế đánh giá rủi ro.
+Kết quả thử nghiệm cho thấy hệ thống có thể chặn, ghi nhận hoặc giảm tác động của nhiều hành vi rủi ro, từ truy cập API sai quyền, quét mạng nội bộ, kết nối cơ sở dữ liệu trái phép đến triển khai image chưa được phê duyệt và gửi dữ liệu ra ngoài trái chính sách. Qua đó, đồ án chỉ ra những phần cần tiếp tục hoàn thiện, gồm phản hồi tự động, nguồn tình báo đe dọa và cơ chế đánh giá rủi ro.
 
 \vspace{0.5cm}
 \noindent\textbf{Từ khóa:} Zero Trust, NIST SP 800-207, Kubernetes, bảo mật vi dịch vụ, phân đoạn mạng vi mô, bí mật động.

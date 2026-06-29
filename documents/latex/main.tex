@@ -15,6 +15,9 @@
 % BẮT ĐẦU TÀI LIỆU
 %=======================================================
 \begin{document}
+\renewcommand{\contentsname}{MỤC LỤC}
+\renewcommand{\listfigurename}{DANH MỤC HÌNH VẼ}
+\renewcommand{\listtablename}{DANH MỤC BẢNG BIỂU}
 
 % PHẦN ĐẦU (FRONT MATTER)
 %---------------------------------------------------
@@ -24,16 +27,12 @@
 \pagenumbering{roman} 
 \pagestyle{plain} 
 
-\input{frontmatter/acknowledgement.tex}
-\clearpage
-
-\input{frontmatter/abstract.tex}
-\clearpage
-
 \input{frontmatter/instructor-comments.tex}
 \clearpage
+\pagestyle{plain}
 
-
+\input{frontmatter/acknowledgement.tex}
+\clearpage
 
 % Mục lục
 \tableofcontents
@@ -42,6 +41,9 @@
 \listoffigures
 \clearpage
 \listoftables
+\clearpage
+
+\input{frontmatter/symbols.tex}
 
 % PHẦN THÂN (MAIN MATTER)
 %---------------------------------------------------
@@ -58,7 +60,15 @@
 % \input{chapters/chapter4.tex}
 \input{chapters/chaterketluan.tex}
 
+\clearpage
+\phantomsection
+\chapter*{PHỤ LỤC}
+\addcontentsline{toc}{chapter}{PHỤ LỤC}
+
 \appendix
+\renewcommand{\chaptername}{Phụ lục}
+\addtocontents{toc}{\protect\renewcommand{\protect\cftchappresnum}{PHỤ LỤC~}}
+\addtocontents{toc}{\protect\setlength{\protect\cftchapnumwidth}{7.2em}}
 \input{chapters/appendix.tex}
 
 % PHẦN CUỐI (BACK MATTER)
@@ -66,6 +76,6 @@
 \clearpage
 \pagestyle{plain} 
 
-\printbibliography
+\printbibliography[heading=bibintoc,title={TÀI LIỆU THAM KHẢO}]
  
 \end{document}

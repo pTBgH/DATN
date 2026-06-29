@@ -114,6 +114,7 @@
 %======================================================================
 \usepackage{verbatim}
 \usepackage{enumitem}
+\usepackage{tocloft}
 
 % Sử dụng minted (Lưu ý: Yêu cầu -shell-escape khi biên dịch)
 \usepackage{minted}
@@ -133,6 +134,19 @@
 \titleformat{\chapter}[display]
   {\normalfont\huge\bfseries\centering}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
 \titlespacing*{\chapter}{0pt}{50pt}{40pt}
+
+% Định dạng mục lục: hiển thị rõ "CHƯƠNG 1." trước các chương chính.
+\renewcommand{\cftchappresnum}{CHƯƠNG~}
+\renewcommand{\cftchapaftersnum}{.}
+\setlength{\cftchapnumwidth}{7.2em}
+
+% Căn giữa tiêu đề mục lục, danh mục hình vẽ và danh mục bảng biểu.
+\renewcommand{\cfttoctitlefont}{\hfill\Huge\bfseries}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\cftloftitlefont}{\hfill\Huge\bfseries}
+\renewcommand{\cftafterloftitle}{\hfill}
+\renewcommand{\cftlottitlefont}{\hfill\Huge\bfseries}
+\renewcommand{\cftafterlottitle}{\hfill}
 
 %======================================================================
 \usepackage{url}        
@@ -163,3 +177,7 @@
 ]{biblatex}
 \DeclareLanguageMapping{english}{english-apa}
 \addbibresource{bibliography.bib}
+
+\renewcommand{\contentsname}{MỤC LỤC}
+\renewcommand{\listfigurename}{DANH MỤC HÌNH VẼ}
+\renewcommand{\listtablename}{DANH MỤC BẢNG BIỂU}

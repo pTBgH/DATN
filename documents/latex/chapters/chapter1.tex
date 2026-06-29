@@ -1,5 +1,5 @@
 % !TEX encoding = UTF-8
-\chapter{Tổng quan về kiến trúc Zero Trust}
+\chapter{TỔNG QUAN VỀ KIẾN TRÚC ZERO TRUST}
 \label{chap:chapter1}
 
 %==============================================================================
@@ -23,7 +23,7 @@ Mô hình bảo mật quen thuộc trong nhiều hệ thống doanh nghiệp là
 Mặc dù mạng truyền thống vẫn tích hợp một số biện pháp phòng vệ nội bộ như chia VLAN, tường lửa nội bộ và các cơ chế định danh tĩnh ở tầng ứng dụng, mô hình này bộc lộ ba hạn chế khi đối mặt với hạ tầng cloud-native hiện đại:
 
 \begin{itemize}
-    \item \textbf{Sự tin cậy ngầm định:} Các hệ thống an ninh truyền thống thường mặc định tin cậy thiết bị và luồng dữ liệu xuất phát từ bên trong mạng. Theo \parencite{nist800207}, việc cấp quyền truy cập dựa trên vị trí mạng dẫn đến rủi ro: một khi kẻ tấn công hoặc tác nhân nội bộ vượt qua được ranh giới mạng, các hoạt động của họ bên trong hệ thống thường không bị kiểm tra thêm.
+    \item \textbf{Sự tin cậy ngầm định:} Các hệ thống an ninh truyền thống thường mặc định tin cậy thiết bị và luồng dữ liệu xuất phát từ bên trong mạng. Việc cấp quyền truy cập dựa trên vị trí mạng dẫn đến rủi ro: một khi kẻ tấn công hoặc tác nhân nội bộ vượt qua được ranh giới mạng, các hoạt động của họ bên trong hệ thống thường không bị kiểm tra thêm \parencite{nist800207}.
     
     \item \textbf{Nguy cơ di chuyển ngang:} Các biện pháp kiểm soát mạng nội bộ truyền thống chủ yếu dựa trên việc phân chia theo mạng con (VLAN/Subnet). Do thiếu cơ chế kiểm soát truy cập chi tiết, khi một điểm nút bị chiếm quyền, kẻ tấn công có thể tái sử dụng các danh tính tĩnh (như token có thời hạn dài) để quét mạng và kết nối đến các tài nguyên khác trong cùng phân đoạn mạng trước khi bị hệ thống phát hiện \parencite{kindervag2010build,gilman2017zero}.
     

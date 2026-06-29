@@ -1,22 +1,45 @@
 % !TEX encoding = UTF-8
 
-\chapter*{Lời cảm ơn}
+\clearpage
+\thispagestyle{plain}
+\phantomsection
+\begin{center}
+    {\Large\bfseries Lời cảm ơn}
+\end{center}
 \addcontentsline{toc}{chapter}{Lời cảm ơn}
 
-Em xin gửi lời cảm ơn sâu sắc tới PGS. TS. Nguyễn Đình Hân, người đã trực tiếp hướng dẫn em trong quá trình thực hiện đồ án. Những góp ý, định hướng của thầy đã giúp em nhìn rõ hơn hướng nghiên cứu, cách triển khai thực nghiệm và cách trình bày kết quả.
+\begingroup
+\small
+\setstretch{1.12}
 
-Em cũng xin cảm ơn các thầy, cô Trường Đại học Bách khoa Hà Nội, đặc biệt là Khoa Toán -- Tin, đã trang bị cho em kiến thức nền tảng và phương pháp tư duy trong suốt thời gian học tập. Đây là nền tảng quan trọng để em có thể thực hiện và hoàn thành đồ án.
+Em xin gửi lời cảm ơn chân thành tới PGS. TS. Nguyễn Đình Hân, người đã trực tiếp hướng dẫn em trong suốt quá trình thực hiện đồ án. Những định hướng, góp ý chuyên môn và sự chỉ bảo cẩn thận của thầy đã giúp em nhìn rõ hơn cách đặt vấn đề nghiên cứu, lựa chọn phương pháp triển khai, kiểm chứng kết quả thực nghiệm và hoàn thiện cách trình bày báo cáo.
 
-Em cũng xin chân thành cảm ơn thầy Trần Hùng, thầy Bùi Tiên Lập, thầy Trần Đức Minh và thầy Nguyễn Trường Giang tại Datcomlab, Đại học Kinh tế Quốc dân, vì đã đồng hành và gợi mở thêm những góc nhìn hữu ích trong quá trình học tập và làm việc.
+Em xin cảm ơn các thầy, cô Trường Đại học Bách khoa Hà Nội, đặc biệt là các thầy, cô Khoa Toán -- Tin, đã giảng dạy, trang bị cho em nền tảng kiến thức về toán ứng dụng, hệ thống thông tin, lập trình và tư duy phân tích trong suốt thời gian học tập. Những kiến thức và phương pháp làm việc nhận được từ Khoa là cơ sở quan trọng để em có thể tiếp cận bài toán, xây dựng hệ thống thực nghiệm và hoàn thành đồ án.
 
-Cuối cùng, em xin cảm ơn gia đình và bạn bè đã luôn động viên, ủng hộ em.
+Em cũng xin cảm ơn thầy Trần Hùng, thầy Bùi Tiên Lập, thầy Trần Đức Minh và thầy Nguyễn Trường Giang tại Datcomlab, Đại học Kinh tế Quốc dân, vì đã đồng hành và gợi mở cho em nhiều kinh nghiệm hữu ích trong quá trình học tập, nghiên cứu và làm việc. Cuối cùng, em xin cảm ơn gia đình và bạn bè đã luôn động viên, ủng hộ em trong thời gian thực hiện đồ án.
 
+\vspace{0.35cm}
 
-\vspace{1cm}
+\phantomsection
+\begin{center}
+    {\Large\bfseries Tóm tắt nội dung đồ án}
+\end{center}
+\addcontentsline{toc}{chapter}{Tóm tắt nội dung đồ án}
+
+Đồ án nghiên cứu việc áp dụng kiến trúc Zero Trust cho hệ thống tuyển dụng Job7189 chạy trên Kubernetes. Vấn đề chính cần giải quyết là giảm sự tin cậy ngầm định trong mạng nội bộ, kiểm soát truy cập giữa các dịch vụ, hạn chế rủi ro từ bí mật cấu hình tĩnh và giảm khả năng di chuyển ngang khi một thành phần bị xâm phạm.
+
+Sau khi khảo sát hiện trạng hệ thống và các luồng giao tiếp chính, đồ án đề xuất lớp bảo vệ gồm định danh người dùng và workload, phân đoạn mạng vi mô, kiểm soát truy cập theo chính sách, quản lý bí mật động và quan sát tập trung. Môi trường thử nghiệm được triển khai trên cụm Kubernetes nhiều nút, sử dụng các công cụ như Cilium, Kong Gateway, Keycloak, SPIRE, Vault, Tetragon, Trivy Operator, OPA Gatekeeper, Prometheus, Grafana và EFK.
+
+Kết quả thử nghiệm cho thấy hệ thống có thể chặn, ghi nhận hoặc giảm tác động của nhiều hành vi rủi ro như truy cập API sai quyền, quét mạng nội bộ, kết nối cơ sở dữ liệu trái phép, triển khai image chưa được phê duyệt và gửi dữ liệu ra ngoài trái chính sách. Đồ án có tính thực tế trong việc củng cố bảo mật cho hệ thống microservices và có thể tiếp tục mở rộng theo hướng tự động phản hồi sự cố, tích hợp nguồn tình báo đe dọa và đánh giá rủi ro động.
+
+\noindent\textbf{Từ khóa:} Zero Trust, Kubernetes, bảo mật vi dịch vụ, phân đoạn mạng vi mô, bí mật động.
+
+\vspace{0.45cm}
 \begin{flushright}
     \begin{tabular}{c}
-        \textit{Hà Nội, tháng 06 năm 2026} \\[0.2cm]
+        \textit{Hà Nội, ngày \hspace{0.7cm} tháng \hspace{0.7cm} năm 2026} \\[0.2cm]
         \textbf{Sinh viên thực hiện} \\[2cm]
         \textbf{Phùng Thái Bảo}
     \end{tabular}
 \end{flushright}
+\endgroup

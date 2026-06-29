@@ -1,6 +1,6 @@
 % !TEX encoding = UTF-8
 
-\chapter*{KẾT LUẬN}
+\chapter*{Kết luận}
 \addcontentsline{toc}{chapter}{KẾT LUẬN}
 
 Đồ án \textbf{``Nghiên cứu Kiến trúc Zero Trust và Ứng dụng trong Bảo mật Hệ thống Microservices trên Kubernetes''} tập trung vào ba việc: hệ thống hóa nền tảng Zero Trust, đề xuất kiến trúc bảo vệ phù hợp với Kubernetes và thử nghiệm kiến trúc đó trên hệ thống Job7189.
@@ -8,15 +8,15 @@
 \paragraph{Về mặt lý thuyết:}
 \begin{itemize}
     \item Hệ thống hóa các nguyên lý Zero Trust và kiến trúc tham chiếu theo \textbf{NIST SP 800-207}~\parencite{nist800207,kindervag2010build,gilman2017zero}, gồm mô hình ra quyết định, điểm thực thi chính sách và các nguồn dữ liệu phục vụ đánh giá truy cập.
-    \item Phân tích các rủi ro đặc thù của vi dịch vụ trên Kubernetes, gồm lưu lượng nội bộ lớn, vòng đời ngắn của thực thể chạy, quản lý bí mật phân tán, rủi ro hạ tầng dùng chung và nguy cơ từ chuỗi cung ứng phần mềm~\parencite{nist800204_microservices,rice2019kubernetes,machine_identity_report}.
+    \item Phân tích các rủi ro đặc thù của microservice trên Kubernetes, gồm lưu lượng nội bộ lớn, vòng đời ngắn của thực thể chạy, quản lý bí mật phân tán, rủi ro hạ tầng dùng chung và nguy cơ từ chuỗi cung ứng phần mềm~\parencite{nist800204_microservices,rice2019kubernetes,machine_identity_report}.
     \item Đề xuất khung kiến trúc Zero Trust gồm năm thành phần chức năng, triển khai mô hình tham chiếu của NIST bằng các công cụ mã nguồn mở phù hợp với Kubernetes~\parencite{nist800207,kubernetes_docs,cisa_ztmm2023}.
     \item Xây dựng mô hình đe dọa dựa trên MITRE ATT\&CK cho Kubernetes~\parencite{mitre_containers,owasp_api2023}, qua đó xác định các kịch bản tấn công và cơ chế phòng thủ tương ứng.
 \end{itemize}
 
 \paragraph{Về mặt thực nghiệm trên hệ thống Job7189:}
 \begin{itemize}
-    \item Triển khai phân đoạn mạng vi mô bằng CiliumNetworkPolicy~\parencite{cilium_docs,ebpf_io}: áp dụng chính sách từ chối mặc định cho các không gian tên trọng yếu, sau đó chỉ mở các luồng cần thiết giữa dịch vụ, CSDL, bộ nhớ đệm và thành phần hạ tầng.
-    \item Hiện thực hóa quản lý bí mật động bằng HashiCorp Vault~\parencite{vault_docs}: bảy vi dịch vụ nhận thông tin kết nối CSDL ngắn hạn, được ghi vào bộ nhớ tạm của pod và tự xoay vòng mà không làm gián đoạn ứng dụng~\parencite{nist800207,machine_identity_report}.
+    \item Triển khai microsegmentation bằng CiliumNetworkPolicy~\parencite{cilium_docs,ebpf_io}: áp dụng chính sách từ chối mặc định cho các không gian tên trọng yếu, sau đó chỉ mở các luồng cần thiết giữa dịch vụ, CSDL, bộ nhớ đệm và thành phần hạ tầng.
+    \item Hiện thực hóa quản lý bí mật động bằng HashiCorp Vault~\parencite{vault_docs}: bảy microservices nhận thông tin kết nối CSDL ngắn hạn, được ghi vào bộ nhớ tạm của pod và tự xoay vòng mà không làm gián đoạn ứng dụng~\parencite{nist800207,machine_identity_report}.
     \item Xây dựng cơ chế xác thực tập trung với Keycloak~\parencite{keycloak_docs} và Kong Gateway~\parencite{kong_docs}; các yêu cầu đi vào hệ thống được kiểm tra JWT theo chữ ký RS256 trước khi chuyển tới dịch vụ nghiệp vụ~\parencite{rfc7519_jwt,oidc_core,rfc6749_oauth2}.
     \item Thiết lập lớp quan sát gồm EFK, Prometheus, Grafana và Hubble~\parencite{elk_docs,prometheus_docs,grafana_docs,hubble_docs}; dữ liệu thu được hỗ trợ kiểm toán, quan sát luồng mạng và đối chiếu kết quả của các chính sách an ninh.
     \item Kiểm chứng 11 kịch bản an ninh theo hướng phân biệt rõ giữa chặn chủ động, ghi nhận, giảm thiểu tác động và khôi phục thủ công. Kết quả cho thấy hệ thống có thể chặn hoặc kiểm soát nhiều hành vi như quét mạng nội bộ, gọi API sai quyền, truy cập CSDL trái phép, chạy công cụ mạng bị cấm, triển khai container image chưa được phê duyệt và gửi dữ liệu ra bên ngoài trái chính sách.

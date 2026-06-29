@@ -1,4 +1,4 @@
-\chapter{ỨNG DỤNG ZERO TRUST BẢO MẬT HỆ THỐNG MICROSERVICES}
+\chapter[ỨNG DỤNG ZERO TRUST BẢO MẬT HỆ THỐNG MICROSERVICES]{Ứng dụng Zero Trust bảo mật hệ thống Microservices}
 \label{chap:chapter2}
 
 %==============================================================================
@@ -460,7 +460,7 @@ Cô lập hoàn toàn lưu lượng mạng. Ngắt quyền truy cập CSDL. & Gi
 \end{tabularx}
 \end{table}
 
-Triết lý của ma trận này là \textit{kiềm chế bán kính ảnh hưởng trong khi duy trì dịch vụ tối đa}. Phân đoạn mạng vi mô cho phép cắt đường di chuyển ngang và chặn truy cập tài nguyên nhạy cảm mà không cần ngắt luồng nghiệp vụ chính. Cô lập toàn phần chỉ được kích hoạt khi dịch vụ không quan trọng, hoặc khi có bằng chứng đang bị khai thác thực sự từ tín hiệu runtime, hoặc khi có bằng chứng workload đã bị chiếm quyền kiểm soát. Trong phạm vi thực nghiệm, các hành động như cập nhật rolling update mới dừng ở mức khuyến nghị vận hành; PDP chưa tự động patch Deployment để kích hoạt cập nhật.
+Triết lý của ma trận này là \textit{kiềm chế bán kính ảnh hưởng trong khi duy trì dịch vụ tối đa}. Microsegementation cho phép cắt đường di chuyển ngang và chặn truy cập tài nguyên nhạy cảm mà không cần ngắt luồng nghiệp vụ chính. Cô lập toàn phần chỉ được kích hoạt khi dịch vụ không quan trọng, hoặc khi có bằng chứng đang bị khai thác thực sự từ tín hiệu runtime, hoặc khi có bằng chứng workload đã bị chiếm quyền kiểm soát. Trong phạm vi thực nghiệm, các hành động như cập nhật rolling update mới dừng ở mức khuyến nghị vận hành; PDP chưa tự động patch Deployment để kích hoạt cập nhật.
 
 \subsubsection{Rời rạc hóa và tránh dao động chính sách}
 

@@ -1,5 +1,5 @@
 % !TEX encoding = UTF-8
-\chapter{CÀI ĐẶT VÀ THỬ NGHIỆM HỆ THỐNG}
+\chapter[CÀI ĐẶT VÀ THỬ NGHIỆM HỆ THỐNG]{Cài đặt và thử nghiệm hệ thống}
 \label{chap:chapter3}
 
 %==============================================================================
@@ -882,7 +882,7 @@ Bên cạnh đó, trục đánh giá phân cấp dịch vụ đã được đọ
 
 Một số giới hạn khác cũng cần được nhìn nhận rõ. Nếu token hợp lệ bị đánh cắp khi còn hạn, hệ thống hiện mới kiểm tra chữ ký và thời hạn token tại Kong, chưa có cơ chế thu hồi phiên tự động theo ngữ cảnh. Nếu chính sách mạng bị xóa hoặc sửa sai, phương án khôi phục trong thực nghiệm vẫn là áp lại manifest thủ công; công cụ audit có thể phát hiện khi được chạy, nhưng chưa có bộ điều khiển tự giám sát drift và tự khôi phục liên tục.
 
-Các thử nghiệm cho thấy những cơ chế đã triển khai có thể chặn, ghi nhận hoặc giảm tác động của nhiều hành vi tấn công trong phạm vi MITRE ATT\&CK. Định danh mật mã, phân đoạn mạng vi mô, bí mật động và giám sát runtime đã phối hợp được trên các luồng chính của môi trường mô phỏng. Phần còn thiếu nằm ở phản hồi tự động, dữ liệu tình báo đe dọa mới hơn và việc chuyển dần các cơ chế đang cảnh báo sang chế độ cưỡng chế.
+Các thử nghiệm cho thấy những cơ chế đã triển khai có thể chặn, ghi nhận hoặc giảm tác động của nhiều hành vi tấn công trong phạm vi MITRE ATT\&CK. Định danh mật mã, microsegmentation, bí mật động và giám sát runtime đã phối hợp được trên các luồng chính của môi trường mô phỏng. Phần còn thiếu nằm ở phản hồi tự động, dữ liệu tình báo đe dọa mới hơn và việc chuyển dần các cơ chế đang cảnh báo sang chế độ cưỡng chế.
 
 %==============================================================================
 % KẾT LUẬN CHƯƠNG 3

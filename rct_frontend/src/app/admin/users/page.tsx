@@ -18,14 +18,14 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Người dùng</h1>
       <p className="text-sm text-slate-500">
-        Tổng {list.length} người dùng (mock). Trong production sẽ kết hợp với
-        Keycloak admin API qua identity-service.
+        Tổng {list.length} người dùng. Danh sách này dùng để theo dõi trạng
+        thái tài khoản và lần đăng nhập gần nhất.
       </p>
 
       <table className="min-w-full divide-y rounded-lg border bg-white text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
           <tr>
-            <th className="px-4 py-2">UserID</th>
+            <th className="px-4 py-2">Mã người dùng</th>
             <th className="px-4 py-2">Họ tên</th>
             <th className="px-4 py-2">Email</th>
             <th className="px-4 py-2">Role</th>
@@ -57,7 +57,7 @@ export default function AdminUsersPage() {
                       : "bg-red-100 text-red-700")
                   }
                 >
-                  {u.status}
+                  {formatStatus(u.status)}
                 </span>
               </td>
               <td className="px-4 py-2 text-xs text-slate-500">
@@ -71,4 +71,11 @@ export default function AdminUsersPage() {
       </table>
     </div>
   );
+}
+
+function formatStatus(status: string) {
+  if (status === "Active") return "Đang hoạt động";
+  if (status === "Pending") return "Chờ xác nhận";
+  if (status === "Suspended") return "Tạm khóa";
+  return status;
 }

@@ -17,13 +17,13 @@ export default function AdminSectorsPage() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold">Ngành nghề (sectors)</h1>
+        <h1 className="text-2xl font-semibold">Ngành nghề</h1>
         <button className="rounded bg-brand px-3 py-1.5 text-sm text-white hover:bg-brand-dark">
-          + Tạo sector
+          + Tạo ngành nghề
         </button>
       </header>
       <p className="text-sm text-slate-500">
-        Endpoint: `GET/POST/PUT/DELETE /api/admin/categories/sectors` (job-service §3.3).
+        Duy trì danh mục ngành nghề để dữ liệu tuyển dụng đồng nhất trên toàn hệ thống.
       </p>
 
       <table className="min-w-full divide-y rounded-lg border bg-white text-sm">
@@ -31,8 +31,8 @@ export default function AdminSectorsPage() {
           <tr>
             <th className="px-4 py-2">ID</th>
             <th className="px-4 py-2">Tên</th>
-            <th className="px-4 py-2">Code</th>
-            <th className="px-4 py-2">Job count</th>
+            <th className="px-4 py-2">Mã</th>
+            <th className="px-4 py-2">Số tin</th>
             <th className="px-4 py-2">Trạng thái</th>
             <th className="px-4 py-2"></th>
           </tr>
@@ -55,7 +55,7 @@ export default function AdminSectorsPage() {
                       : "bg-slate-100 text-slate-500")
                   }
                 >
-                  {s.active ? "Active" : "Inactive"}
+                  {s.active ? "Đang dùng" : "Tạm ẩn"}
                 </span>
               </td>
               <td className="px-4 py-2 text-right">

@@ -49,18 +49,18 @@ export default function RecruiterJobDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
-            Submit (Draft → Pending)
+            Gửi duyệt
           </button>
           <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
-            Archive
+            Lưu trữ
           </button>
           <button className="rounded border border-amber-300 bg-white px-3 py-1.5 hover:bg-amber-100">
-            Restore
+            Khôi phục
           </button>
         </div>
         <p className="mt-2 text-xs text-amber-700">
-          Mock-only: button thật sẽ gọi <code>PATCH /api/workspaces/&#123;wsId&#125;/jobs/&#123;jobId&#125;/&#123;submit|archive|restore&#125;</code>{" "}
-          (xem <code>jobApi.submitExistingJob/archiveJob/restoreJob</code>).
+          Dùng các nút này để gửi tin đi duyệt, lưu trữ tin đã dừng tuyển hoặc
+          khôi phục tin cần mở lại.
         </p>
       </section>
 

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/Card";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function ApplyJobPage({
         <CardContent className="space-y-4">
           {cvs.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed border-slate-300 bg-gray-50 p-6 text-center">
-              <p className="text-4xl text-gray-400 mb-3">[ CV ]</p>
+              <FileText className="mx-auto mb-3 h-12 w-12 text-gray-400" />
               <p className="font-semibold text-slate-900">Chưa có CV nào</p>
               <p className="mt-1 text-sm text-slate-600">
                 Bạn cần có ít nhất 1 CV để ứng tuyển

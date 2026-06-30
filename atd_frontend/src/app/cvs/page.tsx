@@ -7,6 +7,7 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { useAuthedFetch } from "@/lib/auth/guard";
 import { PageLoading, PageError } from "@/components/PageState";
+import { FileText } from "lucide-react";
 
 export default function ResumeManagerPage() {
   const { data: cvs, loading, error } = useAuthedFetch(
@@ -33,7 +34,7 @@ export default function ResumeManagerPage() {
       {list.length === 0 ? (
         <Card className="py-12 text-center bg-gray-50 border border-gray-200">
           <div className="space-y-4">
-            <div className="text-4xl text-gray-400">[ CV ]</div>
+            <FileText className="mx-auto h-12 w-12 text-gray-400" />
             <div>
               <p className="font-semibold text-slate-900">Chưa có CV nào</p>
               <p className="mt-1 text-sm text-slate-600">

@@ -18,10 +18,14 @@ export default function AdminCompaniesPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Công ty đăng ký</h1>
       <p className="text-sm text-slate-500">
-        Tổng {list.length} công ty. Endpoint tham khảo:
-        `GET /api/companies/{"{id}"}` (job-service) + workspace-service §2.
+        Tổng {list.length} công ty đang được theo dõi trong hệ thống.
       </p>
 
+      {list.length === 0 ? (
+        <div className="rounded-lg border bg-white p-8 text-sm text-slate-500">
+          Chưa có dữ liệu công ty từ dịch vụ quản trị.
+        </div>
+      ) : (
       <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {list.map((c) => (
           <li
@@ -35,22 +39,23 @@ export default function AdminCompaniesPage() {
               </div>
               {c.verified ? (
                 <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                  Verified
+                  Đã xác minh
                 </span>
               ) : (
                 <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
-                  Pending
+                  Chờ xác minh
                 </span>
               )}
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2 text-xs text-slate-500">
               <Stat label="Quy mô" value={c.size} />
-              <Stat label="Active jobs" value={c.active_jobs} />
-              <Stat label="Workspaces" value={c.workspace_count} />
+              <Stat label="Tin mở" value={c.active_jobs} />
+              <Stat label="Workspace" value={c.workspace_count} />
             </dl>
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }

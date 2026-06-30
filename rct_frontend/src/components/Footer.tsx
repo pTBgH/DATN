@@ -17,7 +17,7 @@ export function Footer() {
             Recruiter
           </Link>
           <a 
-            href="http://localhost:3002" 
+            href="https://job7189-atd.pages.dev"
             target="_blank" 
             rel="noopener noreferrer"
             className="hover:text-brand transition-colors duration-300 inline-flex items-center gap-1"
@@ -25,12 +25,12 @@ export function Footer() {
             Candidates
             <ExternalLink className="w-3 h-3" />
           </a>
-          <a href="#" className="hover:text-brand transition-colors duration-300">
+          <span className="text-slate-600">
             About
-          </a>
-          <a href="#" className="hover:text-brand transition-colors duration-300">
+          </span>
+          <span className="text-slate-600">
             Terms
-          </a>
+          </span>
         </div>
 
         <p className="text-slate-400">&copy; 2026 Job7189</p>

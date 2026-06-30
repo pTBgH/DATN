@@ -31,6 +31,7 @@
 | Gatekeeper | Đã deploy ConstraintTemplate + constraints; image constraints ở `dryrun`, pod-security critical constraints enforce `deny` | `for k in k8sblocklatesttag k8simagedigestrequired k8ssignedimageannotation ztablockhostmounts ztarequiredlabels ztarestrictprivileged; do echo "== $k =="; kubectl get "$k" -o jsonpath='{range .items[*]}{.metadata.name}{" enforcementAction="}{.spec.enforcementAction}{"\n"}{end}'; done` |
 | SPIRE/SPIFFE | 10 `ClusterSPIFFEID`; spire-server + 4 agent Running; SVID được cấp | `kubectl get clusterspiffeid`; `kubectl -n spire get pod` |
 | Docker Registry | Registry chạy host-level trên máy `baosrc` qua HTTPS `https://100.74.189.43:5443`; không phải pod in-cluster. Namespace `registry` trong cluster rỗng. Catalog hiện có các image `job7189/*` | `REGISTRY_URL=https://100.74.189.43:5443 bash scripts/verify-system-snapshot-20260620.sh`; hoặc `curl -k https://100.74.189.43:5443/v2/_catalog` + `kubectl -n registry get pod,svc,deploy,sts,ds,job,cronjob` |
+| MinIO object storage | Deployed trong namespace `data` dưới dạng `StatefulSet/minio`, PVC 10Gi, bucket `job7189-storage`; API nội bộ `minio.data.svc.cluster.local:9000`, frontend upload dùng presigned URL qua NodePort `http://100.108.231.127:30900` | `kubectl -n data get pod,svc,pvc,job -l 'app in (minio,minio-bucket-init)' -o wide`; gọi `storage-service` `/api/presigned-url` rồi `PUT` vào URL trả về |
 
 ## TODO còn lại chưa được bịa số liệu
 

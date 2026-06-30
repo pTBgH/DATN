@@ -37,7 +37,7 @@ export async function setDefaultResume(id: string): Promise<CvResource> {
   }
   const r = await apiFetch<{ message: string; data: CvResource }>(
     `/api/resumes/${encodeURIComponent(id)}/default`,
-    { method: "POST" },
+    { method: "PATCH" },
   );
   return r.data;
 }

@@ -12,7 +12,7 @@ export default function RecruiterLayout({
           Recruiter
         </div>
         <nav className="mt-1 flex flex-col gap-0.5">
-          <SideLink href="/recruiter">Workspaces</SideLink>
+          <SideLink href="/recruiter">Workspace</SideLink>
           <SideLink href="/recruiter/profile">Hồ sơ của tôi</SideLink>
           <SideLink href="/recruiter/messages">Hộp thư</SideLink>
         </nav>

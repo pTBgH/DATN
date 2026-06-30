@@ -41,7 +41,7 @@ Moi service chay **4 containers** trong 1 Pod:
 | Gateway | `gateway`, `ingress-nginx` | Kong Gateway 3.6 (DB-less), Nginx Ingress Controller |
 | Security | `security`, `cert-manager` | Keycloak (OIDC/JWT), oauth2-proxy, cert-manager |
 | Application | `job7189-apps` | 7 Laravel services + Redis Cache |
-| Data | `data` | MySQL 8.0, Kafka |
+| Data | `data` | MySQL 8.0, Kafka, MinIO object storage (`job7189-storage`) |
 | Management | `management` | phpMyAdmin (Kafbat removed — Kafka UI never used) |
 | Platform | `vault`, `monitoring` | Vault (Dual-Vault), EFK, Prometheus, Grafana |
 | CDM | `security-cdm` | Trivy Operator (image scan) + Threat-Intel CronJob (tách khỏi `security` sau consolidation; namespace trivy-system cũ đã bỏ) |
@@ -61,6 +61,7 @@ Moi service chay **4 containers** trong 1 Pod:
 | Threat-intel | FireHOL đã sync khoảng 2000 CIDR; CCNP egress deny enforcing |
 | Low-trust Vault CNP | `cnp-block-low-trust-to-vault` đã apply và enforcing |
 | Trivy | Trivy Operator active trong `security-cdm`, `VulnerabilityReport` là input CDM/PDP |
+| MinIO | Active trong `data`; `storage-service` tạo presigned URL upload qua NodePort `100.108.231.127:30900` |
 
 ## Luong giao dich chinh
 

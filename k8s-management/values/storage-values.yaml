@@ -30,7 +30,21 @@ env:
   CACHE_PREFIX: storage_
   LOG_CHANNEL: "stderr"
   LOG_LEVEL: "info"
-  MINIO_ENDPOINT: "http://192.168.112.158:8080"
+  FILESYSTEM_DISK: "minio"
+  MINIO_ENDPOINT: "http://100.108.231.127:30900"
+  MINIO_URL: "http://100.108.231.127:30900/job7189-storage"
+  MINIO_BUCKET: "job7189-storage"
+  MINIO_REGION: "us-east-1"
+  MINIO_USE_PATH_STYLE_ENDPOINT: "true"
+  MINIO_KEY: "minioadmin"
+  MINIO_SECRET: "minioadmin"
+  AWS_ENDPOINT: "http://100.108.231.127:30900"
+  AWS_URL: "http://100.108.231.127:30900/job7189-storage"
+  AWS_BUCKET: "job7189-storage"
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  AWS_ACCESS_KEY_ID: "minioadmin"
+  AWS_SECRET_ACCESS_KEY: "minioadmin"
 
 vault:
   role: storage-service

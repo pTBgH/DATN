@@ -151,8 +151,8 @@ export default function PipelineDetailPage() {
           ))}
         </ul>
         <p className="mt-3 text-xs text-slate-500">
-          Mock-only: GET <code>…/pipelines/workflow-definitions</code>, POST{" "}
-          <code>…/pipelines/&#123;id&#125;/workflow</code> để gắn rule.
+          Chọn các rule phù hợp để tự động hóa bước lọc, phỏng vấn và phản hồi
+          ứng viên.
         </p>
       </section>
     </div>

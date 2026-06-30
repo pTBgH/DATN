@@ -1,22 +1,42 @@
-# --- 1. Ổ cứng cho MinIO ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-root-credentials
+  namespace: data
+  labels:
+    app: minio
+type: Opaque
+stringData:
+  MINIO_ROOT_USER: minioadmin
+  MINIO_ROOT_PASSWORD: minioadmin
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: minio-pvc
-  namespace: job7189-infra
+  namespace: data
+  labels:
+    app: minio
 spec:
-  accessModes: [ "ReadWriteOnce" ]
+  accessModes:
+    - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi
-
 ---
-# --- 2. MinIO StatefulSet ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: minio
-  namespace: job7189-infra
+  namespace: data
+  labels:
+    app: minio
+    zta.job7189/role: db
+    zta.job7189/tier: T2
+    zta.job7189/env: prod
+    zta.job7189/data-classification: internal
+    zta.job7189/exposure: internal
+    zta.job7189/team: data
 spec:
   serviceName: minio
   replicas: 1
@@ -27,49 +47,245 @@ spec:
     metadata:
       labels:
         app: minio
+        zta.job7189/role: db
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: internal
+        zta.job7189/team: data
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: 7189srv03
       containers:
-      - name: minio
-        image: minio/minio:latest
-        args:
-        - server
-        - /data
-        - --console-address
-        - ":9001"
-        ports:
-        - containerPort: 9000 # API S3
-        - containerPort: 9001 # Console UI
-        env:
-        # User/Pass đăng nhập (Thay đổi tùy ý)
-        - name: MINIO_ROOT_USER
-          value: "minioadmin"
-        - name: MINIO_ROOT_PASSWORD
-          value: "minioadmin"
-        volumeMounts:
-        - name: data
-          mountPath: /data
+        - name: minio
+          image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          envFrom:
+            - secretRef:
+                name: minio-root-credentials
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
       volumes:
-      - name: data
-        persistentVolumeClaim:
-          claimName: minio-pvc
-
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-pvc
 ---
-# --- 3. MinIO Service (Nội bộ & NodePort) ---
 apiVersion: v1
 kind: Service
 metadata:
   name: minio
-  namespace: job7189-infra
+  namespace: data
+  labels:
+    app: minio
 spec:
   type: NodePort
-  ports:
-  - name: api
-    port: 9000
-    targetPort: 9000
-    nodePort: 30900 # API S3: http://IP:30900
-  - name: console
-    port: 9001
-    targetPort: 9001
-    nodePort: 30901 # Web UI: http://IP:30901
   selector:
     app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+      nodePort: 30900
+    - name: console
+      port: 9001
+      targetPort: console
+      nodePort: 30901
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-cors
+  namespace: data
+  labels:
+    app: minio
+data:
+  cors.xml: |
+    <CORSConfiguration>
+      <CORSRule>
+        <AllowedOrigin>*</AllowedOrigin>
+        <AllowedMethod>GET</AllowedMethod>
+        <AllowedMethod>PUT</AllowedMethod>
+        <AllowedMethod>POST</AllowedMethod>
+        <AllowedMethod>HEAD</AllowedMethod>
+        <AllowedHeader>*</AllowedHeader>
+        <ExposeHeader>ETag</ExposeHeader>
+        <MaxAgeSeconds>3000</MaxAgeSeconds>
+      </CORSRule>
+    </CORSConfiguration>
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-bucket
+  namespace: data
+  labels:
+    app: minio-bucket-init
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: minio-bucket-init
+        zta.job7189/role: job
+        zta.job7189/tier: T2
+        zta.job7189/env: prod
+        zta.job7189/data-classification: internal
+        zta.job7189/exposure: cluster-only
+        zta.job7189/team: data
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/hostname: 7189srv03
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root-credentials
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-root-credentials
+                  key: MINIO_ROOT_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              until mc alias set local http://minio.data.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+                echo "waiting for minio..."
+                sleep 5
+              done
+              mc mb --ignore-existing local/job7189-storage
+              mc anonymous set download local/job7189-storage
+              mc cors set local/job7189-storage /etc/minio/cors.xml || echo "minio cors set not supported by this server; continuing"
+          volumeMounts:
+            - name: cors
+              mountPath: /etc/minio
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: cors
+          configMap:
+            name: minio-cors
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-storage-egress-minio
+  namespace: job7189-apps
+spec:
+  endpointSelector:
+    matchLabels:
+      app: storage-service
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: data
+            app: minio
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-minio-from-apps
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: minio
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.kubernetes.io/metadata.name: job7189-apps
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            app: minio-bucket-init
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-minio-nodeport-ingress
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: minio
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+        - world
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+            - port: "9001"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-minio-bucket-init-egress
+  namespace: data
+spec:
+  endpointSelector:
+    matchLabels:
+      app: minio-bucket-init
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: minio
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP

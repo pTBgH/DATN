@@ -11,7 +11,7 @@ import type {
   AdminUserSummary,
   SectorCategory,
 } from "@/types/admin";
-import { apiFetch } from "./client";
+import { ApiClientError, apiFetch } from "./client";
 
 export async function listPendingJobs(): Promise<AdminPendingJob[]> {
   if (config.useMock) return Promise.resolve(mockPendingJobs);
@@ -39,10 +39,10 @@ export async function rejectJob(
 
 export async function listSectors(): Promise<SectorCategory[]> {
   if (config.useMock) return Promise.resolve(mockSectors);
-  const r = await apiFetch<{ data: SectorCategory[] }>(
+  const r = await apiFetch<unknown>(
     "/api/admin/categories/sectors",
   );
-  return r.data;
+  return readCollection(r).map(normalizeSector);
 }
 
 export async function createSector(
@@ -58,22 +58,80 @@ export async function createSector(
       created_at: new Date().toISOString(),
     });
   }
-  return apiFetch<SectorCategory>("/api/admin/categories/sectors", {
+  const r = await apiFetch<unknown>("/api/admin/categories/sectors", {
     method: "POST",
     body: input,
   });
+  return normalizeSector(isRecord(r) ? r : {});
 }
 
 export async function listAdminUsers(): Promise<AdminUserSummary[]> {
   if (config.useMock) return Promise.resolve(mockAdminUsers);
-  const r = await apiFetch<{ data: AdminUserSummary[] }>("/api/admin/users");
-  return r.data;
+  try {
+    const r = await apiFetch<unknown>("/api/admin/users");
+    return readCollection(r).map((item) => item as unknown as AdminUserSummary);
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) return [];
+    throw error;
+  }
 }
 
 export async function listAdminCompanies(): Promise<AdminCompanySummary[]> {
   if (config.useMock) return Promise.resolve(mockAdminCompanies);
-  const r = await apiFetch<{ data: AdminCompanySummary[] }>(
-    "/api/admin/companies",
-  );
-  return r.data;
+  try {
+    const r = await apiFetch<unknown>("/api/admin/companies");
+    return readCollection(r).map((item) => item as unknown as AdminCompanySummary);
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) return [];
+    throw error;
+  }
+}
+
+function readCollection(response: unknown): Record<string, unknown>[] {
+  const payload = isRecord(response) && Array.isArray(response.data)
+    ? response.data
+    : response;
+  return Array.isArray(payload)
+    ? payload.filter(isRecord)
+    : [];
+}
+
+function normalizeSector(raw: Record<string, unknown>): SectorCategory {
+  const id = readNumber(raw, "id") ?? readNumber(raw, "JobSectorID") ?? 0;
+  const name =
+    readString(raw, "name") ??
+    readString(raw, "JobSectorName") ??
+    readString(raw, "Name") ??
+    "Chưa đặt tên";
+
+  return {
+    id,
+    name,
+    code: readString(raw, "code") ?? readString(raw, "Code") ?? `SECTOR-${id}`,
+    active: readBoolean(raw, "active") ?? readBoolean(raw, "IsActive") ?? true,
+    job_count: readNumber(raw, "job_count") ?? readNumber(raw, "jobs_count") ?? 0,
+    created_at:
+      readString(raw, "created_at") ??
+      readString(raw, "CreatedAt") ??
+      new Date().toISOString(),
+  };
+}
+
+function readString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readNumber(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+function readBoolean(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

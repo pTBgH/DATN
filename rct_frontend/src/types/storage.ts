@@ -14,4 +14,6 @@ export interface PresignedUrlResponse {
   url: string;
   path: string;
   expires_in: number;
+  file_url?: string;
+  success?: boolean;
 }

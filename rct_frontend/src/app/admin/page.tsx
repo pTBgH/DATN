@@ -30,8 +30,8 @@ export default function AdminHomePage() {
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label="Tin chờ duyệt" value={pending.length} />
-        <Stat label="Người dùng" value={users.length} hint="(mock)" />
-        <Stat label="Công ty" value={companies.length} hint="(mock)" />
+        <Stat label="Người dùng" value={users.length} />
+        <Stat label="Công ty" value={companies.length} />
         <Stat label="Ngành nghề" value={sectors.filter((s) => s.active).length} />
       </section>
 
@@ -42,7 +42,7 @@ export default function AdminHomePage() {
         >
           <div className="font-semibold">Duyệt tin tuyển dụng</div>
           <p className="mt-1 text-sm text-slate-500">
-            Endpoint: `GET /api/admin/jobs`, `PATCH /api/admin/jobs/{"{id}"}/approve`
+            Xem các tin mới gửi, kiểm tra nội dung và phê duyệt trước khi công khai.
           </p>
         </Link>
         <Link
@@ -51,7 +51,7 @@ export default function AdminHomePage() {
         >
           <div className="font-semibold">Quản lý ngành nghề</div>
           <p className="mt-1 text-sm text-slate-500">
-            Endpoint: `GET/POST/PUT/DELETE /api/admin/categories/sectors`
+            Cập nhật danh mục ngành nghề dùng cho bộ lọc và form đăng tin.
           </p>
         </Link>
         <Link
@@ -60,7 +60,7 @@ export default function AdminHomePage() {
         >
           <div className="font-semibold">Người dùng</div>
           <p className="mt-1 text-sm text-slate-500">
-            Tương lai sẽ kết hợp với Keycloak admin API.
+            Theo dõi tài khoản ứng viên, nhà tuyển dụng và quản trị viên.
           </p>
         </Link>
         <Link
@@ -69,7 +69,7 @@ export default function AdminHomePage() {
         >
           <div className="font-semibold">Công ty</div>
           <p className="mt-1 text-sm text-slate-500">
-            Endpoint: `GET /api/companies/{"{id}"}` + workspace-service.
+            Rà soát hồ sơ doanh nghiệp, workspace và trạng thái xác minh.
           </p>
         </Link>
       </section>

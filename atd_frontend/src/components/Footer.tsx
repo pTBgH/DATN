@@ -47,7 +47,7 @@ export function Footer() {
             <ul className="space-y-3">
               <li>
                 <a 
-                  href="http://localhost:3001" 
+                  href="https://job7189-rct.pages.dev"
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-xs text-slate-600 hover:text-brand transition-colors duration-300 inline-flex items-center gap-1"
@@ -58,7 +58,7 @@ export function Footer() {
               </li>
               <li>
                 <a 
-                  href="http://localhost:3001" 
+                  href="https://job7189-rct.pages.dev/recruiter"
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-xs text-slate-600 hover:text-brand transition-colors duration-300 inline-flex items-center gap-1"
@@ -75,19 +75,19 @@ export function Footer() {
             <h3 className="text-sm font-semibold text-slate-900 mb-4">Thông Tin</h3>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-xs text-slate-600 hover:text-brand transition-colors duration-300">
+                <span className="text-xs text-slate-600">
                   Về chúng tôi
-                </a>
+                </span>
               </li>
               <li>
-                <a href="#" className="text-xs text-slate-600 hover:text-brand transition-colors duration-300">
+                <span className="text-xs text-slate-600">
                   Điều khoản
-                </a>
+                </span>
               </li>
               <li>
-                <a href="#" className="text-xs text-slate-600 hover:text-brand transition-colors duration-300">
+                <span className="text-xs text-slate-600">
                   Liên hệ
-                </a>
+                </span>
               </li>
             </ul>
           </div>

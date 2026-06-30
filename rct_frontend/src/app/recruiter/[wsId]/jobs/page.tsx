@@ -9,6 +9,7 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { getJobStatusBadgeClass } from "@/lib/formatters";
 import { PageLoading, PageError } from "@/components/PageState";
+import { FileText } from "lucide-react";
 
 export default function WorkspaceJobsPage() {
   return (
@@ -106,7 +107,7 @@ function WorkspaceJobsInner() {
 
       {result.data.length === 0 ? (
         <Card className="text-center py-12 bg-gray-50 border border-gray-200">
-          <div className="text-4xl text-gray-400 mb-4">[ CV ]</div>
+          <FileText className="mx-auto mb-4 h-12 w-12 text-gray-400" />
           <p className="text-lg font-semibold text-slate-900">Không tìm thấy công việc</p>
           <p className="mt-1 text-slate-600">Hãy thử thay đổi điều kiện tìm kiếm</p>
         </Card>

@@ -18,11 +18,8 @@ export default function AdminJobsPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Duyệt tin tuyển dụng</h1>
       <p className="text-sm text-slate-500">
-        {list.length} tin đang chờ duyệt. Bấm {'"'}Duyệt{'"'} sẽ gọi{" "}
-        <code>PATCH /api/admin/jobs/&#123;id&#125;/approve</code>; {'"'}Từ chối{'"'} gọi{" "}
-        <code>PATCH /api/admin/jobs/&#123;id&#125;/reject</code> (mock-only ở
-        skeleton — xem <code>adminApi.approveJob</code> /{" "}
-        <code>adminApi.rejectJob</code>).
+        {list.length} tin đang chờ duyệt. Kiểm tra nội dung, mức lương và hạn
+        ứng tuyển trước khi quyết định.
       </p>
 
       <ul className="space-y-3">
@@ -38,7 +35,7 @@ export default function AdminJobsPage() {
                   {j.company_name} · gửi bởi {j.recruiter_name} ({j.recruiter_email})
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  Workspace {j.workspace_name} · Submitted{" "}
+                  Workspace {j.workspace_name} · gửi lúc{" "}
                   {new Date(j.submitted_at).toLocaleString("vi-VN")}
                 </div>
               </div>

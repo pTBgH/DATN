@@ -33,13 +33,13 @@ export default function MembersPage() {
       </header>
 
       <p className="text-sm text-slate-500">
-        Endpoint: `GET /api/workspaces/{ws.id}/members` (workspace-service §2.3) — skeleton hiện hiển thị mock data từ recruiter profile.
+        Quản lý quyền truy cập của các thành viên trong {ws.name}.
       </p>
 
       <ul className="divide-y rounded-lg border bg-white">
-        <Member name="Anna Nguyen" email="anna@acme.io" status="Active" perms="OWNER" />
-        <Member name="Bao Tran" email="bao@globex.com" status="Active" perms="CREATE_JOB" />
-        <Member name="Linh Pham" email="linh@initech.vn" status="Pending" perms="—" />
+        <Member name="Anna Nguyen" email="anna@acme.io" status="Đang hoạt động" perms="Chủ sở hữu" />
+        <Member name="Bao Tran" email="bao@globex.com" status="Đang hoạt động" perms="Đăng tin" />
+        <Member name="Linh Pham" email="linh@initech.vn" status="Chờ xác nhận" perms="—" />
       </ul>
     </div>
   );

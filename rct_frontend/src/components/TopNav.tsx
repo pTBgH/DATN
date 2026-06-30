@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { config } from "@/lib/config";
 import { useMockAuth } from "@/lib/auth/mock";
 import { useState, useRef, useEffect } from "react";
 import { Building2, LayoutDashboard, FileText, Users, Folder, ChevronDown, LogOut } from "lucide-react";
@@ -75,12 +74,6 @@ export function TopNav() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          {config.useMock && (
-            <span className="rounded-[8px] bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-              MOCK
-            </span>
-          )}
-
           {role && email ? (
             <div className="relative" ref={dropdownRef}>
               <button

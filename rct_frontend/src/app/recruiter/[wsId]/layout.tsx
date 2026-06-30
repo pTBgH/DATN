@@ -29,7 +29,7 @@ export default function WorkspaceLayout({
       <header className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
         <div className="flex items-center gap-3">
           <Link href="/recruiter" className="text-xs text-slate-500 hover:underline">
-            ← Workspaces
+            ← Danh sách workspace
           </Link>
           <div>
             <h1 className="text-base font-semibold">{ws.name}</h1>

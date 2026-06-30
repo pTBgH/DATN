@@ -1,5 +1,8 @@
 # Deployment Pipeline — Full Script Chain
 
+> **Cảnh báo drift:** pipeline notes có lịch sử 2026-06-03. Trạng thái cluster
+> chuẩn 2026-06-20 xem `00-SYSTEM-SNAPSHOT.md`.
+
 ## Pipeline Overview
 
 ```
@@ -74,7 +77,7 @@ bash 11-provision-dashboards.sh
 - Mac dinh **VM mode**: cum kubeadm 4-node multi-VM (srv01 control-plane + srv02/srv03/srv05 worker) qua `knowledge-base/migration/scripts/bootstrap.sh`. Co the dung `--kind` cho Kind 1CP+3W local-dev. Tat default CNI.
 - Cai Gateway API CRDs + Cilium (eBPF) + Hubble
 - Cai cert-manager + Nginx Ingress
-- **Step 5c**: Patch Cilium stability baseline (wireguard=false, mesh-auth=false)
+- **Step 5c**: Patch Cilium stability baseline (wireguard=false; mesh-auth chuẩn hiện tại=true)
 - **Step 5d**: Post-check Hubble Relay + UI
 
 ### 02-deploy-infrastructure.sh
@@ -144,7 +147,7 @@ bash 11-provision-dashboards.sh
 ```bash
 # Tat mTLS + WireGuard
 kubectl -n kube-system patch configmap cilium-config --type merge \
-  -p '{"data":{"mesh-auth-enabled":"false","enable-wireguard":"false"}}'
+  -p '{"data":{"mesh-auth-enabled":"true","enable-wireguard":"false"}}'
 kubectl -n kube-system rollout restart ds/cilium
 
 # Tat Tetragon

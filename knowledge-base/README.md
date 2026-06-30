@@ -1,141 +1,107 @@
 # DOC KB — Token-Optimized Knowledge Base
 
-Kho tri thuc gon cho du an Zero Trust job7189.
+Kho tri thuc gon cho du an Zero Trust `job7189`.
 Muc tieu: giam token khi lam viec voi AI — chi doc dung file can thiet.
-Cap nhat: 2026-06-03 (42 chuong + 3 incident reports)
 
-Thu muc `docs/` cu (operational incident reports) da duoc gop vao day
-(`incident-*.md`) de chi co MOT knowledge base duy nhat — nguoi/AI khong
-phai phan van giua `knowledge-base/` va `docs/`.
+Cap nhat: **2026-06-30**. Trang thai cluster moi nhat duoc gom vao
+`00-SYSTEM-SNAPSHOT.md` (single source of truth, snapshot 2026-06-20).
 
-## Index
+## Index file thật trong `knowledge-base/`
 
 | # | File | Chu de |
-|---|------|--------|
-| 00 | `00-project-overview.md` | Tong quan: 7 services, namespaces, luong giao dich, key files |
-| 01 | `01-gap-analysis-report-vs-code.md` | Do lech giua thesis va code (21 claims — 19 MATCH, 2 PARTIAL) |
-| 02 | `02-architecture-layers.md` | Khung 5 lop ZTA → anh xa NIST → CNCF → code |
+|---|---|---|
+| 00 | `00-SYSTEM-SNAPSHOT.md` | **Single source of truth** cho cluster state 2026-06-20 + lenh verify |
+| 00 | `00-project-overview.md` | Tong quan: services, namespaces, luong giao dich, key files |
+| 02 | `02-architecture-layers.md` | Khung 5 lop ZTA -> NIST/CNCF/code |
 | 03 | `03-identity-layer.md` | Keycloak Dual-Realm + Vault Dual + JIT lifecycle |
-| 04 | `04-policy-enforcement.md` | Kong JWT matrix + Cilium microseg layers + encryption |
+| 04 | `04-policy-enforcement.md` | Kong JWT matrix + Cilium microseg + encryption |
 | 05 | `05-observability-stack.md` | EFK + Prometheus + Grafana + Hubble + exporters |
 | 06 | `06-resource-budget.md` | Memory budget toan he thong + swap strategy |
-| 07 | `07-service-toggle.md` | Bat/tat UI noi bo (phpMyAdmin, Kibana, Grafana; Kafbat removed) |
-| 08 | `08-deployment-pipeline.md` | 9 scripts deploy (01-09) + thu tu chay + rollback |
-| 09 | `09-evidence-checklist.md` | Placeholder screenshots can dien cho chapter3 |
-| 10 | `10-priority-roadmap.md` | P0/P1/P2 tasks + trinh tu thuc thi |
-| 11 | `11-cisa-ztmm-assessment.md` | Tu danh gia CISA ZTMM 2.0 (5 tru cot) |
-| 12 | `12-threat-model.md` | Attack paths + MITRE ATT&CK + truoc/sau ZTA |
+| 07 | `07-service-toggle.md` | Bat/tat UI noi bo |
+| 08 | `08-deployment-pipeline.md` | Script deploy + thu tu chay + rollback notes |
+| 09 | `09-evidence-checklist.md` | Placeholder screenshots / evidence checklist |
+| 11 | `11-cisa-ztmm-assessment.md` | Tu danh gia CISA ZTMM 2.0 |
+| 12 | `12-threat-model.md` | Attack paths + MITRE ATT&CK + doi pho |
 | 13 | `13-maintenance-rules.md` | Quy uoc cap nhat KB + query map |
-| 14 | `14-tetragon-runtime.md` | **MOI** — PEP Runtime: TracingPolicy, MITRE mapping, ke hoach deploy |
-| 15 | `15-encryption-mtls-spiffe.md` | **MOI** — mTLS + WireGuard + SPIFFE + OPA/Rego + ABAC + CAEP |
-| 16 | `16-pip-data-sources.md` | PIP tools: Keycloak, Vault, Cilium, Prometheus, EFK, Hubble |
-| 17 | `17-observability-baseline.md` | (PR #7) — Step 2.3.1: Hubble flow baseline + DAAS prep |
-| 18 | `18-daas-classification.md` | **MOI** (PR #8) — Step 2.3.2: DAAS per namespace + tier + microperimeter map |
-| 19 | `19-label-schema.md` | **MOI** (PR #9) — 6 ZTA criteria labels + apply tool |
-| 20 | `20-5w1h-policy-matrix.md` | **MOI** (PR #10) — 5W1H L7 enforcement (vault/keycloak/kong/prom) |
-| 22 | `22-audit-findings-remediation.md` | **MOI** (PR #8) — F-1/F-2/F-4 audit findings remediation + rotation runbook |
-| 23 | `23-rebuild-from-scratch.md` | Teardown + rebuild via `zta-rebuild.sh` (full-enforcement, --from/--until phase) |
-| 24 | `24-adaptive-security-loop.md` | (PR #12) — Gatekeeper + Tetragon T1 ns + adaptive loop |
-| 25 | `25-pdp-controller.md` | (PR #15) — PDP Controller continuous label compliance |
-| 26 | `26-image-provenance.md` | (PR #16) — Cosign + Gatekeeper image-digest required |
-| 27 | `27-spire-workload-attestation.md` | (PR #17) — SPIRE server/agent/CSI + 11 ClusterSPIFFEID |
-| 28 | `28-sigstore-policy-controller.md` | (PR #19) — sigstore policy-controller real Cosign verify |
-| 29 | `29-spire-workload-integration.md` | (PR #20) — Consume SVID via spiffe-helper + Workload API |
-| 30 | `30-hubble-flow-sink.md` | (PR #21) — Hubble flow → Elasticsearch via filebeat shipper |
-| 31 | `31-falco-deprecated.md` | (PR #22 — **DEPRECATED** 2026-05) — Falco runtime detection thay thế bằng Tetragon, giữ làm thesis evidence |
-| 32 | `32-deploy-script-troubleshooting.md` | **MOI** (PR #24) — Deploy script recovery: --reset, --uninstall, RAM pre-flight, cluster cascade fix |
-| 33 | `33-zta-gap-analysis.md` | ZTA Gap Analysis — Doc vs Code |
-| 34 | `34-microseg-phase2c-plan.md` | Microsegmentation Phase 2C — mở rộng CNP sang infra namespaces |
-| 35 | `35-fix-report-summary.md` | Tóm tắt thay đổi báo cáo (theo yêu cầu fix) |
-| 35 | `35-microseg-flow-baseline.md` | Microsegmentation — Flow Baseline & Draft Refinement Report |
-| 36 | `36-opa-user-authz.md` | OPA user-authz PDP |
-| 37 | `37-phase5d-followup-todo.md` | Phase 5.D Follow-Up TODO — công việc còn lại |
-| 38 | `38-microseg-conformance-test.md` | Microsegmentation L4 Conformance Test |
-| 39 | `39-zta-alert-catalog.md` | ZTA Alert Catalog (Tier 1 + Tier 2) |
-| 40 | `40-zta-system-snapshot-20260527.md` | **SNAPSHOT** trạng thái hệ thống thực tế (source-of-truth) |
-| 41 | `41-cleanup-and-reconcile-plan.md` | Kế hoạch dọn dẹp repo + đối chiếu KB ↔ hệ thống thực tế |
-| 43 | `43-vault-laravel-rotation-debug.md` | **✅ VERIFIED 2026-06-06** Vault & Laravel Dynamic Credentials Rotation — All 7 services (hiring, identity, candidate, communication, storage, job, workspace) actively rotating credentials ~10min without pod restart |
+| 14 | `14-tetragon-runtime.md` | Tetragon runtime enforcement |
+| 15 | `15-encryption-mtls-spiffe.md` | mTLS + WireGuard/Tailscale + SPIFFE + CAEP gap |
+| 16 | `16-pip-data-sources.md` | PIP tools: Keycloak, Vault, Cilium, Trivy, Hubble |
+| 17 | `17-observability-baseline.md` | Hubble flow baseline + DAAS prep |
+| 18 | `18-daas-classification.md` | DAAS per namespace + tier + microperimeter map |
+| 19 | `19-label-schema.md` | 6 ZTA criteria labels |
+| 20 | `20-5w1h-policy-matrix.md` | 5W1H L7 enforcement matrix |
+| 23 | `23-rebuild-from-scratch.md` | Teardown + rebuild via `zta-rebuild.sh` |
+| 24 | `24-adaptive-security-loop.md` | Gatekeeper + Tetragon + adaptive loop |
+| 25 | `25-pdp-controller.md` | PDP Controller continuous label compliance |
+| 26 | `26-image-provenance.md` | Cosign + Gatekeeper image digest/signature trust |
+| 27 | `27-spire-workload-attestation.md` | SPIRE server/agent/CSI + ClusterSPIFFEID |
+| 28 | `28-sigstore-policy-controller.md` | Sigstore policy-controller / Cosign verify |
+| 29 | `29-spire-workload-integration.md` | Consume SVID via spiffe-helper + Workload API |
+| 30 | `30-hubble-flow-sink.md` | Hubble flow -> Elasticsearch via filebeat shipper |
+| 36 | `36-opa-user-authz.md` | OPA user-authz PDP design |
+| 37 | `37-oauth2-client-id-standardization.md` | OAuth2 client-id standardization |
+| 38 | `38-microseg-conformance-test.md` | Microsegmentation L4 conformance test |
+| 39 | `39-zta-alert-catalog.md` | ZTA alert catalog |
+| 42 | `42-zero-trust-network-blueprint.md` | Zero Trust network blueprint |
+| 45 | `45-upgrade-and-rollback-plan.md` | Upgrade and rollback plan |
+| 46 | `46-cilium-l7-same-node-loopback.md` | Cilium L7 same-node loopback note |
+| 47 | `47-next-tasks.md` | Next tasks / status tracker |
+| 48 | `48-version-audit-20260612.md` | Version audit 2026-06-12 |
+| 50 | `50-physical-topology-and-flows.md` | Physical topology and traffic flows |
+| 51 | `51-nist-compliance-mapping.md` | NIST compliance mapping |
+| 52 | `52-limitations-and-known-gaps.md` | Limitations and known gaps, authoritative 2026-06-20 |
+| NIST | `NIST180035.md` | Notes for NIST SP 1800-35 |
+| NIST | `NIST800207.md` | Notes for NIST SP 800-207 |
+| C4 | `chapter4_evidence_guide.md` | Huong dan lap bang chung vao Chuong 4 |
+| Map | `network_architecture_map.md` | Network architecture map |
 
-> Lưu ý: chương `21` không tồn tại (đã gộp); số `35` có 2 file (fix-report-summary + microseg-flow-baseline). Số `42` không được sử dụng. Tổng file numbered = **43** (**UPDATED: 2026-06-06**).
+## Ghi chu numbering
 
-## Migration (Kind → Multi-VM kubeadm)
+- File top-level `.md` trong `knowledge-base/`: **45** file.
+- File numbered/prefixed bang so: **40** file, tuong ung **39** so duy nhat
+  (vi co hai file `00-*`).
+- So bi thieu trong day numbered hien tai: `01`, `10`, `21`, `22`, `31`, `32`,
+  `33`, `34`, `35`, `40`, `41`, `43`, `44`, `49`.
+- Trong cac so thieu, can de y rieng `21`, `44`, `49` vi chung nam giua cac
+  cum tai lieu dang duoc dung.
+- So `35` tung co 2 file trong index cu, nhung hien **khong co file `35-*`**
+  trong thu muc top-level.
+- Cac so `37`, `42`, `45`-`52` dang duoc su dung va da liet ke o tren.
 
-Chuyen tu Kind 1-host sang 4 VM Debian + kubeadm + Tailscale overlay
-(motivation: 3 incident OOM cascade tren single-host 12 GiB).
+## Migration (Kind -> Multi-VM kubeadm)
 
-Folder: `knowledge-base/migration/` (xem `knowledge-base/migration/README.md` cho index 13 file).
+Folder: `knowledge-base/migration/` co index rieng trong
+`knowledge-base/migration/README.md`. Cac file migration la runbook/lich su
+chuyen doi, khong phai source of truth cho cluster state moi nhat neu mâu thuẫn
+voi `00-SYSTEM-SNAPSHOT.md`.
 
-| # | File | Chu de |
-|---|------|--------|
-| 00 | `migration/README.md` | Index + nguyen tac thiet ke + open questions |
-| 01 | `migration/01-context-and-rationale.md` | Vi sao bo Kind, trade-off Kind vs multi-VM |
-| 02 | `migration/02-target-architecture.md` | Topology, vai tro tung VM, pod placement |
-| 03 | `migration/03-vm-sizing.md` | RAM/CPU/disk tung VM, fit ngan sach 12.8+8 GB |
-| 04 | `migration/04-network-tailscale-cilium.md` | Tailscale + VMware NAT + Cilium VXLAN |
-| 05 | `migration/05-storage-and-registry.md` | local-path-provisioner + in-cluster registry |
-| 06 | `migration/06-debian-base-prep.md` | Cai dat Debian 12 cho moi VM |
-| 07 | `migration/07-kubeadm-bootstrap.md` | kubeadm init cp1 + join 3 worker |
-| 08 | `migration/08-cilium-install.md` | Cilium 1.19 voi Tailscale-aware nodeIP |
-| 09 | `migration/09-cluster-services-bringup.md` | Gateway API, cert-manager, ingress, metrics-server |
-| 10 | `migration/10-zta-pipeline-adaptations.md` | Thay doi script ZTA cho external cluster |
-| 11 | `migration/11-runbook-fresh-deploy.md` | Day-0 runbook end-to-end (~5h) |
-| 12 | `migration/12-runbook-recovery.md` | Recovery cho 12 disaster scenarios |
-| 13 | `migration/13-validation-checklist.md` | 7 nhom check verify thanh cong |
-
-## Incident reports (operational fixes)
-
-Mot file moi cho moi failure mode da gap khi rebuild. Format:
-Symptom → Root cause → Fix → Operational guidance → Verification.
-
-| File | Chu de | Related commit |
-|------|--------|----------------|
-| `incident-falco-tetragon-ram-overcommit.md` | Falco + Tetragon OOM cascade tren host 12 GiB | `313178f` |
-| `incident-gatekeeper-crd-timeout.md` | Gatekeeper helm CRD install 504 (apiserver overload) | `f7ab2ca` |
-| `incident-gatekeeper-probe-webhook-stuck.md` | Gatekeeper post-install probeWebhook hook treo helm install → host VM crash | (this PR) |
-
-## Query Map (cho AI/Agent)
+## Query Map
 
 | Muon hoi ve... | Doc file... |
-|----------------|-------------|
-| He thong gom gi | `00` |
-| Lech bao cao vs code | `01` |
-| Kien truc ZTA | `02` |
-| Keycloak, Vault, JWT | `03` |
-| Network policy, Cilium | `04` |
-| Monitoring, logs, metrics | `05` |
-| RAM, swap, resources | `06` |
-| Bat/tat phpMyAdmin, Kibana | `07` |
-| Deploy scripts (01→09) | `08` |
-| Screenshots can chup | `09` |
-| Uu tien lam gi truoc | `10` |
-| CISA maturity level | `11` |
-| Tan cong va phong thu | `12` |
-| Quy tac cap nhat | `13` |
-| Tetragon, syscall, runtime | `14` |
-| mTLS, WireGuard, SPIFFE, OPA, ABAC, CAEP | `15` |
-| PIP, Data Sources, NIST Figure 2 | `16` |
-| Hubble baseline, DAAS prep | `17` |
-| DAAS classification, tier, microperimeter | `18` |
-| Label schema 6 ZTA criteria | `19` |
-| 5W1H policy matrix + L7 enforcement | `20` |
-| Audit findings F-1/F-2/F-4 + Vault rotation | `22` |
-| Rebuild from scratch (zta-rebuild.sh) | `23` |
-| Adaptive Security Loop (Gatekeeper + Tetragon) | `24` |
-| PDP Controller (continuous label compliance) | `25` |
-| Image Provenance & Cosign supply-chain trust | `26` |
-| SPIRE Workload Attestation (Devices Advanced) | `27` |
-| sigstore policy-controller (real Cosign verify) | `28` |
-| SPIRE Workload Integration (consume SVID) | `29` |
-| Hubble flow sink (Elasticsearch audit trail) | `30` |
-| Falco runtime detection (DEPRECATED — thay bằng Tetragon) | `31` |
-| Deploy script troubleshooting (--reset, --uninstall, RAM pre-flight) | `32` |
-| Vault dynamic credentials rotation debug + all 7 services verification | `43` |
-| Step 26 helm install hangs / VM crashes | `incident-gatekeeper-*.md` |
-| Tetragon OOM / host overcommit | `incident-falco-tetragon-ram-overcommit.md` |
+|---|---|
+| Trang thai cluster moi nhat | `00-SYSTEM-SNAPSHOT.md` |
+| Tong quan he thong | `00-project-overview.md` |
+| Kien truc ZTA | `02-architecture-layers.md` |
+| Keycloak, Vault, JWT | `03-identity-layer.md` |
+| Network policy, Cilium | `04-policy-enforcement.md` |
+| Monitoring/log/metrics | `05-observability-stack.md` |
+| RAM, swap, resource | `06-resource-budget.md` |
+| Deploy scripts | `08-deployment-pipeline.md` |
+| Evidence / chapter 4 | `chapter4_evidence_guide.md` |
+| CISA maturity level | `11-cisa-ztmm-assessment.md` |
+| Threat model | `12-threat-model.md` |
+| Tetragon runtime | `14-tetragon-runtime.md` |
+| mTLS, WireGuard, SPIFFE | `15-encryption-mtls-spiffe.md` |
+| PIP/CDM/Trivy | `16-pip-data-sources.md` |
+| Label schema | `19-label-schema.md` |
+| PDP adaptive loop | `25-pdp-controller.md` |
+| Cosign / supply chain | `26-image-provenance.md`, `28-sigstore-policy-controller.md` |
+| SPIRE/SPIFFE workload identity | `27-spire-workload-attestation.md`, `29-spire-workload-integration.md` |
+| Hubble flow sink | `30-hubble-flow-sink.md` |
+| Compliance / limitations | `51-nist-compliance-mapping.md`, `52-limitations-and-known-gaps.md` |
 
 ## Archive
 
-File audit cu (da gop vao `08-deployment-pipeline.md`):
-- `archive/02-audit-01-setup-cluster.md`
-- `archive/03-audit-02-deploy-infrastructure.md`
-- `archive/04-audit-03-deploy-microservices.md`
+Subfolders `api/`, `architecture/`, `frontend/`, `migration/` co index/rules rieng
+hoac la tai lieu chuyen de. README nay chi liet ke file `.md` top-level de tranh
+index bi lech voi thu muc that.

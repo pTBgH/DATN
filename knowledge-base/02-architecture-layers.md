@@ -1,5 +1,9 @@
 # Architecture Layers — Khung ZTA 5 Lop
 
+> **Cảnh báo drift:** file này có nguồn gốc trước snapshot 2026-06-20. Trạng thái
+> cluster chuẩn mới nhất xem `00-SYSTEM-SNAPSHOT.md`; các dòng cũ về Tetragon/mTLS
+> đã được reconcile dưới đây.
+
 Anh xa tu khung 5 lop ZTA (chapter2) sang code thuc te.
 Cap nhat: 2026-04-24 (sau script 01-09)
 
@@ -21,7 +25,7 @@ Lop 5: Quan sat & Phan tich hanh vi (Observability)
 | PA (Policy Admin) | HashiCorp Vault | `infras/k8s-yaml/11-vault.yaml` | ✅ Deployed |
 | PEP North-South | Kong Gateway | `infras/k8s-yaml/04-kong-dbless.yaml`, `infras/kong/kong.yml` | ✅ Deployed + JWT verified (401 test) |
 | PEP East-West | Cilium eBPF | `infras/k8s-yaml/cilium-policies/*` | ✅ 6 policies, hook script 02 Step 9c |
-| PEP Runtime | Tetragon | `knowledge-base/14-tetragon-runtime.md` (thiet ke) | ❌ Du kien — thiet ke TracingPolicy co san |
+| PEP Runtime | Tetragon | `knowledge-base/14-tetragon-runtime.md` | ✅ v1.7.0 DS 3/3; `Sigkill` enforce + `Post` audit ở 4 ns |
 | Data Source (User ID) | Keycloak | `infras/k8s-yaml/02-keycloak.yaml`, `infras/keycloak/` | ✅ Deployed |
 | Data Source (Workload ID) | SPIFFE/SPIRE (Cilium mesh-auth) | `08-harden-security.sh` | ✅ DA KICH HOAT |
 | Data Source (Observability) | EFK + Prometheus + Grafana | Scripts 02 (9a+9b) + 07 | ✅ Full stack deployed |
@@ -55,7 +59,7 @@ Lop 5: Quan sat & Phan tich hanh vi (Observability)
   - Allow DNS/Data/Kong/Internal API: 4 allow policies
   - Hook: Script 02 Step 9c (auto-apply)
   - Xem chi tiet: `knowledge-base/04-policy-enforcement.md`
-- **Runtime**: Tetragon (thiet ke, chua deploy)
+- **Runtime**: Tetragon v1.7.0 đã deploy, enforce `Sigkill` cho `block-suspicious-exec` ở 4 namespace
   - TracingPolicy: chan /bin/sh, curl, wget trong container
   - Xem chi tiet: `knowledge-base/14-tetragon-runtime.md`
 
@@ -86,7 +90,7 @@ Lop 5: Quan sat & Phan tich hanh vi (Observability)
 
 | Lop | Cong nghe | Trang thai |
 |-----|-----------|------------|
-| L3 (kernel) | WireGuard (ChaCha20-Poly1305) | ✅ DA BAT |
+| L3 (kernel) | Tailscale WireGuard; Cilium WireGuard tắt | ✅ Tailscale DA BAT; Cilium `enable-wireguard=false` |
 | L4/L7 (sidecarless) | Cilium Mesh Auth mTLS (SPIFFE) | ✅ DA BAT |
 | N-S (API) | Kong HTTPS + JWT RS256 | ✅ DA BAT |
 

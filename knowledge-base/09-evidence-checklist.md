@@ -1,5 +1,8 @@
 # Evidence & Screenshot Checklist (Chapter3)
 
+> **Cảnh báo drift:** checklist này có dòng từ trước snapshot 2026-06-20. Trạng thái
+> chuẩn mới nhất xem `00-SYSTEM-SNAPSHOT.md`.
+
 Muc tieu: Dien cac placeholder con thieu trong `chapter3.tex`.
 
 ## A. Placeholder can dien
@@ -9,7 +12,7 @@ Muc tieu: Dien cac placeholder con thieu trong `chapter3.tex`.
 | 1 | HINH 3.1 — Kien truc 5 tang namespace | Muc 3.2 overview | So do kien truc |
 | 2 | HINH 3.7 — Attacker vs allowed-client | Muc 3.5 microseg | 2 screenshot terminal: attacker timeout + allowed 200 |
 | 3 | HINH 3.9 — Grafana security dashboard | Muc 3.6 observability | Panel: dropped/forwarded, vault leases, pod cpu/mem |
-| 4 | HINH 3.10 — Tetragon eBPF hook | Muc 3.6 runtime | So do (chua trien khai, ghi ro du kien) |
+| 4 | HINH 3.10 — Tetragon eBPF hook | Muc 3.6 runtime | So do + trạng thái thực tế: Tetragon v1.7.0 đã deploy/enforce Sigkill |
 | 5 | HINH 3.11 — Vault rotation no-downtime | Muc 3.7 verification | lease_duration 300, revoke prefix, service 200 OK |
 | 6 | HINH 3.12 — Pod status final | Muc 3.7 verification | `kubectl get pods -A` o trang thai on dinh |
 | 7 | HINH 3.13 — Deployment pipeline | Muc 3.8 pipeline | So do 01→02→03→04→05 + ZTA checkpoints |
@@ -40,7 +43,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://api.job7189.com/api/recruiters/
 
 - Neu chua deploy Prometheus/Grafana trong script chain → khong claim "tu dong full stack"
 - Neu chua implement AppRole cho script 05 → khong claim "seed DB qua AppRole"
-- Tetragon/Alertmanager chua co → giu nhan "du kien/chua trien khai"
+- Tetragon đã có và enforce Sigkill; Alertmanager nếu chưa có thì giữ riêng nhãn "du kien/chua trien khai"
 
 ## D. Luu artifact
 

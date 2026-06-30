@@ -1,5 +1,8 @@
 # Resource Budget & Swap Strategy
 
+> **Cảnh báo drift:** file này có số liệu vận hành cũ. Trạng thái cluster chuẩn
+> 2026-06-20 xem `00-SYSTEM-SNAPSHOT.md`.
+
 ## May chu
 - Ha tang: **kubeadm 4-node multi-VM** (`srv01` CP + `srv02`/`srv03`/`srv05` worker) — da bo Kind (snapshot 40: "di chuyen tu Kind 12GB sang multi-VM 32GB").
 - RAM: ~32GB total tren cum (theo snapshot 40); allocatable moi node ~3.1Gi (tong ~12.4Gi)
@@ -73,7 +76,7 @@
 | Gatekeeper | 1+2 | 96Mi\u00d73=288Mi | 256Mi\u00d73=768Mi | \u2705 deployed |
 | Tetragon | 4 (DS) | 64Mi\u00d74=256Mi | 128Mi\u00d74=512Mi | \u2705 deployed |
 | Cosign policy-controller | 1 | 64Mi | 128Mi | \u2705 deployed |
-| PDP Controller | 1 | 128Mi | 256Mi | \u2705 deployed (PDP_CVE_INPUT=false) |
+| PDP Controller | 1 | 128Mi | 256Mi | \u2705 deployed in `security`; `PDP_CVE_INPUT` unset -> default `true` |
 | Threat-intel CronJob | (peak 1 pod) | 64Mi peak | 128Mi peak | \u2705 deployed (1h cadence) |
 | Trivy Operator | 1 | 150Mi | 300Mi | ✅ deployed (ns `security-cdm`; mem limit đã nâng để scan toàn cụm) |
 | ~~Trivy node-collector~~ | ~~4 (DS)~~ | ~~50Mi\u00d74=200Mi~~ | ~~100Mi\u00d74=400Mi~~ | \u274c DEFERRED |

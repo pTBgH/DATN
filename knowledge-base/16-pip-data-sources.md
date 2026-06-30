@@ -1,5 +1,8 @@
 # Policy Information Points (PIP) — Cong cu cung cap du lieu cho PE
 
+> **Cảnh báo drift:** trạng thái cluster chuẩn 2026-06-20 xem
+> `00-SYSTEM-SNAPSHOT.md`. Trivy hiện active trong `security-cdm`; kube-bench vẫn là gap.
+
 ## Khai niem
 
 Theo **NIST SP 800-207** (Figure 2), PE (Policy Engine) can **nguon du lieu dau vao**
@@ -100,7 +103,7 @@ dang chay trong cluster, co pod/service rieng, expose API hoac du lieu cho PE su
 | Pod Security Standards | Restricted/Baseline | K8s PSA | ⚠️ Partial |
 
 **PE su dung de:** Tu choi luong giao tiep neu workload co loi hong CVSS > 7.0.
-**Trang thai:** ⚠️ Partial — Trivy manual, kube-bench chua deploy
+**Trang thai:** ⚠️ Partial — Trivy Operator active trong `security-cdm` và đã sinh `VulnerabilityReport`; kube-bench chua deploy
 
 ---
 
@@ -154,7 +157,7 @@ dang chay trong cluster, co pod/service rieng, expose API hoac du lieu cho PE su
 | 1. Identity (User) | Keycloak OIDC → JWT | ✅ |
 | 2. Identity (Workload) | SPIFFE/SVID Cilium mesh-auth | ✅ |
 | 3. Secret Manager | Vault K8s Auth + Database Engine | ✅ |
-| 4. CDM | Trivy (manual), kube-bench | ⚠️ Partial |
+| 4. CDM | Trivy Operator active, kube-bench gap | ⚠️ Partial |
 | 5. Device Posture | MDM/EDR | ❌ |
 | 6. Threat Intel | External feeds | ❌ |
 | 7. Observability | EFK + Prometheus + Hubble | ✅ |

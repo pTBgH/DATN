@@ -1,5 +1,8 @@
 # Policy Enforcement — Kong JWT + Cilium Microsegmentation
 
+> **Cảnh báo drift:** trạng thái enforcement chuẩn mới nhất là
+> `00-SYSTEM-SNAPSHOT.md` (2026-06-20). Các snapshot cũ từng ghi mTLS tắt đã lỗi thời.
+
 ## PEP Bien (North-South): Kong Gateway
 
 ### Deployment
@@ -64,8 +67,8 @@
 - ~~❌ Hai bo policy trung nhau~~ → `cilium-policies/*` la canonical, `20-security-policies.yaml` la bo sung
 
 ### ENCRYPTION
-- mTLS sidecarless (Cilium mesh-auth): ❌ CHUA BAT — `cilium-config` co `mesh-auth-enabled=false` tren cluster (xac nhan 2026-06-03, snapshot 40). Script 08 co code bat nhung HIEN chua active.
-- WireGuard: ❌ CHUA BAT — baseline encryption L3 dung Tailscale WireGuard (node-to-node), khong dung Cilium WireGuard.
+- mTLS sidecarless (Cilium mesh-auth): ✅ DA BAT — `mesh-auth-enabled=true` tren cluster 2026-06-20.
+- WireGuard: Cilium WireGuard ❌ CHUA BAT (`enable-wireguard=false`) — baseline encryption L3 dung Tailscale WireGuard (node-to-node), khong dung Cilium WireGuard.
 - Xem chi tiet: `knowledge-base/15-encryption-mtls-spiffe.md`
 
 ### Ma tran truy cap E-W

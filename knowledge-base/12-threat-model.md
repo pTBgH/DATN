@@ -1,5 +1,8 @@
 # Threat Model — Attack Paths & MITRE ATT&CK
 
+> **Cảnh báo drift:** trạng thái cluster chuẩn mới nhất xem
+> `00-SYSTEM-SNAPSHOT.md` (2026-06-20). Dòng Tetragon/mTLS cũ đã được reconcile.
+
 ## Be mat tan cong Microservices
 
 | Dac diem | Mo ta | Bien phap ZTA |
@@ -14,7 +17,7 @@
 |--------|-------|------------|------------|
 | Credential Theft | Danh cap mat khau tu file .env | Vault JIT: credential tam thoi, TTL 1h | ✅ |
 | Token Theft / AiTM | Danh cap JWT qua Adversary-in-the-Middle | CAEP + Device Binding | ❌ Chua co |
-| Living off the Land | Lam dung cong cu he thong (curl, sh, bash) | Tetragon eBPF chặn syscall | ❌ Du kien |
+| Living off the Land | Lam dung cong cu he thong (curl, sh, bash) | Tetragon eBPF chặn syscall | ✅ Sigkill enforce |
 | Lateral Movement | Di chuyen ngang sau khi chiem 1 service | Cilium Default Deny + microseg | ✅ |
 | Privilege Escalation | Leo thang tu role thap len admin | ABAC + xac thuc lai lien tuc | ⚠️ Partial |
 | Data Exfiltration | Day du lieu ra Internet | Egress Filtering tai kernel | ✅ |
@@ -24,7 +27,7 @@
 | Giai doan | Ky thuat K8s | Lop ZTA phong thu | Trang thai |
 |-----------|-------------|-------------------|------------|
 | Initial Access | Tai khoan hop le bi lo (T1078), API cong khai | PEP Bien: Kong JWT + MFA | ✅ |
-| Execution | Chay ma doc trong container (T1609) | PEP Runtime: Tetragon chan syscall | ❌ Du kien |
+| Execution | Chay ma doc trong container (T1609) | PEP Runtime: Tetragon chan syscall | ✅ Sigkill enforce |
 | Persistence | Ghi de hostPath, tao CronJob (T1053) | CDM + Read-only filesystem | ⚠️ |
 | Lateral Movement | Quet service noi bo, cong dang mo | PEP Mang: Cilium L3/L4/L7 + SPIFFE | ✅ |
 | Exfiltration | Gui du lieu ra server ngoai | Egress Filtering | ✅ |
@@ -43,8 +46,8 @@
 
 1. **CAEP**: JWT chi xac thuc 1 lan, chua thu hoi giua phien → xem `knowledge-base/15-encryption-mtls-spiffe.md`
 2. **EDR/MDM**: Chua kiem tra thiet bi end-user
-3. ~~**mTLS E-W**: Traffic noi bo chua ma hoa~~ → ✅ DA FIX: mTLS + WireGuard (script 08)
-4. **Tetragon Runtime**: Thiet ke co san, chua deploy → xem `knowledge-base/14-tetragon-runtime.md`
+3. ~~**mTLS E-W**: Traffic noi bo chua ma hoa~~ → ✅ DA FIX: Cilium mesh-auth mTLS bật; Cilium WireGuard tắt vì Tailscale lo L3
+4. **Tetragon Runtime**: ✅ Đã deploy v1.7.0 và enforce `Sigkill` ở 4 namespace → xem `knowledge-base/14-tetragon-runtime.md`
 5. **SOAR**: Chua co tu dong phan ung (detect → terminate)
 6. **Kafka**: Plaintext, chua SASL/SSL
 7. **OPA server**: Logic tuong duong qua Kong+Cilium, chua deploy rieng

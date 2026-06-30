@@ -1,5 +1,9 @@
 # Project Overview — job7189 Zero Trust PoC
 
+> **Single source of truth:** trạng thái cluster mới nhất là
+> `00-SYSTEM-SNAPSHOT.md` (2026-06-20). Khi overview này hoặc file cũ mâu thuẫn,
+> lấy snapshot đó làm chuẩn.
+
 Quick reference cho AI/agent. Moi file doc tap trung 1 chu de, doc file nao tuy muc dich.
 
 ## He thong
@@ -44,7 +48,19 @@ Moi service chay **4 containers** trong 1 Pod:
 | Identity | `spire` | SPIRE server + agent — phát hành SPIFFE SVID (nền tảng workload identity) |
 | Supply-chain | `cosign-system` | Sigstore policy-controller — verify chữ ký image ở admission |
 | Policy | `gatekeeper-system` | OPA Gatekeeper controller + audit — admission policy/constraints |
-| Registry | `registry` | Docker Registry (chưa deploy trên cluster hiện tại) |
+| PDP | `security` | `zta-pdp` controller chạy trong namespace `security` (không phải `pdp-system`) |
+| Registry | `registry` | Namespace cluster rỗng; Docker Registry thật chạy host-level trên `baosrc` qua `https://100.74.189.43:5443` |
+
+## Trạng thái ZTA đã chốt 2026-06-20
+
+| Hạng mục | Trạng thái |
+|---|---|
+| Tetragon | v1.7.0 DaemonSet `3/3`, `block-suspicious-exec` enforce `Sigkill` + `Post` audit ở 4 namespace |
+| Cilium mTLS | `mesh-auth-enabled=true` |
+| Cilium WireGuard | `enable-wireguard=false`; Tailscale đảm nhận mã hóa L3 |
+| Threat-intel | FireHOL đã sync khoảng 2000 CIDR; CCNP egress deny enforcing |
+| Low-trust Vault CNP | `cnp-block-low-trust-to-vault` đã apply và enforcing |
+| Trivy | Trivy Operator active trong `security-cdm`, `VulnerabilityReport` là input CDM/PDP |
 
 ## Luong giao dich chinh
 

@@ -1,5 +1,10 @@
 # Tetragon — Runtime Enforcement (PEP Runtime)
 
+> **Cập nhật chuẩn 2026-06-20:** Tetragon v1.7.0 đã chạy DaemonSet `3/3`
+> trong `kube-system`; `block-suspicious-exec` enforce `Sigkill` + audit `Post`
+> ở 4 namespace (`data`, `job7189-apps`, `security`, `vault`). Khi cần trạng thái
+> cluster mới nhất, lấy `00-SYSTEM-SNAPSHOT.md` làm chuẩn.
+
 ## Vi tri trong khung ZTA 5 lop
 
 Tetragon la **PEP tang Runtime** (Lop 3, tang thu 3) — giam sat va ngan chan

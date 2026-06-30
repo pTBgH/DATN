@@ -48,8 +48,8 @@ return [
         'base_url' => env('KEYCLOAK_BASE_URL'),
         'realm'    => env('KEYCLOAK_REALM'),
         'clients' => [
-            'recruiter' => env('KEYCLOAK_RECRUITER_CLIENT_ID', 'recruiter-app'),
-            'candidate' => env('KEYCLOAK_CANDIDATE_CLIENT_ID', 'candidate-app'),
+            'recruiter' => env('KEYCLOAK_RECRUITER_CLIENT_ID', 'recruiter-app-dev'),
+            'candidate' => env('KEYCLOAK_CANDIDATE_CLIENT_ID', 'candidate-app-dev'),
         ],
     ],
 
@@ -83,7 +83,7 @@ return [
     ],
     
     'clients' => [
-        'recruiter' => env('KEYCLOAK_RECRUITER_CLIENT_ID', 'recruiter-app'),
-        'candidate' => env('KEYCLOAK_CANDIDATE_CLIENT_ID', 'candidate-app'),
+        'recruiter' => env('KEYCLOAK_RECRUITER_CLIENT_ID', 'recruiter-app-dev'),
+        'candidate' => env('KEYCLOAK_CANDIDATE_CLIENT_ID', 'candidate-app-dev'),
     ],
 ];

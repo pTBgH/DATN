@@ -298,7 +298,7 @@
           "attributes": {}
         }
       ],
-      "recruiter-app": [],
+      "recruiter-app-dev": [],
       "security-admin-console": [],
       "admin-cli": [],
       "account-console": [],
@@ -401,7 +401,7 @@
           "attributes": {}
         }
       ],
-      "candidate-app": []
+      "candidate-app-dev": []
     }
   },
   "groups": [],
@@ -649,8 +649,8 @@
     },
     {
       "id": "0450d924-29c8-452a-8cc7-c301c6d896ca",
-      "clientId": "candidate-app",
-      "name": "Candidate App (ATD Frontend)",
+      "clientId": "candidate-app-dev",
+      "name": "Candidate App Dev (ATD Frontend)",
       "description": "",
       "rootUrl": "http://fe-candidate-dev.job7189.local",
       "adminUrl": "http://fe-candidate-dev.job7189.local",
@@ -745,8 +745,8 @@
     },
     {
       "id": "f2501d28-5e6a-45ff-87c2-9833a0195125",
-      "clientId": "recruiter-app",
-      "name": "Recruiter App (RCT Frontend)",
+      "clientId": "recruiter-app-dev",
+      "name": "Recruiter App Dev (RCT Frontend)",
       "description": "",
       "rootUrl": "http://fe-recruiter-dev.job7189.local",
       "adminUrl": "http://fe-recruiter-dev.job7189.local",
